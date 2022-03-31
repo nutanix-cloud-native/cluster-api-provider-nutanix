@@ -1,0 +1,22 @@
+name: Generate release artefact
+
+on:
+  # push:
+  #   tags:
+  #   - 'v*.*.*'
+
+jobs:
+  release_content:
+    name: Prepare Release release_content
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Install tools
+      uses: redhat-actions/openshift-tools-installer@v1
+      with: 
+        kustomize: "latest"
+
+    - name: test
+      run: kustomize build config/default
