@@ -33,7 +33,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
 
-    - name: upload artifact
+    - name: upload infrastructure-components.yaml
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ github.token }}
@@ -41,4 +41,24 @@ jobs:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./infrastructure-components.yaml
         asset_name: infrastructure-components.yaml
+        asset_content_type: application/yaml
+
+    - name: upload metadata.yaml
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./metadata.yaml
+        asset_name: metadata.yaml
+        asset_content_type: application/yaml
+
+    - name: upload cluster-template.yaml
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./cluster-template.yaml
+        asset_name: cluster-template.yaml
         asset_content_type: application/yaml
