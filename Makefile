@@ -1,8 +1,8 @@
 
 # Image URL to use all building/pushing image targets
 #IMG ?= controller:latest
-CONTROLLER_IMG_VER = v0.2.0
-IMG = ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:${CONTROLLER_IMG_VER}
+CONTROLLER_IMG_VER ?= latest
+IMG ?= ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:${CONTROLLER_IMG_VER}
 CRD_OPTIONS ?= "crd:crdVersions=v1"
 export GOOS:=$(shell go env GOOS)
 export GOARCH:=$(shell go env GOARCH)
@@ -153,6 +153,7 @@ release-manifests:
 
 prepare-local-clusterctl:
 	mkdir -p ~/.cluster-api/overrides/infrastructure-nutanix/v0.2.0
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > ~/.cluster-api/overrides/infrastructure-nutanix/v0.2.0/infrastructure-components.yaml
 	cp ./metadata.yaml ~/.cluster-api/overrides/infrastructure-nutanix/v0.2.0
 	cp ./cluster-template.yaml ~/.cluster-api/overrides/infrastructure-nutanix/v0.2.0
