@@ -13,10 +13,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
+      # - name: Login to GHCR
+      #   uses: docker/login-action@v1
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.actor }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Setup Go
         uses: actions/setup-go@v2
         with:
           go-version: '^1.17'
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: capi-nutanix
+          sep-tags: ","
+          sep-labels: ","
+          tags: |
+            type=semver,pattern=v{{version}}
+            type=semver,pattern=v{{major}}.{{minor}}
+            type=semver,pattern=v{{major}}  
 
       - name: Install ko 
         run: go install github.com/google/ko@latest
@@ -25,5 +44,13 @@ jobs:
         run: make test
 
       - name: Build container
-        run: ko build --bare .
+        env:
+          KO_DOCKER_REPO: ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller
+          TAGS: ${{ steps.meta.outputs.tags }}
+          LABELS: ${{ steps.meta.outputs.labels }}
+          PLATFORMS: linux/amd64,linux/arm64,linux/arm
+        run: |
+          PTAGS=`echo $TAGS | sed 's/capi-nutanix://g'`
+          export SOURCE_DATE_EPOCH=$(date +%s)
+          ko build --bare --image-label "$LABELS" -t "$PTAGS" .
 
