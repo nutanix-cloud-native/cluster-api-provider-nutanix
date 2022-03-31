@@ -41,7 +41,7 @@ spec:
             - /manager
           args:
             - --leader-elect
-          image: controller:latest
+          image: ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:latest
           imagePullPolicy: IfNotPresent
           name: manager
           env:
