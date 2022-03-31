@@ -5,7 +5,7 @@ metadata:
   namespace: "${NAMESPACE}"
 spec:
   controlPlaneEndpoint:
-    host: ${CONTROL_PLANE_ENDPOINT_IP}
+    host: "${CONTROL_PLANE_ENDPOINT_IP}"
     port: ${CONTROLPLANE_ENDPOINT_PORT=6443}
 
 ---
