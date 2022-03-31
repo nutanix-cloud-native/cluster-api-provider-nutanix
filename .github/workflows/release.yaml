@@ -1,0 +1,64 @@
+name: Generate release artefact
+
+on:
+  push:
+    tags:
+    - 'v*.*.*'
+
+jobs:
+  release_content:
+    name: Prepare Release release_content
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Install tools
+      uses: redhat-actions/openshift-tools-installer@v1
+      with:
+        source: "github"
+        kustomize: "latest"
+
+    - name: build template
+      run: kustomize build config/default > infrastructure-components.yaml
+
+    - name: release
+      uses: actions/create-release@v1
+      id: create_release
+      with:
+        draft: false
+        prerelease: true
+        release_name: ${{ github.ref }}
+        tag_name: ${{ github.ref }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+
+    - name: upload infrastructure-components.yaml
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./infrastructure-components.yaml
+        asset_name: infrastructure-components.yaml
+        asset_content_type: application/yaml
+
+    - name: upload metadata.yaml
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./metadata.yaml
+        asset_name: metadata.yaml
+        asset_content_type: application/yaml
+
+    - name: upload cluster-template.yaml
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./cluster-template.yaml
+        asset_name: cluster-template.yaml
+        asset_content_type: application/yaml
