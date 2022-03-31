@@ -53,5 +53,5 @@ jobs:
         run: |
           PTAGS=`echo $TAGS | sed 's/capi-nutanix://g'`
           export SOURCE_DATE_EPOCH=$(date +%s)
-          ko build --bare --image-label "$LABELS" -t "$PTAGS" .
+          ko build --bare --image-label "$LABELS" -t "$PTAGS" --platform=$PLATFORMS .
 
