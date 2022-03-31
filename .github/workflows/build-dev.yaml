@@ -38,8 +38,11 @@ jobs:
             type=semver,pattern=v{{major}}
             type=sha
 
-      - name: Install ko 
-        run: go install github.com/google/ko@latest
+      - name: Install tools
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          source: "github"
+          ko: "latest"
 
       - name: Prepare build
         run: make test
