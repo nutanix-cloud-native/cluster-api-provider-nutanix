@@ -20,4 +20,25 @@ jobs:
         kustomize: "latest"
 
     - name: test
-      run: kustomize build config/default
+      run: kustomize build config/default > infrastructure-components.yaml
+
+    - name: release
+      uses: actions/create-release@v1
+      id: create_release
+      with:
+        draft: true
+        prerelease: true
+        release_name: v0.2.1
+        tag_name: ${{ github.ref }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+
+    - name: upload artifact
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./infrastructure-components.yaml
+        asset_name: infrastructure-components.yaml
+        asset_content_type: application/yaml
