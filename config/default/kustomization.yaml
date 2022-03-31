@@ -1,5 +1,5 @@
 # Adds namespace to all resources.
-namespace: capi-nutanix-system
+namespace: capx-system
 
 # Value of this field is prepended to the
 # names of all resources, e.g. a deployment named
@@ -9,8 +9,8 @@ namespace: capi-nutanix-system
 #namePrefix: cluster-api-provider-nutanix-
 
 # Labels to add to all resources and selectors.
-#commonLabels:
-#  someName: someValue
+commonLabels:
+  cluster.x-k8s.io/provider: "infrastructure-nutanix"
 
 bases:
 - ../crd

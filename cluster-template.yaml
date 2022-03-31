@@ -5,20 +5,23 @@ metadata:
   namespace: "${NAMESPACE}"
 spec:
   controlPlaneEndpoint:
-    host: "${CONTROLPLANE_ENDPOINT_HOST}"
-    port: ${CONTROLPLANE_ENDPOINT_PORT}
+    host: ${CONTROL_PLANE_ENDPOINT_IP}
+    port: ${CONTROLPLANE_ENDPOINT_PORT=6443}
 
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
 metadata:
+  labels:
+    cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
   name: "${CLUSTER_NAME}"
+  namespace: "${NAMESPACE}"
 spec:
   clusterNetwork:
     services:
-      cidrBlocks: ["10.96.0.0/12"]
+      cidrBlocks: ["172.19.0.0/16"]
     pods:
-      cidrBlocks: ["192.168.0.0/16"]
+      cidrBlocks: [172.20.0.0/16"]
     serviceDomain: "cluster.local"
   controlPlaneRef:
     apiVersion: controlplane.cluster.x-k8s.io/v1beta1
@@ -34,6 +37,7 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate
 metadata:
   name: "${CLUSTER_NAME}-mt-0"
+  namespace: "${NAMESPACE}"
 spec:
   template:
     spec:
@@ -41,7 +45,7 @@ spec:
       vcpusPerSocket: 2
       vcpuSockets: 1
       memorySize: 4Gi
-      systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE}"
+      systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
       image:
         type: name
         name: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}"
@@ -57,8 +61,9 @@ apiVersion: controlplane.cluster.x-k8s.io/v1beta1
 kind: KubeadmControlPlane
 metadata:
   name: "${CLUSTER_NAME}-kcp"
+  namespace: "${NAMESPACE}"
 spec:
-  replicas: 1
+  replicas: ${CONTROL_PLANE_MACHINE_COUNT=1}
   version: ${KUBERNETES_VERSION}
   machineTemplate:
     infrastructureRef:
@@ -100,6 +105,7 @@ apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
 kind: KubeadmConfigTemplate
 metadata:
   name: "${CLUSTER_NAME}-kcfg-0"
+  namespace: "${NAMESPACE}"
 spec:
   template:
     spec:
@@ -129,6 +135,7 @@ metadata:
   labels:
     cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
   name: "${CLUSTER_NAME}-wmd"
+  namespace: "${NAMESPACE}"
 spec:
   clusterName: "${CLUSTER_NAME}"
   replicas: ${WORKER_MACHINE_COUNT}
@@ -156,6 +163,7 @@ apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineHealthCheck
 metadata:
   name: "${CLUSTER_NAME}-mhc"
+  namespace: "${NAMESPACE}"
 spec:
   clusterName: "${CLUSTER_NAME}"
   maxUnhealthy: 40%
