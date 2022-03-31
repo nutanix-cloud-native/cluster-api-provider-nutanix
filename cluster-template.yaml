@@ -42,9 +42,9 @@ spec:
   template:
     spec:
       providerID: "nutanix://${CLUSTER_NAME}-m1"
-      vcpusPerSocket: 2
-      vcpuSockets: 1
-      memorySize: 4Gi
+      vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+      vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
+      memorySize: "${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}"
       systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
       image:
         type: name
