@@ -2,8 +2,8 @@ name: Generate release artefact
 
 on:
   push:
-  #   tags:
-  #   - 'v*.*.*'
+    tags:
+    - 'v*.*.*'
 
 jobs:
   release_content:
@@ -28,7 +28,7 @@ jobs:
       with:
         draft: false
         prerelease: true
-        release_name: v0.2.1
+        release_name: ${{ github.ref }}
         tag_name: ${{ github.ref }}
       env:
         GITHUB_TOKEN: ${{ github.token }}
