@@ -185,7 +185,6 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (reconcile.Result, error) {
 
 	vmName := rctx.NutanixMachine.Name
-	vmUUID := *rctx.NutanixMachine.Status.VmUUID
 	klog.Infof("%s Handling NutanixMachine deletion of VM: %s", rctx.LogPrefix, vmName)
 
 	// Delete the VM
@@ -194,9 +193,9 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		klog.Errorf("%s Failed to delete VM %s: %v", rctx.LogPrefix, vmName, err)
 		return reconcile.Result{}, err
 	}
-	klog.Infof("%s Deleted NutanixMachine VM with uuid %s", rctx.LogPrefix, vmUUID)
 
 	// Remove the finalizer from the NutanixMachine object
+	klog.Errorf("%s Removing finalizers for VM %s during delete reconciliation", rctx.LogPrefix, vmName)
 	ctrlutil.RemoveFinalizer(rctx.NutanixMachine, infrav1.NutanixMachineFinalizer)
 
 	return reconcile.Result{}, nil
@@ -533,6 +532,10 @@ func deleteVM(rctx *nctx.MachineContext) error {
 		return fmt.Errorf("Client Auth error: %v", err)
 	}
 
+	if rctx.NutanixMachine.Status.VmUUID == nil {
+		klog.Warning(fmt.Sprintf("VmUUID not found in Status. Skipping delete"))
+		return nil
+	}
 	uuid := utils.StringValue(rctx.NutanixMachine.Status.VmUUID)
 	vmName := rctx.NutanixMachine.Name
 	klog.Infof("Deleting VM %s with UUID: %s", vmName, uuid)
