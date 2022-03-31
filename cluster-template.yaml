@@ -21,7 +21,7 @@ spec:
     services:
       cidrBlocks: ["172.19.0.0/16"]
     pods:
-      cidrBlocks: [172.20.0.0/16"]
+      cidrBlocks: ["172.20.0.0/16"]
     serviceDomain: "cluster.local"
   controlPlaneRef:
     apiVersion: controlplane.cluster.x-k8s.io/v1beta1
