@@ -37,9 +37,7 @@ spec:
       securityContext:
         runAsNonRoot: true
       containers:
-        - command:
-            - /manager
-          args:
+        - args:
             - --leader-elect
           image: controller
           imagePullPolicy: IfNotPresent
