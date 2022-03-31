@@ -1,0 +1,98 @@
+configurations:
+  static_config:
+    data:
+      random_key: random_value
+    source:
+      location: uri:///
+      type: STATIC
+    store:
+      render: json
+      type: file
+      location: config.json
+deployment:
+  pipelines:
+    _base:
+      entrypoint: default_stage
+      stages:
+        default_stage:
+          configurations:
+            my_config:
+              $ref: '#/configurations/static_config'
+          environment:
+            configurations:
+              secrets:
+                source:
+                  location: uri:///
+                  type: STATIC
+                store:
+                  render: custom
+                  type: custom
+                data:
+                  ssh-credentials:
+                    #"value_of_base64.encode(username:password)"
+                    #"or value_of_base64.encode(__ssh_key_credential__:user:certs)"
+                    host: bnV0YW5peDpudXRhbml4LzR1
+            fleet:
+              $ref: '#/fleets/prod-vm'
+          steps:
+          - cmd: local.sh
+            context:
+              type: on-worker
+
+          # below steps are for remote execution on your target host
+          # you may enable this after set the correct fleet name below
+          # - cmd: remote-pull
+          #   context:
+          #     type: on-target
+          # - cmd: entrypoint.sh
+          #   context:
+          #     type: on-target
+          # - cmd: remote-cleanup
+          #   context:
+          #     type: on-target
+    pre-merge:
+          $ref: '#/deployment/pipelines/_base'
+    prod:
+          $ref: '#/deployment/pipelines/_base'
+
+  strategy:
+    bucket-size:
+      type: count
+      value: 1
+    buckets:
+      selector: fleet.groups
+    pick:
+      strategy: random
+    reserve:
+      type: count
+      value: 0
+    type: sequential
+fleets:
+  prod-vm:
+    criteria:
+      name: prod-vm
+      production: false
+    entity-groups:
+    - data:
+        metadata: {}
+      entities:
+      - address: fqdn_of_your_host
+        id: fqdn_of_your_host
+        location:
+          availability-zone: drt-a
+          cell: local
+          cluster: local
+          datacenter: drt
+          metadata: {}
+          node: local
+          rack: local
+          region: corp
+        name: fqdn_of_your_host
+        production: false
+        metadata: {}
+      name: prod-vm
+      production: false
+      type: vmi
+    selector: STATIC
+name: nutanix-core/cluster-api-provider-nutanix
+version: draft-4
