@@ -15,7 +15,8 @@ jobs:
 
     - name: Install tools
       uses: redhat-actions/openshift-tools-installer@v1
-      with: 
+      with:
+        source: "github"
         kustomize: "latest"
 
     - name: test
