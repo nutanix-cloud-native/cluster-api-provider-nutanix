@@ -1,8 +1,11 @@
 # Getting Started
 
-This is a guide on how to get started with Cluster API Provider Nutanix Cloud Infrastructure. To learn more about cluster API in more depth, check out the the [Cluster API book](https://cluster-api.sigs.k8s.io/).
+This is a guide on how to get started with Cluster API Provider Nutanix Cloud Infrastructure. To learn more about cluster API in more depth, check out the [Cluster API book](https://cluster-api.sigs.k8s.io/).
 
 ## Production workflow
+
+### Build OS image for NutanixMachineTemplate resource
+To build OS image for NutanixMachineTemplate, checkout [Nutanix OS Image builder](../tools/imagebuilder/README.md)
 
 ### Configure and Install Cluster API Provider Nutanix Cloud Infrastructure
 To initialize Cluster API Provider Nutanix Cloud Infrastructure, clusterctl requires following variables, which should be set in either ~/.cluster-api/clusterctl.yaml or as environment variables

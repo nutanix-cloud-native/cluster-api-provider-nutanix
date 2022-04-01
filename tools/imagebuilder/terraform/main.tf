@@ -73,16 +73,16 @@ resource "nutanix_virtual_machine" "build_vm" {
   }
 }
 
-data "nutanix_virtual_machine" "build_vm_data" {
+data "nutanix_virtual_machine" "build_vm_datasource" {
   vm_id = nutanix_virtual_machine.build_vm.id
 }
 
-resource "null_resource" "copy_files" {
+resource "null_resource" "build_os_image" {
   connection {
     type        = "ssh"
     user        = var.vm_user
     private_key = file(var.private_key)
-    host        = data.nutanix_virtual_machine.build_vm_data.nic_list.0.ip_endpoint_list[0].ip
+    host        = data.nutanix_virtual_machine.build_vm_datasource.nic_list.0.ip_endpoint_list[0].ip
   }
   provisioner "file" {
     source      = "${path.module}/scripts/build_os_image.sh"
@@ -103,8 +103,25 @@ resource "null_resource" "copy_files" {
 
   provisioner "remote-exec" {
     inline = [
-      "~/build_os_image.sh"
+      "export PATH=$PATH:~/.local/bin",
+      "PATH=$PATH:~/.local/bin ~/build_os_image.sh"
     ]
+  }
+
+  depends_on = [
+    data.nutanix_virtual_machine.build_vm_datasource
+  ]
+}
+
+resource "null_resource" "copy_os_image" {
+  connection {
+    type        = "ssh"
+    user        = var.vm_user
+    private_key = file(var.private_key)
+    host        = data.nutanix_virtual_machine.build_vm_datasource.nic_list.0.ip_endpoint_list[0].ip
+  }
+  provisioner "local-exec" {
+    command = "scp -r ubuntu@${data.nutanix_virtual_machine.build_vm_datasource.nic_list.0.ip_endpoint_list[0].ip}:~/image-builder/images/capi/output ."
   }
 }
 
