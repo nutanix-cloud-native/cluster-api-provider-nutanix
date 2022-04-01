@@ -21,7 +21,7 @@ NUTANIX_MACHINE_TEMPLATE_IMAGE_UUID: ""
 
 you can also see the required list of variables by running by following command
 <pre>
-clusterctl generate cluster mycluster --infrastructure nutanix:v0.2.0 --list-variables           
+clusterctl generate cluster mycluster -i nutanix --list-variables           
 Required Variables:
   - KUBERNETES_VERSION
   - NUTANIX_CLUSTER_UUID
@@ -37,7 +37,7 @@ Optional Variables:
 
 Now you can instantiate Cluster API with the following
 <pre>
-clusterctl init --infrastructure nutanix
+clusterctl init -i nutanix
 </pre>
 
 ### Deploy a workload Cluser on Nutanix Cloud Infrastructure
@@ -45,7 +45,7 @@ clusterctl init --infrastructure nutanix
 export TEST_CLUSTER_NAME=mytestcluster1
 export TEST_NAMESPACE=mytestnamespace
 clusterctl generate cluster ${TEST_CLUSTER_NAME} \
-    --infrastructure nutanix:v0.2.0 \
+    -i nutanix \
     --target-namespace ${TEST_NAMESPACE}  \
     --kubernetes-version v1.21.1 \
     --control-plane-machine-count 1 \
