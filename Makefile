@@ -39,8 +39,7 @@ help: ## Display this help.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Development
-
-init: kind-create
+setup: 
 	# install kustomize 
 	curl -L -O "https://github.com/kubernetes-sigs/kustomize/releases/download/v3.1.0/kustomize_3.1.0_$${GOOS}_$${GOARCH}"
 	sudo chmod +x kustomize_3.1.0_$${GOOS}_$${GOARCH}
@@ -58,6 +57,7 @@ init: kind-create
 	chmod +x ./clusterctl
 	sudo mv ./clusterctl /usr/local/bin/clusterctl
 
+init: kind-create setup
 
 CLUSTER_NAME = capi-test1
 kind-create: ##Get the relevant clustercrl for the latest supported cluster API version
@@ -169,7 +169,7 @@ conversion-gen: ## Download conversion-gen locally if necessary.
 	rm -f $(CONVERSION_GEN)
 	$(call go-get-tool,$(CONVERSION_GEN),k8s.io/code-generator/cmd/conversion-gen@v0.22.2)
 
-KUSTOMIZE = $(shell pwd)/bin/kustomize
+KUSTOMIZE = /usr/local/bin/kustomize
 kustomize: ## Download kustomize locally if necessary.
 	rm -f $(KUSTOMIZE)
 	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v4@v4.5.2)
