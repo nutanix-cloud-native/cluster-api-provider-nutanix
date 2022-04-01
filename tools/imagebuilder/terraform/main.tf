@@ -27,7 +27,7 @@ data "template_file" "cloud-init" {
   }
 }
 
-resource "nutanix_virtual_machine" "vm" {
+resource "nutanix_virtual_machine" "build_vm" {
   name                   = var.vm_name
   enable_cpu_passthrough = true
   cluster_uuid           = data.nutanix_cluster.cluster.id
@@ -71,7 +71,19 @@ resource "nutanix_virtual_machine" "vm" {
   nic_list {
     subnet_uuid = data.nutanix_subnet.subnet.id
   }
+}
 
+data "nutanix_virtual_machine" "build_vm_data" {
+  vm_id = nutanix_virtual_machine.build_vm.id
+}
+
+resource "null_resource" "copy_files" {
+  connection {
+    type        = "ssh"
+    user        = var.vm_user
+    private_key = file(var.private_key)
+    host        = data.nutanix_virtual_machine.build_vm_data.nic_list.0.ip_endpoint_list[0].ip
+  }
   provisioner "file" {
     source      = "${path.module}/scripts/build_os_image.sh"
     destination = "/home/ubuntu/build_os_image.sh"
@@ -79,6 +91,20 @@ resource "nutanix_virtual_machine" "vm" {
   provisioner "file" {
     source      = "${path.module}/scripts/install_prerequisites.sh"
     destination = "/home/ubuntu/install_prerequisites.sh"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "ls ~/",
+      "chmod u+x ~/*.sh",
+      "~/install_prerequisites.sh"
+    ]
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "~/build_os_image.sh"
+    ]
   }
 }
 
