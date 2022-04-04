@@ -23,7 +23,7 @@ data "template_file" "cloud-init" {
   vars = {
     "username"   = var.vm_user,
     "vmname"     = var.vm_name,
-    "public_key" = var.public_key
+    "public_key" = file(var.public_key_file_path)
   }
 }
 
@@ -81,16 +81,16 @@ resource "null_resource" "build_os_image" {
   connection {
     type        = "ssh"
     user        = var.vm_user
-    private_key = file(var.private_key)
+    private_key = file(var.private_key_file_path)
     host        = data.nutanix_virtual_machine.build_vm_datasource.nic_list.0.ip_endpoint_list[0].ip
   }
   provisioner "file" {
     source      = "${path.module}/scripts/build_os_image.sh"
-    destination = "/home/ubuntu/build_os_image.sh"
+    destination = "/home/${var.vm_user}/build_os_image.sh"
   }
   provisioner "file" {
     source      = "${path.module}/scripts/install_prerequisites.sh"
-    destination = "/home/ubuntu/install_prerequisites.sh"
+    destination = "/home/${var.vm_user}/install_prerequisites.sh"
   }
 
   provisioner "remote-exec" {
@@ -117,11 +117,11 @@ resource "null_resource" "copy_os_image" {
   connection {
     type        = "ssh"
     user        = var.vm_user
-    private_key = file(var.private_key)
+    private_key = file(var.private_key_file_path)
     host        = data.nutanix_virtual_machine.build_vm_datasource.nic_list.0.ip_endpoint_list[0].ip
   }
   provisioner "local-exec" {
-    command = "scp -r ubuntu@${data.nutanix_virtual_machine.build_vm_datasource.nic_list.0.ip_endpoint_list[0].ip}:~/image-builder/images/capi/output ."
+    command = "scp -r ${var.vm_user}@${data.nutanix_virtual_machine.build_vm_datasource.nic_list.0.ip_endpoint_list[0].ip}:~/image-builder/images/capi/output ."
   }
 }
 

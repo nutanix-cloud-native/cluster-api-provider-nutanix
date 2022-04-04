@@ -11,7 +11,8 @@ cluster_name = ""
 vm_name      = "capi_build_vm"
 vm_user      = "ubuntu"
 subnet_name  = ""
-public_key   = ""
+public_key_file_path   = ""
+private_key_file_path  = ""
 </pre>
 
 Then run following command
