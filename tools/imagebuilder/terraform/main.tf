@@ -23,7 +23,7 @@ data "template_file" "cloud-init" {
   vars = {
     "username"   = var.vm_user,
     "vmname"     = var.vm_name,
-    "public_key" = var.public_key
+    "public_key" = file(var.public_key_file_path)
   }
 }
 
@@ -81,7 +81,7 @@ resource "null_resource" "build_os_image" {
   connection {
     type        = "ssh"
     user        = var.vm_user
-    private_key = file(var.private_key)
+    private_key = file(var.private_key_file_path)
     host        = data.nutanix_virtual_machine.build_vm_datasource.nic_list.0.ip_endpoint_list[0].ip
   }
   provisioner "file" {
@@ -117,7 +117,7 @@ resource "null_resource" "copy_os_image" {
   connection {
     type        = "ssh"
     user        = var.vm_user
-    private_key = file(var.private_key)
+    private_key = file(var.private_key_file_path)
     host        = data.nutanix_virtual_machine.build_vm_datasource.nic_list.0.ip_endpoint_list[0].ip
   }
   provisioner "local-exec" {

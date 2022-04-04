@@ -24,9 +24,9 @@ variable "vm_user" {
 variable "subnet_name" {
   type = string
 }
-variable "public_key" {
+variable "public_key_file_path" {
   type = string
 }
-variable "private_key" {
+variable "private_key_file_path" {
   type = string
 }
