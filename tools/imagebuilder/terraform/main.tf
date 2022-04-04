@@ -86,11 +86,11 @@ resource "null_resource" "build_os_image" {
   }
   provisioner "file" {
     source      = "${path.module}/scripts/build_os_image.sh"
-    destination = "/home/ubuntu/build_os_image.sh"
+    destination = "/home/${var.vm_user}/build_os_image.sh"
   }
   provisioner "file" {
     source      = "${path.module}/scripts/install_prerequisites.sh"
-    destination = "/home/ubuntu/install_prerequisites.sh"
+    destination = "/home/${var.vm_user}/install_prerequisites.sh"
   }
 
   provisioner "remote-exec" {
@@ -121,7 +121,7 @@ resource "null_resource" "copy_os_image" {
     host        = data.nutanix_virtual_machine.build_vm_datasource.nic_list.0.ip_endpoint_list[0].ip
   }
   provisioner "local-exec" {
-    command = "scp -r ubuntu@${data.nutanix_virtual_machine.build_vm_datasource.nic_list.0.ip_endpoint_list[0].ip}:~/image-builder/images/capi/output ."
+    command = "scp -r ${var.vm_user}@${data.nutanix_virtual_machine.build_vm_datasource.nic_list.0.ip_endpoint_list[0].ip}:~/image-builder/images/capi/output ."
   }
 }
 
