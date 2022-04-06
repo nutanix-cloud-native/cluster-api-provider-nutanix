@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"k8s.io/klog/v2"
 
@@ -11,7 +12,8 @@ import (
 )
 
 const (
-	ProviderName = "nutanix"
+	ProviderName  = "nutanix"
+	debugModeName = "DEBUG_MODE"
 )
 
 type ClientOptions struct {
@@ -32,13 +34,28 @@ func Client(options ClientOptions) (*nutanixClientV3.Client, error) {
 		Insecure: true,
 	}
 
-	cli, err := nutanixClientV3.NewV3Client(cred, options.Debug)
+	cli, err := nutanixClientV3.NewV3Client(cred, debugMode(options))
 	if err != nil {
 		klog.Errorf("Failed to create the nutanix client. error: %v", err)
 		return nil, err
 	}
 
 	return cli, nil
+}
+
+func debugMode(options ClientOptions) bool {
+	//Read environment variable to enable debug mode
+	debugModeEnv := getEnvVar(debugModeName)
+	if debugModeEnv != "" {
+		//See if env var is set to 'true', otherwise default to false
+		if strings.ToLower(debugModeEnv) == "true" {
+			return true
+		} else {
+			return false
+		}
+	}
+	// If env var not set -> use options
+	return options.Debug
 }
 
 func getEnvVar(key string) (val string) {
