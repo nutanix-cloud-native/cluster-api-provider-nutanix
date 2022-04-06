@@ -223,11 +223,6 @@ func (in *NutanixMachineStatus) DeepCopyInto(out *NutanixMachineStatus) {
 		*out = make([]apiv1beta1.MachineAddress, len(*in))
 		copy(*out, *in)
 	}
-	if in.VmUUID != nil {
-		in, out := &in.VmUUID, &out.VmUUID
-		*out = new(string)
-		**out = **in
-	}
 	if in.NodeRef != nil {
 		in, out := &in.NodeRef, &out.NodeRef
 		*out = new(v1.ObjectReference)

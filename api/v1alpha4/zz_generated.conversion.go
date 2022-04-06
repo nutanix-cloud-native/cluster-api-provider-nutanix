@@ -413,7 +413,7 @@ func autoConvert_v1beta1_NutanixMachineSpec_To_v1alpha4_NutanixMachineSpec(in *v
 func autoConvert_v1alpha4_NutanixMachineStatus_To_v1beta1_NutanixMachineStatus(in *NutanixMachineStatus, out *v1beta1.NutanixMachineStatus, s conversion.Scope) error {
 	out.Ready = in.Ready
 	out.Addresses = *(*[]apiv1beta1.MachineAddress)(unsafe.Pointer(&in.Addresses))
-	out.VmUUID = (*string)(unsafe.Pointer(in.VmUUID))
+	out.VmUUID = in.VmUUID
 	out.NodeRef = (*v1.ObjectReference)(unsafe.Pointer(in.NodeRef))
 	out.Conditions = *(*apiv1beta1.Conditions)(unsafe.Pointer(&in.Conditions))
 	return nil
@@ -422,7 +422,7 @@ func autoConvert_v1alpha4_NutanixMachineStatus_To_v1beta1_NutanixMachineStatus(i
 func autoConvert_v1beta1_NutanixMachineStatus_To_v1alpha4_NutanixMachineStatus(in *v1beta1.NutanixMachineStatus, out *NutanixMachineStatus, s conversion.Scope) error {
 	out.Ready = in.Ready
 	out.Addresses = *(*[]apiv1alpha4.MachineAddress)(unsafe.Pointer(&in.Addresses))
-	out.VmUUID = (*string)(unsafe.Pointer(in.VmUUID))
+	out.VmUUID = in.VmUUID
 	out.NodeRef = (*v1.ObjectReference)(unsafe.Pointer(in.NodeRef))
 	out.Conditions = *(*apiv1alpha4.Conditions)(unsafe.Pointer(&in.Conditions))
 	return nil

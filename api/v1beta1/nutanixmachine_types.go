@@ -94,7 +94,7 @@ type NutanixMachineStatus struct {
 
 	// The Nutanix VM's UUID
 	// +optional
-	VmUUID *string `json:"vmUUID,omitempty"`
+	VmUUID string `json:"vmUUID,omitempty"`
 
 	// NodeRef is a reference to the corresponding workload cluster Node if it exists.
 	// +optional
