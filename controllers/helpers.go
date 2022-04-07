@@ -21,6 +21,8 @@ import (
 	"reflect"
 	"strings"
 
+	infrav1 "github.com/nutanix-core/cluster-api-provider-nutanix/api/v1beta1"
+	nutanixClient "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/client"
 	nutanixClientV3 "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/nutanix/v3"
 	"github.com/nutanix-core/cluster-api-provider-nutanix/pkg/utils"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -70,15 +72,45 @@ func findVMByUUID(client *nutanixClientV3.Client, uuid string) (*nutanixClientV3
 	return response, nil
 }
 
+func findVM(client *nutanixClientV3.Client, nutanixMachine *infrav1.NutanixMachine) (*nutanixClientV3.VMIntentResponse, error) {
+	vmName := nutanixMachine.Name
+	vmUUID := nutanixMachine.Status.VmUUID
+	// Search via uuid if it is present
+	if vmUUID != "" {
+		klog.Info("Searching for VM %s using UUID %s", vmName, vmUUID)
+		vm, err := findVMByUUID(client, nutanixMachine.Status.VmUUID)
+		if err != nil {
+			klog.Errorf("error occurred finding VM with uuid %s: %v", nutanixMachine.Status.VmUUID, err)
+			return nil, err
+		}
+		if vm == nil {
+			errorMsg := fmt.Sprintf("no vm %s found with UUID %s but was expected to be present", vmName, vmUUID)
+			klog.Error(errorMsg)
+			return nil, fmt.Errorf(errorMsg)
+		}
+		return vm, nil
+		// otherwise search via name
+	} else {
+		klog.Infof("Searching for VM %s using name", vmName)
+		vm, err := findVMByName(client, vmName)
+		if err != nil {
+			klog.Errorf("error occurred finding VM %s by name: %v", vmName, err)
+			return nil, err
+		}
+		return vm, nil
+	}
+}
+
 // findVMByName retrieves the VM with the given vm name
-func findVMByName(client *nutanixClientV3.Client, vmName string) (*nutanixClientV3.VMIntentResource, error) {
+func findVMByName(client *nutanixClientV3.Client, vmName string) (*nutanixClientV3.VMIntentResponse, error) {
 	klog.Infof("Checking if VM with name %s exists.", vmName)
 
 	res, err := client.V3.ListVM(&nutanixClientV3.DSMetadata{
 		Filter: utils.StringPtr(fmt.Sprintf("vm_name==%s", vmName))})
-	if err != nil || len(res.Entities) == 0 {
-		klog.Errorf("Failed to find VM by name %s. error: %v", vmName, err)
-		return nil, fmt.Errorf("Failed to find VM by name %s. error: %v", vmName, err)
+	if err != nil {
+		errorMsg := fmt.Errorf("error occurred when searching for VM by name %s. error: %v", vmName, err)
+		klog.Error(errorMsg)
+		return nil, errorMsg
 	}
 
 	if len(res.Entities) > 1 {
@@ -87,7 +119,11 @@ func findVMByName(client *nutanixClientV3.Client, vmName string) (*nutanixClient
 		return nil, fmt.Errorf(errorMsg)
 	}
 
-	return res.Entities[0], nil
+	if len(res.Entities) == 0 {
+		return nil, nil
+	}
+
+	return findVMByUUID(client, *res.Entities[0].Metadata.UUID)
 }
 
 func getPEUUID(client *nutanixClientV3.Client, peName, peUUID *string) (string, error) {
@@ -245,7 +281,7 @@ func isExistingVM(client *nutanixClientV3.Client, vmUUID string) (bool, error) {
 }
 
 func hasTaskInProgress(client *nutanixClientV3.Client, taskUUID string) (bool, error) {
-	taskStatus, err := getTaskState(client, taskUUID)
+	taskStatus, err := nutanixClient.GetTaskState(client, taskUUID)
 	if err != nil {
 		return false, err
 	}
@@ -277,21 +313,19 @@ func getTaskUUIDFromVM(vm *nutanixClientV3.VMIntentResponse) (string, error) {
 	}
 }
 
-func getTaskState(client *nutanixClientV3.Client, taskUUID string) (string, error) {
-
-	klog.Infof("Getting task with UUID %s", taskUUID)
-	v, err := client.V3.GetTask(taskUUID)
-
-	if err != nil {
-		klog.Errorf("error occurred while waiting for task with UUID %s: %v", taskUUID, err)
-		return "", err
+func getSubnetUUIDList(client *nutanixClientV3.Client, machineSubnets []infrav1.NutanixResourceIdentifier, peUUID string) ([]string, error) {
+	subnetUUIDs := make([]string, 0)
+	for _, machineSubnet := range machineSubnets {
+		subnetUUID, err := getSubnetUUID(
+			client,
+			peUUID,
+			machineSubnet.Name,
+			machineSubnet.UUID,
+		)
+		if err != nil {
+			return subnetUUIDs, err
+		}
+		subnetUUIDs = append(subnetUUIDs, subnetUUID)
 	}
-
-	if *v.Status == "INVALID_UUID" || *v.Status == "FAILED" {
-		return *v.Status,
-			fmt.Errorf("error_detail: %s, progress_message: %s", utils.StringValue(v.ErrorDetail), utils.StringValue(v.ProgressMessage))
-	}
-	taskStatus := *v.Status
-	klog.Infof("Status for task with UUID %s: %s", taskUUID, taskStatus)
-	return taskStatus, nil
+	return subnetUUIDs, nil
 }
