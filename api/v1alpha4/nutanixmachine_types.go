@@ -66,7 +66,8 @@ type NutanixMachineSpec struct {
 	// The cluster identifier (uuid or name) can be obtained from the Prism Central console
 	// or using the prism_central API.
 	// +kubebuilder:validation:Required
-	Subnet NutanixResourceIdentifier `json:"subnet"`
+	// +kubebuilder:validation:MinItems=1
+	Subnets []NutanixResourceIdentifier `json:"subnet"`
 
 	// systemDiskSize is size (in Quantity format) of the system disk of the VM
 	// The minimum systemDiskSize is 20Gi bytes
