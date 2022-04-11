@@ -169,7 +169,7 @@ conversion-gen: ## Download conversion-gen locally if necessary.
 	rm -f $(CONVERSION_GEN)
 	$(call go-get-tool,$(CONVERSION_GEN),k8s.io/code-generator/cmd/conversion-gen@v0.22.2)
 
-KUSTOMIZE = /usr/local/bin/kustomize
+KUSTOMIZE = $(shell pwd)/bin/kustomize
 kustomize: ## Download kustomize locally if necessary.
 	rm -f $(KUSTOMIZE)
 	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v4@v4.5.2)
@@ -179,11 +179,7 @@ PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 define go-get-tool
 @[ -f $(1) ] || { \
 set -e ;\
-TMP_DIR=$$(mktemp -d) ;\
-cd $$TMP_DIR ;\
-go mod init tmp ;\
-echo "Downloading $(2)" ;\
-GOBIN=$(PROJECT_DIR)/bin go get $(2) ;\
-rm -rf $$TMP_DIR ;\
+echo "Downloading $(2) in $(PROJECT_DIR)/bin" ;\
+GOBIN=$(PROJECT_DIR)/bin go install $(2) ;\
 }
 endef
