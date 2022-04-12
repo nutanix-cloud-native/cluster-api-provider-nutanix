@@ -196,7 +196,13 @@ func (in *NutanixMachineSpec) DeepCopyInto(out *NutanixMachineSpec) {
 	out.MemorySize = in.MemorySize.DeepCopy()
 	in.Image.DeepCopyInto(&out.Image)
 	in.Cluster.DeepCopyInto(&out.Cluster)
-	in.Subnet.DeepCopyInto(&out.Subnet)
+	if in.Subnets != nil {
+		in, out := &in.Subnets, &out.Subnets
+		*out = make([]NutanixResourceIdentifier, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	out.SystemDiskSize = in.SystemDiskSize.DeepCopy()
 	if in.BootstrapRef != nil {
 		in, out := &in.BootstrapRef, &out.BootstrapRef
@@ -222,11 +228,6 @@ func (in *NutanixMachineStatus) DeepCopyInto(out *NutanixMachineStatus) {
 		in, out := &in.Addresses, &out.Addresses
 		*out = make([]apiv1alpha4.MachineAddress, len(*in))
 		copy(*out, *in)
-	}
-	if in.VmUUID != nil {
-		in, out := &in.VmUUID, &out.VmUUID
-		*out = new(string)
-		**out = **in
 	}
 	if in.NodeRef != nil {
 		in, out := &in.NodeRef, &out.NodeRef

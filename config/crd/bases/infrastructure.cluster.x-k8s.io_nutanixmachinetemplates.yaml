@@ -168,23 +168,29 @@ spec:
                           to use for the Machine's VM The cluster identifier (uuid
                           or name) can be obtained from the Prism Central console
                           or using the prism_central API.
-                        properties:
-                          name:
-                            description: name is the resource name in the PC
-                            type: string
-                          type:
-                            description: Type is the identifier type to use for this
-                              resource.
-                            enum:
-                            - uuid
-                            - name
-                            type: string
-                          uuid:
-                            description: uuid is the UUID of the resource in the PC.
-                            type: string
-                        required:
-                        - type
-                        type: object
+                        items:
+                          description: NutanixResourceIdentifier holds the identity
+                            of a Nutanix PC resource (cluster, image, subnet, etc.)
+                          properties:
+                            name:
+                              description: name is the resource name in the PC
+                              type: string
+                            type:
+                              description: Type is the identifier type to use for
+                                this resource.
+                              enum:
+                              - uuid
+                              - name
+                              type: string
+                            uuid:
+                              description: uuid is the UUID of the resource in the
+                                PC.
+                              type: string
+                          required:
+                          - type
+                          type: object
+                        minItems: 1
+                        type: array
                       systemDiskSize:
                         anyOf:
                         - type: integer
@@ -373,23 +379,29 @@ spec:
                           to use for the Machine's VM The cluster identifier (uuid
                           or name) can be obtained from the Prism Central console
                           or using the prism_central API.
-                        properties:
-                          name:
-                            description: name is the resource name in the PC
-                            type: string
-                          type:
-                            description: Type is the identifier type to use for this
-                              resource.
-                            enum:
-                            - uuid
-                            - name
-                            type: string
-                          uuid:
-                            description: uuid is the UUID of the resource in the PC.
-                            type: string
-                        required:
-                        - type
-                        type: object
+                        items:
+                          description: NutanixResourceIdentifier holds the identity
+                            of a Nutanix PC resource (cluster, image, subnet, etc.)
+                          properties:
+                            name:
+                              description: name is the resource name in the PC
+                              type: string
+                            type:
+                              description: Type is the identifier type to use for
+                                this resource.
+                              enum:
+                              - uuid
+                              - name
+                              type: string
+                            uuid:
+                              description: uuid is the UUID of the resource in the
+                                PC.
+                              type: string
+                          required:
+                          - type
+                          type: object
+                        minItems: 1
+                        type: array
                       systemDiskSize:
                         anyOf:
                         - type: integer

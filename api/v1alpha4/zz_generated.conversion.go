@@ -383,9 +383,7 @@ func autoConvert_v1alpha4_NutanixMachineSpec_To_v1beta1_NutanixMachineSpec(in *N
 	if err := Convert_v1alpha4_NutanixResourceIdentifier_To_v1beta1_NutanixResourceIdentifier(&in.Cluster, &out.Cluster, s); err != nil {
 		return err
 	}
-	if err := Convert_v1alpha4_NutanixResourceIdentifier_To_v1beta1_NutanixResourceIdentifier(&in.Subnet, &out.Subnet, s); err != nil {
-		return err
-	}
+	out.Subnets = *(*[]v1beta1.NutanixResourceIdentifier)(unsafe.Pointer(&in.Subnets))
 	out.SystemDiskSize = in.SystemDiskSize
 	out.BootstrapRef = (*v1.ObjectReference)(unsafe.Pointer(in.BootstrapRef))
 	return nil
@@ -402,9 +400,7 @@ func autoConvert_v1beta1_NutanixMachineSpec_To_v1alpha4_NutanixMachineSpec(in *v
 	if err := Convert_v1beta1_NutanixResourceIdentifier_To_v1alpha4_NutanixResourceIdentifier(&in.Cluster, &out.Cluster, s); err != nil {
 		return err
 	}
-	if err := Convert_v1beta1_NutanixResourceIdentifier_To_v1alpha4_NutanixResourceIdentifier(&in.Subnet, &out.Subnet, s); err != nil {
-		return err
-	}
+	out.Subnets = *(*[]NutanixResourceIdentifier)(unsafe.Pointer(&in.Subnets))
 	out.SystemDiskSize = in.SystemDiskSize
 	out.BootstrapRef = (*v1.ObjectReference)(unsafe.Pointer(in.BootstrapRef))
 	return nil
@@ -413,7 +409,7 @@ func autoConvert_v1beta1_NutanixMachineSpec_To_v1alpha4_NutanixMachineSpec(in *v
 func autoConvert_v1alpha4_NutanixMachineStatus_To_v1beta1_NutanixMachineStatus(in *NutanixMachineStatus, out *v1beta1.NutanixMachineStatus, s conversion.Scope) error {
 	out.Ready = in.Ready
 	out.Addresses = *(*[]apiv1beta1.MachineAddress)(unsafe.Pointer(&in.Addresses))
-	out.VmUUID = (*string)(unsafe.Pointer(in.VmUUID))
+	out.VmUUID = in.VmUUID
 	out.NodeRef = (*v1.ObjectReference)(unsafe.Pointer(in.NodeRef))
 	out.Conditions = *(*apiv1beta1.Conditions)(unsafe.Pointer(&in.Conditions))
 	return nil
@@ -422,7 +418,7 @@ func autoConvert_v1alpha4_NutanixMachineStatus_To_v1beta1_NutanixMachineStatus(i
 func autoConvert_v1beta1_NutanixMachineStatus_To_v1alpha4_NutanixMachineStatus(in *v1beta1.NutanixMachineStatus, out *NutanixMachineStatus, s conversion.Scope) error {
 	out.Ready = in.Ready
 	out.Addresses = *(*[]apiv1alpha4.MachineAddress)(unsafe.Pointer(&in.Addresses))
-	out.VmUUID = (*string)(unsafe.Pointer(in.VmUUID))
+	out.VmUUID = in.VmUUID
 	out.NodeRef = (*v1.ObjectReference)(unsafe.Pointer(in.NodeRef))
 	out.Conditions = *(*apiv1alpha4.Conditions)(unsafe.Pointer(&in.Conditions))
 	return nil
