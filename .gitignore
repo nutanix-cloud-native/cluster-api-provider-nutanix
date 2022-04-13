@@ -88,3 +88,6 @@ Temporary Items
 # Ignore CLI configuration files
 **/.terraformrc
 **/terraform.rc
+
+# Global log files
+**/*.log
