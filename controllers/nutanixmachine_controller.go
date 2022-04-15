@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -503,7 +504,13 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 			Kind: utils.StringPtr("cluster"),
 			UUID: utils.StringPtr(peUUID),
 		}
-		vmInput.Spec = &vmSpec
+		vmSpecPtr := &vmSpec
+		err = r.addBootTypeToVM(rctx, vmSpecPtr)
+		if err != nil {
+			klog.Errorf("error occurred while adding boot type to vm spec: %v", err)
+			return nil, err
+		}
+		vmInput.Spec = vmSpecPtr
 		vmInput.Metadata = &vmMetadata
 
 		vmResponse, err := client.V3.CreateVM(&vmInput)
@@ -626,4 +633,23 @@ func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.Mach
 		}
 	}
 	return categoryIdentifiers
+}
+
+func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vmSpec *nutanixClientV3.VM) error {
+	bootType := rctx.NutanixMachine.Spec.BootType
+	if bootType != "" {
+		if bootType != string(infrav1.NutanixIdentifierBootTypeLegacy) && bootType != string(infrav1.NutanixIdentifierBootTypeUEFI) {
+			errorMsg := fmt.Errorf("%s boot type must be %s or %s but was %s", rctx.LogPrefix, string(infrav1.NutanixIdentifierBootTypeLegacy), string(infrav1.NutanixIdentifierBootTypeUEFI), bootType)
+			klog.Error(errorMsg)
+			return errorMsg
+		}
+
+		if bootType == string(infrav1.NutanixIdentifierBootTypeUEFI) {
+			vmSpec.Resources.BootConfig = &nutanixClientV3.VMBootConfig{
+				BootType: utils.StringPtr(strings.ToUpper(bootType)),
+			}
+		}
+	}
+
+	return nil
 }

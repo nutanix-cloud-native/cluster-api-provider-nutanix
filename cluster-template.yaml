@@ -42,6 +42,8 @@ spec:
   template:
     spec:
       providerID: "nutanix://${CLUSTER_NAME}-m1"
+      # Supported options for boot type: legacy and uefi
+      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
       vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
       vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
       memorySize: "${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}"

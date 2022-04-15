@@ -72,6 +72,11 @@ type NutanixMachineSpec struct {
 	// +kubebuilder:validation:Optional
 	AdditionalCategories []NutanixCategoryIdentifier `json:"additionalCategories"`
 
+	// Defines the boot type of the virtual machine. Only supports UEFI and Legacy
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum:=legacy;uefi
+	BootType string `json:"bootType"`
+
 	// systemDiskSize is size (in Quantity format) of the system disk of the VM
 	// The minimum systemDiskSize is 20Gi bytes
 	// +kubebuilder:validation:Required

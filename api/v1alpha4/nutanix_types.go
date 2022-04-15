@@ -26,6 +26,12 @@ const (
 	// NutanixIdentifierName is a resource identifier identifying the object by Name.
 	NutanixIdentifierName NutanixIdentifierType = "name"
 
+	// NutanixIdentifierBootTypeLegacy is a resource identifier identifying the legacy boot type for virtual machines.
+	NutanixIdentifierBootTypeLegacy NutanixIdentifierType = "legacy"
+
+	// NutanixIdentifierBootTypeUEFI is a resource identifier identifying the UEFI boot type for virtual machines.
+	NutanixIdentifierBootTypeUEFI NutanixIdentifierType = "uefi"
+
 	// DefaultCAPICategoryPrefix is the default category prefix used for CAPI clusters.
 	DefaultCAPICategoryPrefix = "kubernetes-io-cluster-"
 
