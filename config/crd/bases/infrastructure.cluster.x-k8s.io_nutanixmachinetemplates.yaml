@@ -70,6 +70,18 @@ spec:
                     description: Spec is the specification of the desired behavior
                       of the machine.
                     properties:
+                      additionalCategories:
+                        items:
+                          properties:
+                            key:
+                              description: key is the Key of category in PC.
+                              type: string
+                            value:
+                              description: value is the category value linked to the
+                                category key in PC
+                              type: string
+                          type: object
+                        type: array
                       bootstrapRef:
                         description: BootstrapRef is a reference to a bootstrap provider-specific
                           resource that holds configuration details.
@@ -281,6 +293,18 @@ spec:
                     description: Spec is the specification of the desired behavior
                       of the machine.
                     properties:
+                      additionalCategories:
+                        items:
+                          properties:
+                            key:
+                              description: key is the Key of category in PC.
+                              type: string
+                            value:
+                              description: value is the category value linked to the
+                                category key in PC
+                              type: string
+                          type: object
+                        type: array
                       bootstrapRef:
                         description: BootstrapRef is a reference to a bootstrap provider-specific
                           resource that holds configuration details.

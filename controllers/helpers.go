@@ -494,9 +494,14 @@ func getOrCreateCategory(client *nutanixClientV3.Client, categoryIdentifier *inf
 func getCategoryVMSpec(client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) (map[string]string, error) {
 	categorySpec := map[string]string{}
 	for _, ci := range categoryIdentifiers {
-		_, err := getCategoryValue(client, ci.Key, ci.Value)
+		categoryValue, err := getCategoryValue(client, ci.Key, ci.Value)
 		if err != nil {
-			errorMsg := fmt.Errorf("Failed to retrieve category value %s in category %s. error: %v", ci.Value, ci.Key, err)
+			errorMsg := fmt.Errorf("Error occurred while to retrieving category value %s in category %s. error: %v", ci.Value, ci.Key, err)
+			klog.Error(errorMsg)
+			return nil, errorMsg
+		}
+		if categoryValue == nil {
+			errorMsg := fmt.Errorf("Category value %s not found in category %s. error", ci.Value, ci.Key)
 			klog.Error(errorMsg)
 			return nil, errorMsg
 		}
