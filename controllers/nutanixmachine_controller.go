@@ -409,6 +409,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 	var err error
 	var vm *nutanixClientV3.VMIntentResponse
 	vmName := rctx.NutanixMachine.Name
+	clusterName := rctx.Cluster.Name
 	client := rctx.NutanixClient
 
 	// Check if the VM already exists
@@ -477,10 +478,16 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		diskList := []*nutanixClientV3.VMDisk{
 			systemDisk,
 		}
+		categories, err := getCategoryVMSpec(client, getDefaultCAPICategoryIdentifiers(clusterName))
+		if err != nil {
+			return nil, fmt.Errorf("error occurred while creating category spec for vm %s: %v", vmName, err)
+		}
 		vmMetadata := nutanixClientV3.Metadata{
 			Kind:        utils.StringPtr("vm"),
 			SpecVersion: utils.Int64Ptr(1),
+			Categories:  categories,
 		}
+
 		vmSpec.Resources = &nutanixClientV3.VMResources{
 			PowerState:            utils.StringPtr("ON"),
 			HardwareClockTimezone: utils.StringPtr("UTC"),

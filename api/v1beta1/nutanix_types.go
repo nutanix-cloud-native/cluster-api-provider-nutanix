@@ -25,6 +25,15 @@ const (
 
 	// NutanixIdentifierName is a resource identifier identifying the object by Name.
 	NutanixIdentifierName NutanixIdentifierType = "name"
+
+	// DefaultCAPICategoryPrefix is the default category prefix used for CAPI clusters.
+	DefaultCAPICategoryPrefix = "kubernetes-io-cluster-"
+
+	// DefaultCAPICategoryDescription is the default category description used for CAPI clusters.
+	DefaultCAPICategoryDescription = "Managed by CAPX"
+
+	// DefaultCAPICategoryOwnedValue is the default category value used for CAPI clusters.
+	DefaultCAPICategoryOwnedValue = "owned"
 )
 
 // NutanixResourceIdentifier holds the identity of a Nutanix PC resource (cluster, image, subnet, etc.)
@@ -42,4 +51,14 @@ type NutanixResourceIdentifier struct {
 	// name is the resource name in the PC
 	// +optional
 	Name *string `json:"name,omitempty"`
+}
+
+type NutanixCategoryIdentifier struct {
+	// key is the Key of category in PC.
+	// +optional
+	Key string `json:"key,omitempty"`
+
+	// value is the category value linked to the category key in PC
+	// +optional
+	Value string `json:"value,omitempty"`
 }
