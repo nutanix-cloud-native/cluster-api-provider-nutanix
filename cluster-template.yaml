@@ -55,6 +55,11 @@ spec:
       subnet:
         - type: name
           name: "${NUTANIX_SUBNET_NAME}"
+      # Adds additional categories to the virtual machines.
+      # Note: Categories must already be present in Prism Central
+      # additionalCategories:
+      #   - key: AppType
+      #     value: Kubernetes
 
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
