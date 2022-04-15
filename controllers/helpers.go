@@ -24,7 +24,6 @@ import (
 	infrav1 "github.com/nutanix-core/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixClient "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/client"
 	nutanixClientV3 "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/nutanix/v3"
-	v3 "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/nutanix/v3"
 	"github.com/nutanix-core/cluster-api-provider-nutanix/pkg/utils"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog/v2"
@@ -340,8 +339,8 @@ func getDefaultCAPICategoryIdentifiers(clusterName string) []*infrav1.NutanixCat
 	}
 }
 
-func getOrCreateCategories(client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) ([]*v3.CategoryValueStatus, error) {
-	categories := make([]*v3.CategoryValueStatus, 0)
+func getOrCreateCategories(client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) ([]*nutanixClientV3.CategoryValueStatus, error) {
+	categories := make([]*nutanixClientV3.CategoryValueStatus, 0)
 	for _, ci := range categoryIdentifiers {
 		if ci == nil {
 			return categories, fmt.Errorf("cannot get or create nil category")
@@ -355,7 +354,7 @@ func getOrCreateCategories(client *nutanixClientV3.Client, categoryIdentifiers [
 	return categories, nil
 }
 
-func getCategoryKey(client *nutanixClientV3.Client, key string) (*v3.CategoryKeyStatus, error) {
+func getCategoryKey(client *nutanixClientV3.Client, key string) (*nutanixClientV3.CategoryKeyStatus, error) {
 	categoryKey, err := client.V3.GetCategoryKey(key)
 	if err != nil {
 		if !strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
@@ -369,7 +368,7 @@ func getCategoryKey(client *nutanixClientV3.Client, key string) (*v3.CategoryKey
 	return categoryKey, nil
 }
 
-func getCategoryValue(client *nutanixClientV3.Client, key, value string) (*v3.CategoryValueStatus, error) {
+func getCategoryValue(client *nutanixClientV3.Client, key, value string) (*nutanixClientV3.CategoryValueStatus, error) {
 	categoryValue, err := client.V3.GetCategoryValue(key, value)
 	if err != nil {
 		if !strings.Contains(fmt.Sprint(err), "CATEGORY_NAME_VALUE_MISMATCH") {
@@ -422,7 +421,7 @@ func deleteCategories(client *nutanixClientV3.Client, categoryIdentifiers []*inf
 			client.V3.DeleteCategoryValue(key, value)
 		}
 		// check if there are remaining category values
-		categoryKeyValues, err := client.V3.ListCategoryValues(key, &v3.CategoryListMetadata{})
+		categoryKeyValues, err := client.V3.ListCategoryValues(key, &nutanixClientV3.CategoryListMetadata{})
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to get values of category with key %s: %v", key, err)
 			klog.Error(errorMsg)
@@ -444,7 +443,7 @@ func deleteCategories(client *nutanixClientV3.Client, categoryIdentifiers []*inf
 	return nil
 }
 
-func getOrCreateCategory(client *nutanixClientV3.Client, categoryIdentifier *infrav1.NutanixCategoryIdentifier) (*v3.CategoryValueStatus, error) {
+func getOrCreateCategory(client *nutanixClientV3.Client, categoryIdentifier *infrav1.NutanixCategoryIdentifier) (*nutanixClientV3.CategoryValueStatus, error) {
 	if categoryIdentifier == nil {
 		return nil, fmt.Errorf("category identifier cannot be nil when getting or creating categories")
 	}
@@ -463,7 +462,7 @@ func getOrCreateCategory(client *nutanixClientV3.Client, categoryIdentifier *inf
 	}
 	if categoryKey == nil {
 		klog.Infof("Category with key %s did not exist.", categoryIdentifier.Key)
-		categoryKey, err = client.V3.CreateOrUpdateCategoryKey(&v3.CategoryKey{
+		categoryKey, err = client.V3.CreateOrUpdateCategoryKey(&nutanixClientV3.CategoryKey{
 			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
 			Name:        utils.StringPtr(categoryIdentifier.Key),
 		})
@@ -480,7 +479,7 @@ func getOrCreateCategory(client *nutanixClientV3.Client, categoryIdentifier *inf
 		return nil, errorMsg
 	}
 	if categoryValue == nil {
-		categoryValue, err = client.V3.CreateOrUpdateCategoryValue(*categoryKey.Name, &v3.CategoryValue{
+		categoryValue, err = client.V3.CreateOrUpdateCategoryValue(*categoryKey.Name, &nutanixClientV3.CategoryValue{
 			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
 			Value:       utils.StringPtr(categoryIdentifier.Value),
 		})
