@@ -39,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	infrav1 "github.com/nutanix-core/cluster-api-provider-nutanix/api/v1beta1"
+	nutanixClient "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/context"
 )
 
@@ -118,11 +119,17 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	klog.Infof("%s Fetched the owner Cluster: %s", logPrefix, capiCluster.Name)
 
+	client, err := nutanixClient.Client(nutanixClient.ClientOptions{})
+	if err != nil {
+		return ctrl.Result{Requeue: true}, fmt.Errorf("Client Auth error: %v", err)
+	}
+
 	rctx := &nctx.ClusterContext{
 		Context:        ctx,
 		Cluster:        capiCluster,
 		NutanixCluster: cluster,
 		LogPrefix:      logPrefix,
+		NutanixClient:  client,
 	}
 
 	// Initialize the patch helper.
@@ -154,6 +161,11 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (reconcile.Result, error) {
 	klog.Infof("%s Handling NutanixCluster deletion", rctx.LogPrefix)
 
+	err := r.reconcileCategoriesDelete(rctx)
+	if err != nil {
+		klog.Errorf("%s error occurred while running deletion of categories: %v", rctx.LogPrefix, err)
+		return reconcile.Result{}, err
+	}
 	// Remove the finalizer from the NutanixCluster object
 	ctrlutil.RemoveFinalizer(rctx.NutanixCluster, infrav1.NutanixClusterFinalizer)
 
@@ -181,6 +193,32 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 		return reconcile.Result{}, nil
 	}
 
+	err := r.reconcileCategories(rctx)
+	if err != nil {
+		klog.Errorf("%s Failed to reconcile categories for cluster %s", rctx.LogPrefix, rctx.Cluster.Name)
+		return reconcile.Result{}, err
+	}
+
 	rctx.NutanixCluster.Status.Ready = true
 	return reconcile.Result{}, nil
+}
+
+func (r *NutanixClusterReconciler) reconcileCategories(rctx *nctx.ClusterContext) error {
+	klog.Infof("%s Reconciling categories for cluster %s", rctx.LogPrefix, rctx.Cluster.Name)
+	defaultCategories := getDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
+	_, err := getOrCreateCategories(rctx.NutanixClient, defaultCategories)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterContext) error {
+	klog.Infof("%s Reconciling deletion of categories for cluster %s", rctx.LogPrefix, rctx.Cluster.Name)
+	defaultCategories := getDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
+	err := deleteCategories(rctx.NutanixClient, defaultCategories)
+	if err != nil {
+		return err
+	}
+	return nil
 }

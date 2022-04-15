@@ -68,6 +68,9 @@ type NutanixMachineSpec struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
 	Subnets []NutanixResourceIdentifier `json:"subnet"`
+	// List of categories that need to be added to the machines. Categories must already exist in Prism Central
+	// +kubebuilder:validation:Optional
+	AdditionalCategories []NutanixCategoryIdentifier `json:"additionalCategories"`
 
 	// systemDiskSize is size (in Quantity format) of the system disk of the VM
 	// The minimum systemDiskSize is 20Gi bytes

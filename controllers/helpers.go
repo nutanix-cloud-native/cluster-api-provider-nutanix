@@ -329,3 +329,182 @@ func getSubnetUUIDList(client *nutanixClientV3.Client, machineSubnets []infrav1.
 	}
 	return subnetUUIDs, nil
 }
+
+func getDefaultCAPICategoryIdentifiers(clusterName string) []*infrav1.NutanixCategoryIdentifier {
+	return []*infrav1.NutanixCategoryIdentifier{
+		&infrav1.NutanixCategoryIdentifier{
+			Key:   fmt.Sprintf("%s%s", infrav1.DefaultCAPICategoryPrefix, clusterName),
+			Value: infrav1.DefaultCAPICategoryOwnedValue,
+		},
+	}
+}
+
+func getOrCreateCategories(client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) ([]*nutanixClientV3.CategoryValueStatus, error) {
+	categories := make([]*nutanixClientV3.CategoryValueStatus, 0)
+	for _, ci := range categoryIdentifiers {
+		if ci == nil {
+			return categories, fmt.Errorf("cannot get or create nil category")
+		}
+		category, err := getOrCreateCategory(client, ci)
+		if err != nil {
+			return categories, err
+		}
+		categories = append(categories, category)
+	}
+	return categories, nil
+}
+
+func getCategoryKey(client *nutanixClientV3.Client, key string) (*nutanixClientV3.CategoryKeyStatus, error) {
+	categoryKey, err := client.V3.GetCategoryKey(key)
+	if err != nil {
+		if !strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
+			errorMsg := fmt.Errorf("Failed to retrieve category with key %s. error: %v", key, err)
+			klog.Error(errorMsg)
+			return nil, errorMsg
+		} else {
+			return nil, nil
+		}
+	}
+	return categoryKey, nil
+}
+
+func getCategoryValue(client *nutanixClientV3.Client, key, value string) (*nutanixClientV3.CategoryValueStatus, error) {
+	categoryValue, err := client.V3.GetCategoryValue(key, value)
+	if err != nil {
+		if !strings.Contains(fmt.Sprint(err), "CATEGORY_NAME_VALUE_MISMATCH") {
+			errorMsg := fmt.Errorf("Failed to retrieve category value %s in category %s. error: %v", value, key, err)
+			klog.Error(errorMsg)
+			return nil, errorMsg
+		} else {
+			return nil, nil
+		}
+	}
+	return categoryValue, nil
+}
+
+func deleteCategories(client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) error {
+	groupCategoriesByKey := make(map[string][]string, 0)
+	for _, ci := range categoryIdentifiers {
+		ciKey := ci.Key
+		ciValue := ci.Value
+		if gck, ok := groupCategoriesByKey[ciKey]; ok {
+			groupCategoriesByKey[ciKey] = append(gck, ciValue)
+		} else {
+			groupCategoriesByKey[ciKey] = []string{ciValue}
+		}
+	}
+
+	for key, values := range groupCategoriesByKey {
+		klog.Info("Retrieving category with key %s", key)
+		categoryKey, err := getCategoryKey(client, key)
+		if err != nil {
+			errorMsg := fmt.Errorf("Failed to retrieve category with key %s. error: %v", key, err)
+			klog.Error(errorMsg)
+			return errorMsg
+		}
+		klog.Info("Category with key %s found. Starting deletion of values")
+		if categoryKey == nil {
+			klog.Info("Category with key %s not found. Already deleted?", key)
+			continue
+		}
+		for _, value := range values {
+			categoryValue, err := getCategoryValue(client, key, value)
+			if err != nil {
+				errorMsg := fmt.Errorf("Failed to retrieve category value %s in category %s. error: %v", value, key, err)
+				klog.Error(errorMsg)
+				return errorMsg
+			}
+			if categoryValue == nil {
+				klog.Info("Category with value %s in category not found. Already deleted?", value, key)
+				continue
+			}
+			client.V3.DeleteCategoryValue(key, value)
+		}
+		// check if there are remaining category values
+		categoryKeyValues, err := client.V3.ListCategoryValues(key, &nutanixClientV3.CategoryListMetadata{})
+		if err != nil {
+			errorMsg := fmt.Errorf("failed to get values of category with key %s: %v", key, err)
+			klog.Error(errorMsg)
+			return errorMsg
+		}
+		if len(categoryKeyValues.Entities) > 0 {
+			errorMsg := fmt.Errorf("cannot remove category with key %s because it still has category values assigned", key)
+			klog.Error(errorMsg)
+			return errorMsg
+		}
+		klog.Infof("No values assigned to category. Removing category with key %s", key)
+		err = client.V3.DeleteCategoryKey(key)
+		if err != nil {
+			errorMsg := fmt.Errorf("failed to delete category with key %s: %v", key, err)
+			klog.Error(errorMsg)
+			return errorMsg
+		}
+	}
+	return nil
+}
+
+func getOrCreateCategory(client *nutanixClientV3.Client, categoryIdentifier *infrav1.NutanixCategoryIdentifier) (*nutanixClientV3.CategoryValueStatus, error) {
+	if categoryIdentifier == nil {
+		return nil, fmt.Errorf("category identifier cannot be nil when getting or creating categories")
+	}
+	if categoryIdentifier.Key == "" {
+		return nil, fmt.Errorf("category identifier key must be set when when getting or creating categories")
+	}
+	if categoryIdentifier.Value == "" {
+		return nil, fmt.Errorf("category identifier key must be set when when getting or creating categories")
+	}
+	klog.Infof("Checking existence of category with key %s", categoryIdentifier.Key)
+	categoryKey, err := getCategoryKey(client, categoryIdentifier.Key)
+	if err != nil {
+		errorMsg := fmt.Errorf("Failed to retrieve category with key %s. error: %v", categoryIdentifier.Key, err)
+		klog.Error(errorMsg)
+		return nil, errorMsg
+	}
+	if categoryKey == nil {
+		klog.Infof("Category with key %s did not exist.", categoryIdentifier.Key)
+		categoryKey, err = client.V3.CreateOrUpdateCategoryKey(&nutanixClientV3.CategoryKey{
+			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
+			Name:        utils.StringPtr(categoryIdentifier.Key),
+		})
+		if err != nil {
+			errorMsg := fmt.Errorf("Failed to create category with key %s. error: %v", categoryIdentifier.Key, err)
+			klog.Error(errorMsg)
+			return nil, errorMsg
+		}
+	}
+	categoryValue, err := getCategoryValue(client, *categoryKey.Name, categoryIdentifier.Value)
+	if err != nil {
+		errorMsg := fmt.Errorf("Failed to retrieve category value %s in category %s. error: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
+		klog.Error(errorMsg)
+		return nil, errorMsg
+	}
+	if categoryValue == nil {
+		categoryValue, err = client.V3.CreateOrUpdateCategoryValue(*categoryKey.Name, &nutanixClientV3.CategoryValue{
+			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
+			Value:       utils.StringPtr(categoryIdentifier.Value),
+		})
+		if err != nil {
+			klog.Errorf("Failed to create category value %s in category key %s. error: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
+		}
+	}
+	return categoryValue, nil
+}
+
+func getCategoryVMSpec(client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) (map[string]string, error) {
+	categorySpec := map[string]string{}
+	for _, ci := range categoryIdentifiers {
+		categoryValue, err := getCategoryValue(client, ci.Key, ci.Value)
+		if err != nil {
+			errorMsg := fmt.Errorf("Error occurred while to retrieving category value %s in category %s. error: %v", ci.Value, ci.Key, err)
+			klog.Error(errorMsg)
+			return nil, errorMsg
+		}
+		if categoryValue == nil {
+			errorMsg := fmt.Errorf("Category value %s not found in category %s. error", ci.Value, ci.Key)
+			klog.Error(errorMsg)
+			return nil, errorMsg
+		}
+		categorySpec[ci.Key] = ci.Value
+	}
+	return categorySpec, nil
+}

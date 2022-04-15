@@ -477,10 +477,16 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		diskList := []*nutanixClientV3.VMDisk{
 			systemDisk,
 		}
+		categories, err := getCategoryVMSpec(client, r.getMachineCategoryIdentifiers(rctx))
+		if err != nil {
+			return nil, fmt.Errorf("error occurred while creating category spec for vm %s: %v", vmName, err)
+		}
 		vmMetadata := nutanixClientV3.Metadata{
 			Kind:        utils.StringPtr("vm"),
 			SpecVersion: utils.Int64Ptr(1),
+			Categories:  categories,
 		}
+
 		vmSpec.Resources = &nutanixClientV3.VMResources{
 			PowerState:            utils.StringPtr("ON"),
 			HardwareClockTimezone: utils.StringPtr("UTC"),
@@ -607,4 +613,17 @@ func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineCo
 		Address: *vm.Spec.Name,
 	})
 	return nil
+}
+
+func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.MachineContext) []*infrav1.NutanixCategoryIdentifier {
+	categoryIdentifiers := getDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
+	additionalCategories := rctx.NutanixMachine.Spec.AdditionalCategories
+	if additionalCategories != nil && len(additionalCategories) > 0 {
+		for _, at := range additionalCategories {
+			var additionalCat infrav1.NutanixCategoryIdentifier
+			additionalCat = at
+			categoryIdentifiers = append(categoryIdentifiers, &additionalCat)
+		}
+	}
+	return categoryIdentifiers
 }
