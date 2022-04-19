@@ -43,6 +43,7 @@ spec:
     spec:
       providerID: "nutanix://${CLUSTER_NAME}-m1"
       # Supported options for boot type: legacy and uefi
+      # Defaults to legacy if not set
       bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
       vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
       vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}

@@ -637,6 +637,7 @@ func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.Mach
 
 func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vmSpec *nutanixClientV3.VM) error {
 	bootType := rctx.NutanixMachine.Spec.BootType
+	// Defaults to legacy if boot type is not set.
 	if bootType != "" {
 		if bootType != string(infrav1.NutanixIdentifierBootTypeLegacy) && bootType != string(infrav1.NutanixIdentifierBootTypeUEFI) {
 			errorMsg := fmt.Errorf("%s boot type must be %s or %s but was %s", rctx.LogPrefix, string(infrav1.NutanixIdentifierBootTypeLegacy), string(infrav1.NutanixIdentifierBootTypeUEFI), bootType)
@@ -644,6 +645,7 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 			return errorMsg
 		}
 
+		// Only modify VM spec if boot type is UEFI. Otherwise assume default Legacy mode
 		if bootType == string(infrav1.NutanixIdentifierBootTypeUEFI) {
 			vmSpec.Resources.BootConfig = &nutanixClientV3.VMBootConfig{
 				BootType: utils.StringPtr(strings.ToUpper(bootType)),
