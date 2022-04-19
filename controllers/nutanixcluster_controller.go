@@ -28,6 +28,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog/v2"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capierrors "sigs.k8s.io/cluster-api/errors"
 	capiutil "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/patch"
@@ -181,6 +182,10 @@ func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (r
 
 func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (reconcile.Result, error) {
 
+	if rctx.NutanixCluster.Status.FailureReason != nil || rctx.NutanixCluster.Status.FailureMessage != nil {
+		klog.Errorf("Nutanix Cluster has failed. Will not reconcile %s", rctx.NutanixCluster.Name)
+		return reconcile.Result{}, nil
+	}
 	klog.Infof("%s Handling NutanixCluster reconciling", rctx.LogPrefix)
 
 	// Add finalizer first if not exist to avoid the race condition between init and delete
@@ -195,7 +200,9 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 
 	err := r.reconcileCategories(rctx)
 	if err != nil {
-		klog.Errorf("%s Failed to reconcile categories for cluster %s", rctx.LogPrefix, rctx.Cluster.Name)
+		errorMsg := fmt.Errorf("Failed to reconcile categories for cluster %s", rctx.Cluster.Name)
+		klog.Errorf("%s %v", rctx.LogPrefix, errorMsg)
+		rctx.SetFailureStatus(capierrors.CreateClusterError, errorMsg)
 		return reconcile.Result{}, err
 	}
 

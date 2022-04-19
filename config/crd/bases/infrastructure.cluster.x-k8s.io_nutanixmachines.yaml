@@ -288,6 +288,12 @@ spec:
                   - type
                   type: object
                 type: array
+              failureMessage:
+                description: Will be set in case of failure of Machine instance
+                type: string
+              failureReason:
+                description: Will be set in case of failure of Machine instance
+                type: string
               nodeRef:
                 description: NodeRef is a reference to the corresponding workload
                   cluster Node if it exists.
@@ -606,6 +612,12 @@ spec:
                   - type
                   type: object
                 type: array
+              failureMessage:
+                description: Will be set in case of failure of Machine instance
+                type: string
+              failureReason:
+                description: Will be set in case of failure of Machine instance
+                type: string
               nodeRef:
                 description: NodeRef is a reference to the corresponding workload
                   cluster Node if it exists.

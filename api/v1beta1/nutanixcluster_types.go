@@ -19,6 +19,7 @@ package v1beta1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/errors"
 )
 
 const (
@@ -55,6 +56,14 @@ type NutanixClusterStatus struct {
 	// Conditions defines current service state of the NutanixCluster.
 	// +optional
 	Conditions capiv1.Conditions `json:"conditions,omitempty"`
+
+	// Will be set in case of failure of Cluster instance
+	// +optional
+	FailureReason *errors.ClusterStatusError `json:"failureReason,omitempty"`
+
+	// Will be set in case of failure of Cluster instance
+	// +optional
+	FailureMessage *string `json:"failureMessage,omitempty"`
 }
 
 //+kubebuilder:object:root=true

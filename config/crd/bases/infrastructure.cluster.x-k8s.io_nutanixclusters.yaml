@@ -132,6 +132,12 @@ spec:
                   type: object
                 description: FailureDomains is a slice of FailureDomains.
                 type: object
+              failureMessage:
+                description: Will be set in case of failure of Cluster instance
+                type: string
+              failureReason:
+                description: Will be set in case of failure of Cluster instance
+                type: string
               ready:
                 type: boolean
             type: object
@@ -253,6 +259,12 @@ spec:
                   type: object
                 description: FailureDomains is a slice of FailureDomains.
                 type: object
+              failureMessage:
+                description: Will be set in case of failure of Cluster instance
+                type: string
+              failureReason:
+                description: Will be set in case of failure of Cluster instance
+                type: string
               ready:
                 type: boolean
             type: object
