@@ -8,7 +8,7 @@ about: Tell us about a problem you are experiencing
 
 **What steps did you take and what happened:**
 
-_A clear and concise description of what the bug is and how Has this been tested. Provide instructions so we can reproduce. Please also list any relevant details for your test configuration_
+_A clear and concise description of what the bug is and how has this been tested. Provide instructions so we can reproduce. Please also list any relevant details for your test configuration_
 
 
 **What did you expect to happen:**
