@@ -58,6 +58,8 @@ spec:
             description: NutanixMachineSpec defines the desired state of NutanixMachine
             properties:
               additionalCategories:
+                description: List of categories that need to be added to the machines.
+                  Categories must already exist in Prism Central
                 items:
                   properties:
                     key:
@@ -69,6 +71,13 @@ spec:
                       type: string
                   type: object
                 type: array
+              bootType:
+                description: Defines the boot type of the virtual machine. Only supports
+                  UEFI and Legacy
+                enum:
+                - legacy
+                - uefi
+                type: string
               bootstrapRef:
                 description: BootstrapRef is a reference to a bootstrap provider-specific
                   resource that holds configuration details.
@@ -366,6 +375,8 @@ spec:
             description: NutanixMachineSpec defines the desired state of NutanixMachine
             properties:
               additionalCategories:
+                description: List of categories that need to be added to the machines.
+                  Categories must already exist in Prism Central
                 items:
                   properties:
                     key:
@@ -377,6 +388,13 @@ spec:
                       type: string
                   type: object
                 type: array
+              bootType:
+                description: Defines the boot type of the virtual machine. Only supports
+                  UEFI and Legacy
+                enum:
+                - legacy
+                - uefi
+                type: string
               bootstrapRef:
                 description: BootstrapRef is a reference to a bootstrap provider-specific
                   resource that holds configuration details.
