@@ -7,8 +7,8 @@ import (
 
 	"k8s.io/klog/v2"
 
-	nutanixClientV3 "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/nutanix/v3"
-	"github.com/nutanix-core/cluster-api-provider-nutanix/pkg/utils"
+	nutanixClientV3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/nutanix/v3"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/utils"
 )
 
 type stateRefreshFunc func() (string, error)

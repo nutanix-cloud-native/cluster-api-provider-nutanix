@@ -37,9 +37,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	infrav1alpha4 "github.com/nutanix-core/cluster-api-provider-nutanix/api/v1alpha4"
-	infrav1beta1 "github.com/nutanix-core/cluster-api-provider-nutanix/api/v1beta1"
-	"github.com/nutanix-core/cluster-api-provider-nutanix/controllers"
+	infrav1alpha4 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1alpha4"
+	infrav1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	//+kubebuilder:scaffold:imports

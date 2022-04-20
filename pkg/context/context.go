@@ -10,8 +10,8 @@ import (
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	infrav1 "github.com/nutanix-core/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixClientV3 "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/nutanix/v3"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	nutanixClientV3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/nutanix/v3"
 )
 
 var (
