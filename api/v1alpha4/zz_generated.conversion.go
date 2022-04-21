@@ -29,6 +29,7 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	apiv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	apiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	errors "sigs.k8s.io/cluster-api/errors"
 )
 
 func init() {
@@ -315,6 +316,8 @@ func autoConvert_v1alpha4_NutanixClusterStatus_To_v1beta1_NutanixClusterStatus(i
 	out.Ready = in.Ready
 	out.FailureDomains = *(*apiv1beta1.FailureDomains)(unsafe.Pointer(&in.FailureDomains))
 	out.Conditions = *(*apiv1beta1.Conditions)(unsafe.Pointer(&in.Conditions))
+	out.FailureReason = (*errors.ClusterStatusError)(unsafe.Pointer(in.FailureReason))
+	out.FailureMessage = (*string)(unsafe.Pointer(in.FailureMessage))
 	return nil
 }
 
@@ -322,6 +325,8 @@ func autoConvert_v1beta1_NutanixClusterStatus_To_v1alpha4_NutanixClusterStatus(i
 	out.Ready = in.Ready
 	out.FailureDomains = *(*apiv1alpha4.FailureDomains)(unsafe.Pointer(&in.FailureDomains))
 	out.Conditions = *(*apiv1alpha4.Conditions)(unsafe.Pointer(&in.Conditions))
+	out.FailureReason = (*errors.ClusterStatusError)(unsafe.Pointer(in.FailureReason))
+	out.FailureMessage = (*string)(unsafe.Pointer(in.FailureMessage))
 	return nil
 }
 
@@ -448,6 +453,8 @@ func autoConvert_v1alpha4_NutanixMachineStatus_To_v1beta1_NutanixMachineStatus(i
 	out.VmUUID = in.VmUUID
 	out.NodeRef = (*v1.ObjectReference)(unsafe.Pointer(in.NodeRef))
 	out.Conditions = *(*apiv1beta1.Conditions)(unsafe.Pointer(&in.Conditions))
+	out.FailureReason = (*errors.MachineStatusError)(unsafe.Pointer(in.FailureReason))
+	out.FailureMessage = (*string)(unsafe.Pointer(in.FailureMessage))
 	return nil
 }
 
@@ -457,6 +464,8 @@ func autoConvert_v1beta1_NutanixMachineStatus_To_v1alpha4_NutanixMachineStatus(i
 	out.VmUUID = in.VmUUID
 	out.NodeRef = (*v1.ObjectReference)(unsafe.Pointer(in.NodeRef))
 	out.Conditions = *(*apiv1alpha4.Conditions)(unsafe.Pointer(&in.Conditions))
+	out.FailureReason = (*errors.MachineStatusError)(unsafe.Pointer(in.FailureReason))
+	out.FailureMessage = (*string)(unsafe.Pointer(in.FailureMessage))
 	return nil
 }
 
