@@ -18,5 +18,5 @@ limitations under the License.
 // Package v1alpha4 contains API Schema definitions for the infrastructure v1alpha4 API group
 //+kubebuilder:object:generate=true
 //+groupName=infrastructure.cluster.x-k8s.io
-//+k8s:conversion-gen=github.com/nutanix-core/cluster-api-provider-nutanix/api/v1beta1
+//+k8s:conversion-gen=github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1
 package v1alpha4

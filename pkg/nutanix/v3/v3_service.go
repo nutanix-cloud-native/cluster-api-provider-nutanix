@@ -9,8 +9,8 @@ import (
 
 	"k8s.io/klog/v2"
 
-	client "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/nutanix"
-	"github.com/nutanix-core/cluster-api-provider-nutanix/pkg/utils"
+	client "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/nutanix"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/utils"
 )
 
 // Operations ...

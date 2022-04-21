@@ -73,7 +73,7 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 # Set --output-base for conversion-gen if we are not within GOPATH
-#ifneq ($(abspath $(PROJECT_DIR)),$(shell go env GOPATH)/src/github.com/nutanix-core/cluster-api-provider-nutanix)
+#ifneq ($(abspath $(PROJECT_DIR)),$(shell go env GOPATH)/src/github.com/nutanix-cloud-native/cluster-api-provider-nutanix)
 #	OUTPUT_BASE := --output-base=$(PROJECT_DIR)
 #endif
 

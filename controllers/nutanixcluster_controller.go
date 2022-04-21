@@ -38,9 +38,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	infrav1 "github.com/nutanix-core/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixClient "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/client"
-	nctx "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/context"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	nutanixClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
 // NutanixClusterReconciler reconciles a NutanixCluster object
