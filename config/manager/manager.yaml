@@ -12,8 +12,6 @@ metadata:
   name: nutanix-creds
   namespace: capi-nutanix-system
 stringData:
-  NUTANIX_ENDPOINT: "${NUTANIX_ENDPOINT}"
-  NUTANIX_PORT: "9440"
   NUTANIX_USER: "${NUTANIX_USER}"
   NUTANIX_PASSWORD: "${NUTANIX_PASSWORD}"
 ---
@@ -61,16 +59,6 @@ spec:
                 secretKeyRef:
                   name: nutanix-creds
                   key: NUTANIX_PASSWORD
-            - name: NUTANIX_PORT
-              valueFrom:
-                secretKeyRef:
-                  name: nutanix-creds
-                  key: NUTANIX_PORT
-            - name: NUTANIX_ENDPOINT
-              valueFrom:
-                secretKeyRef:
-                  name: nutanix-creds
-                  key: NUTANIX_ENDPOINT
           securityContext:
             allowPrivilegeEscalation: false
           livenessProbe:

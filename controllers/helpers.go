@@ -17,6 +17,7 @@ limitations under the License.
 package controllers
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -27,11 +28,20 @@ import (
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/utils"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
 	taskSucceededMessage = "SUCCEEDED"
 )
+
+func CreateNutanixClient(ctx context.Context, client client.Client, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
+	creds, err := nutanixClient.GetConnectionInfo(client, ctx, nutanixCluster)
+	if err != nil {
+		return nil, err
+	}
+	return nutanixClient.Client(*creds, nutanixClient.ClientOptions{})
+}
 
 // deleteVM deletes a VM and is invoked by the NutanixMachineReconciler
 func deleteVM(client *nutanixClientV3.Client, vmName, vmUUID string) (string, error) {

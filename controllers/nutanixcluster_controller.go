@@ -22,7 +22,9 @@ import (
 
 	//"reflect"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -128,7 +130,13 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	client, err := nutanixClient.Client(nutanixClient.ClientOptions{})
+	err = r.reconcileCredentialRef(ctx, cluster)
+	if err != nil {
+		klog.Errorf("%s error occurred while reconciling credential ref for cluster %s: %v", logPrefix, capiCluster.Name, err)
+		return reconcile.Result{}, err
+	}
+
+	client, err := CreateNutanixClient(ctx, r.Client, cluster)
 	if err != nil {
 		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
 		return ctrl.Result{Requeue: true}, fmt.Errorf("Client Auth error: %v", err)
@@ -170,6 +178,13 @@ func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (r
 		klog.Errorf("%s error occurred while running deletion of categories: %v", rctx.LogPrefix, err)
 		return reconcile.Result{}, err
 	}
+
+	err = r.reconcileCredentialRefDelete(rctx.Context, rctx.NutanixCluster)
+	if err != nil {
+		klog.Errorf("%s error occurred while reconciling credential ref deletion for cluster %s: %v", rctx.LogPrefix, rctx.Cluster.ClusterName, err)
+		return reconcile.Result{}, err
+	}
+
 	// Remove the finalizer from the NutanixCluster object
 	ctrlutil.RemoveFinalizer(rctx.NutanixCluster, infrav1.NutanixClusterFinalizer)
 
@@ -203,7 +218,7 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 
 	err := r.reconcileCategories(rctx)
 	if err != nil {
-		errorMsg := fmt.Errorf("Failed to reconcile categories for cluster %s", rctx.Cluster.Name)
+		errorMsg := fmt.Errorf("Failed to reconcile categories for cluster %s: %v", rctx.Cluster.Name, err)
 		klog.Errorf("%s %v", rctx.LogPrefix, errorMsg)
 		rctx.SetFailureStatus(capierrors.CreateClusterError, errorMsg)
 		return reconcile.Result{}, err
@@ -233,6 +248,79 @@ func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterC
 	if err != nil {
 		conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, err.Error())
 		return err
+	}
+	return nil
+}
+
+func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Context, nutanixCluster *infrav1.NutanixCluster) error {
+	credentialRef, err := nutanixClient.GetCredentialRefForCluster(nutanixCluster)
+	if err != nil {
+		return err
+	}
+	if credentialRef == nil {
+		return nil
+	}
+	klog.Infof("Credential ref is kind Secret for cluster %s. Continue with deletion of secret", nutanixCluster.ClusterName)
+	secret := &corev1.Secret{}
+	secretKey := client.ObjectKey{
+		Namespace: nutanixCluster.Namespace,
+		Name:      credentialRef.Name,
+	}
+	err = r.Client.Get(ctx, secretKey, secret)
+	if err != nil {
+		return err
+	}
+	ctrlutil.RemoveFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer)
+	klog.Infof("removing finalizers from secret %s in namespace %s for cluster %s", secret.Name, secret.Namespace, nutanixCluster.ClusterName)
+	if err := r.Client.Update(ctx, secret); err != nil {
+		return err
+	}
+	klog.Infof("removing secret %s in namespace %s for cluster %s", secret.Name, secret.Namespace, nutanixCluster.ClusterName)
+	if err := r.Client.Delete(ctx, secret); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, nutanixCluster *infrav1.NutanixCluster) error {
+	credentialRef, err := nutanixClient.GetCredentialRefForCluster(nutanixCluster)
+	if err != nil {
+		return err
+	}
+	if credentialRef == nil {
+		return nil
+	}
+	klog.Infof("Credential ref is kind Secret for cluster %s", nutanixCluster.ClusterName)
+	secret := &corev1.Secret{}
+	secretKey := client.ObjectKey{
+		Namespace: nutanixCluster.Namespace,
+		Name:      credentialRef.Name,
+	}
+	err = r.Client.Get(ctx, secretKey, secret)
+	if err != nil {
+		errorMsg := fmt.Errorf("error occurred while fetching cluster %s secret for credential ref: %v", nutanixCluster.ClusterName, err)
+		klog.Error(errorMsg)
+		return errorMsg
+	}
+	if !capiutil.IsOwnedByObject(secret, nutanixCluster) {
+		if len(secret.GetOwnerReferences()) > 0 {
+			return fmt.Errorf("secret for cluster %s already has other owners set", nutanixCluster.ClusterName)
+		}
+		secret.SetOwnerReferences([]metav1.OwnerReference{{
+			APIVersion: infrav1.GroupVersion.String(),
+			Kind:       nutanixCluster.Kind,
+			UID:        nutanixCluster.UID,
+			Name:       nutanixCluster.Name,
+		}})
+	}
+	if !ctrlutil.ContainsFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer) {
+		ctrlutil.AddFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer)
+	}
+	err = r.Client.Update(ctx, secret)
+	if err != nil {
+		errorMsg := fmt.Errorf("Failed to update secret for cluster %s: %v", nutanixCluster.ClusterName, err)
+		klog.Error(errorMsg)
+		return errorMsg
 	}
 	return nil
 }
