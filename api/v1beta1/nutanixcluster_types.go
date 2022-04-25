@@ -41,6 +41,10 @@ type NutanixClusterSpec struct {
 	// host can be either DNS name or ip address
 	// +optional
 	ControlPlaneEndpoint capiv1.APIEndpoint `json:"controlPlaneEndpoint"`
+
+	// Add the Cluster resources to a Prism Central project
+	// +optional
+	Project *NutanixResourceIdentifier `json:"project"`
 }
 
 // NutanixClusterStatus defines the observed state of NutanixCluster

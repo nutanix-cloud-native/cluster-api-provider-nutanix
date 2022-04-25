@@ -508,3 +508,43 @@ func getCategoryVMSpec(client *nutanixClientV3.Client, categoryIdentifiers []*in
 	}
 	return categorySpec, nil
 }
+
+func getProjectUUID(client *nutanixClientV3.Client, projectName, projectUUID *string) (string, error) {
+	var foundProjectUUID string
+	if projectUUID == nil && projectName == nil {
+		return "", fmt.Errorf("name or uuid must be passed in order to retrieve the project")
+	}
+	if projectUUID != nil {
+		projectIntentResponse, err := client.V3.GetProject(*projectUUID)
+		if err != nil {
+			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
+				return "", fmt.Errorf("failed to find project with UUID %s: %v", *projectUUID, err)
+			}
+		}
+		foundProjectUUID = *projectIntentResponse.Metadata.UUID
+	} else if projectName != nil {
+		filter := fmt.Sprintf("name==%s", *projectName)
+		responseProjects, err := client.V3.ListAllProject(filter)
+		if err != nil {
+			return "", err
+		}
+		foundProjects := make([]*nutanixClientV3.Project, 0)
+		for _, s := range responseProjects.Entities {
+			projectSpec := s.Spec
+			if projectSpec.Name == *projectName {
+				foundProjects = append(foundProjects, s)
+			}
+		}
+		if len(foundProjects) == 0 {
+			return "", fmt.Errorf("failed to retrieve project by name %s", *projectName)
+		} else if len(foundProjects) > 1 {
+			return "", fmt.Errorf("more than one project found with name %s", *projectName)
+		} else {
+			foundProjectUUID = *foundProjects[0].Metadata.UUID
+		}
+		if foundProjectUUID == "" {
+			return "", fmt.Errorf("failed to retrieve project by name or uuid. Verify input parameters.")
+		}
+	}
+	return foundProjectUUID, nil
+}

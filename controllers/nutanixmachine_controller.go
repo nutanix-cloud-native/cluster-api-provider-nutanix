@@ -53,6 +53,7 @@ import (
 const (
 	// provideridFmt is "nutanix://<vmUUID"
 	provideridFmt = "nutanix://%s"
+	projectKind   = "project"
 )
 
 // NutanixMachineReconciler reconciles a NutanixMachine object
@@ -503,6 +504,15 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 			Categories:  categories,
 		}
 
+		vmMetadataPtr := &vmMetadata
+		err = r.addVMToProject(rctx, vmMetadataPtr)
+		if err != nil {
+			errorMsg := fmt.Errorf("error occurred while trying to add VM %s to project: %v", vmName, err)
+			rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+			klog.Errorf("%s %v", rctx.LogPrefix, errorMsg)
+			return nil, err
+		}
+
 		vmSpec.Resources = &nutanixClientV3.VMResources{
 			PowerState:            utils.StringPtr("ON"),
 			HardwareClockTimezone: utils.StringPtr("UTC"),
@@ -522,11 +532,13 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		vmSpecPtr := &vmSpec
 		err = r.addBootTypeToVM(rctx, vmSpecPtr)
 		if err != nil {
-			klog.Errorf("error occurred while adding boot type to vm spec: %v", err)
+			errorMsg := fmt.Errorf("error occurred while adding boot type to vm spec: %v", err)
+			rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+			klog.Errorf("%s %v", rctx.LogPrefix, errorMsg)
 			return nil, err
 		}
 		vmInput.Spec = vmSpecPtr
-		vmInput.Metadata = &vmMetadata
+		vmInput.Metadata = vmMetadataPtr
 
 		vmResponse, err := client.V3.CreateVM(&vmInput)
 		if err != nil {
@@ -672,5 +684,31 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 		}
 	}
 
+	return nil
+}
+
+func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vmMetadata *nutanixClientV3.Metadata) error {
+
+	vmName := rctx.NutanixMachine.Name
+	projectRef := rctx.NutanixCluster.Spec.Project
+	if projectRef == nil {
+		klog.Infof("%s Not linking VM %s to a project", rctx.LogPrefix, vmName)
+		return nil
+	}
+	if vmMetadata == nil {
+		errorMsg := fmt.Errorf("%s metadata cannot be nil when adding VM %s to project", rctx.LogPrefix, vmName)
+		klog.Error(errorMsg)
+		return errorMsg
+	}
+	projectUUID, err := getProjectUUID(rctx.NutanixClient, projectRef.Name, projectRef.UUID)
+	if err != nil {
+		errorMsg := fmt.Errorf("%s error occurred while searching for project for VM %s: %v", rctx.LogPrefix, vmName, err)
+		klog.Error(errorMsg)
+		return errorMsg
+	}
+	vmMetadata.ProjectReference = &nutanixClientV3.Reference{
+		Kind: utils.StringPtr(projectKind),
+		UUID: utils.StringPtr(projectUUID),
+	}
 	return nil
 }

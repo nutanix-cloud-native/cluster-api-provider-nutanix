@@ -302,6 +302,7 @@ func autoConvert_v1alpha4_NutanixClusterSpec_To_v1beta1_NutanixClusterSpec(in *N
 	if err := Convert_v1alpha4_APIEndpoint_To_v1beta1_APIEndpoint(&in.ControlPlaneEndpoint, &out.ControlPlaneEndpoint, s); err != nil {
 		return err
 	}
+	out.Project = (*v1beta1.NutanixResourceIdentifier)(unsafe.Pointer(in.Project))
 	return nil
 }
 
@@ -309,6 +310,7 @@ func autoConvert_v1beta1_NutanixClusterSpec_To_v1alpha4_NutanixClusterSpec(in *v
 	if err := Convert_v1beta1_APIEndpoint_To_v1alpha4_APIEndpoint(&in.ControlPlaneEndpoint, &out.ControlPlaneEndpoint, s); err != nil {
 		return err
 	}
+	out.Project = (*NutanixResourceIdentifier)(unsafe.Pointer(in.Project))
 	return nil
 }
 

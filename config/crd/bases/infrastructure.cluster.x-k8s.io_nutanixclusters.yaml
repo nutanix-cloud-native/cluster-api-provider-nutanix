@@ -65,6 +65,24 @@ spec:
                 - host
                 - port
                 type: object
+              project:
+                description: Add the Cluster resources to a Prism Central project
+                properties:
+                  name:
+                    description: name is the resource name in the PC
+                    type: string
+                  type:
+                    description: Type is the identifier type to use for this resource.
+                    enum:
+                    - uuid
+                    - name
+                    type: string
+                  uuid:
+                    description: uuid is the UUID of the resource in the PC.
+                    type: string
+                required:
+                - type
+                type: object
             type: object
           status:
             description: NutanixClusterStatus defines the observed state of NutanixCluster
@@ -190,6 +208,24 @@ spec:
                 required:
                 - host
                 - port
+                type: object
+              project:
+                description: Add the Cluster resources to a Prism Central project
+                properties:
+                  name:
+                    description: name is the resource name in the PC
+                    type: string
+                  type:
+                    description: Type is the identifier type to use for this resource.
+                    enum:
+                    - uuid
+                    - name
+                    type: string
+                  uuid:
+                    description: uuid is the UUID of the resource in the PC.
+                    type: string
+                required:
+                - type
                 type: object
             type: object
           status:
