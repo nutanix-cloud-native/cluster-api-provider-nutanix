@@ -515,7 +515,7 @@ func getProjectUUID(client *nutanixClientV3.Client, projectName, projectUUID *st
 		return "", fmt.Errorf("name or uuid must be passed in order to retrieve the project")
 	}
 	if projectUUID != nil {
-		projectIntentResponse, err := client.V3.GetCluster(*projectUUID)
+		projectIntentResponse, err := client.V3.GetProject(*projectUUID)
 		if err != nil {
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
 				return "", fmt.Errorf("failed to find project with UUID %s: %v", *projectUUID, err)
