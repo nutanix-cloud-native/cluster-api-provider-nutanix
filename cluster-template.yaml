@@ -7,11 +7,12 @@ spec:
   controlPlaneEndpoint:
     host: "${CONTROL_PLANE_ENDPOINT_IP}"
     port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
-  # Adds the cluster virtual machines to a project defined in Prism Central
-  # Note: Project must already be present in Prism Central
+  # Adds the cluster virtual machines to a project defined in Prism Central.
+  # Replace NUTANIX_PROJECT_NAME with the correct project defined in Prism Central
+  # Note: Project must already be present in Prism Central.
   # project:
   #   type: name
-  #   name: "${NUTANIX_PROJECT_NAME}"
+  #   name: "NUTANIX_PROJECT_NAME"
 
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
