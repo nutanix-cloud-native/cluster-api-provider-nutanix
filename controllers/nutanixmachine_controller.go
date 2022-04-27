@@ -157,9 +157,10 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	client, err := nutanixClient.Client(nutanixClient.ClientOptions{})
 	if err != nil {
+		conditions.MarkFalse(ntxMachine, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
 		return ctrl.Result{Requeue: true}, fmt.Errorf("Client Auth error: %v", err)
 	}
-
+	conditions.MarkTrue(ntxMachine, infrav1.PrismCentralClientCondition)
 	rctx := &nctx.MachineContext{
 		Context:        ctx,
 		Cluster:        cluster,
@@ -197,7 +198,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	client := rctx.NutanixClient
 	vmName := rctx.NutanixMachine.Name
 	klog.Infof("%s Handling NutanixMachine deletion of VM: %s", rctx.LogPrefix, vmName)
-
+	conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, capiv1.DeletingReason, capiv1.ConditionSeverityInfo, "")
 	//Check if VMUUID is absent
 	if rctx.NutanixMachine.Status.VmUUID == "" {
 		klog.Warningf("%s VMUUID was not found in spec for VM %s. Skipping delete", rctx.LogPrefix, vmName)
@@ -209,6 +210,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		if err != nil {
 			errorMsg := fmt.Errorf("%v: error finding vm %s with uuid %s: %v", rctx.LogPrefix, vmName, vmUUID, err)
 			klog.Error(errorMsg)
+			conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, errorMsg.Error())
 			return reconcile.Result{}, errorMsg
 		}
 		// Vm not found
@@ -220,6 +222,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 			if err != nil {
 				errorMsg := fmt.Errorf("error occurred fetching task UUID from vm: %v", err)
 				klog.Error(errorMsg)
+				conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, errorMsg.Error())
 				return reconcile.Result{}, errorMsg
 			}
 			klog.Infof("%s checking if VM %s with UUID %s has in progress tasks", rctx.LogPrefix, vmName, vmUUID)
@@ -235,13 +238,16 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 			// Delete the VM since the VM was found (err was nil)
 			deleteTaskUUID, err := deleteVM(client, vmName, vmUUID)
 			if err != nil {
-				klog.Errorf("%s Failed to delete VM %s with UUID %s: %v", rctx.LogPrefix, vmName, vmUUID, err)
+				errorMsg := fmt.Errorf("Failed to delete VM %s with UUID %s: %v", vmName, vmUUID, err)
+				conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, errorMsg.Error())
+				klog.Errorf("%s %v", rctx.LogPrefix, errorMsg)
 				return reconcile.Result{}, err
 			}
 			klog.Infof("%s Deletion task with UUID %s received for vm %s with UUID %s. Requeueing", rctx.LogPrefix, deleteTaskUUID, vmName, vmUUID)
 			return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 	}
+
 	// Remove the finalizer from the NutanixMachine object
 	klog.Errorf("%s Removing finalizers for VM %s during delete reconciliation", rctx.LogPrefix, vmName)
 	ctrlutil.RemoveFinalizer(rctx.NutanixMachine, infrav1.NutanixMachineFinalizer)
@@ -330,8 +336,10 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	if err != nil {
 		errorMsg := fmt.Errorf("Failed to assign addresses to VM %s with UUID %s...: %v", rctx.NutanixMachine.Name, rctx.NutanixMachine.Status.VmUUID, err)
 		klog.Error(errorMsg)
+		conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMAddressesAssignedCondition, infrav1.VMAddressesFailed, capiv1.ConditionSeverityError, err.Error())
 		return reconcile.Result{}, errorMsg
 	}
+	conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMAddressesAssignedCondition)
 	// Update the NutanixMachine Spec.ProviderID
 	rctx.NutanixMachine.Spec.ProviderID = fmt.Sprintf(provideridFmt, rctx.NutanixMachine.Status.VmUUID)
 	rctx.NutanixMachine.Status.Ready = true
@@ -426,7 +434,6 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 	}
 	if vm != nil {
 		klog.Infof("%s vm %s found with UUID %s", rctx.LogPrefix, *vm.Spec.Name, rctx.NutanixMachine.Status.VmUUID)
-		return vm, nil
 	} else {
 		klog.Infof("%s No existing VM found. Starting creation process of VM %s.", rctx.LogPrefix, vmName)
 		// Get PE UUID
@@ -577,6 +584,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 			return nil, errorMsg
 		}
 	}
+	conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
 	return vm, nil
 }
 
@@ -673,6 +681,7 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 		if bootType != string(infrav1.NutanixIdentifierBootTypeLegacy) && bootType != string(infrav1.NutanixIdentifierBootTypeUEFI) {
 			errorMsg := fmt.Errorf("%s boot type must be %s or %s but was %s", rctx.LogPrefix, string(infrav1.NutanixIdentifierBootTypeLegacy), string(infrav1.NutanixIdentifierBootTypeUEFI), bootType)
 			klog.Error(errorMsg)
+			conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VMBootTypeInvalid, capiv1.ConditionSeverityError, errorMsg.Error())
 			return errorMsg
 		}
 
@@ -698,17 +707,20 @@ func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vmM
 	if vmMetadata == nil {
 		errorMsg := fmt.Errorf("%s metadata cannot be nil when adding VM %s to project", rctx.LogPrefix, vmName)
 		klog.Error(errorMsg)
+		conditions.MarkFalse(rctx.NutanixMachine, infrav1.ProjectAssignedCondition, infrav1.ProjectAssignationFailed, capiv1.ConditionSeverityError, errorMsg.Error())
 		return errorMsg
 	}
 	projectUUID, err := getProjectUUID(rctx.NutanixClient, projectRef.Name, projectRef.UUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("%s error occurred while searching for project for VM %s: %v", rctx.LogPrefix, vmName, err)
 		klog.Error(errorMsg)
+		conditions.MarkFalse(rctx.NutanixMachine, infrav1.ProjectAssignedCondition, infrav1.ProjectAssignationFailed, capiv1.ConditionSeverityError, errorMsg.Error())
 		return errorMsg
 	}
 	vmMetadata.ProjectReference = &nutanixClientV3.Reference{
 		Kind: utils.StringPtr(projectKind),
 		UUID: utils.StringPtr(projectUUID),
 	}
+	conditions.MarkTrue(rctx.NutanixMachine, infrav1.ProjectAssignedCondition)
 	return nil
 }
