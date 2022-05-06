@@ -1,0 +1,31 @@
+name: Black Duck Policy Check
+on:
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron:  '0 0 * * *'
+  push:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '^1.17'
+
+      - name: Build Project 
+        run: make build
+      
+      - name: Run Synopsys Detect
+        uses: synopsys-sig/detect-action@v0.3.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          detect-version: 7.9.0
+          blackduck-url: ${{ secrets.BLACKDUCK_URL }}
+          blackduck-api-token: ${{ secrets.BLACKDUCK_API_TOKEN }}
