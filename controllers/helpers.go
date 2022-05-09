@@ -77,7 +77,7 @@ func findVM(client *nutanixClientV3.Client, nutanixMachine *infrav1.NutanixMachi
 	vmUUID := nutanixMachine.Status.VmUUID
 	// Search via uuid if it is present
 	if vmUUID != "" {
-		klog.Info("Searching for VM %s using UUID %s", vmName, vmUUID)
+		klog.Infof("Searching for VM %s using UUID %s", vmName, vmUUID)
 		vm, err := findVMByUUID(client, nutanixMachine.Status.VmUUID)
 		if err != nil {
 			klog.Errorf("error occurred finding VM with uuid %s: %v", nutanixMachine.Status.VmUUID, err)
@@ -395,16 +395,16 @@ func deleteCategories(client *nutanixClientV3.Client, categoryIdentifiers []*inf
 	}
 
 	for key, values := range groupCategoriesByKey {
-		klog.Info("Retrieving category with key %s", key)
+		klog.Infof("Retrieving category with key %s", key)
 		categoryKey, err := getCategoryKey(client, key)
 		if err != nil {
 			errorMsg := fmt.Errorf("Failed to retrieve category with key %s. error: %v", key, err)
 			klog.Error(errorMsg)
 			return errorMsg
 		}
-		klog.Info("Category with key %s found. Starting deletion of values")
+		klog.Infof("Category with key %s found. Starting deletion of values", key)
 		if categoryKey == nil {
-			klog.Info("Category with key %s not found. Already deleted?", key)
+			klog.Infof("Category with key %s not found. Already deleted?", key)
 			continue
 		}
 		for _, value := range values {
@@ -415,7 +415,7 @@ func deleteCategories(client *nutanixClientV3.Client, categoryIdentifiers []*inf
 				return errorMsg
 			}
 			if categoryValue == nil {
-				klog.Info("Category with value %s in category not found. Already deleted?", value, key)
+				klog.Infof("Category with value %s in category %s not found. Already deleted?", value, key)
 				continue
 			}
 			client.V3.DeleteCategoryValue(key, value)
