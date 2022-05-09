@@ -1,6 +1,6 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= ghcr.io/nutanix/cloud-native/cluster-api-provider-nutanix/controller:latest
+IMG ?= ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:latest
 
 
 # Extract base and tag from IMG
