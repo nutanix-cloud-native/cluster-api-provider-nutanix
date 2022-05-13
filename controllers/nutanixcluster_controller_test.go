@@ -44,7 +44,18 @@ func TestNutanixClusterReconciler(t *testing.T) {
 					Scheme: runtime.NewScheme(),
 				}
 
-				ntnxCluster := &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"}}
+				ntnxCluster := &infrav1.NutanixCluster{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+					},
+					Spec: infrav1.NutanixClusterSpec{
+						PrismCentral: infrav1.NutanixPrismEndpoint{
+							// Adding port info to override default value (0)
+							Port: 9440,
+						},
+					},
+				}
 
 				// Create the NutanixCluster object and expect the Reconcile to be created
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
