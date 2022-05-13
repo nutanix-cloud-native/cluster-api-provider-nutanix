@@ -244,13 +244,17 @@ func (r *NutanixClusterReconciler) reconcileCategories(rctx *nctx.ClusterContext
 
 func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterContext) error {
 	klog.Infof("%s Reconciling deletion of categories for cluster %s", rctx.LogPrefix, rctx.Cluster.Name)
-	defaultCategories := getDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-	conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, capiv1.DeletingReason, capiv1.ConditionSeverityInfo, "")
-	err := deleteCategories(rctx.NutanixClient, defaultCategories)
-	if err != nil {
-		conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, err.Error())
-		return err
+	if conditions.IsTrue(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) {
+		defaultCategories := getDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
+		err := deleteCategories(rctx.NutanixClient, defaultCategories)
+		if err != nil {
+			conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, err.Error())
+			return err
+		}
+	} else {
+		klog.Warningf("%s skipping category deletion since they were not created for cluster %s", rctx.LogPrefix, rctx.Cluster.Name)
 	}
+	conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, capiv1.DeletingReason, capiv1.ConditionSeverityInfo, "")
 	return nil
 }
 
