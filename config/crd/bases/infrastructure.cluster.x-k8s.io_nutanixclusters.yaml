@@ -65,6 +65,51 @@ spec:
                 - host
                 - port
                 type: object
+              prismCentral:
+                description: prismCentral holds the endpoint address and port to access
+                  the Nutanix Prism Central. When a cluster-wide proxy is installed,
+                  by default, this endpoint will be accessed via the proxy. Should
+                  you wish for communication with this endpoint not to be proxied,
+                  please add the endpoint to the proxy spec.noProxy list.
+                properties:
+                  address:
+                    description: address is the endpoint address (DNS name or IP address)
+                      of the Nutanix Prism Central or Element (cluster)
+                    maxLength: 256
+                    type: string
+                  credentialRef:
+                    description: Pass credential information for the target Prism
+                      instance
+                    properties:
+                      kind:
+                        description: Kind of the Nutanix credential
+                        enum:
+                        - Secret
+                        type: string
+                      name:
+                        description: Name of the credential.
+                        minLength: 1
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
+                  insecure:
+                    default: false
+                    description: use insecure connection to Prism endpoint
+                    type: boolean
+                  port:
+                    default: 9440
+                    description: port is the port number to access the Nutanix Prism
+                      Central or Element (cluster)
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                required:
+                - address
+                - port
+                type: object
               project:
                 description: Add the Cluster resources to a Prism Central project
                 properties:
@@ -83,6 +128,8 @@ spec:
                 required:
                 - type
                 type: object
+            required:
+            - prismCentral
             type: object
           status:
             description: NutanixClusterStatus defines the observed state of NutanixCluster
@@ -209,6 +256,51 @@ spec:
                 - host
                 - port
                 type: object
+              prismCentral:
+                description: prismCentral holds the endpoint address and port to access
+                  the Nutanix Prism Central. When a cluster-wide proxy is installed,
+                  by default, this endpoint will be accessed via the proxy. Should
+                  you wish for communication with this endpoint not to be proxied,
+                  please add the endpoint to the proxy spec.noProxy list.
+                properties:
+                  address:
+                    description: address is the endpoint address (DNS name or IP address)
+                      of the Nutanix Prism Central or Element (cluster)
+                    maxLength: 256
+                    type: string
+                  credentialRef:
+                    description: Pass credential information for the target Prism
+                      instance
+                    properties:
+                      kind:
+                        description: Kind of the Nutanix credential
+                        enum:
+                        - Secret
+                        type: string
+                      name:
+                        description: Name of the credential.
+                        minLength: 1
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
+                  insecure:
+                    default: false
+                    description: use insecure connection to Prism endpoint
+                    type: boolean
+                  port:
+                    default: 9440
+                    description: port is the port number to access the Nutanix Prism
+                      Central or Element (cluster)
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                required:
+                - address
+                - port
+                type: object
               project:
                 description: Add the Cluster resources to a Prism Central project
                 properties:
@@ -227,6 +319,8 @@ spec:
                 required:
                 - type
                 type: object
+            required:
+            - prismCentral
             type: object
           status:
             description: NutanixClusterStatus defines the observed state of NutanixCluster
