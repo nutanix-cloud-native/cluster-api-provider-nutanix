@@ -130,11 +130,23 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	defer func() {
+		// Always attempt to Patch the NutanixCluster object and its status after each reconciliation.
+		if err := patchHelper.Patch(ctx, cluster); err != nil {
+			klog.Errorf("%s Failed to patch NutanixCluster. %v", logPrefix, err)
+			reterr = kerrors.NewAggregate([]error{reterr, err})
+		}
+		klog.Infof("%s Patched NutanixCluster. Status: %+v",
+			logPrefix, cluster.Status)
+	}()
+
 	err = r.reconcileCredentialRef(ctx, cluster)
 	if err != nil {
 		klog.Errorf("%s error occurred while reconciling credential ref for cluster %s: %v", logPrefix, capiCluster.Name, err)
+		conditions.MarkFalse(cluster, infrav1.CredentialRefSecretOwnerSetCondition, infrav1.CredentialRefSecretOwnerSetFailed, capiv1.ConditionSeverityError, err.Error())
 		return reconcile.Result{}, err
 	}
+	conditions.MarkTrue(cluster, infrav1.CredentialRefSecretOwnerSetCondition)
 
 	client, err := CreateNutanixClient(ctx, r.Client, cluster)
 	if err != nil {
@@ -150,16 +162,6 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		LogPrefix:      logPrefix,
 		NutanixClient:  client,
 	}
-
-	defer func() {
-		// Always attempt to Patch the NutanixCluster object and its status after each reconciliation.
-		if err := patchHelper.Patch(ctx, cluster); err != nil {
-			klog.Errorf("%s Failed to patch NutanixCluster. %v", rctx.LogPrefix, err)
-			reterr = kerrors.NewAggregate([]error{reterr, err})
-		}
-		klog.Infof("%s Patched NutanixCluster. Status: %+v",
-			rctx.LogPrefix, cluster.Status)
-	}()
 
 	// Check for request action
 	if !cluster.DeletionTimestamp.IsZero() {
@@ -298,7 +300,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, n
 	}
 	err = r.Client.Get(ctx, secretKey, secret)
 	if err != nil {
-		errorMsg := fmt.Errorf("error occurred while fetching cluster %s secret for credential ref: %v", nutanixCluster.ClusterName, err)
+		errorMsg := fmt.Errorf("error occurred while fetching cluster %s secret for credential ref: %v", nutanixCluster.Name, err)
 		klog.Error(errorMsg)
 		return errorMsg
 	}

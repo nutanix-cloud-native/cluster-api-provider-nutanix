@@ -50,3 +50,9 @@ const (
 	ProjectAssignedCondition capiv1.ConditionType = "ProjectAssigned"
 	ProjectAssignationFailed                      = "ProjectAssignationFailed"
 )
+
+const (
+	// CredentialRefSecretOwnerSetCondition shows the status of setting the Owner
+	CredentialRefSecretOwnerSetCondition capiv1.ConditionType = "CredentialRefSecretOwnerSet"
+	CredentialRefSecretOwnerSetFailed                         = "CredentialRefSecretOwnerSetFailed"
+)
