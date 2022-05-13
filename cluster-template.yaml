@@ -148,6 +148,10 @@ spec:
                     value: "10"
                   - name: vip_retryperiod
                     value: "2"
+                  - name: svc_enable
+                    value: "${KUBEVIP_SVC_ENABLE=false}"
+                  - name: lb_enable
+                    value: "${KUBEVIP_LB_ENABLE=false}"
                 securityContext:
                   capabilities:
                     add:
