@@ -90,6 +90,23 @@ You need to follow specific install guide for your selected CNI and you can inst
 Once a Pod network has been installed, you can confirm that it is working by checking that the CoreDNS Pod is Running in the output of kubectl get pods --all-namespaces.
 
 
+### kube-vip settings
+
+kube-vip has the capability to provide a high availability address for both the Kubernetes control plane and for a Kubernetes Servic and also a true load balancing for the control plane to distribute API requests across control plane nodes.
+
+You can tweak this settings by using the following properties
+
+- KUBEVIP_LB_ENABLE
+
+This setting allow you to enable control plane load balancing using IPVS.
+[Control Plane Load-Balancing documentation](https://kube-vip.chipzoller.dev/docs/about/architecture/#control-plane-load-balancing)
+
+- KUBEVIP_SVC_ENABLE 
+
+This setting allow you to enable Service of type LoadBalancer.
+[Kubernetes Service Load Balancing documentation](https://kube-vip.chipzoller.dev/docs/about/architecture/#kubernetes-service-load-balancing)
+
+
 ## Developer workflow
 
 ### Download source code
