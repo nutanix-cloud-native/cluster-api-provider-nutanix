@@ -14,7 +14,7 @@ NUTANIX_ENDPOINT: ""
 NUTANIX_USER: ""
 NUTANIX_PASSWORD: ""
 
-KUBERNETES_VERSION: "v1.21.0"
+KUBERNETES_VERSION: "v1.22.8"
 WORKER_MACHINE_COUNT: 3
 NUTANIX_SSH_AUTHORIZED_KEY: ""
 
@@ -26,15 +26,26 @@ you can also see the required list of variables by running by following command
 <pre>
 clusterctl generate cluster mycluster -i nutanix --list-variables           
 Required Variables:
+  - CONTROL_PLANE_ENDPOINT_IP
   - KUBERNETES_VERSION
-  - NUTANIX_CLUSTER_UUID
-  - NUTANIX_MACHINE_TEMPLATE_IMAGE_UUID
+  - NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME
+  - NUTANIX_PRISM_ELEMENT_CLUSTER_NAME
   - NUTANIX_SSH_AUTHORIZED_KEY
+  - NUTANIX_SUBNET_NAME
 
 Optional Variables:
-  - CLUSTER_NAME          (defaults to mycluster)
-  - NAMESPACE             (defaults to current Namespace in the KubeConfig file)
-  - WORKER_MACHINE_COUNT  (defaults to 0)
+  - CLUSTER_NAME
+  - CONTROL_PLANE_ENDPOINT_PORT      (defaults to "6443")
+  - CONTROL_PLANE_MACHINE_COUNT      (defaults to 1)
+  - KUBEVIP_LB_ENABLE                (defaults to "false")
+  - KUBEVIP_SVC_ENABLE               (defaults to "false")
+  - NAMESPACE                        (defaults to current Namespace in the KubeConfig file)
+  - NUTANIX_MACHINE_BOOT_TYPE        (defaults to "legacy")
+  - NUTANIX_MACHINE_MEMORY_SIZE      (defaults to "4Gi")
+  - NUTANIX_MACHINE_VCPU_PER_SOCKET  (defaults to "1")
+  - NUTANIX_MACHINE_VCPU_SOCKET      (defaults to "2")
+  - NUTANIX_SYSTEMDISK_SIZE          (defaults to "40Gi")
+  - WORKER_MACHINE_COUNT             (defaults to 0)
 
 </pre>
 
@@ -77,6 +88,23 @@ See a list of add-ons that implement the [Kubernetes networking model](https://k
 You need to follow specific install guide for your selected CNI and you can install only one Pod network per cluster.
 
 Once a Pod network has been installed, you can confirm that it is working by checking that the CoreDNS Pod is Running in the output of kubectl get pods --all-namespaces.
+
+
+### kube-vip settings
+
+kube-vip has the capability to provide a high availability address for both the Kubernetes control plane and for a Kubernetes Servic and also a true load balancing for the control plane to distribute API requests across control plane nodes.
+
+You can tweak this settings by using the following properties
+
+- KUBEVIP_LB_ENABLE
+
+This setting allow you to enable control plane load balancing using IPVS.
+[Control Plane Load-Balancing documentation](https://kube-vip.chipzoller.dev/docs/about/architecture/#control-plane-load-balancing)
+
+- KUBEVIP_SVC_ENABLE 
+
+This setting allow you to enable Service of type LoadBalancer.
+[Kubernetes Service Load Balancing documentation](https://kube-vip.chipzoller.dev/docs/about/architecture/#kubernetes-service-load-balancing)
 
 
 ## Developer workflow

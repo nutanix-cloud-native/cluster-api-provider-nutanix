@@ -13,6 +13,9 @@ NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ""
 NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: ""
 NUTANIX_SUBNET_NAME: ""
 
+KUBEVIP_LB_ENABLE: "false"
+KUBEVIP_SVC_ENABLE: "false"
+
 providers:
   # add a custom provider
   - name: "nutanix"
