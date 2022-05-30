@@ -14,12 +14,12 @@ NUTANIX_ENDPOINT: ""
 NUTANIX_USER: ""
 NUTANIX_PASSWORD: ""
 
-KUBERNETES_VERSION: "v1.22.8"
+KUBERNETES_VERSION: "v1.22.9"
 WORKER_MACHINE_COUNT: 3
 NUTANIX_SSH_AUTHORIZED_KEY: ""
 
 NUTANIX_CLUSTER_UUID: ""
-NUTANIX_MACHINE_TEMPLATE_IMAGE_UUID: ""
+NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: ""
 </pre>
 
 you can also see the required list of variables by running by following command
@@ -61,7 +61,7 @@ export TEST_NAMESPACE=mytestnamespace
 clusterctl generate cluster ${TEST_CLUSTER_NAME} \
     -i nutanix \
     --target-namespace ${TEST_NAMESPACE}  \
-    --kubernetes-version v1.21.1 \
+    --kubernetes-version v1.22.9 \
     --control-plane-machine-count 1 \
     --worker-machine-count 3 > ./cluster.yaml
 kubectl create ns $(TEST_NAMESPACE)
@@ -72,7 +72,7 @@ kubectl apply -f ./cluster.yaml -n $(TEST_NAMESPACE)
 To access resources on the cluster, you can get the kubeconfig as following
 <pre>
 clusterctl get kubeconfig ${TEST_CLUSTER_NAME} -n ${TEST_NAMESPACE} > ${TEST_CLUSTER_NAME}.kubeconfig
-kubectl --kubeconfig ./{TEST_CLUSTER_NAME}.kubeconfig get nodes 
+kubectl --kubeconfig ./${TEST_CLUSTER_NAME}.kubeconfig get nodes 
 </pre>
 
 ### Install CNI on workload Cluster
