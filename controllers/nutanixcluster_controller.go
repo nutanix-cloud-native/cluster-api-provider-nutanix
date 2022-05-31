@@ -218,7 +218,15 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 		return reconcile.Result{}, nil
 	}
 
-	err := r.reconcileCategories(rctx)
+	err := r.reconcileProject(rctx)
+	if err != nil {
+		errorMsg := fmt.Errorf("Failed to reconcile project for cluster %s: %v", rctx.Cluster.Name, err)
+		klog.Errorf("%s %v", rctx.LogPrefix, errorMsg)
+		rctx.SetFailureStatus(capierrors.CreateClusterError, errorMsg)
+		return reconcile.Result{}, err
+	}
+
+	err = r.reconcileCategories(rctx)
 	if err != nil {
 		errorMsg := fmt.Errorf("Failed to reconcile categories for cluster %s: %v", rctx.Cluster.Name, err)
 		klog.Errorf("%s %v", rctx.LogPrefix, errorMsg)
@@ -228,6 +236,24 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 
 	rctx.NutanixCluster.Status.Ready = true
 	return reconcile.Result{}, nil
+}
+
+func (r *NutanixClusterReconciler) reconcileProject(rctx *nctx.ClusterContext) error {
+	clusterName := rctx.NutanixCluster.Name
+	projectRef := rctx.NutanixCluster.Spec.Project
+	if projectRef == nil {
+		klog.Infof("%s Not linking cluster %s to a project", rctx.LogPrefix, clusterName)
+		return nil
+	}
+	_, err := getProjectUUID(rctx.NutanixClient, projectRef.Name, projectRef.UUID)
+	if err != nil {
+		errorMsg := fmt.Errorf("%s error occurred while searching for project for cluster %s: %v", rctx.LogPrefix, clusterName, err)
+		klog.Error(errorMsg)
+		conditions.MarkFalse(rctx.NutanixCluster, infrav1.ProjectAssignedCondition, infrav1.ProjectAssignationFailed, capiv1.ConditionSeverityError, errorMsg.Error())
+		return errorMsg
+	}
+	conditions.MarkTrue(rctx.NutanixCluster, infrav1.ProjectAssignedCondition)
+	return nil
 }
 
 func (r *NutanixClusterReconciler) reconcileCategories(rctx *nctx.ClusterContext) error {

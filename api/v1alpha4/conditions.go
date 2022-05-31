@@ -46,7 +46,7 @@ const (
 )
 
 const (
-	// VMAddressesAssignedCondition shows the status of the process of assigning the VMs to a project
+	// ProjectAssignedCondition shows the status of the process of assigning the VMs to a project
 	ProjectAssignedCondition capiv1.ConditionType = "ProjectAssigned"
 	ProjectAssignationFailed                      = "ProjectAssignationFailed"
 )
