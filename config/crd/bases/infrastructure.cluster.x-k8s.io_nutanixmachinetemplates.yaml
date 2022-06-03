@@ -70,6 +70,27 @@ spec:
                     description: Spec is the specification of the desired behavior
                       of the machine.
                     properties:
+                      additionalCategories:
+                        description: List of categories that need to be added to the
+                          machines. Categories must already exist in Prism Central
+                        items:
+                          properties:
+                            key:
+                              description: key is the Key of category in PC.
+                              type: string
+                            value:
+                              description: value is the category value linked to the
+                                category key in PC
+                              type: string
+                          type: object
+                        type: array
+                      bootType:
+                        description: Defines the boot type of the virtual machine.
+                          Only supports UEFI and Legacy
+                        enum:
+                        - legacy
+                        - uefi
+                        type: string
                       bootstrapRef:
                         description: BootstrapRef is a reference to a bootstrap provider-specific
                           resource that holds configuration details.
@@ -161,13 +182,9 @@ spec:
                           of the VM The minimum memorySize is 2Gi bytes
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
-                      providerID:
-                        type: string
-                      subnet:
-                        description: subnet is to identify the cluster's network subnet
-                          to use for the Machine's VM The cluster identifier (uuid
-                          or name) can be obtained from the Prism Central console
-                          or using the prism_central API.
+                      project:
+                        description: Add the machine resources to a Prism Central
+                          project
                         properties:
                           name:
                             description: name is the resource name in the PC
@@ -185,6 +202,36 @@ spec:
                         required:
                         - type
                         type: object
+                      providerID:
+                        type: string
+                      subnet:
+                        description: subnet is to identify the cluster's network subnet
+                          to use for the Machine's VM The cluster identifier (uuid
+                          or name) can be obtained from the Prism Central console
+                          or using the prism_central API.
+                        items:
+                          description: NutanixResourceIdentifier holds the identity
+                            of a Nutanix PC resource (cluster, image, subnet, etc.)
+                          properties:
+                            name:
+                              description: name is the resource name in the PC
+                              type: string
+                            type:
+                              description: Type is the identifier type to use for
+                                this resource.
+                              enum:
+                              - uuid
+                              - name
+                              type: string
+                            uuid:
+                              description: uuid is the UUID of the resource in the
+                                PC.
+                              type: string
+                          required:
+                          - type
+                          type: object
+                        minItems: 1
+                        type: array
                       systemDiskSize:
                         anyOf:
                         - type: integer
@@ -275,6 +322,27 @@ spec:
                     description: Spec is the specification of the desired behavior
                       of the machine.
                     properties:
+                      additionalCategories:
+                        description: List of categories that need to be added to the
+                          machines. Categories must already exist in Prism Central
+                        items:
+                          properties:
+                            key:
+                              description: key is the Key of category in PC.
+                              type: string
+                            value:
+                              description: value is the category value linked to the
+                                category key in PC
+                              type: string
+                          type: object
+                        type: array
+                      bootType:
+                        description: Defines the boot type of the virtual machine.
+                          Only supports UEFI and Legacy
+                        enum:
+                        - legacy
+                        - uefi
+                        type: string
                       bootstrapRef:
                         description: BootstrapRef is a reference to a bootstrap provider-specific
                           resource that holds configuration details.
@@ -366,13 +434,9 @@ spec:
                           of the VM The minimum memorySize is 2Gi bytes
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
-                      providerID:
-                        type: string
-                      subnet:
-                        description: subnet is to identify the cluster's network subnet
-                          to use for the Machine's VM The cluster identifier (uuid
-                          or name) can be obtained from the Prism Central console
-                          or using the prism_central API.
+                      project:
+                        description: Add the machine resources to a Prism Central
+                          project
                         properties:
                           name:
                             description: name is the resource name in the PC
@@ -390,6 +454,36 @@ spec:
                         required:
                         - type
                         type: object
+                      providerID:
+                        type: string
+                      subnet:
+                        description: subnet is to identify the cluster's network subnet
+                          to use for the Machine's VM The cluster identifier (uuid
+                          or name) can be obtained from the Prism Central console
+                          or using the prism_central API.
+                        items:
+                          description: NutanixResourceIdentifier holds the identity
+                            of a Nutanix PC resource (cluster, image, subnet, etc.)
+                          properties:
+                            name:
+                              description: name is the resource name in the PC
+                              type: string
+                            type:
+                              description: Type is the identifier type to use for
+                                this resource.
+                              enum:
+                              - uuid
+                              - name
+                              type: string
+                            uuid:
+                              description: uuid is the UUID of the resource in the
+                                PC.
+                              type: string
+                          required:
+                          - type
+                          type: object
+                        minItems: 1
+                        type: array
                       systemDiskSize:
                         anyOf:
                         - type: integer

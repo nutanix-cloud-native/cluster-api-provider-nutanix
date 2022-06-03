@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	"sigs.k8s.io/cluster-api/errors"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -66,7 +67,18 @@ type NutanixMachineSpec struct {
 	// The cluster identifier (uuid or name) can be obtained from the Prism Central console
 	// or using the prism_central API.
 	// +kubebuilder:validation:Required
-	Subnet NutanixResourceIdentifier `json:"subnet"`
+	// +kubebuilder:validation:MinItems=1
+	Subnets []NutanixResourceIdentifier `json:"subnet"`
+	// List of categories that need to be added to the machines. Categories must already exist in Prism Central
+	// +kubebuilder:validation:Optional
+	AdditionalCategories []NutanixCategoryIdentifier `json:"additionalCategories"`
+	// Add the machine resources to a Prism Central project
+	// +optional
+	Project *NutanixResourceIdentifier `json:"project"`
+	// Defines the boot type of the virtual machine. Only supports UEFI and Legacy
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum:=legacy;uefi
+	BootType string `json:"bootType"`
 
 	// systemDiskSize is size (in Quantity format) of the system disk of the VM
 	// The minimum systemDiskSize is 20Gi bytes
@@ -94,7 +106,7 @@ type NutanixMachineStatus struct {
 
 	// The Nutanix VM's UUID
 	// +optional
-	VmUUID *string `json:"vmUUID,omitempty"`
+	VmUUID string `json:"vmUUID,omitempty"`
 
 	// NodeRef is a reference to the corresponding workload cluster Node if it exists.
 	// +optional
@@ -103,6 +115,14 @@ type NutanixMachineStatus struct {
 	// Conditions defines current service state of the NutanixMachine.
 	// +optional
 	Conditions capiv1.Conditions `json:"conditions,omitempty"`
+
+	// Will be set in case of failure of Machine instance
+	// +optional
+	FailureReason *errors.MachineStatusError `json:"failureReason,omitempty"`
+
+	// Will be set in case of failure of Machine instance
+	// +optional
+	FailureMessage *string `json:"failureMessage,omitempty"`
 }
 
 //+kubebuilder:object:root=true

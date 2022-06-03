@@ -7,10 +7,22 @@ import (
 
 	"k8s.io/klog/v2"
 
-	nutanixClientV3 "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/nutanix/v3"
+	nutanixClientV3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/nutanix/v3"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/utils"
 )
 
 type stateRefreshFunc func() (string, error)
+
+func WaitForTaskCompletion(conn *nutanixClientV3.Client, uuid string) error {
+	errCh := make(chan error, 1)
+	go waitForState(
+		errCh,
+		"SUCCEEDED",
+		waitUntilTaskStateFunc(conn, uuid))
+
+	err := <-errCh
+	return err
+}
 
 func WaitForGetVMComplete(conn *nutanixClientV3.Client, vmUUID string) error {
 	errCh := make(chan error, 1)
@@ -106,6 +118,31 @@ func waitUntilSubnetStateFunc(conn *nutanixClientV3.Client, uuid string) stateRe
 
 		return *resp.Status.State, nil
 	}
+}
+
+func waitUntilTaskStateFunc(conn *nutanixClientV3.Client, uuid string) stateRefreshFunc {
+	return func() (string, error) {
+		return GetTaskState(conn, uuid)
+	}
+}
+
+func GetTaskState(client *nutanixClientV3.Client, taskUUID string) (string, error) {
+
+	klog.Infof("Getting task with UUID %s", taskUUID)
+	v, err := client.V3.GetTask(taskUUID)
+
+	if err != nil {
+		klog.Errorf("error occurred while waiting for task with UUID %s: %v", taskUUID, err)
+		return "", err
+	}
+
+	if *v.Status == "INVALID_UUID" || *v.Status == "FAILED" {
+		return *v.Status,
+			fmt.Errorf("error_detail: %s, progress_message: %s", utils.StringValue(v.ErrorDetail), utils.StringValue(v.ProgressMessage))
+	}
+	taskStatus := *v.Status
+	klog.Infof("Status for task with UUID %s: %s", taskUUID, taskStatus)
+	return taskStatus, nil
 }
 
 // RetryableFunc performs an action and returns a bool indicating whether the

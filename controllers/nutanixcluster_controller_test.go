@@ -25,7 +25,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	infrav1 "github.com/nutanix-core/cluster-api-provider-nutanix/api/v1beta1"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -44,7 +44,18 @@ func TestNutanixClusterReconciler(t *testing.T) {
 					Scheme: runtime.NewScheme(),
 				}
 
-				ntnxCluster := &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"}}
+				ntnxCluster := &infrav1.NutanixCluster{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+					},
+					Spec: infrav1.NutanixClusterSpec{
+						PrismCentral: infrav1.NutanixPrismEndpoint{
+							// Adding port info to override default value (0)
+							Port: 9440,
+						},
+					},
+				}
 
 				// Create the NutanixCluster object and expect the Reconcile to be created
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())

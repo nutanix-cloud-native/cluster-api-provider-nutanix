@@ -1,6 +1,6 @@
 package v3
 
-import client "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/nutanix"
+import client "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/nutanix"
 
 // Client manages the V3 API
 type Client struct {

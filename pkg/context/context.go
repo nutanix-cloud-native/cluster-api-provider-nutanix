@@ -3,6 +3,7 @@ package context
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"k8s.io/klog/v2"
@@ -10,8 +11,10 @@ import (
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	infrav1 "github.com/nutanix-core/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixClientV3 "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/nutanix/v3"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	nutanixClientV3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/nutanix/v3"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/utils"
+	capierrors "sigs.k8s.io/cluster-api/errors"
 )
 
 var (
@@ -103,6 +106,18 @@ func (clctx *ClusterContext) GetNutanixMachinesInCluster(client ctlclient.Client
 	}
 
 	return ntxMachines, nil
+}
+
+func (clctx *ClusterContext) SetFailureStatus(failureReason capierrors.ClusterStatusError, failureMessage error) {
+	klog.Infof("Setting cluster failure status. Reason: %s, Message: %v", failureReason, failureMessage)
+	clctx.NutanixCluster.Status.FailureMessage = utils.StringPtr(fmt.Sprintf("%v", failureMessage))
+	clctx.NutanixCluster.Status.FailureReason = &failureReason
+}
+
+func (clctx *MachineContext) SetFailureStatus(failureReason capierrors.MachineStatusError, failureMessage error) {
+	klog.Infof("Setting machine failure status. Reason: %s, Message: %v", failureReason, failureMessage)
+	clctx.NutanixMachine.Status.FailureMessage = utils.StringPtr(fmt.Sprintf("%v", failureMessage))
+	clctx.NutanixMachine.Status.FailureReason = &failureReason
 }
 
 func GetRemoteClient(ctx context.Context, client ctlclient.Client, clusterKey ctlclient.ObjectKey) (ctlclient.Client, error) {

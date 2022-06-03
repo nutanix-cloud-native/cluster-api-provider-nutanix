@@ -10,8 +10,8 @@ import (
 	"reflect"
 	"testing"
 
-	client "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/nutanix"
-	"github.com/nutanix-core/cluster-api-provider-nutanix/pkg/utils"
+	client "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/nutanix"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/utils"
 )
 
 func setup() (*http.ServeMux, *client.Client, *httptest.Server) {

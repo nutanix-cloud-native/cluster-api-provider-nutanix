@@ -20,8 +20,10 @@ rules:
   resources:
   - secrets
   verbs:
+  - delete
   - get
   - list
+  - update
   - watch
 - apiGroups:
   - bootstrap.cluster.x-k8s.io

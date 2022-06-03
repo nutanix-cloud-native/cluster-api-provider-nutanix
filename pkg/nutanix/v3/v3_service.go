@@ -9,8 +9,8 @@ import (
 
 	"k8s.io/klog/v2"
 
-	client "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/nutanix"
-	"github.com/nutanix-core/cluster-api-provider-nutanix/pkg/utils"
+	client "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/nutanix"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/utils"
 )
 
 // Operations ...
@@ -63,6 +63,9 @@ type Service interface {
 	ListAllImage() (*ImageListIntentResponse, error)
 	ListAllCluster() (*ClusterListIntentResponse, error)
 	GetTask(taskUUID string) (*TasksResponse, error)
+	GetProject(projectUUID string) (*Project, error)
+	ListProject(getEntitiesRequest *DSMetadata) (*ProjectListResponse, error)
+	ListAllProject(filter string) (*ProjectListResponse, error)
 }
 
 /*CreateVM Creates a VM
@@ -1056,4 +1059,88 @@ func (op Operations) GetTask(taskUUID string) (*TasksResponse, error) {
 	}
 
 	return tasksTesponse, op.client.Do(ctx, req, tasksTesponse)
+}
+
+/*GetProject This operation gets a project.
+ *
+ * @param uuid The prject uuid - string.
+ * @return *Project
+ */
+func (op Operations) GetProject(projectUUID string) (*Project, error) {
+	ctx := context.TODO()
+
+	path := fmt.Sprintf("/projects/%s", projectUUID)
+	project := new(Project)
+
+	req, err := op.client.NewRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return project, op.client.Do(ctx, req, project)
+}
+
+/*ListProject gets a list of projects.
+ *
+ * @param metadata allows create filters to get specific data - *DSMetadata.
+ * @return *ProjectListResponse
+ */
+func (op Operations) ListProject(getEntitiesRequest *DSMetadata) (*ProjectListResponse, error) {
+	ctx := context.TODO()
+	path := "/projects/list"
+
+	projectList := new(ProjectListResponse)
+
+	req, err := op.client.NewRequest(ctx, http.MethodPost, path, getEntitiesRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	return projectList, op.client.Do(ctx, req, projectList)
+}
+
+/*ListAllProject gets a list of projects
+ * This operation gets a list of Projects, allowing for sorting and pagination.
+ * Note: Entities that have not been created successfully are not listed.
+ * @return *ProjectListResponse
+ */
+func (op Operations) ListAllProject(filter string) (*ProjectListResponse, error) {
+	entities := make([]*Project, 0)
+
+	resp, err := op.ListProject(&DSMetadata{
+		Filter: &filter,
+		Kind:   utils.StringPtr("project"),
+		Length: utils.Int64Ptr(itemsPerPage),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	totalEntities := utils.Int64Value(resp.Metadata.TotalMatches)
+	remaining := totalEntities
+	offset := utils.Int64Value(resp.Metadata.Offset)
+
+	if totalEntities > itemsPerPage {
+		for hasNext(&remaining) {
+			resp, err = op.ListProject(&DSMetadata{
+				Filter: &filter,
+				Kind:   utils.StringPtr("project"),
+				Length: utils.Int64Ptr(itemsPerPage),
+				Offset: utils.Int64Ptr(offset),
+			})
+
+			if err != nil {
+				return nil, err
+			}
+
+			entities = append(entities, resp.Entities...)
+
+			offset += itemsPerPage
+			klog.V(5).Infof("[Debug] total=%d, remaining=%d, offset=%d len(entities)=%d\n", totalEntities, remaining, offset, len(entities))
+		}
+
+		resp.Entities = entities
+	}
+
+	return resp, nil
 }

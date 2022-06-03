@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	client "github.com/nutanix-core/cluster-api-provider-nutanix/pkg/nutanix"
+	client "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/nutanix"
 )
 
 func TestNewV3Client(t *testing.T) {

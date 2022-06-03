@@ -1,4 +1,4 @@
-module github.com/nutanix-core/cluster-api-provider-nutanix
+module github.com/nutanix-cloud-native/cluster-api-provider-nutanix
 
 go 1.16
 
