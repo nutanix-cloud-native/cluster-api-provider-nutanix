@@ -72,7 +72,9 @@ type NutanixMachineSpec struct {
 	// List of categories that need to be added to the machines. Categories must already exist in Prism Central
 	// +kubebuilder:validation:Optional
 	AdditionalCategories []NutanixCategoryIdentifier `json:"additionalCategories"`
-
+	// Add the machine resources to a Prism Central project
+	// +optional
+	Project *NutanixResourceIdentifier `json:"project"`
 	// Defines the boot type of the virtual machine. Only supports UEFI and Legacy
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum:=legacy;uefi

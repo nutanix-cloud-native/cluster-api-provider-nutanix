@@ -43,10 +43,6 @@ type NutanixClusterSpec struct {
 	// +optional
 	ControlPlaneEndpoint capiv1.APIEndpoint `json:"controlPlaneEndpoint"`
 
-	// Add the Cluster resources to a Prism Central project
-	// +optional
-	Project *NutanixResourceIdentifier `json:"project"`
-
 	// prismCentral holds the endpoint address and port to access the Nutanix Prism Central.
 	// When a cluster-wide proxy is installed, by default, this endpoint will be accessed via the proxy.
 	// Should you wish for communication with this endpoint not to be proxied, please add the endpoint to the

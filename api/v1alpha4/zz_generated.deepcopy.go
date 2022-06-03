@@ -106,11 +106,6 @@ func (in *NutanixClusterList) DeepCopyObject() runtime.Object {
 func (in *NutanixClusterSpec) DeepCopyInto(out *NutanixClusterSpec) {
 	*out = *in
 	out.ControlPlaneEndpoint = in.ControlPlaneEndpoint
-	if in.Project != nil {
-		in, out := &in.Project, &out.Project
-		*out = new(NutanixResourceIdentifier)
-		(*in).DeepCopyInto(*out)
-	}
 	in.PrismCentral.DeepCopyInto(&out.PrismCentral)
 }
 
@@ -254,6 +249,11 @@ func (in *NutanixMachineSpec) DeepCopyInto(out *NutanixMachineSpec) {
 		in, out := &in.AdditionalCategories, &out.AdditionalCategories
 		*out = make([]NutanixCategoryIdentifier, len(*in))
 		copy(*out, *in)
+	}
+	if in.Project != nil {
+		in, out := &in.Project, &out.Project
+		*out = new(NutanixResourceIdentifier)
+		(*in).DeepCopyInto(*out)
 	}
 	out.SystemDiskSize = in.SystemDiskSize.DeepCopy()
 	if in.BootstrapRef != nil {
