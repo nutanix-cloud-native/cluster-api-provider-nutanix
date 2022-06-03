@@ -322,7 +322,6 @@ func autoConvert_v1alpha4_NutanixClusterSpec_To_v1beta1_NutanixClusterSpec(in *N
 	if err := Convert_v1alpha4_APIEndpoint_To_v1beta1_APIEndpoint(&in.ControlPlaneEndpoint, &out.ControlPlaneEndpoint, s); err != nil {
 		return err
 	}
-	out.Project = (*v1beta1.NutanixResourceIdentifier)(unsafe.Pointer(in.Project))
 	if err := Convert_v1alpha4_NutanixPrismEndpoint_To_v1beta1_NutanixPrismEndpoint(&in.PrismCentral, &out.PrismCentral, s); err != nil {
 		return err
 	}
@@ -333,7 +332,6 @@ func autoConvert_v1beta1_NutanixClusterSpec_To_v1alpha4_NutanixClusterSpec(in *v
 	if err := Convert_v1beta1_APIEndpoint_To_v1alpha4_APIEndpoint(&in.ControlPlaneEndpoint, &out.ControlPlaneEndpoint, s); err != nil {
 		return err
 	}
-	out.Project = (*NutanixResourceIdentifier)(unsafe.Pointer(in.Project))
 	if err := Convert_v1beta1_NutanixPrismEndpoint_To_v1alpha4_NutanixPrismEndpoint(&in.PrismCentral, &out.PrismCentral, s); err != nil {
 		return err
 	}
@@ -472,6 +470,7 @@ func autoConvert_v1alpha4_NutanixMachineSpec_To_v1beta1_NutanixMachineSpec(in *N
 	}
 	out.Subnets = *(*[]v1beta1.NutanixResourceIdentifier)(unsafe.Pointer(&in.Subnets))
 	out.AdditionalCategories = *(*[]v1beta1.NutanixCategoryIdentifier)(unsafe.Pointer(&in.AdditionalCategories))
+	out.Project = (*v1beta1.NutanixResourceIdentifier)(unsafe.Pointer(in.Project))
 	out.BootType = in.BootType
 	out.SystemDiskSize = in.SystemDiskSize
 	out.BootstrapRef = (*v1.ObjectReference)(unsafe.Pointer(in.BootstrapRef))
@@ -491,6 +490,7 @@ func autoConvert_v1beta1_NutanixMachineSpec_To_v1alpha4_NutanixMachineSpec(in *v
 	}
 	out.Subnets = *(*[]NutanixResourceIdentifier)(unsafe.Pointer(&in.Subnets))
 	out.AdditionalCategories = *(*[]NutanixCategoryIdentifier)(unsafe.Pointer(&in.AdditionalCategories))
+	out.Project = (*NutanixResourceIdentifier)(unsafe.Pointer(in.Project))
 	out.BootType = in.BootType
 	out.SystemDiskSize = in.SystemDiskSize
 	out.BootstrapRef = (*v1.ObjectReference)(unsafe.Pointer(in.BootstrapRef))

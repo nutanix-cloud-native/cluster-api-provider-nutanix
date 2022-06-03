@@ -699,7 +699,7 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vmMetadata *nutanixClientV3.Metadata) error {
 
 	vmName := rctx.NutanixMachine.Name
-	projectRef := rctx.NutanixCluster.Spec.Project
+	projectRef := rctx.NutanixMachine.Spec.Project
 	if projectRef == nil {
 		klog.Infof("%s Not linking VM %s to a project", rctx.LogPrefix, vmName)
 		return nil
