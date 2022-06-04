@@ -152,6 +152,8 @@ localtest:
 	clusterctl config repositories | grep nutanix
 	clusterctl generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --list-variables -v 10
 	clusterctl generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./cluster.yaml
+	kubectl create ns $(TEST_NAMESPACE) || true
+	kubectl apply -f ./cluster.yaml -n $(TEST_NAMESPACE)
 
 .PHONY: prepare-local-clusterctl
 prepare-local-clusterctl: manifests kustomize  ## Prepare overide file for local clusterctl.
