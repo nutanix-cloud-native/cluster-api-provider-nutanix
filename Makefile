@@ -135,7 +135,7 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 
 .PHONY: deploy
 deploy: manifests kustomize prepare-local-clusterctl docker-push-kind ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	clusterctl init --infrastructure nutanix -v 9
+	clusterctl init --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} -v 9
 	# cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	# $(KUSTOMIZE) build config/default | kubectl apply -f -
 
