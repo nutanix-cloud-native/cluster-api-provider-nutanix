@@ -37,7 +37,6 @@ Required Variables:
   - NUTANIX_USER
 
 Optional Variables:
-  - CLUSTER_NAME                     (defaults to mycluster)
   - CONTROL_PLANE_ENDPOINT_PORT      (defaults to "6443")
   - CONTROL_PLANE_MACHINE_COUNT      (defaults to 1)
   - KUBEVIP_LB_ENABLE                (defaults to "false")
