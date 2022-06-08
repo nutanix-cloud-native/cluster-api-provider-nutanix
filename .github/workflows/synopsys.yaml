@@ -9,6 +9,7 @@ on:
 
 jobs:
   security:
+    if: github.repository == 'nutanix-cloud-native/cluster-api-provider-nutanix'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
