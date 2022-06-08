@@ -1,13 +1,16 @@
-
 # Image URL to use all building/pushing image targets
 IMG ?= ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:latest
-
 
 # Extract base and tag from IMG
 IMG_REPO ?= $(word 1,$(subst :, ,${IMG}))
 IMG_TAG ?= $(word 2,$(subst :, ,${IMG}))
+LOCAL_PROVIDER_VERSION ?= ${IMG_TAG}
 ifeq (${IMG_TAG},)
 IMG_TAG := latest
+endif
+
+ifeq (${LOCAL_PROVIDER_VERSION},latest)
+LOCAL_PROVIDER_VERSION := v0.0.0
 endif
 
 # PLATFORMS is a list of platforms to build for.
@@ -104,15 +107,15 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: docker-build
 docker-build: test ## Build docker image with the manager.
-	KO_DOCKER_REPO=ko.local ko build -B --platform=${PLATFORMS} -t ${IMG_TAG} -L .
+	KO_DOCKER_REPO=ko.local $(KO) build -B --platform=${PLATFORMS} -t ${IMG_TAG} -L .
 
 .PHONY: docker-push
 docker-push: test ## Push docker image with the manager.
-	KO_DOCKER_REPO=${IMG_REPO} ko build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
+	KO_DOCKER_REPO=${IMG_REPO} $(KO) build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push-kind
 docker-push-kind: test ## Make docker image available to kind cluster.
-	GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local ko build -B -t ${IMG_TAG} -L .
+	GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local ${KO} build -B -t ${IMG_TAG} -L .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG}
 	kind load docker-image --name ${KIND_CLUSTER_NAME} ${IMG}
 
@@ -132,7 +135,7 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 
 .PHONY: deploy
 deploy: manifests kustomize prepare-local-clusterctl docker-push-kind ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	clusterctl init --infrastructure nutanix -v 9
+	clusterctl init --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} -v 9
 	# cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	# $(KUSTOMIZE) build config/default | kubectl apply -f -
 
@@ -140,14 +143,26 @@ deploy: manifests kustomize prepare-local-clusterctl docker-push-kind ## Deploy 
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
+TEST_NAMESPACE=capx-test-ns
+TEST_CLUSTER_NAME=mycluster
+.PHONY: localtest
+localtest:
+	which clusterctl
+	clusterctl version
+	clusterctl config repositories | grep nutanix
+	clusterctl generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --list-variables -v 10
+	clusterctl generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./cluster.yaml
+	kubectl create ns $(TEST_NAMESPACE) || true
+	kubectl apply -f ./cluster.yaml -n $(TEST_NAMESPACE)
+
 .PHONY: prepare-local-clusterctl
 prepare-local-clusterctl: manifests kustomize  ## Prepare overide file for local clusterctl.
-	mkdir -p ~/.cluster-api/overrides/infrastructure-nutanix/v0.2.0
+	mkdir -p ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default > ~/.cluster-api/overrides/infrastructure-nutanix/v0.2.0/infrastructure-components.yaml
-	cp ./metadata.yaml ~/.cluster-api/overrides/infrastructure-nutanix/v0.2.0
-	cp ./cluster-template.yaml ~/.cluster-api/overrides/infrastructure-nutanix/v0.2.0
-	cp ./clusterctl.yaml ~/.cluster-api/clusterctl.yaml.template
+	$(KUSTOMIZE) build config/default > ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/infrastructure-components.yaml
+	cp ./metadata.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}
+	cp ./cluster-template.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}
+	cp ./clusterctl.yaml ~/.cluster-api/clusterctl.yaml
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 .PHONY: controller-gen
