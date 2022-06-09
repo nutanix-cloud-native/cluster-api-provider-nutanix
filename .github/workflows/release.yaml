@@ -84,12 +84,24 @@ jobs:
         yq -i '(.releaseSeries[] | select(.contract == "v1beta1")).major |= env(MAJOR)' metadata.yaml
         yq -i '(.releaseSeries[] | select(.contract == "v1beta1")).minor |= env(MINOR)' metadata.yaml
 
+    - name: generate image info
+      env:
+        NEW_IMG: ghcr.io/${{ github.repository }}/controller:${{ steps.meta.outputs.version }}
+      run: |
+        echo "## Images" >> ${{ github.workspace }}-CHANGELOG.txt
+        echo "|Name|Link|" >> ${{ github.workspace }}-CHANGELOG.txt
+        echo "|-|-|" >> ${{ github.workspace }}-CHANGELOG.txt
+        echo "|CAPX|[$NEW_IMG]($NEW_IMG)|" >> ${{ github.workspace }}-CHANGELOG.txt
+
+
     - name: create release
       uses: softprops/action-gh-release@v1
       with:
         draft: false
         prerelease: true
+        body_path: ${{ github.workspace }}-CHANGELOG.txt
         generate_release_notes: true
+        append_body: true
         files: |
           infrastructure-components.yaml
           metadata.yaml
