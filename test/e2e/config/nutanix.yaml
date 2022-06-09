@@ -1,0 +1,121 @@
+---
+# CI E2E test test configuration scenario using locally build images and manifests for:
+# - cluster-api
+# - bootstrap kubeadm
+# - control-plane kubeadm
+# - docker
+
+# For creating local dev images run make docker-build-e2e from the main CAPI repository
+
+images:
+  # Use local dev images built source tree;
+  - name: ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:v0.2.0
+    loadBehavior: tryLoad
+
+  ## PLEASE KEEP THESE UP TO DATE WITH THE COMPONENTS
+
+  # Cluster API v1beta1 Preloads
+  - name: registry.k8s.io/cluster-api/cluster-api-controller:v1.1.4
+    loadBehavior: tryLoad
+  - name: registry.k8s.io/cluster-api/kubeadm-bootstrap-controller:v1.1.4
+    loadBehavior: tryLoad
+  - name: registry.k8s.io/cluster-api/kubeadm-control-plane-controller:v1.1.4
+    loadBehavior: tryLoad
+
+providers:
+  - name: cluster-api
+    type: CoreProvider
+    versions:
+      - name: v1.1.4
+        # Use manifest from source files
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.1.4/core-components.yaml"
+        type: "url"
+        contract: v1beta1
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+
+  - name: kubeadm
+    type: BootstrapProvider
+    versions:
+      - name: v1.1.4
+        # Use manifest from source files
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.1.4/bootstrap-components.yaml"
+        type: "url"
+        contract: "v1beta1"
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+
+  - name: kubeadm
+    type: ControlPlaneProvider
+    versions:
+      - name: v1.1.4
+        # Use manifest from source files
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.1.4/control-plane-components.yaml"
+        type: "url"
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+
+  - name: nutanix
+    type: InfrastructureProvider
+    versions:
+      - name: v0.4.0
+        value: "https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v0.4.0/infrastructure-components.yaml"
+        type: "url"
+        contract: v1beta1
+        # files:
+        #   - sourcePath: "../../../metadata.yaml"
+        #   - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"
+
+variables:
+  # Default variables for the e2e test; those values could be overridden via env variables, thus
+  # allowing the same e2e config file to be re-used in different Prow jobs e.g. each one with a K8s version permutation.
+  # The following Kubernetes versions should be the latest versions with already published kindest/node images.
+  # This avoids building node images in the default case which improves the test duration significantly.
+  KUBERNETES_VERSION_MANAGEMENT: "v1.24.0"
+  KUBERNETES_VERSION: "v1.24.0"
+  IP_FAMILY: "IPv4"
+  CLUSTERCTL_LOG_LEVEL: 10
+  NUTANIX_PROVIDER: "true"
+  NUTANIX_ENDPOINT: ""
+  NUTANIX_USER: ""
+  NUTANIX_PASSWORD: ""
+  KUBERNETES_VERSION: "v1.24.0"
+  NUTANIX_SSH_AUTHORIZED_KEY: ""
+  CONTROL_PLANE_ENDPOINT_IP: "10.40.142.71"
+  WORKER_MACHINE_COUNT: 2
+  NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ""
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: "ubuntu-2004-kube-v1.21.10"
+  NUTANIX_SUBNET_NAME: ""
+  KUBEVIP_LB_ENABLE: "false"
+  KUBEVIP_SVC_ENABLE: "false"
+  CNI: "./data/cni/kindnet/kindnet.yaml"
+  # NOTE: INIT_WITH_BINARY and INIT_WITH_KUBERNETES_VERSION are only used by the clusterctl upgrade test to initialize
+  # the management cluster to be upgraded.
+  # NOTE: We test the latest release with a previous contract.
+  INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.1.4/clusterctl-{OS}-{ARCH}"
+  INIT_WITH_PROVIDERS_CONTRACT: "v1alpha4"
+  INIT_WITH_KUBERNETES_VERSION: "v1.23.4"
+
+intervals:
+  default/wait-controllers: ["3m", "10s"]
+  default/wait-cluster: ["5m", "10s"]
+  default/wait-control-plane: ["10m", "10s"]
+  default/wait-worker-nodes: ["5m", "10s"]
+  default/wait-machine-pool-nodes: ["5m", "10s"]
+  default/wait-delete-cluster: ["3m", "10s"]
+  default/wait-machine-upgrade: ["20m", "10s"]
+  default/wait-machine-pool-upgrade: ["5m", "10s"]
+  default/wait-nodes-ready: ["10m", "10s"]
+  default/wait-machine-remediation: ["5m", "10s"]
+  node-drain/wait-deployment-available: ["3m", "10s"]
+  node-drain/wait-control-plane: ["15m", "10s"]
+  node-drain/wait-machine-deleted: ["2m", "10s"]
