@@ -3,6 +3,7 @@ module github.com/nutanix-cloud-native/cluster-api-provider-nutanix
 go 1.16
 
 require (
+	github.com/nutanix-cloud-native/prism-go-client v0.2.0
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.16.0
 	github.com/pkg/errors v0.9.1
