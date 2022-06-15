@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/nutanix"
-	nutanixClientV3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/nutanix/v3"
+	nutanixClient "github.com/nutanix-cloud-native/prism-go-client/pkg/nutanix"
+	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/pkg/nutanix/v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	ctrlClient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -17,7 +16,6 @@ import (
 const (
 	defaultEndpointPort = "9440"
 	ProviderName        = "nutanix"
-	debugModeName       = "DEBUG_MODE"
 	nutanixUsernameKey  = "NUTANIX_USER"
 	nutanixPasswordKey  = "NUTANIX_PASSWORD"
 )
@@ -43,7 +41,7 @@ func Client(cred nutanixClient.Credentials, options ClientOptions) (*nutanixClie
 	if cred.URL == "" {
 		cred.URL = fmt.Sprintf("%s:%s", cred.Endpoint, cred.Port)
 	}
-	cli, err := nutanixClientV3.NewV3Client(cred, debugMode(options))
+	cli, err := nutanixClientV3.NewV3Client(cred)
 	if err != nil {
 		klog.Errorf("Failed to create the nutanix client. error: %v", err)
 		return nil, err
@@ -146,21 +144,6 @@ func getCredentialsFromEnv() (*nutanixClient.Credentials, error) {
 		Username: username,
 		Password: password,
 	}, nil
-}
-
-func debugMode(options ClientOptions) bool {
-	//Read environment variable to enable debug mode
-	debugModeEnv := getEnvVar(debugModeName)
-	if debugModeEnv != "" {
-		//See if env var is set to 'true', otherwise default to false
-		if strings.ToLower(debugModeEnv) == "true" {
-			return true
-		} else {
-			return false
-		}
-	}
-	// If env var not set -> use options
-	return options.Debug
 }
 
 func getEnvVar(key string) (val string) {

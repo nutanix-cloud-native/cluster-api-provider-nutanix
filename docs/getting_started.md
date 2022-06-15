@@ -28,22 +28,26 @@ clusterctl generate cluster mycluster -i nutanix --list-variables
 Required Variables:
   - CONTROL_PLANE_ENDPOINT_IP
   - KUBERNETES_VERSION
+  - NUTANIX_ENDPOINT
   - NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME
+  - NUTANIX_PASSWORD
   - NUTANIX_PRISM_ELEMENT_CLUSTER_NAME
   - NUTANIX_SSH_AUTHORIZED_KEY
   - NUTANIX_SUBNET_NAME
+  - NUTANIX_USER
 
 Optional Variables:
-  - CLUSTER_NAME
   - CONTROL_PLANE_ENDPOINT_PORT      (defaults to "6443")
   - CONTROL_PLANE_MACHINE_COUNT      (defaults to 1)
   - KUBEVIP_LB_ENABLE                (defaults to "false")
   - KUBEVIP_SVC_ENABLE               (defaults to "false")
   - NAMESPACE                        (defaults to current Namespace in the KubeConfig file)
+  - NUTANIX_INSECURE                 (defaults to "false")
   - NUTANIX_MACHINE_BOOT_TYPE        (defaults to "legacy")
   - NUTANIX_MACHINE_MEMORY_SIZE      (defaults to "4Gi")
   - NUTANIX_MACHINE_VCPU_PER_SOCKET  (defaults to "1")
   - NUTANIX_MACHINE_VCPU_SOCKET      (defaults to "2")
+  - NUTANIX_PORT                     (defaults to "9440")
   - NUTANIX_SYSTEMDISK_SIZE          (defaults to "40Gi")
   - WORKER_MACHINE_COUNT             (defaults to 0)
 
@@ -133,10 +137,10 @@ make deploy
 Note: Update ./clusterctl.yaml with appropriate configuration before running following commands
 <pre>
 make prepare-local-clusterctl
-make deploy-test
+make localtest
 </pre>
 
 ### Delete test workfload cluster
 <pre>
-make undeploy-test
+tbd
 </pre>
