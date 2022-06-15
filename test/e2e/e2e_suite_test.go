@@ -61,6 +61,9 @@ var (
 
 	// skipCleanup prevents cleanup of test resources e.g. for debug purposes.
 	skipCleanup bool
+
+	// flavor is used to add clusterResourceSet for CNI usage in e2e tests
+	flavor string
 )
 
 // Test suite global vars.

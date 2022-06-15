@@ -30,6 +30,7 @@ kind: Cluster
 metadata:
   labels:
     cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+    cni: "${CLUSTER_NAME}-crs-cni"
   name: "${CLUSTER_NAME}"
   namespace: "${NAMESPACE}"
 spec:

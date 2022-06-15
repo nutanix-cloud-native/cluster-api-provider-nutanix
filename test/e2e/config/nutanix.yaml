@@ -71,39 +71,45 @@ providers:
         contract: v1beta1
         files:
           - sourcePath: "../../../metadata.yaml"
-          - sourcePath: "../data/infrastructure-nutanix/cluster-template.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"
 
 variables:
   # Default variables for the e2e test; those values could be overridden via env variables, thus
   # allowing the same e2e config file to be re-used in different Prow jobs e.g. each one with a K8s version permutation.
   # The following Kubernetes versions should be the latest versions with already published kindest/node images.
   # This avoids building node images in the default case which improves the test duration significantly.
-  KUBERNETES_VERSION_MANAGEMENT: "v1.24.0"
+  KUBERNETES_VERSION_MANAGEMENT: "v1.21.10"
   IP_FAMILY: "IPv4"
   CLUSTERCTL_LOG_LEVEL: 10
   NUTANIX_PROVIDER: "true"
-  NUTANIX_ENDPOINT: ""
-  NUTANIX_USER: ""
-  NUTANIX_PASSWORD: ""
+  NUTANIX_ENDPOINT: "10.40.142.15"
+  NUTANIX_USER: "admin"
+  NUTANIX_PASSWORD: "Nutanix.123"
   NUTANIX_INSECURE: true
-  KUBERNETES_VERSION: "v1.22.8"
-  NUTANIX_SSH_AUTHORIZED_KEY: ""
-  CONTROL_PLANE_ENDPOINT_IP: ""
-  WORKER_MACHINE_COUNT: 2
-  NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ""
-  NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: "ubuntu-2004-kube-v1.22.8"
-  NUTANIX_SUBNET_NAME: ""
+  KUBERNETES_VERSION: "v1.21.10"
+  NUTANIX_SSH_AUTHORIZED_KEY: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDRTS5ynKIexBhkIpBqi5pPXjIRGhL4yc8rQiqczLXVdukE07brlOclL12dA60abzzG8mbPaMZN8xQH3Gnn40PBF1agyD76h1AaFSwlKTAkj49bbnF91J8eReRifpjwxoyX2Yfyo19PKmCXBeJrKKAJp6ueyDOYPAh0VAaefrJ5M5DjW8iE4wfW9jq1ga9A33MdDgc94jk2EnxUuDo+UUTytH6QTlINiAeEiqkvSpoMSyq1nPi3D6YFHmMUU8a+brWRJwA2x4AwK5+Nre5N92ylvtykNGDcFOV3zA8Ls/1qPLAQWvNsAXO3QJu3pKEg9Yi7K8croIuTs02w9sA6bgUIVYhJHMtGLBCtrxYHF3AXRINybqYtbJnxQrTniyHmxtHAkUrqryflGaRW5QMJpfMI8b1DwQtKwMl3SvOz6Mnhhf0WnOTs6V5bBpYrDfTYfwVjobfxZCltYQe2HlY+SBgoHAEyMqeSW+59ncb+h9KLmdR9TWvRFtQhjoiW76tgbXfSWnnGxmtsPrmwasz0iNoEkc4L/J0tgy3MSJtXlq9Ki+lmkGQbet5rqR6xyQvgAsbShMXDous7cIsHgs9Zwepo0vpcZaWxgpg9rPsJU6/9A2CsjmM/ZZ58k1SeGH+w3mOTemp31OU4a0jVNpyTkfy9/7//DJkza/+I195RO/I4YQ== deepak.muley@nutanix.com"
+  CONTROL_PLANE_ENDPOINT_IP: "10.40.142.71"
+  CONTROL_PLANE_MACHINE_COUNT: 3
+  WORKER_MACHINE_COUNT: 3
+  NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: "ganon"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: "ubuntu-2004-kube-v1.21.10"
+  NUTANIX_SUBNET_NAME: "sherlock_net"
   KUBEVIP_LB_ENABLE: "false"
   KUBEVIP_SVC_ENABLE: "false"
   CNI: "./data/cni/kindnet/kindnet.yaml"
   EXP_CLUSTER_RESOURCE_SET: "true"
   DOCKER_POD_CIDRS: "192.168.0.0/16"
+  KUBERNETES_VERSION_UPGRADE_TO: "v1.20.0"
+  KUBERNETES_VERSION_UPGRADE_FROM: "v1.21.8"
+  ETCD_VERSION_UPGRADE_TO: "3.5.3-0"
+  COREDNS_VERSION_UPGRADE_TO: "v1.8.6"
   # NOTE: INIT_WITH_BINARY and INIT_WITH_KUBERNETES_VERSION are only used by the clusterctl upgrade test to initialize
   # the management cluster to be upgraded.
   # NOTE: We test the latest release with a previous contract.
   INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.1.4/clusterctl-{OS}-{ARCH}"
+  INIT_WITH_BINARY_V1ALPHA4: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.7/clusterctl-{OS}-{ARCH}"
   INIT_WITH_PROVIDERS_CONTRACT: "v1alpha4"
-  INIT_WITH_KUBERNETES_VERSION: "v1.23.4"
+  INIT_WITH_KUBERNETES_VERSION: "v1.21.10"
 
 intervals:
   default/wait-controllers: ["3m", "10s"]

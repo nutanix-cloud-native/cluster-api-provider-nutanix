@@ -27,14 +27,16 @@ ENVTEST_K8S_VERSION = 1.23
 #
 # Full directory of where the Makefile resides
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+REPO_ROOT := $(shell git rev-parse --show-toplevel)
 EXP_DIR := exp
 BIN_DIR := bin
 TEST_DIR := test
-TOOLS_DIR := hack/tools
+TOOLS_DIR := $(REPO_ROOT)/hack/tools
 TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/$(BIN_DIR))
 E2E_FRAMEWORK_DIR := $(TEST_DIR)/framework
 CAPD_DIR := $(TEST_DIR)/infrastructure/docker
-GO_INSTALL := ./scripts/go_install.sh
+GO_INSTALL := $(REPO_ROOT)/scripts/go_install.sh
+NUTANIX_E2E_TEMPLATES := $(REPO_ROOT)/test/e2e/data/infrastructure-nutanix
 
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 
@@ -47,10 +49,15 @@ KO_BIN := ko
 KO := $(abspath $(TOOLS_BIN_DIR)/$(KO_BIN)-$(KO_VER))
 KO_PKG := github.com/google/ko
 
-KUSTOMIZE_VER := v4.5.4
 KUSTOMIZE_BIN := kustomize
+KUSTOMIZE_VER := v4.5.4
 KUSTOMIZE := $(abspath $(TOOLS_BIN_DIR)/$(KUSTOMIZE_BIN)-$(KUSTOMIZE_VER))
 KUSTOMIZE_PKG := sigs.k8s.io/kustomize/kustomize/v4
+
+GINGKO_VER := v1.16.5
+GINKGO_BIN := ginkgo
+GINKGO := $(abspath $(TOOLS_BIN_DIR)/$(GINKGO_BIN)-$(GINGKO_VER))
+GINKGO_PKG := github.com/onsi/ginkgo/ginkgo
 
 SETUP_ENVTEST_VER := v0.0.0-20211110210527-619e6b92dab9
 SETUP_ENVTEST_BIN := setup-envtest
@@ -114,6 +121,23 @@ endif
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
+GINKGO_FOCUS  ?=
+GINKGO_SKIP ?=
+GINKGO_NODES  ?= 1
+E2E_CONF_FILE  ?= ${REPO_ROOT}/test/e2e/config/nutanix.yaml
+ARTIFACTS ?= ${REPO_ROOT}/_artifacts
+SKIP_RESOURCE_CLEANUP ?= false
+USE_EXISTING_CLUSTER ?= false
+GINKGO_NOCOLOR ?= false
+FLAVOR ?= e2e
+
+TEST_NAMESPACE=capx-test-ns
+TEST_CLUSTER_NAME=mycluster
+
+# to set multiple ginkgo skip flags, if any
+ifneq ($(strip $(GINKGO_SKIP)),)
+_SKIP_ARGS := $(foreach arg,$(strip $(GINKGO_SKIP)),-skip="$(arg)")
+endif
 .PHONY: all
 all: build
 
@@ -159,11 +183,6 @@ fmt: ## Run go fmt against code.
 .PHONY: vet
 vet: ## Run go vet against code.
 	go vet ./...
-
-.PHONY: test
-test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" go test ./... -coverprofile cover.out
-
 
 kind-create: ## Create a kind cluster and deploy the latest supported cluster API version
 	kind create cluster --name=${KIND_CLUSTER_NAME}
@@ -220,17 +239,18 @@ deploy: manifests kustomize prepare-local-clusterctl docker-push-kind ## Deploy 
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
-TEST_NAMESPACE=capx-test-ns
-TEST_CLUSTER_NAME=mycluster
-.PHONY: localtest
-localtest:
-	which clusterctl
-	clusterctl version
-	clusterctl config repositories | grep nutanix
-	clusterctl generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --list-variables -v 10
-	clusterctl generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./cluster.yaml
-	kubectl create ns $(TEST_NAMESPACE) || true
-	kubectl apply -f ./cluster.yaml -n $(TEST_NAMESPACE)
+##@ Templates
+
+.PHONY: cluster-templates
+cluster-templates: $(KUSTOMIZE) cluster-templates-v1beta1 ## Generate cluster templates for all versions
+
+cluster-templates-v1alpha4: $(KUSTOMIZE) ## Generate cluster templates for v1alpha4
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1alpha4/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1alpha4/cluster-template.yaml
+
+cluster-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1beta1
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template.yaml
+
+##@ Testing
 
 .PHONY: prepare-local-clusterctl
 prepare-local-clusterctl: manifests kustomize  ## Prepare overide file for local clusterctl.
@@ -240,6 +260,28 @@ prepare-local-clusterctl: manifests kustomize  ## Prepare overide file for local
 	cp ./metadata.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}
 	cp ./cluster-template.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}
 	cp ./clusterctl.yaml ~/.cluster-api/clusterctl.yaml
+
+.PHONY: test-unittest
+test-unittest: manifests generate fmt vet envtest ## Run unit tests.
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" go test ./... -coverprofile cover.out
+
+.PHONY: test-clusterctl
+test-clusterctl: prepare-local-clusterctl ## Run the tests using clusterctl
+	which clusterctl
+	clusterctl version
+	clusterctl config repositories | grep nutanix
+	clusterctl generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --list-variables -v 10
+	clusterctl generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./cluster.yaml
+	kubectl create ns $(TEST_NAMESPACE) || true
+	kubectl apply -f ./cluster.yaml -n $(TEST_NAMESPACE)
+
+.PHONY: test-e2e
+test-e2e: $(GINKGO) cluster-templates ## Run the end-to-end tests
+	mkdir -p $(ARTIFACTS)
+	$(GINKGO) -v -trace -tags=e2e -focus="$(GINKGO_FOCUS)" $(_SKIP_ARGS) -nodes=$(GINKGO_NODES) --noColor=$(GINKGO_NOCOLOR) $(GINKGO_ARGS) ./test/e2e -- \
+	    -e2e.artifacts-folder="$(ARTIFACTS)" \
+	    -e2e.config="$(E2E_CONF_FILE)" \
+	    -e2e.skip-resource-cleanup=$(SKIP_RESOURCE_CLEANUP) -e2e.use-existing-cluster=$(USE_EXISTING_CLUSTER)
 
 # go-get-tool will 'go get' any package $2 and install it to $1.
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
@@ -290,6 +332,18 @@ $(TILT_PREPARE_BIN): $(TILT_PREPARE) ## Build a local copy of tilt-prepare.
 .PHONY: $(GOLANGCI_LINT_BIN)
 $(GOLANGCI_LINT_BIN): $(GOLANGCI_LINT) ## Build a local copy of golangci-lint
 
+$(GINKGO): # Build ginkgo from tools folder.
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(GINKGO_PKG) $(GINKGO_BIN) $(GINGKO_VER)
+
+$(KUSTOMIZE): # Build kustomize from tools folder.
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(KUSTOMIZE_PKG) $(KUSTOMIZE_BIN) $(KUSTOMIZE_VER)
+
+.PHONY: $(GINKGO_BIN)
+$(GINKGO_BIN): $(GINKGO) ## Build a local copy of ginkgo
+
+.PHONY: $(KUSTOMIZE_BIN)
+$(KUSTOMIZE_BIN): $(KUSTOMIZE) ## Build a local copy of kustomize
+
 $(CONTROLLER_GEN): # Build controller-gen from tools folder.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(CONTROLLER_GEN_PKG) $(CONTROLLER_GEN_BIN) $(CONTROLLER_GEN_VER)
 
@@ -310,9 +364,6 @@ $(GO_APIDIFF): # Build go-apidiff from tools folder.
 
 $(ENVSUBST): # Build gotestsum from tools folder.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(ENVSUBST_PKG) $(ENVSUBST_BIN) $(ENVSUBST_VER)
-
-$(KUSTOMIZE): # Build kustomize from tools folder.
-	CGO_ENABLED=0 GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(KUSTOMIZE_PKG) $(KUSTOMIZE_BIN) $(KUSTOMIZE_VER)
 
 $(SETUP_ENVTEST): # Build setup-envtest from tools folder.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(SETUP_ENVTEST_PKG) $(SETUP_ENVTEST_BIN) $(SETUP_ENVTEST_VER)

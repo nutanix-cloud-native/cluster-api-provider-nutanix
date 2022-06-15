@@ -1,4 +1,10 @@
 apiVersion: v1
+data: ${CNI_RESOURCES}
+kind: ConfigMap
+metadata:
+  name: cni-${CLUSTER_NAME}-crs-cni
+---
+apiVersion: v1
 kind: Secret
 metadata:
   name: ${CLUSTER_NAME}
@@ -6,6 +12,19 @@ metadata:
 stringData:
   NUTANIX_PASSWORD: ${NUTANIX_PASSWORD}
   NUTANIX_USER: ${NUTANIX_USER}
+---
+apiVersion: addons.cluster.x-k8s.io/v1beta1
+kind: ClusterResourceSet
+metadata:
+  name: ${CLUSTER_NAME}-crs-cni
+spec:
+  clusterSelector:
+    matchLabels:
+      cni: ${CLUSTER_NAME}-crs-cni
+  resources:
+  - kind: ConfigMap
+    name: cni-${CLUSTER_NAME}-crs-cni
+  strategy: ApplyOnce
 ---
 apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
 kind: KubeadmConfigTemplate
@@ -36,6 +55,7 @@ kind: Cluster
 metadata:
   labels:
     cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+    cni: ${CLUSTER_NAME}-crs-cni
   name: ${CLUSTER_NAME}
   namespace: ${NAMESPACE}
 spec:
