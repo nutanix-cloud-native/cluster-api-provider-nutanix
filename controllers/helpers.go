@@ -34,7 +34,6 @@ import (
 
 const (
 	taskSucceededMessage = "SUCCEEDED"
-	emptyFilter          = ""
 )
 
 func CreateNutanixClient(ctx context.Context, client client.Client, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
@@ -152,11 +151,12 @@ func getPEUUID(client *nutanixClientV3.Client, peName, peUUID *string) (string, 
 		}
 		foundPEUUID = *peIntentResponse.Metadata.UUID
 	} else if peName != nil {
-
-		responsePEs, err := client.V3.ListAllCluster(emptyFilter)
+		filter := getFilterForName(*peName)
+		responsePEs, err := client.V3.ListAllCluster(filter)
 		if err != nil {
 			return "", err
 		}
+		// Validate filtered PEs
 		foundPEs := make([]*nutanixClientV3.ClusterIntentResponse, 0)
 		for _, s := range responsePEs.Entities {
 			peSpec := s.Spec
@@ -214,11 +214,13 @@ func getSubnetUUID(client *nutanixClientV3.Client, peUUID string, subnetName, su
 		}
 		foundSubnetUUID = *subnetIntentResponse.Metadata.UUID
 	} else if subnetName != nil {
-
-		responseSubnets, err := client.V3.ListAllSubnet(emptyFilter, getEmptyClientSideFilter())
+		filter := getFilterForName(*subnetName)
+		subnetClientSideFilter := getSubnetClientSideFilter(peUUID)
+		responseSubnets, err := client.V3.ListAllSubnet(filter, subnetClientSideFilter)
 		if err != nil {
 			return "", err
 		}
+		// Validate filtered Subnets
 		foundSubnets := make([]*nutanixClientV3.SubnetIntentResponse, 0)
 		for _, s := range responseSubnets.Entities {
 			subnetSpec := s.Spec
@@ -255,10 +257,12 @@ func getImageUUID(client *nutanixClientV3.Client, imageName, imageUUID *string) 
 		}
 		foundImageUUID = *imageIntentResponse.Metadata.UUID
 	} else if imageName != nil {
-		responseImages, err := client.V3.ListAllImage(emptyFilter)
+		filter := getFilterForName(*imageName)
+		responseImages, err := client.V3.ListAllImage(filter)
 		if err != nil {
 			return "", err
 		}
+		// Validate filtered Images
 		foundImages := make([]*nutanixClientV3.ImageIntentResponse, 0)
 		for _, s := range responseImages.Entities {
 			imageSpec := s.Spec
@@ -535,7 +539,7 @@ func getProjectUUID(client *nutanixClientV3.Client, projectName, projectUUID *st
 		}
 		foundProjectUUID = *projectIntentResponse.Metadata.UUID
 	} else if projectName != nil {
-		filter := fmt.Sprintf("name==%s", *projectName)
+		filter := getFilterForName(*projectName)
 		responseProjects, err := client.V3.ListAllProject(filter)
 		if err != nil {
 			return "", err
@@ -561,6 +565,16 @@ func getProjectUUID(client *nutanixClientV3.Client, projectName, projectUUID *st
 	return foundProjectUUID, nil
 }
 
-func getEmptyClientSideFilter() []*nutanixClient.AdditionalFilter {
-	return make([]*nutanixClient.AdditionalFilter, 0)
+func getSubnetClientSideFilter(peUUID string) []*nutanixClient.AdditionalFilter {
+	clientSideFilters := make([]*nutanixClient.AdditionalFilter, 0)
+	return append(clientSideFilters, &nutanixClient.AdditionalFilter{
+		Name: "cluster_reference.uuid",
+		Values: []string{
+			peUUID,
+		},
+	})
+}
+
+func getFilterForName(name string) string {
+	return fmt.Sprintf("name==%s", name)
 }
