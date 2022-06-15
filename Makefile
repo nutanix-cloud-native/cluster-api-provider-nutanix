@@ -121,7 +121,7 @@ endif
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-GINKGO_FOCUS  ?=
+GINKGO_FOCUS ?= "\\[PR-Blocking\\]"
 GINKGO_SKIP ?=
 GINKGO_NODES  ?= 1
 E2E_CONF_FILE  ?= ${REPO_ROOT}/test/e2e/config/nutanix.yaml
