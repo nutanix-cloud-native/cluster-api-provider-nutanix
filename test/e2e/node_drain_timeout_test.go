@@ -25,7 +25,7 @@ import (
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 )
 
-var _ = Describe("When testing node drain timeout", func() {
+var _ = Describe("When testing node drain timeout [node-drain-timeout]", func() {
 	capi_e2e.NodeDrainTimeoutSpec(ctx, func() capi_e2e.NodeDrainTimeoutSpecInput {
 		return capi_e2e.NodeDrainTimeoutSpecInput{
 			E2EConfig:             e2eConfig,
