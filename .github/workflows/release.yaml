@@ -3,105 +3,105 @@ name: Generate release artefact
 on:
   push:
     tags:
-      - "v*.*.*"
+    - "v*.*.*"
 
 jobs:
   build_release:
     name: Build Release
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+    - name: Checkout
+      uses: actions/checkout@v2
 
-      - name: Setup Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: "^1.17"
+    - name: Setup Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: "^1.17"
 
-      - name: Install tools
-        uses: redhat-actions/openshift-tools-installer@v1
-        with:
-          source: "github"
-          kustomize: "latest"
-          ko: "latest"
+    - name: Install tools
+      uses: redhat-actions/openshift-tools-installer@v1
+      with:
+        source: "github"
+        kustomize: "latest"
+        ko: "latest"
 
-      - name: Login to GHCR
-        uses: docker/login-action@v1
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Login to GHCR
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v3
-        with:
-          images: capi-nutanix
-          sep-tags: ","
-          sep-labels: ","
-          tags: |
-            type=semver,pattern=v{{version}}
-            type=semver,pattern=v{{major}}.{{minor}}
-            type=semver,pattern=v{{major}}
-            type=sha
+    - name: Docker meta
+      id: meta
+      uses: docker/metadata-action@v3
+      with:
+        images: capi-nutanix
+        sep-tags: ","
+        sep-labels: ","
+        tags: |
+          type=semver,pattern=v{{version}}
+          type=semver,pattern=v{{major}}.{{minor}}
+          type=semver,pattern=v{{major}}
+          type=sha
 
-      - name: Prepare build
-        run: make manifests generate
+    - name: Prepare build
+      run: make manifests generate
 
-      - name: Build container
-        env:
-          KO_DOCKER_REPO: ghcr.io/${{ github.repository }}/controller
-          TAGS: ${{ steps.meta.outputs.tags }}
-          LABELS: ${{ steps.meta.outputs.labels }}
-          PLATFORMS: linux/amd64,linux/arm64,linux/arm
-        run: |
-          PTAGS=`echo $TAGS | sed 's/capi-nutanix://g'`
-          export SOURCE_DATE_EPOCH=$(date +%s)
-          ko build --bare --image-label "$LABELS" -t "$PTAGS" --platform=$PLATFORMS .
+    - name: Build container
+      env:
+        KO_DOCKER_REPO: ghcr.io/${{ github.repository }}/controller
+        TAGS: ${{ steps.meta.outputs.tags }}
+        LABELS: ${{ steps.meta.outputs.labels }}
+        PLATFORMS: linux/amd64,linux/arm64,linux/arm
+      run: |
+        PTAGS=`echo $TAGS | sed 's/capi-nutanix://g'`
+        export SOURCE_DATE_EPOCH=$(date +%s)
+        ko build --bare --image-label "$LABELS" -t "$PTAGS" --platform=$PLATFORMS .
 
-      - name: parse semver
-        id: semver
-        env:
-          SEMVER: ${{ steps.meta.outputs.version }}
-        run: |
-          n=${SEMVER//[!0-9]/ }
-          a=(${n//\./ })
-          echo "::set-output name=major::${a[0]}"
-          echo "::set-output name=minor::${a[1]}"
+    - name: parse semver
+      id: semver
+      env:
+        SEMVER: ${{ steps.meta.outputs.version }}
+      run: |
+        n=${SEMVER//[!0-9]/ }
+        a=(${n//\./ })
+        echo "::set-output name=major::${a[0]}"
+        echo "::set-output name=minor::${a[1]}"
 
-      - name: build template
-        env:
-          NEW_IMG: ghcr.io/${{ github.repository }}/controller:${{ steps.meta.outputs.version }}
-        run: |
-          (cd config/manager && kustomize edit set image controller=$NEW_IMG)
-          kustomize build config/default > infrastructure-components.yaml
+    - name: build template
+      env:
+        NEW_IMG: ghcr.io/${{ github.repository }}/controller:${{ steps.meta.outputs.version }}
+      run: |
+        (cd config/manager && kustomize edit set image controller=$NEW_IMG)
+        kustomize build config/default > infrastructure-components.yaml
 
-      - name: update metadata.yaml
-        env:
-          MINOR: ${{ steps.semver.outputs.minor }}
-          MAJOR: ${{ steps.semver.outputs.major }}
-        run: |
-          yq -i '(.releaseSeries[] | select(.contract == "v1beta1")).major |= env(MAJOR)' metadata.yaml
-          yq -i '(.releaseSeries[] | select(.contract == "v1beta1")).minor |= env(MINOR)' metadata.yaml
+    - name: update metadata.yaml
+      env:
+        MINOR: ${{ steps.semver.outputs.minor }}
+        MAJOR: ${{ steps.semver.outputs.major }}
+      run: |
+        yq -i '(.releaseSeries[] | select(.contract == "v1beta1")).major |= env(MAJOR)' metadata.yaml
+        yq -i '(.releaseSeries[] | select(.contract == "v1beta1")).minor |= env(MINOR)' metadata.yaml
 
-      - name: generate image info
-        env:
-          NEW_IMG: ghcr.io/${{ github.repository }}/controller:${{ steps.meta.outputs.version }}
-        run: |
-          echo "## Images" >> ${{ github.workspace }}-CHANGELOG.txt
-          echo "|Name|Link|" >> ${{ github.workspace }}-CHANGELOG.txt
-          echo "|-|-|" >> ${{ github.workspace }}-CHANGELOG.txt
-          echo "|CAPX|[$NEW_IMG]($NEW_IMG)|" >> ${{ github.workspace }}-CHANGELOG.txt
+    - name: generate image info
+      env:
+        NEW_IMG: ghcr.io/${{ github.repository }}/controller:${{ steps.meta.outputs.version }}
+      run: |
+        echo "## Images" >> ${{ github.workspace }}-CHANGELOG.txt
+        echo "|Name|Link|" >> ${{ github.workspace }}-CHANGELOG.txt
+        echo "|-|-|" >> ${{ github.workspace }}-CHANGELOG.txt
+        echo "|CAPX|[$NEW_IMG]($NEW_IMG)|" >> ${{ github.workspace }}-CHANGELOG.txt
 
-      - name: create release
-        uses: softprops/action-gh-release@v1
-        with:
-          draft: false
-          prerelease: true
-          body_path: ${{ github.workspace }}-CHANGELOG.txt
-          generate_release_notes: true
-          append_body: true
-          files: |
-            infrastructure-components.yaml
-            metadata.yaml
-            templates/*.yaml
+    - name: create release
+      uses: softprops/action-gh-release@v1
+      with:
+        draft: false
+        prerelease: true
+        body_path: ${{ github.workspace }}-CHANGELOG.txt
+        generate_release_notes: true
+        append_body: true
+        files: |
+          infrastructure-components.yaml
+          metadata.yaml
+          templates/*.yaml
