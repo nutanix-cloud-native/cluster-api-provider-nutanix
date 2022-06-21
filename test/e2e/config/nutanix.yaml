@@ -9,8 +9,8 @@
 
 images:
   # Use local dev images built source tree;
-  - name: ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:v0.4.0
-    loadBehavior: tryLoad
+  - name: ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:e2e
+    loadBehavior: mustLoad
   # ## PLEASE KEEP THESE UP TO DATE WITH THE COMPONENTS
   # Cluster API v1beta1 Preloads
   - name: registry.k8s.io/cluster-api/cluster-api-controller:v1.1.4
@@ -65,10 +65,17 @@ providers:
   - name: nutanix
     type: InfrastructureProvider
     versions:
-      - name: v0.4.0
-        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v0.4.0/infrastructure-components.yaml
-        type: "url"
+      - name: v0.5.0 # next; use manifest from source files
+        # type: "url"
+        # value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v0.4.0/infrastructure-components.yaml
+        type: kustomize
+        value: "../../../config/default"
         contract: v1beta1
+        replacements:
+          - old: ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:latest
+            new: ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:e2e
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
         files:
           - sourcePath: "../../../metadata.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"

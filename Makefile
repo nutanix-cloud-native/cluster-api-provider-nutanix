@@ -15,6 +15,7 @@ endif
 
 # PLATFORMS is a list of platforms to build for.
 PLATFORMS ?= linux/amd64,linux/arm64,linux/arm
+PLATFORMS_E2E ?= linux/amd64
 
 # KIND_CLUSTER_NAME is the name of the kind cluster to use.
 KIND_CLUSTER_NAME ?= capi-test
@@ -253,6 +254,11 @@ cluster-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1beta
 
 ##@ Testing
 
+.PHONY: docker-build-e2e
+docker-build-e2e: ## Build docker image with the manager with e2e tag.
+	KO_DOCKER_REPO=ko.local $(KO) build -B --platform=${PLATFORMS_E2E} -t e2e -L .
+	docker tag ko.local/cluster-api-provider-nutanix:e2e ${IMG_REPO}:e2e
+
 .PHONY: prepare-local-clusterctl
 prepare-local-clusterctl: manifests kustomize  ## Prepare overide file for local clusterctl.
 	mkdir -p ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}
@@ -277,22 +283,12 @@ test-clusterctl: prepare-local-clusterctl ## Run the tests using clusterctl
 	kubectl apply -f ./cluster.yaml -n $(TEST_NAMESPACE)
 
 .PHONY: test-e2e
-test-e2e: $(GINKGO) cluster-templates ## Run the end-to-end tests
+test-e2e: docker-build-e2e $(GINKGO) cluster-templates ## Run the end-to-end tests
 	mkdir -p $(ARTIFACTS)
 	$(GINKGO) -v -trace -tags=e2e -focus="$(GINKGO_FOCUS)" $(_SKIP_ARGS) -nodes=$(GINKGO_NODES) --noColor=$(GINKGO_NOCOLOR) $(GINKGO_ARGS) ./test/e2e -- \
 	    -e2e.artifacts-folder="$(ARTIFACTS)" \
 	    -e2e.config="$(E2E_CONF_FILE)" \
 	    -e2e.skip-resource-cleanup=$(SKIP_RESOURCE_CLEANUP) -e2e.use-existing-cluster=$(USE_EXISTING_CLUSTER)
-
-# go-get-tool will 'go get' any package $2 and install it to $1.
-PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
-define go-get-tool
-@[ -f $(1) ] || { \
-set -e ;\
-echo "Downloading $(2)" ;\
-GOBIN=$(PROJECT_DIR)/bin go install $(2) ;\
-}
-endef
 
 ## --------------------------------------
 ## Hack / Tools
@@ -336,8 +332,14 @@ $(GOLANGCI_LINT_BIN): $(GOLANGCI_LINT) ## Build a local copy of golangci-lint
 $(GINKGO): # Build ginkgo from tools folder.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(GINKGO_PKG) $(GINKGO_BIN) $(GINGKO_VER)
 
+$(KO): # Build ko from tools folder.
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(KO_PKG) $(KO_BIN) $(KO_VER)
+
 $(KUSTOMIZE): # Build kustomize from tools folder.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(KUSTOMIZE_PKG) $(KUSTOMIZE_BIN) $(KUSTOMIZE_VER)
+
+.PHONY: $(KO_BIN)
+$(KO_BIN): $(KO) ## Build a local copy of ko
 
 .PHONY: $(GINKGO_BIN)
 $(GINKGO_BIN): $(GINKGO) ## Build a local copy of ginkgo
