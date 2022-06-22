@@ -255,7 +255,7 @@ cluster-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1beta
 ##@ Testing
 
 .PHONY: docker-build-e2e
-docker-build-e2e: ## Build docker image with the manager with e2e tag.
+docker-build-e2e: $(KO) ## Build docker image with the manager with e2e tag.
 	KO_DOCKER_REPO=ko.local $(KO) build -B --platform=${PLATFORMS_E2E} -t e2e -L .
 	docker tag ko.local/cluster-api-provider-nutanix:e2e ${IMG_REPO}:e2e
 
