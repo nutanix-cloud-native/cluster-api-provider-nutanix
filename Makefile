@@ -204,15 +204,15 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: docker-build
-docker-build: test ## Build docker image with the manager.
+docker-build: $(KO) test-unittest ## Build docker image with the manager.
 	KO_DOCKER_REPO=ko.local $(KO) build -B --platform=${PLATFORMS} -t ${IMG_TAG} -L .
 
 .PHONY: docker-push
-docker-push: test ## Push docker image with the manager.
+docker-push: $(KO) test-unittest ## Push docker image with the manager.
 	KO_DOCKER_REPO=${IMG_REPO} $(KO) build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push-kind
-docker-push-kind: test ## Make docker image available to kind cluster.
+docker-push-kind: $(KO) test-unittest ## Make docker image available to kind cluster.
 	GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local ${KO} build -B -t ${IMG_TAG} -L .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG}
 	kind load docker-image --name ${KIND_CLUSTER_NAME} ${IMG}
@@ -272,8 +272,13 @@ prepare-local-clusterctl: manifests kustomize  ## Prepare overide file for local
 test-unittest: manifests generate fmt vet envtest ## Run unit tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" go test ./... -coverprofile cover.out
 
+<<<<<<< HEAD
 .PHONY: test-clusterctl
 test-clusterctl: prepare-local-clusterctl ## Run the tests using clusterctl
+=======
+.PHONY: test-clusterctl-create
+test-clusterctl-create: ## Run the tests using clusterctl
+>>>>>>> 61f5767... added dependencies on actions in makefile
 	which clusterctl
 	clusterctl version
 	clusterctl config repositories | grep nutanix
@@ -282,6 +287,27 @@ test-clusterctl: prepare-local-clusterctl ## Run the tests using clusterctl
 	kubectl create ns $(TEST_NAMESPACE) || true
 	kubectl apply -f ./cluster.yaml -n $(TEST_NAMESPACE)
 
+<<<<<<< HEAD
+=======
+.PHONY: test-clusterctl-delete
+test-clusterctl-delete: ## Delete clusterctl created cluster
+	kubectl -n ${TEST_NAMESPACE} delete cluster ${TEST_CLUSTER_NAME}
+
+.PHONY: test-kubectl-bootstrap
+test-kubectl-bootstrap: ## Run kubectl queries to get all capx management/bootstrap related objects
+	kubectl get ns
+	kubectl get all --all-namespaces
+	kubectl -n capx-system get all
+	kubectl -n $(TEST_NAMESPACE) get Cluster,NutanixCluster,Machine,NutanixMachine,KubeAdmControlPlane,MachineHealthCheck,nodes
+	kubectl -n capx-system get pod
+
+.PHONY: test-kubectl-workload
+test-kubectl-workload: ## Run kubectl quries to get all capx workload related objects
+	kubectl -n $(TEST_NAMESPACE) get secret
+	kubectl -n ${TEST_NAMESPACE} get secret ${TEST_CLUSTER_NAME}-kubeconfig -o json | jq -r .data.value | base64 --decode > ${TEST_CLUSTER_NAME}.workload.kubeconfig
+	kubectl --kubeconfig ./${TEST_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
+
+>>>>>>> 61f5767... added dependencies on actions in makefile
 .PHONY: test-e2e
 test-e2e: docker-build-e2e $(GINKGO) cluster-templates ## Run the end-to-end tests
 	mkdir -p $(ARTIFACTS)
