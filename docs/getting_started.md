@@ -1,6 +1,9 @@
 # Getting Started
 
-This is a guide on how to get started with Cluster API Provider Nutanix Cloud Infrastructure. To learn more about cluster API in more depth, check out the [Cluster API book](https://cluster-api.sigs.k8s.io/).
+This is a guide on how to get started with Cluster API Provider Nutanix Cloud Infrastructure (CAPX). To learn more about cluster API in more depth, check out the [Cluster API book](https://cluster-api.sigs.k8s.io/).
+
+For more information on how install Nutanix CSI Driver on CAPX cluster, visit [Nutanix CSI Driver installation with CAPX](install_csi_driver.md)
+For more information on how CAPX handles credentials, visit [Credential Management](./credential_management.md).
 
 ## Production workflow
 

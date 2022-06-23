@@ -3,7 +3,7 @@ name: Generate release artefact
 on:
   push:
     tags:
-    - 'v*.*.*'
+    - "v*.*.*"
 
 jobs:
   build_release:
@@ -16,7 +16,7 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v2
       with:
-        go-version: '^1.17'
+        go-version: "^1.17"
 
     - name: Install tools
       uses: redhat-actions/openshift-tools-installer@v1
@@ -93,7 +93,6 @@ jobs:
         echo "|-|-|" >> ${{ github.workspace }}-CHANGELOG.txt
         echo "|CAPX|[$NEW_IMG]($NEW_IMG)|" >> ${{ github.workspace }}-CHANGELOG.txt
 
-
     - name: create release
       uses: softprops/action-gh-release@v1
       with:
@@ -105,4 +104,4 @@ jobs:
         files: |
           infrastructure-components.yaml
           metadata.yaml
-          cluster-template.yaml
+          templates/*.yaml
