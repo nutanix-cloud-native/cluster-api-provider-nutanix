@@ -14,7 +14,7 @@ The `nutanix-creds` secret will be used for workload cluster deployment if no ot
 
 ### Example
 An example of the automatically created `nutanix-creds` secret can be found below:
-```
+```yaml
 ---
 apiVersion: v1
 kind: Secret
@@ -38,7 +38,7 @@ Note: There is a 1:1 relation between the secret and the `NutanixCluster` object
 ### Example
 Create a secret in the namespace of the `NutanixCluster`:
 
-```
+```yaml
 ---
 apiVersion: v1
 kind: Secret
@@ -52,7 +52,7 @@ stringData:
 
 Add `credentialRef` to the `NutanixCluster`:
 
-```
+```yaml
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixCluster
 metadata:
