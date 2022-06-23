@@ -103,8 +103,10 @@ CONVERSION_VERIFIER := $(abspath $(TOOLS_BIN_DIR)/$(CONVERSION_VERIFIER_BIN))
 TILT_PREPARE_BIN := tilt-prepare
 TILT_PREPARE := $(abspath $(TOOLS_BIN_DIR)/$(TILT_PREPARE_BIN))
 
+GOLANGCI_LINT_VER := v1.44.0
 GOLANGCI_LINT_BIN := golangci-lint
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN))
+GOLANGCI_LINT_PKG := github.com/golangci/golangci-lint/cmd/golangci-lint
 
 # CRD_OPTIONS define options to add to the CONTROLLER_GEN
 CRD_OPTIONS ?= "crd:crdVersions=v1"
@@ -272,13 +274,8 @@ prepare-local-clusterctl: manifests kustomize  ## Prepare overide file for local
 test-unittest: manifests generate fmt vet envtest ## Run unit tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" go test ./... -coverprofile cover.out
 
-<<<<<<< HEAD
-.PHONY: test-clusterctl
-test-clusterctl: prepare-local-clusterctl ## Run the tests using clusterctl
-=======
 .PHONY: test-clusterctl-create
 test-clusterctl-create: ## Run the tests using clusterctl
->>>>>>> 61f5767... added dependencies on actions in makefile
 	which clusterctl
 	clusterctl version
 	clusterctl config repositories | grep nutanix
@@ -287,8 +284,6 @@ test-clusterctl-create: ## Run the tests using clusterctl
 	kubectl create ns $(TEST_NAMESPACE) || true
 	kubectl apply -f ./cluster.yaml -n $(TEST_NAMESPACE)
 
-<<<<<<< HEAD
-=======
 .PHONY: test-clusterctl-delete
 test-clusterctl-delete: ## Delete clusterctl created cluster
 	kubectl -n ${TEST_NAMESPACE} delete cluster ${TEST_CLUSTER_NAME}
@@ -307,7 +302,6 @@ test-kubectl-workload: ## Run kubectl quries to get all capx workload related ob
 	kubectl -n ${TEST_NAMESPACE} get secret ${TEST_CLUSTER_NAME}-kubeconfig -o json | jq -r .data.value | base64 --decode > ${TEST_CLUSTER_NAME}.workload.kubeconfig
 	kubectl --kubeconfig ./${TEST_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
 
->>>>>>> 61f5767... added dependencies on actions in makefile
 .PHONY: test-e2e
 test-e2e: docker-build-e2e $(GINKGO) cluster-templates ## Run the end-to-end tests
 	mkdir -p $(ARTIFACTS)
@@ -403,7 +397,21 @@ $(TILT_PREPARE): $(TOOLS_DIR)/go.mod # Build tilt-prepare from tools folder.
 $(KPROMO):
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(KPROMO_PKG) $(KPROMO_BIN) ${KPROMO_VER}
 
-$(GOLANGCI_LINT): .github/workflows/golangci-lint.yml # Download golangci-lint using hack script into tools folder.
-	hack/ensure-golangci-lint.sh \
-		-b $(TOOLS_BIN_DIR) \
-		$(shell cat .github/workflows/golangci-lint.yml | grep [[:space:]]version | sed 's/.*version: //')
+$(GOLANGCI_LINT): # Build golangci-lint from tools folder
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(GOLANGCI_LINT_PKG) $(GOLANGCI_LINT_BIN) $(GOLANGCI_LINT_VER)
+
+## --------------------------------------
+## Lint / Verify
+## --------------------------------------
+
+##@ lint and verify:
+
+.PHONY: lint
+lint: $(GOLANGCI_LINT) ## Lint the codebase
+	$(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS)
+	cd $(TEST_DIR); $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS)
+	cd $(TOOLS_DIR); $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS)
+
+.PHONY: lint-fix
+lint-fix: $(GOLANGCI_LINT) ## Lint the codebase and run auto-fixers if supported by the linter
+	GOLANGCI_LINT_EXTRA_ARGS=--fix $(MAKE) lint
