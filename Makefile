@@ -15,12 +15,96 @@ endif
 
 # PLATFORMS is a list of platforms to build for.
 PLATFORMS ?= linux/amd64,linux/arm64,linux/arm
+PLATFORMS_E2E ?= linux/amd64
 
 # KIND_CLUSTER_NAME is the name of the kind cluster to use.
 KIND_CLUSTER_NAME ?= capi-test
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
+
+#
+# Directories.
+#
+# Full directory of where the Makefile resides
+ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+REPO_ROOT := $(shell git rev-parse --show-toplevel)
+EXP_DIR := exp
+BIN_DIR := bin
+TEST_DIR := test
+TOOLS_DIR := $(REPO_ROOT)/hack/tools
+TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/$(BIN_DIR))
+E2E_FRAMEWORK_DIR := $(TEST_DIR)/framework
+CAPD_DIR := $(TEST_DIR)/infrastructure/docker
+GO_INSTALL := $(REPO_ROOT)/scripts/go_install.sh
+NUTANIX_E2E_TEMPLATES := $(REPO_ROOT)/test/e2e/data/infrastructure-nutanix
+
+export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
+
+#
+# Binaries.
+#
+# Note: Need to use abspath so we can invoke these from subdirectories
+KO_VER := v0.11.2
+KO_BIN := ko
+KO := $(abspath $(TOOLS_BIN_DIR)/$(KO_BIN)-$(KO_VER))
+KO_PKG := github.com/google/ko
+
+KUSTOMIZE_BIN := kustomize
+KUSTOMIZE_VER := v4.5.4
+KUSTOMIZE := $(abspath $(TOOLS_BIN_DIR)/$(KUSTOMIZE_BIN)-$(KUSTOMIZE_VER))
+KUSTOMIZE_PKG := sigs.k8s.io/kustomize/kustomize/v4
+
+GINGKO_VER := v1.16.5
+GINKGO_BIN := ginkgo
+GINKGO := $(abspath $(TOOLS_BIN_DIR)/$(GINKGO_BIN)-$(GINGKO_VER))
+GINKGO_PKG := github.com/onsi/ginkgo/ginkgo
+
+SETUP_ENVTEST_VER := v0.0.0-20211110210527-619e6b92dab9
+SETUP_ENVTEST_BIN := setup-envtest
+SETUP_ENVTEST := $(abspath $(TOOLS_BIN_DIR)/$(SETUP_ENVTEST_BIN)-$(SETUP_ENVTEST_VER))
+SETUP_ENVTEST_PKG := sigs.k8s.io/controller-runtime/tools/setup-envtest
+
+CONTROLLER_GEN_VER := v0.8.0
+CONTROLLER_GEN_BIN := controller-gen
+CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/$(CONTROLLER_GEN_BIN)-$(CONTROLLER_GEN_VER))
+CONTROLLER_GEN_PKG := sigs.k8s.io/controller-tools/cmd/controller-gen
+
+GOTESTSUM_VER := v1.6.4
+GOTESTSUM_BIN := gotestsum
+GOTESTSUM := $(abspath $(TOOLS_BIN_DIR)/$(GOTESTSUM_BIN)-$(GOTESTSUM_VER))
+GOTESTSUM_PKG := gotest.tools/gotestsum
+
+CONVERSION_GEN_VER := v0.23.6
+CONVERSION_GEN_BIN := conversion-gen
+# We are intentionally using the binary without version suffix, to avoid the version
+# in generated files.
+CONVERSION_GEN := $(abspath $(TOOLS_BIN_DIR)/$(CONVERSION_GEN_BIN))
+CONVERSION_GEN_PKG := k8s.io/code-generator/cmd/conversion-gen
+
+ENVSUBST_VER := v2.0.0-20210730161058-179042472c46
+ENVSUBST_BIN := envsubst
+ENVSUBST := $(abspath $(TOOLS_BIN_DIR)/$(ENVSUBST_BIN)-$(ENVSUBST_VER))
+ENVSUBST_PKG := github.com/drone/envsubst/v2/cmd/envsubst
+
+GO_APIDIFF_VER := v0.1.0
+GO_APIDIFF_BIN := go-apidiff
+GO_APIDIFF := $(abspath $(TOOLS_BIN_DIR)/$(GO_APIDIFF_BIN)-$(GO_APIDIFF_VER))
+GO_APIDIFF_PKG := github.com/joelanford/go-apidiff
+
+KPROMO_VER := v3.3.0-beta.3
+KPROMO_BIN := kpromo
+KPROMO :=  $(abspath $(TOOLS_BIN_DIR)/$(KPROMO_BIN)-$(KPROMO_VER))
+KPROMO_PKG := sigs.k8s.io/promo-tools/v3/cmd/kpromo
+
+CONVERSION_VERIFIER_BIN := conversion-verifier
+CONVERSION_VERIFIER := $(abspath $(TOOLS_BIN_DIR)/$(CONVERSION_VERIFIER_BIN))
+
+TILT_PREPARE_BIN := tilt-prepare
+TILT_PREPARE := $(abspath $(TOOLS_BIN_DIR)/$(TILT_PREPARE_BIN))
+
+GOLANGCI_LINT_BIN := golangci-lint
+GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN))
 
 # CRD_OPTIONS define options to add to the CONTROLLER_GEN
 CRD_OPTIONS ?= "crd:crdVersions=v1"
@@ -38,6 +122,24 @@ endif
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
+GINKGO_FOCUS ?= "\\[PR-Blocking\\]"
+# GINKGO_FOCUS ?= "\\[health-remediation\\]"
+GINKGO_SKIP ?=
+GINKGO_NODES  ?= 1
+E2E_CONF_FILE  ?= ${REPO_ROOT}/test/e2e/config/nutanix.yaml
+ARTIFACTS ?= ${REPO_ROOT}/_artifacts
+SKIP_RESOURCE_CLEANUP ?= false
+USE_EXISTING_CLUSTER ?= false
+GINKGO_NOCOLOR ?= false
+FLAVOR ?= e2e
+
+TEST_NAMESPACE=capx-test-ns
+TEST_CLUSTER_NAME=mycluster
+
+# to set multiple ginkgo skip flags, if any
+ifneq ($(strip $(GINKGO_SKIP)),)
+_SKIP_ARGS := $(foreach arg,$(strip $(GINKGO_SKIP)),-skip="$(arg)")
+endif
 .PHONY: all
 all: build
 
@@ -57,6 +159,7 @@ all: build
 .PHONY: help
 help: ## Display this help.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
 
 ##@ Development
 
@@ -82,11 +185,6 @@ fmt: ## Run go fmt against code.
 .PHONY: vet
 vet: ## Run go vet against code.
 	go vet ./...
-
-.PHONY: test
-test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" go test ./... -coverprofile cover.out
-
 
 kind-create: ## Create a kind cluster and deploy the latest supported cluster API version
 	kind create cluster --name=${KIND_CLUSTER_NAME}
@@ -297,38 +395,7 @@ $(TILT_PREPARE): $(TOOLS_DIR)/go.mod # Build tilt-prepare from tools folder.
 $(KPROMO):
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(KPROMO_PKG) $(KPROMO_BIN) ${KPROMO_VER}
 
-CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
-.PHONY: controller-gen
-controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.8.0)
-
-CONVERSION_GEN = $(shell pwd)/bin/conversion-gen
-.PHONY: conversion-gen
-conversion-gen: ## Download conversion-gen locally if necessary.
-	rm -f $(CONVERSION_GEN)
-	$(call go-get-tool,$(CONVERSION_GEN),k8s.io/code-generator/cmd/conversion-gen@v0.23.6)
-
-KUSTOMIZE = $(shell pwd)/bin/kustomize
-.PHONY: kustomize
-kustomize: ## Download kustomize locally if necessary.
-	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v4@v4.5.4)
-
-ENVTEST = $(shell pwd)/bin/setup-envtest
-.PHONY: envtest
-envtest: ## Download envtest-setup locally if necessary.
-	$(call go-get-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest@latest)
-
-KO = $(shell pwd)/bin/ko
-.PHONY: ko
-ko: ## Download ko locally if necessary.
-	$(call go-get-tool,$(KO),github.com/google/ko@latest)
-
-# go-get-tool will 'go get' any package $2 and install it to $1.
-PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
-define go-get-tool
-@[ -f $(1) ] || { \
-set -e ;\
-echo "Downloading $(2)" ;\
-GOBIN=$(PROJECT_DIR)/bin go install $(2) ;\
-}
-endef
+$(GOLANGCI_LINT): .github/workflows/golangci-lint.yml # Download golangci-lint using hack script into tools folder.
+	hack/ensure-golangci-lint.sh \
+		-b $(TOOLS_BIN_DIR) \
+		$(shell cat .github/workflows/golangci-lint.yml | grep [[:space:]]version | sed 's/.*version: //')
