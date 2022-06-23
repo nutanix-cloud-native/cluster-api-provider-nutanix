@@ -91,3 +91,9 @@ Temporary Items
 
 # Global log files
 **/*.log
+
+# build generated directories and files
+_artifacts
+
+# vscode directories
+.vscode
