@@ -297,7 +297,7 @@ test-kubectl-bootstrap: ## Run kubectl queries to get all capx management/bootst
 	kubectl -n capx-system get pod
 
 .PHONY: test-kubectl-workload
-test-kubectl-workload: ## Run kubectl quries to get all capx workload related objects
+test-kubectl-workload: ## Run kubectl queries to get all capx workload related objects
 	kubectl -n $(TEST_NAMESPACE) get secret
 	kubectl -n ${TEST_NAMESPACE} get secret ${TEST_CLUSTER_NAME}-kubeconfig -o json | jq -r .data.value | base64 --decode > ${TEST_CLUSTER_NAME}.workload.kubeconfig
 	kubectl --kubeconfig ./${TEST_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
