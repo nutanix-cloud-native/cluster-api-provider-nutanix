@@ -60,7 +60,7 @@ GINKGO_BIN := ginkgo
 GINKGO := $(abspath $(TOOLS_BIN_DIR)/$(GINKGO_BIN)-$(GINGKO_VER))
 GINKGO_PKG := github.com/onsi/ginkgo/ginkgo
 
-SETUP_ENVTEST_VER := v0.0.0-20211110210527-619e6b92dab9
+SETUP_ENVTEST_VER := latest
 SETUP_ENVTEST_BIN := setup-envtest
 SETUP_ENVTEST := $(abspath $(TOOLS_BIN_DIR)/$(SETUP_ENVTEST_BIN)-$(SETUP_ENVTEST_VER))
 SETUP_ENVTEST_PKG := sigs.k8s.io/controller-runtime/tools/setup-envtest
@@ -190,7 +190,6 @@ vet: ## Run go vet against code.
 
 kind-create: ## Create a kind cluster and deploy the latest supported cluster API version
 	kind create cluster --name=${KIND_CLUSTER_NAME}
-	clusterctl init -v 9
 
 kind-delete: ## Delete the kind cluster
 	kind delete cluster --name=${KIND_CLUSTER_NAME}
@@ -235,9 +234,10 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 
 .PHONY: deploy
 deploy: manifests kustomize prepare-local-clusterctl docker-push-kind ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	clusterctl delete --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} --include-crd || true
 	clusterctl init --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} -v 9
-	# cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	# $(KUSTOMIZE) build config/default | kubectl apply -f -
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
@@ -271,8 +271,8 @@ prepare-local-clusterctl: manifests kustomize  ## Prepare overide file for local
 	cp ./clusterctl.yaml ~/.cluster-api/clusterctl.yaml
 
 .PHONY: test-unittest
-test-unittest: manifests generate fmt vet envtest ## Run unit tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" go test ./... -coverprofile cover.out
+test-unittest: manifests generate fmt vet setup-envtest ## Run unit tests.
+	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" go test ./... -coverprofile cover.out
 
 .PHONY: test-clusterctl-create
 test-clusterctl-create: ## Run the tests using clusterctl
