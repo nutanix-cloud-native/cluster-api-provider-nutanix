@@ -103,8 +103,10 @@ CONVERSION_VERIFIER := $(abspath $(TOOLS_BIN_DIR)/$(CONVERSION_VERIFIER_BIN))
 TILT_PREPARE_BIN := tilt-prepare
 TILT_PREPARE := $(abspath $(TOOLS_BIN_DIR)/$(TILT_PREPARE_BIN))
 
+GOLANGCI_LINT_VER := v1.44.0
 GOLANGCI_LINT_BIN := golangci-lint
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN))
+GOLANGCI_LINT_PKG := github.com/golangci/golangci-lint/cmd/golangci-lint
 
 # CRD_OPTIONS define options to add to the CONTROLLER_GEN
 CRD_OPTIONS ?= "crd:crdVersions=v1"
@@ -204,15 +206,15 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: docker-build
-docker-build: test ## Build docker image with the manager.
+docker-build: $(KO) test-unittest ## Build docker image with the manager.
 	KO_DOCKER_REPO=ko.local $(KO) build -B --platform=${PLATFORMS} -t ${IMG_TAG} -L .
 
 .PHONY: docker-push
-docker-push: test ## Push docker image with the manager.
+docker-push: $(KO) test-unittest ## Push docker image with the manager.
 	KO_DOCKER_REPO=${IMG_REPO} $(KO) build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push-kind
-docker-push-kind: test ## Make docker image available to kind cluster.
+docker-push-kind: $(KO) test-unittest ## Make docker image available to kind cluster.
 	GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local ${KO} build -B -t ${IMG_TAG} -L .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG}
 	kind load docker-image --name ${KIND_CLUSTER_NAME} ${IMG}
@@ -272,8 +274,8 @@ prepare-local-clusterctl: manifests kustomize  ## Prepare overide file for local
 test-unittest: manifests generate fmt vet envtest ## Run unit tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" go test ./... -coverprofile cover.out
 
-.PHONY: test-clusterctl
-test-clusterctl: prepare-local-clusterctl ## Run the tests using clusterctl
+.PHONY: test-clusterctl-create
+test-clusterctl-create: ## Run the tests using clusterctl
 	which clusterctl
 	clusterctl version
 	clusterctl config repositories | grep nutanix
@@ -281,6 +283,24 @@ test-clusterctl: prepare-local-clusterctl ## Run the tests using clusterctl
 	clusterctl generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./cluster.yaml
 	kubectl create ns $(TEST_NAMESPACE) || true
 	kubectl apply -f ./cluster.yaml -n $(TEST_NAMESPACE)
+
+.PHONY: test-clusterctl-delete
+test-clusterctl-delete: ## Delete clusterctl created cluster
+	kubectl -n ${TEST_NAMESPACE} delete cluster ${TEST_CLUSTER_NAME}
+
+.PHONY: test-kubectl-bootstrap
+test-kubectl-bootstrap: ## Run kubectl queries to get all capx management/bootstrap related objects
+	kubectl get ns
+	kubectl get all --all-namespaces
+	kubectl -n capx-system get all
+	kubectl -n $(TEST_NAMESPACE) get Cluster,NutanixCluster,Machine,NutanixMachine,KubeAdmControlPlane,MachineHealthCheck,nodes
+	kubectl -n capx-system get pod
+
+.PHONY: test-kubectl-workload
+test-kubectl-workload: ## Run kubectl queries to get all capx workload related objects
+	kubectl -n $(TEST_NAMESPACE) get secret
+	kubectl -n ${TEST_NAMESPACE} get secret ${TEST_CLUSTER_NAME}-kubeconfig -o json | jq -r .data.value | base64 --decode > ${TEST_CLUSTER_NAME}.workload.kubeconfig
+	kubectl --kubeconfig ./${TEST_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
 
 .PHONY: test-e2e
 test-e2e: docker-build-e2e $(GINKGO) cluster-templates ## Run the end-to-end tests
@@ -377,7 +397,21 @@ $(TILT_PREPARE): $(TOOLS_DIR)/go.mod # Build tilt-prepare from tools folder.
 $(KPROMO):
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(KPROMO_PKG) $(KPROMO_BIN) ${KPROMO_VER}
 
-$(GOLANGCI_LINT): .github/workflows/golangci-lint.yml # Download golangci-lint using hack script into tools folder.
-	hack/ensure-golangci-lint.sh \
-		-b $(TOOLS_BIN_DIR) \
-		$(shell cat .github/workflows/golangci-lint.yml | grep [[:space:]]version | sed 's/.*version: //')
+$(GOLANGCI_LINT): # Build golangci-lint from tools folder
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(GOLANGCI_LINT_PKG) $(GOLANGCI_LINT_BIN) $(GOLANGCI_LINT_VER)
+
+## --------------------------------------
+## Lint / Verify
+## --------------------------------------
+
+##@ lint and verify:
+
+.PHONY: lint
+lint: $(GOLANGCI_LINT) ## Lint the codebase
+	$(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS)
+	cd $(TEST_DIR); $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS)
+	cd $(TOOLS_DIR); $(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS)
+
+.PHONY: lint-fix
+lint-fix: $(GOLANGCI_LINT) ## Lint the codebase and run auto-fixers if supported by the linter
+	GOLANGCI_LINT_EXTRA_ARGS=--fix $(MAKE) lint
