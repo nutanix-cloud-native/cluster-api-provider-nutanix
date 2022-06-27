@@ -1,0 +1,16 @@
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixMachineTemplate
+metadata:
+  name: "${CLUSTER_NAME}-mt-0"
+  namespace: "${NAMESPACE}"
+spec:
+  template:
+    spec:
+      additionalCategories:
+        # Use System category Apptype:Kubernetes
+        - key: AppType
+          value: Kubernetes
+        # Use System category Environment:Dev
+        - key: Environment
+          value: Dev

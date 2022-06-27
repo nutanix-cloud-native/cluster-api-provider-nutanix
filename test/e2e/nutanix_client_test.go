@@ -32,15 +32,22 @@ import (
 )
 
 var _ = Describe("Nutanix client [PR-Blocking]", func() {
+	const (
+		specName = "cluster-ntnx-client"
+	)
+
 	var (
 		namespace        *corev1.Namespace
-		specName         = "cluster-ntnx-client"
 		clusterName      string
 		clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult
 		cancelWatches    context.CancelFunc
+		testHelper       testHelperInterface
 	)
+
+
 	BeforeEach(func() {
-		clusterName = generateTestClusterName(specName)
+		testHelper = newTestHelper()
+		clusterName = testHelper.generateTestClusterName(specName)
 		clusterResources = new(clusterctl.ApplyClusterTemplateAndWaitResult)
 		Expect(bootstrapClusterProxy).NotTo(BeNil(), "BootstrapClusterProxy can't be nil")
 		namespace, cancelWatches = setupSpecNamespace(ctx, specName, bootstrapClusterProxy, artifactFolder)
@@ -53,27 +60,29 @@ var _ = Describe("Nutanix client [PR-Blocking]", func() {
 		flavor = "no-credential-ref"
 		Expect(namespace).NotTo(BeNil())
 
-		By("Creating a workload cluster")
-		deployClusterAndWait(
-			deployClusterParams{
+		By("Creating a workload cluster", func() {
+			testHelper.deployClusterAndWait(
+				deployClusterParams{
+					clusterName:           clusterName,
+					namespace:             namespace,
+					flavor:                flavor,
+					clusterctlConfigPath:  clusterctlConfigPath,
+					artifactFolder:        artifactFolder,
+					bootstrapClusterProxy: bootstrapClusterProxy,
+					e2eConfig:             *e2eConfig,
+				}, clusterResources)
+		})
+
+		By("checking cluster prism client init condition is true", func() {
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
 				clusterName:           clusterName,
 				namespace:             namespace,
-				flavor:                flavor,
-				clusterctlConfigPath:  clusterctlConfigPath,
-				artifactFolder:        artifactFolder,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				e2eConfig:             *e2eConfig,
-			}, clusterResources)
-
-		By("checking cluster prism client init condition is true")
-		verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
-			clusterName:           clusterName,
-			namespace:             namespace,
-			bootstrapClusterProxy: bootstrapClusterProxy,
-			expectedCondition: clusterv1.Condition{
-				Type:   infrav1.PrismCentralClientCondition,
-				Status: corev1.ConditionTrue,
-			},
+				expectedCondition: clusterv1.Condition{
+					Type:   infrav1.PrismCentralClientCondition,
+					Status: corev1.ConditionTrue,
+				},
+			})
 		})
 
 		By("PASSED!")
@@ -83,60 +92,65 @@ var _ = Describe("Nutanix client [PR-Blocking]", func() {
 		flavor = "no-secret"
 		Expect(namespace).NotTo(BeNil())
 
-		By("Creating a workload cluster")
-		deployCluster(
-			deployClusterParams{
+		By("Creating a workload cluster", func() {
+			testHelper.deployCluster(
+				deployClusterParams{
+					clusterName:           clusterName,
+					namespace:             namespace,
+					flavor:                flavor,
+					clusterctlConfigPath:  clusterctlConfigPath,
+					artifactFolder:        artifactFolder,
+					bootstrapClusterProxy: bootstrapClusterProxy,
+					e2eConfig:             *e2eConfig,
+				}, clusterResources)
+		})
+
+		By("Checking cluster condition for credentials is set to false", func() {
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
 				clusterName:           clusterName,
 				namespace:             namespace,
-				flavor:                flavor,
-				clusterctlConfigPath:  clusterctlConfigPath,
-				artifactFolder:        artifactFolder,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				e2eConfig:             *e2eConfig,
-			}, clusterResources)
-
-		By("Checking cluster condition for credentials is set to false")
-		verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
-			clusterName:           clusterName,
-			namespace:             namespace,
-			bootstrapClusterProxy: bootstrapClusterProxy,
-			expectedCondition: clusterv1.Condition{
-				Type:     infrav1.CredentialRefSecretOwnerSetCondition,
-				Reason:   infrav1.CredentialRefSecretOwnerSetFailed,
-				Severity: clusterv1.ConditionSeverityError,
-				Status:   corev1.ConditionFalse,
-			},
+				expectedCondition: clusterv1.Condition{
+					Type:     infrav1.CredentialRefSecretOwnerSetCondition,
+					Reason:   infrav1.CredentialRefSecretOwnerSetFailed,
+					Severity: clusterv1.ConditionSeverityError,
+					Status:   corev1.ConditionFalse,
+				},
+			})
 		})
 
-		By("Creating secret using e2e credentials")
-		nutanixCreds := getNutanixCredentialsFromEnvironment()
-		createSecret(createSecretParams{
-			username:    nutanixCreds.nutanixUsername,
-			password:    nutanixCreds.nutanixPassword,
-			namespace:   namespace,
-			clusterName: clusterName,
+		By("Creating secret using e2e credentials", func() {
+			nutanixCreds := getNutanixCredentialsFromEnvironment()
+			testHelper.createSecret(createSecretParams{
+				username:    nutanixCreds.nutanixUsername,
+				password:    nutanixCreds.nutanixPassword,
+				namespace:   namespace,
+				clusterName: clusterName,
+			})
 		})
 
-		By("checking cluster credential condition is true")
-		verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
-			clusterName:           clusterName,
-			namespace:             namespace,
-			bootstrapClusterProxy: bootstrapClusterProxy,
-			expectedCondition: clusterv1.Condition{
-				Type:   infrav1.CredentialRefSecretOwnerSetCondition,
-				Status: corev1.ConditionTrue,
-			},
+		By("checking cluster credential condition is true", func() {
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
+				clusterName:           clusterName,
+				namespace:             namespace,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+				expectedCondition: clusterv1.Condition{
+					Type:   infrav1.CredentialRefSecretOwnerSetCondition,
+					Status: corev1.ConditionTrue,
+				},
+			})
 		})
 
-		By("checking cluster prism client init condition is true")
-		verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
-			clusterName:           clusterName,
-			namespace:             namespace,
-			bootstrapClusterProxy: bootstrapClusterProxy,
-			expectedCondition: clusterv1.Condition{
-				Type:   infrav1.PrismCentralClientCondition,
-				Status: corev1.ConditionTrue,
-			},
+		By("checking cluster prism client init condition is true", func() {
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
+				clusterName:           clusterName,
+				namespace:             namespace,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+				expectedCondition: clusterv1.Condition{
+					Type:   infrav1.PrismCentralClientCondition,
+					Status: corev1.ConditionTrue,
+				},
+			})
 		})
 
 		By("PASSED!")
