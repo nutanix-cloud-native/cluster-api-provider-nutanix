@@ -16,13 +16,15 @@ To initialize Cluster API Provider Nutanix Cloud Infrastructure, clusterctl requ
 NUTANIX_ENDPOINT: ""
 NUTANIX_USER: ""
 NUTANIX_PASSWORD: ""
+NUTANIX_INSECURE: false # or true
 
 KUBERNETES_VERSION: "v1.22.9"
 WORKER_MACHINE_COUNT: 3
 NUTANIX_SSH_AUTHORIZED_KEY: ""
 
-NUTANIX_CLUSTER_UUID: ""
+NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ""
 NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: ""
+NUTANIX_SUBNET_NAME: ""
 </pre>
 
 you can also see the required list of variables by running by following command
