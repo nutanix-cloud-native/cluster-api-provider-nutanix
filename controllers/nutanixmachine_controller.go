@@ -664,10 +664,9 @@ func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineCo
 func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.MachineContext) []*infrav1.NutanixCategoryIdentifier {
 	categoryIdentifiers := getDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
 	additionalCategories := rctx.NutanixMachine.Spec.AdditionalCategories
-	if additionalCategories != nil && len(additionalCategories) > 0 {
+	if len(additionalCategories) > 0 {
 		for _, at := range additionalCategories {
-			var additionalCat infrav1.NutanixCategoryIdentifier
-			additionalCat = at
+			var additionalCat infrav1.NutanixCategoryIdentifier = at
 			categoryIdentifiers = append(categoryIdentifiers, &additionalCat)
 		}
 	}

@@ -49,7 +49,7 @@ func deleteVM(client *nutanixClientV3.Client, vmName, vmUUID string) (string, er
 	var err error
 
 	if vmUUID == "" {
-		klog.Warning(fmt.Sprintf("VmUUID was empty. Skipping delete"))
+		klog.Warning("VmUUID was empty. Skipping delete")
 		return "", nil
 	}
 
@@ -284,17 +284,16 @@ func getImageUUID(client *nutanixClientV3.Client, imageName, imageUUID *string) 
 	return foundImageUUID, nil
 }
 
-func isExistingVM(client *nutanixClientV3.Client, vmUUID string) (bool, error) {
-	vm, err := findVMByUUID(client, vmUUID)
-	if err != nil {
-		errorMsg := fmt.Errorf("error finding vm with uuid %s: %v", vmUUID, err)
-		klog.Error(errorMsg)
-		return false, errorMsg
-	}
+// func isExistingVM(client *nutanixClientV3.Client, vmUUID string) (bool, error) {
+// 	vm, err := findVMByUUID(client, vmUUID)
+// 	if err != nil {
+// 		errorMsg := fmt.Errorf("error finding vm with uuid %s: %v", vmUUID, err)
+// 		klog.Error(errorMsg)
+// 		return false, errorMsg
+// 	}
 
-	return vm == nil, nil
-
-}
+// 	return vm == nil, nil
+// }
 
 func hasTaskInProgress(client *nutanixClientV3.Client, taskUUID string) (bool, error) {
 	taskStatus, err := nutanixClientHelper.GetTaskState(client, taskUUID)
