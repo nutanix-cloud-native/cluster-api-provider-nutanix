@@ -1,0 +1,15 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixCluster
+metadata:
+  name: "${CLUSTER_NAME}"
+  namespace: "${NAMESPACE}"
+spec:
+  prismCentral:
+    address: "${NUTANIX_ENDPOINT}"
+    port: ${NUTANIX_PORT=9440}
+    insecure: ${NUTANIX_INSECURE=false}
+    credentialRef:
+      $patch: delete
+  controlPlaneEndpoint:
+    host: "${CONTROL_PLANE_ENDPOINT_IP}"
+    port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
