@@ -25,34 +25,40 @@ const (
 const (
 	// ClusterCategoryCreatedCondition indicates the status of the category linked to the NutanixCluster
 	ClusterCategoryCreatedCondition capiv1.ConditionType = "ClusterCategoryCreated"
-	ClusterCategoryCreationFailed   string               = "ClusterCategoryCreationFailed"
+
+	ClusterCategoryCreationFailed = "ClusterCategoryCreationFailed"
 )
 
 const (
 	//PrismCentralClientCondition indicates the status of the client used to connect to Prism Central
-	PrismCentralClientCondition            capiv1.ConditionType = "PrismClientInit"
-	PrismCentralClientInitializationFailed string               = "PrismClientInitFailed"
+	PrismCentralClientCondition capiv1.ConditionType = "PrismClientInit"
+
+	PrismCentralClientInitializationFailed = "PrismClientInitFailed"
 )
 
 const (
 	// VMProvisionedCondition shows the status of the VM provisioning process
-	VMProvisionedCondition  capiv1.ConditionType = "VMProvisioned"
-	VMProvisionedTaskFailed string               = "FailedVMTask"
+	VMProvisionedCondition capiv1.ConditionType = "VMProvisioned"
+
+	VMProvisionedTaskFailed = "FailedVMTask"
 
 	// VMAddressesAssignedCondition shows the status of the process of assigning the VM addresses
 	VMAddressesAssignedCondition capiv1.ConditionType = "VMAddressesAssigned"
-	VMAddressesFailed            string               = "VMAddressesFailed"
-	VMBootTypeInvalid            string               = "VMBootTypeInvalid"
+
+	VMAddressesFailed = "VMAddressesFailed"
+	VMBootTypeInvalid = "VMBootTypeInvalid"
 )
 
 const (
 	// VMAddressesAssignedCondition shows the status of the process of assigning the VMs to a project
 	ProjectAssignedCondition capiv1.ConditionType = "ProjectAssigned"
-	ProjectAssignationFailed string               = "ProjectAssignationFailed"
+
+	ProjectAssignationFailed = "ProjectAssignationFailed"
 )
 
 const (
 	// CredentialRefSecretOwnerSetCondition shows the status of setting the Owner
 	CredentialRefSecretOwnerSetCondition capiv1.ConditionType = "CredentialRefSecretOwnerSet"
-	CredentialRefSecretOwnerSetFailed    string               = "CredentialRefSecretOwnerSetFailed"
+
+	CredentialRefSecretOwnerSetFailed = "CredentialRefSecretOwnerSetFailed"
 )

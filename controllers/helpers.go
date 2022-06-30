@@ -426,7 +426,6 @@ func deleteCategories(client *nutanixClientV3.Client, categoryIdentifiers []*inf
 			err = client.V3.DeleteCategoryValue(key, value)
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to delete category with key %s. error: %v", key, err)
-				klog.Error(errorMsg)
 				return errorMsg
 			}
 		}

@@ -666,7 +666,7 @@ func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.Mach
 	additionalCategories := rctx.NutanixMachine.Spec.AdditionalCategories
 	if len(additionalCategories) > 0 {
 		for _, at := range additionalCategories {
-			var additionalCat infrav1.NutanixCategoryIdentifier = at
+			additionalCat := at
 			categoryIdentifiers = append(categoryIdentifiers, &additionalCat)
 		}
 	}
