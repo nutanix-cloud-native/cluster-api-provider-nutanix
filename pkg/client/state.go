@@ -50,7 +50,7 @@ func WaitForGetSubnetDelete(conn *nutanixClientV3.Client, imageUUID string) erro
 	err := <-errCh
 	return err
 }
-func waitForState(errCh chan<- error, target string, refresh stateRefreshFunc) error {
+func waitForState(errCh chan<- error, target string, refresh stateRefreshFunc) {
 	err := Retry(2, 2, 0, func(_ uint) (bool, error) {
 		state, err := refresh()
 		if err != nil {
@@ -61,7 +61,6 @@ func waitForState(errCh chan<- error, target string, refresh stateRefreshFunc) e
 		return false, nil
 	})
 	errCh <- err
-	return err
 }
 
 func waitUntilVMStateFunc(conn *nutanixClientV3.Client, uuid string) stateRefreshFunc {

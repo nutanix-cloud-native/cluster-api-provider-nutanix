@@ -49,7 +49,7 @@ func deleteVM(client *nutanixClientV3.Client, vmName, vmUUID string) (string, er
 	var err error
 
 	if vmUUID == "" {
-		klog.Warning(fmt.Sprintf("VmUUID was empty. Skipping delete"))
+		klog.Warning("VmUUID was empty. Skipping delete")
 		return "", nil
 	}
 
@@ -284,18 +284,6 @@ func getImageUUID(client *nutanixClientV3.Client, imageName, imageUUID *string) 
 	return foundImageUUID, nil
 }
 
-func isExistingVM(client *nutanixClientV3.Client, vmUUID string) (bool, error) {
-	vm, err := findVMByUUID(client, vmUUID)
-	if err != nil {
-		errorMsg := fmt.Errorf("error finding vm with uuid %s: %v", vmUUID, err)
-		klog.Error(errorMsg)
-		return false, errorMsg
-	}
-
-	return vm == nil, nil
-
-}
-
 func hasTaskInProgress(client *nutanixClientV3.Client, taskUUID string) (bool, error) {
 	taskStatus, err := nutanixClientHelper.GetTaskState(client, taskUUID)
 	if err != nil {
@@ -434,7 +422,12 @@ func deleteCategories(client *nutanixClientV3.Client, categoryIdentifiers []*inf
 				klog.Infof("Category with value %s in category %s not found. Already deleted?", value, key)
 				continue
 			}
-			client.V3.DeleteCategoryValue(key, value)
+
+			err = client.V3.DeleteCategoryValue(key, value)
+			if err != nil {
+				errorMsg := fmt.Errorf("failed to delete category with key %s. error: %v", key, err)
+				return errorMsg
+			}
 		}
 		// check if there are remaining category values
 		categoryKeyValues, err := client.V3.ListCategoryValues(key, &nutanixClientV3.CategoryListMetadata{})
