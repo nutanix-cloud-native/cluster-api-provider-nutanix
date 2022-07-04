@@ -67,7 +67,6 @@ const (
 	nameType = "name"
 )
 
-
 type testHelperInterface interface {
 	createClusterFromConfig(ctx context.Context, input clusterctl.ApplyClusterTemplateAndWaitInput, result *clusterctl.ApplyClusterTemplateAndWaitResult)
 	createDefaultNMT(clusterName, namespace string) *infrav1.NutanixMachineTemplate
@@ -81,6 +80,7 @@ type testHelperInterface interface {
 	getExpectedClusterCategoryKey(clusterName string) string
 	getMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *clusterv1.MachineList
 	getNutanixClusterByName(ctx context.Context, input getNutanixClusterByNameInput) *infrav1.NutanixCluster
+	getNutanixVMsForCluster(clusterName, namespace string) []*prismGoClientV3.VMIntentResponse
 	getNutanixResourceIdentifierFromEnv(envVarKey string) infrav1.NutanixResourceIdentifier
 	stripNutanixIDFromProviderID(providerID string) string
 	verifyCategoryExists(categoryKey, categoyValue string)
@@ -89,11 +89,11 @@ type testHelperInterface interface {
 	verifyFailureMessageOnClusterMachines(ctx context.Context, params verifyFailureMessageOnClusterMachinesParams)
 }
 
-type testHelper struct{
+type testHelper struct {
 	nutanixClient *prismGoClientV3.Client
 }
 
-func newTestHelper() testHelperInterface{
+func newTestHelper() testHelperInterface {
 	c, err := initNutanixClient()
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -289,8 +289,23 @@ func (t testHelper) getMachinesForCluster(ctx context.Context, clusterName, name
 	return machineList
 }
 
+func (t testHelper) getNutanixVMsForCluster(clusterName, namespace string) []*prismGoClientV3.VMIntentResponse {
+	nutanixMachines := t.getMachinesForCluster(ctx, clusterName, namespace, bootstrapClusterProxy)
+	vms := make([]*prismGoClientV3.VMIntentResponse, 0)
+	for _, m := range nutanixMachines.Items {
+		machineProviderID := m.Spec.ProviderID
+		Expect(machineProviderID).NotTo(BeNil())
+		machineVmUUID := t.stripNutanixIDFromProviderID(*machineProviderID)
+		vm, err := t.nutanixClient.V3.GetVM(machineVmUUID)
+		Expect(err).ShouldNot(HaveOccurred())
+		vms = append(vms, vm)
+	}
+	return vms
+}
+
 func (t testHelper) getNutanixResourceIdentifierFromEnv(envVarKey string) infrav1.NutanixResourceIdentifier {
 	envVarValue := os.Getenv(envVarKey)
+	Expect(envVarValue).ToNot(BeEmpty(), "expected environment variable %s to be set", envVarKey)
 	return infrav1.NutanixResourceIdentifier{
 		Type: nameType,
 		Name: pointer.StringPtr(envVarValue),
@@ -301,7 +316,7 @@ func (t testHelper) stripNutanixIDFromProviderID(providerID string) string {
 	return strings.TrimPrefix(providerID, nutanixProviderIDPrefix)
 }
 
-func (t testHelper) verifyCategoryExists(categoryKey, categoryValue string){
+func (t testHelper) verifyCategoryExists(categoryKey, categoryValue string) {
 	_, err := t.nutanixClient.V3.GetCategoryValue(categoryKey, categoryValue)
 	Expect(err).ShouldNot(HaveOccurred())
 }
