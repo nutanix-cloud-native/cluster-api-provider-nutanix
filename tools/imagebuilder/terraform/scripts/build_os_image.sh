@@ -1,6 +1,11 @@
-git clone https://github.com/kubernetes-sigs/image-builder.git
+git clone https://github.com/deepakm-ntnx/image-builder.git
 export PATH=$PATH:~/.local/bin
 cd ~/image-builder/images/capi
+git checkout nutanix-imagebuilder
+
+cp ~/nutanix.json packer/nutanix/nutanix.json
+packer init ~/config.pkr.hcl
+
 chmod +x hack/*
-make deps-raw
-make build-qemu-ubuntu-2004
+make deps-nutanix
+make build-nutanix-ubuntu-2004

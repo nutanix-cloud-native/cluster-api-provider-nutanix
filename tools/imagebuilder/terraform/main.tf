@@ -85,6 +85,14 @@ resource "null_resource" "build_os_image" {
     host        = data.nutanix_virtual_machine.build_vm_datasource.nic_list.0.ip_endpoint_list[0].ip
   }
   provisioner "file" {
+    source      = "${path.module}/scripts/config.pkr.hcl"
+    destination = "/home/${var.vm_user}/config.pkr.hcl"
+  }
+  provisioner "file" {
+    source      = "${path.module}/scripts/nutanix.json"
+    destination = "/home/${var.vm_user}/nutanix.json"
+  }
+  provisioner "file" {
     source      = "${path.module}/scripts/build_os_image.sh"
     destination = "/home/${var.vm_user}/build_os_image.sh"
   }
