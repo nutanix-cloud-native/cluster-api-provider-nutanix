@@ -136,7 +136,7 @@ GINKGO_NOCOLOR ?= false
 FLAVOR ?= e2e
 
 TEST_NAMESPACE=capx-test-ns
-TEST_CLUSTER_NAME=mycluster
+TEST_CLUSTER_NAME=capx-cl-${USER}
 
 # to set multiple ginkgo skip flags, if any
 ifneq ($(strip $(GINKGO_SKIP)),)
@@ -313,6 +313,10 @@ test-e2e: docker-build-e2e $(GINKGO) cluster-templates ## Run the end-to-end tes
 	    -e2e.artifacts-folder="$(ARTIFACTS)" \
 	    -e2e.config="$(E2E_CONF_FILE)" \
 	    -e2e.skip-resource-cleanup=$(SKIP_RESOURCE_CLEANUP) -e2e.use-existing-cluster=$(USE_EXISTING_CLUSTER)
+
+.PHONY: print-capx-controller-logs
+print-capx-controller-logs: ## logs the controller pod output with -f mode
+	CAPX_CONTROLLER_POD_NAME=$(kubectl -n capx-system get pods | grep capx-controller | awk '{print $1}') && kubectl -n capx-system logs -f ${CAPX_CONTROLLER_POD_NAME} manager
 
 ## --------------------------------------
 ## Hack / Tools
