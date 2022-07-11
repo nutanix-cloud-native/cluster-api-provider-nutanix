@@ -39,9 +39,20 @@ const (
 func CreateNutanixClient(ctx context.Context, client client.Client, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
 	creds, err := nutanixClientHelper.GetConnectionInfo(client, ctx, nutanixCluster)
 	if err != nil {
+		klog.Errorf("Error getting connection info for creating Nutanix client: %v", err)
 		return nil, err
 	}
-	return nutanixClientHelper.Client(*creds, nutanixClientHelper.ClientOptions{})
+	c, err := nutanixClientHelper.Client(*creds, nutanixClientHelper.ClientOptions{})
+	if err != nil {
+		klog.Errorf("Error creating Nutanix client: %v", err)
+		return nil, err
+	}
+	_, err = c.V3.GetCurrentLoggedInUser(ctx)
+	if err != nil {
+		klog.Errorf("Error validating Nutanix client connection: %v", err)
+		return nil, err
+	}
+	return c, nil
 }
 
 // deleteVM deletes a VM and is invoked by the NutanixMachineReconciler
@@ -66,7 +77,6 @@ func deleteVM(client *nutanixClientV3.Client, vmName, vmUUID string) (string, er
 
 // findVMByUUID retrieves the VM with the given vm UUID. Returns nil if not found
 func findVMByUUID(client *nutanixClientV3.Client, uuid string) (*nutanixClientV3.VMIntentResponse, error) {
-
 	klog.Infof("Checking if VM with UUID %s exists.", uuid)
 
 	response, err := client.V3.GetVM(uuid)
@@ -117,7 +127,8 @@ func findVMByName(client *nutanixClientV3.Client, vmName string) (*nutanixClient
 	klog.Infof("Checking if VM with name %s exists.", vmName)
 
 	res, err := client.V3.ListVM(&nutanixClientV3.DSMetadata{
-		Filter: utils.StringPtr(fmt.Sprintf("vm_name==%s", vmName))})
+		Filter: utils.StringPtr(fmt.Sprintf("vm_name==%s", vmName)),
+	})
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred when searching for VM by name %s. error: %v", vmName, err)
 		klog.Error(errorMsg)
@@ -195,9 +206,9 @@ func createSystemDiskSpec(imageUUID string, systemDiskSize int64) (*nutanixClien
 			Kind: utils.StringPtr("image"),
 			UUID: utils.StringPtr(imageUUID),
 		},
-		DiskSizeMib: utils.Int64Ptr(systemDiskSize)}
+		DiskSizeMib: utils.Int64Ptr(systemDiskSize),
+	}
 	return systemDisk, nil
-
 }
 
 func getSubnetUUID(client *nutanixClientV3.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
@@ -336,7 +347,7 @@ func getSubnetUUIDList(client *nutanixClientV3.Client, machineSubnets []infrav1.
 
 func getDefaultCAPICategoryIdentifiers(clusterName string) []*infrav1.NutanixCategoryIdentifier {
 	return []*infrav1.NutanixCategoryIdentifier{
-		&infrav1.NutanixCategoryIdentifier{
+		{
 			Key:   fmt.Sprintf("%s%s", infrav1.DefaultCAPICategoryPrefix, clusterName),
 			Value: infrav1.DefaultCAPICategoryOwnedValue,
 		},
