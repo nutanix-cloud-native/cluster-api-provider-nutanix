@@ -105,6 +105,8 @@ variables:
   NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ""
   NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: "ubuntu-2004-kube-v1.21.10"
   NUTANIX_SUBNET_NAME: ""
+  # NOTE: 'NUTANIX_ADDITIONAL_SUBNET_NAME' is required for multi network interface e2e tests
+  NUTANIX_ADDITIONAL_SUBNET_NAME: ""
   KUBEVIP_LB_ENABLE: "false"
   KUBEVIP_SVC_ENABLE: "false"
   CNI: "./data/cni/kindnet/kindnet.yaml"
