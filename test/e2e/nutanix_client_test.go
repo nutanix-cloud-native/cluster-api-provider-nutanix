@@ -21,6 +21,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -43,7 +44,6 @@ var _ = Describe("Nutanix client [PR-Blocking]", func() {
 		cancelWatches    context.CancelFunc
 		testHelper       testHelperInterface
 	)
-
 
 	BeforeEach(func() {
 		testHelper = newTestHelper()
@@ -149,6 +149,65 @@ var _ = Describe("Nutanix client [PR-Blocking]", func() {
 				expectedCondition: clusterv1.Condition{
 					Type:   infrav1.PrismCentralClientCondition,
 					Status: corev1.ConditionTrue,
+				},
+			})
+		})
+
+		By("PASSED!")
+	})
+
+	It("Create a cluster with invalid credentials (should fail)", func() {
+		const (
+			flavor = "no-secret"
+		)
+
+		Expect(namespace).NotTo(BeNil())
+
+		By("Creating secret with invalid credentials", func() {
+			invalidCred := fmt.Sprintf("invalid-cred-e2e-%s", clusterName)
+			testHelper.createSecret(createSecretParams{
+				username:    invalidCred,
+				password:    invalidCred,
+				namespace:   namespace,
+				clusterName: clusterName,
+			})
+		})
+
+		By("Creating a workload cluster", func() {
+			testHelper.deployCluster(
+				deployClusterParams{
+					clusterName:           clusterName,
+					namespace:             namespace,
+					flavor:                flavor,
+					clusterctlConfigPath:  clusterctlConfigPath,
+					artifactFolder:        artifactFolder,
+					bootstrapClusterProxy: bootstrapClusterProxy,
+					e2eConfig:             *e2eConfig,
+				}, clusterResources)
+		})
+
+		By("Checking cluster credential condition is true", func() {
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
+				clusterName:           clusterName,
+				namespace:             namespace,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+				expectedCondition: clusterv1.Condition{
+					Type:   infrav1.CredentialRefSecretOwnerSetCondition,
+					Status: corev1.ConditionTrue,
+				},
+			})
+		})
+
+		By("Checking cluster prism client init condition is false", func() {
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
+				clusterName:           clusterName,
+				namespace:             namespace,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+				expectedCondition: clusterv1.Condition{
+					Type:     infrav1.PrismCentralClientCondition,
+					Reason:   infrav1.PrismCentralClientInitializationFailed,
+					Severity: clusterv1.ConditionSeverityError,
+					Status:   corev1.ConditionFalse,
 				},
 			})
 		})

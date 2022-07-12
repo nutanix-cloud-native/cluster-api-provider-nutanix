@@ -151,7 +151,7 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	client, err := CreateNutanixClient(ctx, r.Client, cluster)
 	if err != nil {
 		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
-		return ctrl.Result{Requeue: true}, fmt.Errorf("Client Auth error: %v", err)
+		return ctrl.Result{Requeue: true}, fmt.Errorf("Nutanix Client error: %v", err)
 	}
 	conditions.MarkTrue(cluster, infrav1.PrismCentralClientCondition)
 

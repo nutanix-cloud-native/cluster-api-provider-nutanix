@@ -50,9 +50,9 @@ type nutanixCredentials struct {
 
 func getNutanixCredentialsFromEnvironment() nutanixCredentials {
 	nutanixUsername := os.Getenv(nutanixUserKey)
-	Expect(nutanixUsername).ToNot(BeNil())
+	Expect(nutanixUsername).ToNot(BeEmpty(), "expected environment variable %s to be set", nutanixUserKey)
 	nutanixPassword := os.Getenv(nutanixPasswordKey)
-	Expect(nutanixPassword).ToNot(BeNil())
+	Expect(nutanixPassword).ToNot(BeEmpty(), "expected environment variable %s to be set", nutanixPasswordKey)
 	return nutanixCredentials{
 		nutanixUsername: nutanixUsername,
 		nutanixPassword: nutanixPassword,
