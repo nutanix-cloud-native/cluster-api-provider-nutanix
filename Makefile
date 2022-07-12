@@ -316,7 +316,7 @@ test-e2e: docker-build-e2e $(GINKGO) cluster-templates ## Run the end-to-end tes
 
 .PHONY: print-capx-controller-logs
 print-capx-controller-logs: ## logs the controller pod output with -f mode
-        kubectl -n capx-system logs -f $(shell kubectl -n capx-system get pods | grep capx-controller | awk '{print $$1}') manager
+	kubectl -n capx-system logs -f $(shell kubectl -n capx-system get pods | grep capx-controller | awk '{print $$1}') manager
 
 
 ## --------------------------------------
