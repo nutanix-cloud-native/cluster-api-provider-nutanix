@@ -46,7 +46,7 @@ import (
 const (
 	nutanixProviderIDPrefix = "nutanix://"
 
-	defaultTimeout  = time.Second * 60
+	defaultTimeout  = time.Second * 300
 	defaultInterval = time.Second * 10
 
 	defaultVCPUsPerSocket = int32(1)
@@ -79,14 +79,18 @@ type testHelperInterface interface {
 	generateTestClusterName(specName string) string
 	getExpectedClusterCategoryKey(clusterName string) string
 	getMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *clusterv1.MachineList
+	getNutanixMachineForCluster(ctx context.Context, clusterName, namespace, machineName string, bootstrapClusterProxy framework.ClusterProxy) *infrav1.NutanixMachine
+	getNutanixMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *infrav1.NutanixMachineList
 	getNutanixClusterByName(ctx context.Context, input getNutanixClusterByNameInput) *infrav1.NutanixCluster
 	getNutanixVMsForCluster(clusterName, namespace string) []*prismGoClientV3.VMIntentResponse
 	getNutanixResourceIdentifierFromEnv(envVarKey string) infrav1.NutanixResourceIdentifier
 	stripNutanixIDFromProviderID(providerID string) string
 	verifyCategoryExists(categoryKey, categoyValue string)
 	verifyCategoriesNutanixMachines(clusterName, namespace string, expectedCategories map[string]string)
-	verifyConditionOnNutanixCluster(params verifyConditionOnNutanixClusterParams)
+	verifyConditionOnNutanixCluster(params verifyConditionParams)
+	verifyConditionOnNutanixMachines(params verifyConditionParams)
 	verifyFailureMessageOnClusterMachines(ctx context.Context, params verifyFailureMessageOnClusterMachinesParams)
+	verifyProjectNutanixMachines(ctx context.Context, params verifyProjectNutanixMachinesParams)
 }
 
 type testHelper struct {
@@ -289,6 +293,26 @@ func (t testHelper) getMachinesForCluster(ctx context.Context, clusterName, name
 	return machineList
 }
 
+func (t testHelper) getNutanixMachineForCluster(ctx context.Context, clusterName, namespace, machineName string, bootstrapClusterProxy framework.ClusterProxy) *infrav1.NutanixMachine {
+	machine := &infrav1.NutanixMachine{}
+
+	machineKey := client.ObjectKey{
+		Namespace: namespace,
+		Name:      machineName,
+	}
+	err := bootstrapClusterProxy.GetClient().Get(ctx, machineKey, machine)
+	Expect(err).ShouldNot(HaveOccurred())
+	return machine
+}
+
+func (t testHelper) getNutanixMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *infrav1.NutanixMachineList {
+	machineList := &infrav1.NutanixMachineList{}
+	labels := map[string]string{clusterv1.ClusterLabelName: clusterName}
+	err := bootstrapClusterProxy.GetClient().List(ctx, machineList, client.InNamespace(namespace), client.MatchingLabels(labels))
+	Expect(err).ShouldNot(HaveOccurred())
+	return machineList
+}
+
 func (t testHelper) getNutanixVMsForCluster(clusterName, namespace string) []*prismGoClientV3.VMIntentResponse {
 	nutanixMachines := t.getMachinesForCluster(ctx, clusterName, namespace, bootstrapClusterProxy)
 	vms := make([]*prismGoClientV3.VMIntentResponse, 0)
@@ -336,14 +360,14 @@ func (t testHelper) verifyCategoriesNutanixMachines(clusterName, namespace strin
 	}
 }
 
-type verifyConditionOnNutanixClusterParams struct {
+type verifyConditionParams struct {
 	bootstrapClusterProxy framework.ClusterProxy
 	clusterName           string
 	namespace             *corev1.Namespace
 	expectedCondition     clusterv1.Condition
 }
 
-func (t testHelper) verifyConditionOnNutanixCluster(params verifyConditionOnNutanixClusterParams) {
+func (t testHelper) verifyConditionOnNutanixCluster(params verifyConditionParams) {
 	Eventually(
 		func() []clusterv1.Condition {
 			cluster := t.getNutanixClusterByName(ctx, getNutanixClusterByNameInput{
@@ -370,6 +394,32 @@ func (t testHelper) verifyConditionOnNutanixCluster(params verifyConditionOnNuta
 	)
 }
 
+func (t testHelper) verifyConditionOnNutanixMachines(params verifyConditionParams) {
+	nutanixMachines := t.getNutanixMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
+	for _, m := range nutanixMachines.Items {
+		Eventually(
+			func() []clusterv1.Condition {
+				machine := t.getNutanixMachineForCluster(ctx, params.clusterName, params.namespace.Name, m.Name, params.bootstrapClusterProxy)
+				return machine.Status.Conditions
+			},
+			defaultTimeout,
+			defaultInterval,
+		).Should(
+			ContainElement(
+				gstruct.MatchFields(
+					gstruct.IgnoreExtras,
+					gstruct.Fields{
+						"Type":     Equal(params.expectedCondition.Type),
+						"Reason":   Equal(params.expectedCondition.Reason),
+						"Severity": Equal(params.expectedCondition.Severity),
+						"Status":   Equal(params.expectedCondition.Status),
+					},
+				),
+			),
+		)
+	}
+}
+
 type verifyFailureMessageOnClusterMachinesParams struct {
 	clusterName            string
 	namespace              *corev1.Namespace
@@ -389,4 +439,24 @@ func (t testHelper) verifyFailureMessageOnClusterMachines(ctx context.Context, p
 		}
 		return false
 	}, defaultTimeout, defaultInterval).Should(BeTrue())
+}
+
+type verifyProjectNutanixMachinesParams struct {
+	clusterName           string
+	namespace             string
+	nutanixProjectName    string
+	bootstrapClusterProxy framework.ClusterProxy
+}
+
+func (t testHelper) verifyProjectNutanixMachines(ctx context.Context, params verifyProjectNutanixMachinesParams) {
+	nutanixMachines := t.getNutanixMachinesForCluster(ctx, params.clusterName, params.namespace, params.bootstrapClusterProxy)
+	for _, m := range nutanixMachines.Items {
+		machineProviderID := m.Spec.ProviderID
+		Expect(machineProviderID).NotTo(BeEmpty())
+		machineVmUUID := t.stripNutanixIDFromProviderID(machineProviderID)
+		vm, err := t.nutanixClient.V3.GetVM(machineVmUUID)
+		Expect(err).ShouldNot(HaveOccurred())
+		assignedProjectName := *vm.Metadata.ProjectReference.Name
+		Expect(assignedProjectName).To(Equal(params.nutanixProjectName))
+	}
 }

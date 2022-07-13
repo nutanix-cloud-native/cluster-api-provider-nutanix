@@ -83,6 +83,7 @@ providers:
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-credential-ref.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-additional-categories.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-nmt.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-project.yaml"
 
 variables:
   # Default variables for the e2e test; those values could be overridden via env variables, thus
@@ -107,6 +108,8 @@ variables:
   NUTANIX_SUBNET_NAME: ""
   # NOTE: 'NUTANIX_ADDITIONAL_SUBNET_NAME' is required for multi network interface e2e tests
   NUTANIX_ADDITIONAL_SUBNET_NAME: ""
+  # NOTE: 'NUTANIX_PROJECT_NAME' is required for project e2e tests
+  NUTANIX_PROJECT_NAME: ""
   KUBEVIP_LB_ENABLE: "false"
   KUBEVIP_SVC_ENABLE: "false"
   CNI: "./data/cni/kindnet/kindnet.yaml"
