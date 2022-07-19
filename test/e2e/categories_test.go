@@ -81,7 +81,7 @@ var _ = Describe("Nutanix categories [PR-Blocking]", func() {
 		})
 
 		By("Checking cluster category condition is true", func() {
-			testHelper.verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
