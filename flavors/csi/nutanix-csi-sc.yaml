@@ -1,0 +1,31 @@
+# Source: nutanix-csi-storage/templates/ntnx-secret.yaml
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ntnx-secret
+  namespace: ntnx-system
+stringData:
+  # prism-ip:prism-port:admin:password.
+  key: ${NUTANIX_PE_ENDPOINT}:${NUTANIX_PE_PORT=9440}:${NUTANIX_PE_USER=admin}:${NUTANIX_PE_PASSWORD}
+---
+# Source: nutanix-csi-storage/templates/ntnx-sc.yaml
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+    name: nutanix-volume
+provisioner: csi.nutanix.com
+parameters:
+    storageType: NutanixVolumes
+    csi.storage.k8s.io/provisioner-secret-name: ntnx-secret
+    csi.storage.k8s.io/provisioner-secret-namespace: ntnx-system
+    csi.storage.k8s.io/node-publish-secret-name: ntnx-secret
+    csi.storage.k8s.io/node-publish-secret-namespace: ntnx-system
+    csi.storage.k8s.io/controller-expand-secret-name: ntnx-secret
+    csi.storage.k8s.io/controller-expand-secret-namespace: ntnx-system
+    storageContainer: ${NUTANIX_STORAGE_CONTAINER}
+    csi.storage.k8s.io/fstype: ext4
+    isSegmentedIscsiNetwork: "false"
+    description: "nutanix-volume"
+allowVolumeExpansion: true
+reclaimPolicy: Delete

@@ -33,6 +33,8 @@ EXP_DIR := exp
 BIN_DIR := bin
 TEST_DIR := test
 E2E_DIR ?= ${REPO_ROOT}/test/e2e
+FLAVORS_DIR := flavors
+TEMPLATES_DIR := templates
 TOOLS_DIR := $(REPO_ROOT)/hack/tools
 TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/$(BIN_DIR))
 E2E_FRAMEWORK_DIR := $(TEST_DIR)/framework
@@ -262,6 +264,10 @@ cluster-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1beta
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project.yaml
+
+cluster-flavors: $(KUSTOMIZE) ## Generate cluster flavors for all versions
+	$(KUSTOMIZE) build $(FLAVORS_DIR)/csi > $(TEMPLATES_DIR)/cluster-template-csi.yaml
+	$(KUSTOMIZE) build $(FLAVORS_DIR)/ccm > $(TEMPLATES_DIR)/cluster-template-ccm.yaml
 
 ##@ Testing
 
