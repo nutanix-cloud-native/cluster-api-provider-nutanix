@@ -24,7 +24,7 @@ jobs:
         run: make build
       
       - name: Run Synopsys Detect
-        uses: synopsys-sig/detect-action@v0.3.0
+        uses: synopsys-sig/detect-action@v0.3.2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           detect-version: 7.9.0
