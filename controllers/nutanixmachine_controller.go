@@ -285,6 +285,44 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 			}
 		}
 
+		vm, err := findVM(rctx.NutanixClient, rctx.NutanixMachine)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
+		if vm != nil {
+			projectRef := rctx.NutanixMachine.Spec.Project
+
+			vmProjectNamePtr := vm.Metadata.ProjectReference.Name
+
+			if projectRef != nil && *projectRef.Name != *vmProjectNamePtr {
+
+				klog.Infof("%s Reached here.", rctx.LogPrefix)
+
+				vmMetadata := vm.Metadata
+				vmSpec := vm.Spec
+
+				err = r.addVMToProject(rctx, vmMetadata)
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+
+				vmUpdateInput := nutanixClientV3.VMIntentInput{
+					Metadata: vmMetadata,
+					Spec:     vmSpec,
+				}
+				vmName := rctx.NutanixMachine.Name
+				vmUUID := rctx.NutanixMachine.Status.VmUUID
+				client := rctx.NutanixClient
+				updateTaskUUID, err := updateVM(client, &vmUpdateInput, vmName, vmUUID)
+				if err != nil {
+					return reconcile.Result{}, err
+				}
+				klog.Infof("%s Updating task with UUID %s received for vm %s with UUID %s.", rctx.LogPrefix, updateTaskUUID, vmName, vmUUID)
+
+				return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+			}
+		}
 		return reconcile.Result{}, nil
 	}
 

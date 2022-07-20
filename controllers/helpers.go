@@ -75,6 +75,26 @@ func deleteVM(client *nutanixClientV3.Client, vmName, vmUUID string) (string, er
 	return deleteTaskUUID, nil
 }
 
+// updateVM updates a VM and is invoked by the NutanixMachineReconciler
+func updateVM(client *nutanixClientV3.Client, body *nutanixClientV3.VMIntentInput, vmName, vmUUID string) (string, error) {
+	var err error
+
+	if vmUUID == "" {
+		klog.Warning("VmUUID was empty. Skipping update")
+		return "", nil
+	}
+
+	klog.Infof("Updating VM %s with UUID: %s", vmName, vmUUID)
+	vmIntentResponse, err := client.V3.UpdateVM(vmUUID, body)
+	if err != nil {
+		klog.Infof("Error updating machine %s", vmName)
+		return "", err
+	}
+	updateTaskUUID := vmIntentResponse.Status.ExecutionContext.TaskUUID.(string)
+
+	return updateTaskUUID, nil
+}
+
 // findVMByUUID retrieves the VM with the given vm UUID. Returns nil if not found
 func findVMByUUID(client *nutanixClientV3.Client, uuid string) (*nutanixClientV3.VMIntentResponse, error) {
 	klog.Infof("Checking if VM with UUID %s exists.", uuid)
