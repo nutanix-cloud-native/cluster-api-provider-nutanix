@@ -139,8 +139,8 @@ USE_EXISTING_CLUSTER ?= false
 GINKGO_NOCOLOR ?= false
 FLAVOR ?= e2e
 
-TEST_NAMESPACE=capx-test-ns
-TEST_CLUSTER_NAME=capx-cl-${USER}
+TEST_NAMESPACE ?= capx-test-ns
+TEST_CLUSTER_NAME ?= capx-cl-${USER}
 
 # to set multiple ginkgo skip flags, if any
 ifneq ($(strip $(GINKGO_SKIP)),)
@@ -326,6 +326,9 @@ test-e2e-calico:
 .PHONY: test-e2e-all-cni
 test-e2e-all-cni: test-e2e test-e2e-calico
 
+.PHONY: print-capx-controller-logs
+print-capx-controller-logs: ## logs the controller pod output with -f mode
+	kubectl -n capx-system logs -f $(shell kubectl -n capx-system get pods | grep capx-controller | awk '{print $$1}') manager
 
 ## --------------------------------------
 ## Hack / Tools
