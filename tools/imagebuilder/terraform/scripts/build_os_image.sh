@@ -4,7 +4,6 @@ cd ~/image-builder/images/capi
 git checkout nutanix-imagebuilder
 
 cp ~/nutanix.json packer/nutanix/nutanix.json
-packer init ~/config.pkr.hcl
 
 chmod +x hack/*
 make deps-nutanix
