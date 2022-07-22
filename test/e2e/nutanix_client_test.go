@@ -74,7 +74,7 @@ var _ = Describe("Nutanix client [PR-Blocking]", func() {
 		})
 
 		By("checking cluster prism client init condition is true", func() {
-			testHelper.verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
@@ -106,7 +106,7 @@ var _ = Describe("Nutanix client [PR-Blocking]", func() {
 		})
 
 		By("Checking cluster condition for credentials is set to false", func() {
-			testHelper.verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
@@ -130,7 +130,7 @@ var _ = Describe("Nutanix client [PR-Blocking]", func() {
 		})
 
 		By("checking cluster credential condition is true", func() {
-			testHelper.verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
@@ -142,7 +142,7 @@ var _ = Describe("Nutanix client [PR-Blocking]", func() {
 		})
 
 		By("checking cluster prism client init condition is true", func() {
-			testHelper.verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
@@ -187,7 +187,7 @@ var _ = Describe("Nutanix client [PR-Blocking]", func() {
 		})
 
 		By("Checking cluster credential condition is true", func() {
-			testHelper.verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
@@ -199,7 +199,7 @@ var _ = Describe("Nutanix client [PR-Blocking]", func() {
 		})
 
 		By("Checking cluster prism client init condition is false", func() {
-			testHelper.verifyConditionOnNutanixCluster(verifyConditionOnNutanixClusterParams{
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,

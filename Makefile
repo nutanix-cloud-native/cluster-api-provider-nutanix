@@ -32,14 +32,18 @@ REPO_ROOT := $(shell git rev-parse --show-toplevel)
 EXP_DIR := exp
 BIN_DIR := bin
 TEST_DIR := test
+E2E_DIR ?= ${REPO_ROOT}/test/e2e
 TOOLS_DIR := $(REPO_ROOT)/hack/tools
 TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/$(BIN_DIR))
 E2E_FRAMEWORK_DIR := $(TEST_DIR)/framework
 CAPD_DIR := $(TEST_DIR)/infrastructure/docker
 GO_INSTALL := $(REPO_ROOT)/scripts/go_install.sh
-NUTANIX_E2E_TEMPLATES := $(REPO_ROOT)/test/e2e/data/infrastructure-nutanix
+NUTANIX_E2E_TEMPLATES := ${E2E_DIR}/data/infrastructure-nutanix
 
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
+
+# CNI paths for e2e tests
+CNI_PATH_CALICO ?= "${E2E_DIR}/data/cni/calico/calico.yaml"
 
 #
 # Binaries.
@@ -128,7 +132,7 @@ GINKGO_FOCUS ?= "\\[PR-Blocking\\]"
 # GINKGO_FOCUS ?= "\\[health-remediation\\]"
 GINKGO_SKIP ?=
 GINKGO_NODES  ?= 1
-E2E_CONF_FILE  ?= ${REPO_ROOT}/test/e2e/config/nutanix.yaml
+E2E_CONF_FILE  ?= ${E2E_DIR}/config/nutanix.yaml
 ARTIFACTS ?= ${REPO_ROOT}/_artifacts
 SKIP_RESOURCE_CLEANUP ?= false
 USE_EXISTING_CLUSTER ?= false
@@ -257,6 +261,7 @@ cluster-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1beta
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-credential-ref --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-credential-ref.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project.yaml
 
 ##@ Testing
 
@@ -314,9 +319,13 @@ test-e2e: docker-build-e2e $(GINKGO) cluster-templates ## Run the end-to-end tes
 	    -e2e.config="$(E2E_CONF_FILE)" \
 	    -e2e.skip-resource-cleanup=$(SKIP_RESOURCE_CLEANUP) -e2e.use-existing-cluster=$(USE_EXISTING_CLUSTER)
 
-.PHONY: print-capx-controller-logs
-print-capx-controller-logs: ## logs the controller pod output with -f mode
-	kubectl -n capx-system logs -f $(shell kubectl -n capx-system get pods | grep capx-controller | awk '{print $$1}') manager
+.PHONY: test-e2e-calico
+test-e2e-calico:
+	CNI=$(CNI_PATH_CALICO) $(MAKE) test-e2e
+
+.PHONY: test-e2e-all-cni
+test-e2e-all-cni: test-e2e test-e2e-calico
+
 
 ## --------------------------------------
 ## Hack / Tools

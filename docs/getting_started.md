@@ -5,6 +5,8 @@ This is a guide on how to get started with Cluster API Provider Nutanix Cloud In
 For more information on how install Nutanix CSI Driver on CAPX cluster, visit [Nutanix CSI Driver installation with CAPX](install_csi_driver.md)
 For more information on how CAPX handles credentials, visit [Credential Management](./credential_management.md).
 
+For more information on the port requirements for CAPX, visit [Port Requirements](./port_requirements.md).
+
 ## Production workflow
 
 ### Build OS image for NutanixMachineTemplate resource
@@ -145,7 +147,7 @@ make prepare-local-clusterctl
 make localtest
 </pre>
 
-### Delete test workfload cluster
+### Delete test workload cluster
 <pre>
 tbd
 </pre>
