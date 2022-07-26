@@ -33,6 +33,7 @@ EXP_DIR := exp
 BIN_DIR := bin
 TEST_DIR := test
 E2E_DIR ?= ${REPO_ROOT}/test/e2e
+TEMPLATES_DIR := templates
 TOOLS_DIR := $(REPO_ROOT)/hack/tools
 TOOLS_BIN_DIR := $(abspath $(TOOLS_DIR)/$(BIN_DIR))
 E2E_FRAMEWORK_DIR := $(TEST_DIR)/framework
@@ -249,19 +250,24 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 
 ##@ Templates
 
-.PHONY: cluster-templates
-cluster-templates: $(KUSTOMIZE) cluster-templates-v1beta1 cluster-templates-v1alpha4 ## Generate cluster templates for all versions
+.PHONY: cluster-e2e-templates
+cluster-e2e-templates: $(KUSTOMIZE) cluster-e2e-templates-v1beta1 cluster-e2e-templates-v1alpha4 ## Generate cluster templates for all versions
 
-cluster-templates-v1alpha4: $(KUSTOMIZE) ## Generate cluster templates for v1alpha4
+cluster-e2e-templates-v1alpha4: $(KUSTOMIZE) ## Generate cluster templates for v1alpha4
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1alpha4/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1alpha4/cluster-template.yaml
 
-cluster-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1beta1
+cluster-e2e-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1beta1
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template.yaml 
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-secret --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-secret.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-credential-ref --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-credential-ref.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project.yaml
+
+cluster-templates: $(KUSTOMIZE) ## Generate cluster templates for all flavors
+	$(KUSTOMIZE) build $(TEMPLATES_DIR)/base > $(TEMPLATES_DIR)/cluster-template.yaml
+	$(KUSTOMIZE) build $(TEMPLATES_DIR)/csi > $(TEMPLATES_DIR)/cluster-template-csi.yaml
+	$(KUSTOMIZE) build $(TEMPLATES_DIR)/ccm > $(TEMPLATES_DIR)/cluster-template-ccm.yaml
 
 ##@ Testing
 
@@ -271,12 +277,12 @@ docker-build-e2e: $(KO) ## Build docker image with the manager with e2e tag.
 	docker tag ko.local/cluster-api-provider-nutanix:e2e ${IMG_REPO}:e2e
 
 .PHONY: prepare-local-clusterctl
-prepare-local-clusterctl: manifests kustomize  ## Prepare overide file for local clusterctl.
+prepare-local-clusterctl: manifests kustomize cluster-templates ## Prepare overide file for local clusterctl.
 	mkdir -p ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/infrastructure-components.yaml
-	cp ./metadata.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}
-	cp ./templates/cluster-template.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}
+	cp ./metadata.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/
+	cp ./templates/cluster-template*.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/
 	cp ./clusterctl.yaml ~/.cluster-api/clusterctl.yaml
 
 .PHONY: test-unittest
@@ -312,7 +318,7 @@ test-kubectl-workload: ## Run kubectl queries to get all capx workload related o
 	kubectl --kubeconfig ./${TEST_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
 
 .PHONY: test-e2e
-test-e2e: docker-build-e2e $(GINKGO) cluster-templates ## Run the end-to-end tests
+test-e2e: docker-build-e2e $(GINKGO) cluster-e2e-templates cluster-templates ## Run the end-to-end tests
 	mkdir -p $(ARTIFACTS)
 	$(GINKGO) -v -trace -tags=e2e -focus="$(GINKGO_FOCUS)" $(_SKIP_ARGS) -nodes=$(GINKGO_NODES) --noColor=$(GINKGO_NOCOLOR) $(GINKGO_ARGS) ./test/e2e -- \
 	    -e2e.artifacts-folder="$(ARTIFACTS)" \

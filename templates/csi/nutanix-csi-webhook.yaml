@@ -1,0 +1,11 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: csi-snapshot-validation-webhook-cert
+  namespace: ntnx-system
+type: kubernetes.io/tls
+data:
+  ca.crt: ${WEBHOOK_CA}
+  tls.key: ${WEBHOOK_KEY}
+  tls.crt: ${WEBHOOK_CERT}

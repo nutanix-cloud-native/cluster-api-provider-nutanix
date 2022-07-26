@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+configMapGenerator:
+- name: nutanix-csi
+  behavior: merge
+  files:
+  - nutanix-csi-storage.yaml
+  - nutanix-csi-snapshot.yaml
+  - nutanix-csi-webhook.yaml
+
+resources:
+- ../base/
+- nutanix-csi.yaml
+- nutanix-csi-crs.yaml
+
+patches:
+- patch: |-
+    - op: add
+      path: /metadata/labels
+      value: {
+            "csi": "nutanix"
+        }
+  target:
+    kind: Cluster
