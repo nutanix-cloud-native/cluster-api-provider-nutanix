@@ -34,6 +34,7 @@ import (
 
 const (
 	taskSucceededMessage = "SUCCEEDED"
+	serviceNamePECluster = "AOS"
 )
 
 func CreateNutanixClient(ctx context.Context, client client.Client, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
@@ -149,19 +150,18 @@ func findVMByName(client *nutanixClientV3.Client, vmName string) (*nutanixClient
 }
 
 func getPEUUID(client *nutanixClientV3.Client, peName, peUUID *string) (string, error) {
-	var foundPEUUID string
 	if peUUID == nil && peName == nil {
 		return "", fmt.Errorf("cluster name or uuid must be passed in order to retrieve the pe")
 	}
-	if peUUID != nil {
+	if peUUID != nil && *peUUID != "" {
 		peIntentResponse, err := client.V3.GetCluster(*peUUID)
 		if err != nil {
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
 				return "", fmt.Errorf("failed to find Prism Element cluster with UUID %s: %v", *peUUID, err)
 			}
 		}
-		foundPEUUID = *peIntentResponse.Metadata.UUID
-	} else if peName != nil {
+		return *peIntentResponse.Metadata.UUID, nil
+	} else if peName != nil && *peName != "" {
 		filter := getFilterForName(*peName)
 		responsePEs, err := client.V3.ListAllCluster(filter)
 		if err != nil {
@@ -171,22 +171,20 @@ func getPEUUID(client *nutanixClientV3.Client, peName, peUUID *string) (string, 
 		foundPEs := make([]*nutanixClientV3.ClusterIntentResponse, 0)
 		for _, s := range responsePEs.Entities {
 			peSpec := s.Spec
-			if *peSpec.Name == *peName {
+			if *peSpec.Name == *peName && hasPEClusterServiceEnabled(s, serviceNamePECluster) {
 				foundPEs = append(foundPEs, s)
 			}
 		}
+		if len(foundPEs) == 1 {
+			return *foundPEs[0].Metadata.UUID, nil
+		}
 		if len(foundPEs) == 0 {
 			return "", fmt.Errorf("failed to retrieve Prism Element cluster by name %s", *peName)
-		} else if len(foundPEs) > 1 {
-			return "", fmt.Errorf("more than one Prism Element cluster found with name %s", *peName)
 		} else {
-			foundPEUUID = *foundPEs[0].Metadata.UUID
-		}
-		if foundPEUUID == "" {
-			return "", fmt.Errorf("failed to retrieve Prism Element cluster by name or uuid. Verify input parameters.")
+			return "", fmt.Errorf("more than one Prism Element cluster found with name %s", *peName)
 		}
 	}
-	return foundPEUUID, nil
+	return "", fmt.Errorf("failed to retrieve Prism Element cluster by name or uuid. Verify input parameters.")
 }
 
 // getMibValueOfQuantity returns the given quantity value in Mib
@@ -581,4 +579,19 @@ func getSubnetClientSideFilter(peUUID string) []*nutanixClient.AdditionalFilter 
 
 func getFilterForName(name string) string {
 	return fmt.Sprintf("name==%s", name)
+}
+
+func hasPEClusterServiceEnabled(peCluster *nutanixClientV3.ClusterIntentResponse, serviceName string) bool {
+	if peCluster.Status == nil ||
+		peCluster.Status.Resources == nil ||
+		peCluster.Status.Resources.Config == nil {
+		return false
+	}
+	serviceList := peCluster.Status.Resources.Config.ServiceList
+	for _, s := range serviceList {
+		if s != nil && strings.ToUpper(*s) == serviceName {
+			return true
+		}
+	}
+	return false
 }
