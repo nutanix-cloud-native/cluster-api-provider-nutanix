@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- ../base/
+
+patches:
+- patch: |-
+    - op: add
+      path: /spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs
+      value: { 
+            "cloud-provider": "external"
+        }
+    - op: add
+      path: /spec/kubeadmConfigSpec/clusterConfiguration/controllerManager/extraArgs
+      value: {
+            "cloud-provider": "external"
+        }
+    - op: add
+      path: /spec/kubeadmConfigSpec/initConfiguration/nodeRegistration/kubeletExtraArgs
+      value: {
+            "cloud-provider": "external"
+        }
+  target:
+    kind: KubeadmControlPlane
+- patch: |-
+    - op: add
+      path: /spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs
+      value: {
+            "cloud-provider": "external"
+        }
+  target:
+    kind: KubeadmConfigTemplate
+- patch: |-
+    - op: add
+      path: /metadata/labels
+      value: {
+            "ccm": "nutanix"
+        }
+  target:
+    kind: Cluster

@@ -2,10 +2,11 @@
 
 The Nutanix CSI driver is fully supported on CAPI/CAPX deployed clusters where all the nodes meet the [Nutanix CSI driver prerequisites](#capi-workload-cluster-prerequisites-for-nutanix-csi-driver).
 
-There are two methods to install the Nutanix CSI driver on a CAPI/CAPX cluster:
+There are three methods to install the Nutanix CSI driver on a CAPI/CAPX cluster:
 
 - Helm
 - ClusterResourceSet
+- CAPX Flavor
 
 For more information, check the next sections.
 
@@ -169,6 +170,47 @@ metadata:
     csi: nutanix
 # ...
 ```
+
+*WARNING*: To allow the Nutanix CSI driver to deploy correctly, you must have a fully functional CNI deployment.
+
+
+
+## Install Nutanix CSI Driver with CAPX Flavor
+
+CAPX provider now propose a flavor to automatically deploy Nutanix CSI using ClusterResourceSet.
+
+### Prerequisites
+
+The following requirements must be met:
+
+- OS need to respect Nutanix CSI prerequisite ([as explained here](#capi-workload-cluster-prerequisites-for-nutanix-csi-driver))
+- Management cluster needs to be installed with the `CLUSTER_RESOURCE_SET` feature gate ([look here](#enabling-clusterresourceset-feature))
+
+### Installation
+
+You need to specify the `csi` flavor during the workload cluster creation.
+
+```shell
+clusterctl generate cluster my-cluster -f csi
+```
+
+You need some additional environment variables:
+
+- `WEBHOOK_CA`: Base64 encoded CA Certificate who signed the Webhook certificate
+- `WEBHOOK_CERT`: Base64  Certificate for the Webhook validation component
+- `WEBHOOK_KEY`: Base64 Key for the Webhook validation component
+
+The three `WEBHOOK_*` can be automatically created with the following script
+
+```
+source scripts/gen-self-cert.sh
+```
+
+The certificate needs to accept the following name:
+
+- csi-snapshot-webhook
+- csi-snapshot-webhook.ntnx-sytem
+- csi-snapshot-webhook.ntnx-sytem.svc
 
 *WARNING*: To allow the Nutanix CSI driver to deploy correctly, you must have a fully functional CNI deployment.
 
