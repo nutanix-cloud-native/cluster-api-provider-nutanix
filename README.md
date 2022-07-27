@@ -1,4 +1,17 @@
 # Kubernetes cluster-api infrastructure provider Nutanix Cloud Infrastucture
+
+---
+
+[![Go Report Card](https://goreportcard.com/badge/github.com/nutanix-cloud-native/cluster-api-provider-nutanix)](https://goreportcard.com/report/github.com/nutanix-cloud-native/cluster-api-provider-nutanix)
+![CI](https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/actions/workflows/build-dev.yaml/badge.svg)
+![Release](https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/actions/workflows/release.yaml/badge.svg)
+
+[![release](https://img.shields.io/github/release-pre/nutanix-cloud-native/cluster-api-provider-nutanix.svg)](https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/blob/master/LICENSE)
+![Proudly written in Golang](https://img.shields.io/badge/written%20in-Golang-92d1e7.svg)
+[![Releases](https://img.shields.io/github/downloads/nutanix-cloud-native/cluster-api-provider-nutanix/total.svg)](https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases)
+
+---
 ## What is the Cluster API Provider Nutanix Cloud Infrastucture
 The [Cluster API](https://github.com/kubernetes-sigs/cluster-api) brings declarative, Kubernetes-style APIs to cluster creation, configuration and management. Cluster API Provider for Nutanix Cloud Infrastructure is a concrete implementation of Cluster API for Nutanix Cloud Infrastucture.
 
