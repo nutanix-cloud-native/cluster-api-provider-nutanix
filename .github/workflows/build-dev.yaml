@@ -22,5 +22,5 @@ jobs:
           go-version: '^1.17'
 
       - name: Test build
-        run: make test build
+        run: make lint test build
 
