@@ -25,6 +25,9 @@ Running e2e with other CNIs can be done by invoking following command:
 #run e2e with Calico:
 make test-e2e-calico
 
+#run e2e with Flannel:
+make test-e2e-flannel
+
 #run e2e tests with every CNI:
 make test-e2e-all-cni
 ```

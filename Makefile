@@ -45,6 +45,7 @@ export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 
 # CNI paths for e2e tests
 CNI_PATH_CALICO ?= "${E2E_DIR}/data/cni/calico/calico.yaml"
+CNI_PATH_FLANNEL ?= "${E2E_DIR}/data/cni/flannel/flannel.yaml" # From https://github.com/flannel-io/flannel/blob/master/Documentation/kube-flannel.yml
 
 #
 # Binaries.
@@ -329,8 +330,12 @@ test-e2e: docker-build-e2e $(GINKGO) cluster-e2e-templates cluster-templates ## 
 test-e2e-calico:
 	CNI=$(CNI_PATH_CALICO) $(MAKE) test-e2e
 
+.PHONY: test-e2e-flannel
+test-e2e-flannel:
+	CNI=$(CNI_PATH_FLANNEL) $(MAKE) test-e2e
+
 .PHONY: test-e2e-all-cni
-test-e2e-all-cni: test-e2e test-e2e-calico
+test-e2e-all-cni: test-e2e test-e2e-calico test-e2e-flannel
 
 
 ## --------------------------------------
