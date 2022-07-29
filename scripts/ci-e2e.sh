@@ -8,15 +8,24 @@ set -o pipefail
 REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 cd "${REPO_ROOT}" || exit 1
 
-# Make sure the tools binaries are on the path.
-export PATH="${REPO_ROOT}/hack/tools/bin:${PATH}"
-
 # Expects ubuntu container
 
 # Install prerequisites
 apt update
-apt install make
+apt install -y make wget
+
 make --version
+docker --version
+
+# shellcheck source=./hack/install-go.sh
+source "${REPO_ROOT}/hack/install-go.sh"
+
+# shellcheck source=./hack/ensure-go.sh
+source "${REPO_ROOT}/hack/ensure-go.sh"
+
+# Make sure the tools binaries are on the path.
+export PATH="${REPO_ROOT}/hack/tools/bin:${PATH}"
+
 
 # Override e2e conf values with CI specific environment variables
 KUBERNETES_VERSION_MANAGEMENT=${KUBERNETES_VERSION_MANAGEMENT}
