@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	additionalSubnetEnvVarKey = "NUTANIX_ADDITIONAL_SUBNET_NAME"
+	additionalSubnetVarKey = "NUTANIX_ADDITIONAL_SUBNET_NAME"
 )
 
 var _ = Describe("Nutanix Subnets [PR-Blocking]", func() {
@@ -48,7 +48,7 @@ var _ = Describe("Nutanix Subnets [PR-Blocking]", func() {
 	)
 
 	BeforeEach(func() {
-		testHelper = newTestHelper()
+		testHelper = newTestHelper(e2eConfig)
 		clusterName = testHelper.generateTestClusterName(specName)
 		clusterResources = new(clusterctl.ApplyClusterTemplateAndWaitResult)
 		Expect(bootstrapClusterProxy).NotTo(BeNil(), "BootstrapClusterProxy can't be nil")
@@ -71,7 +71,7 @@ var _ = Describe("Nutanix Subnets [PR-Blocking]", func() {
 		By("Creating Nutanix Machine Template with multiple subnets", func() {
 			multiNicNMT := testHelper.createDefaultNMT(clusterName, namespace.Name)
 			multiNicNMT.Spec.Template.Spec.Subnets = append(multiNicNMT.Spec.Template.Spec.Subnets,
-				testHelper.getNutanixResourceIdentifierFromEnv(additionalSubnetEnvVarKey),
+				testHelper.getNutanixResourceIdentifierFromE2eConfig(additionalSubnetVarKey),
 			)
 			nmtSubnets = multiNicNMT.Spec.Template.Spec.Subnets
 			testHelper.createNutanixMachineTemplate(ctx, createNutanixMachineTemplateParams{
@@ -89,7 +89,6 @@ var _ = Describe("Nutanix Subnets [PR-Blocking]", func() {
 					clusterctlConfigPath:  clusterctlConfigPath,
 					artifactFolder:        artifactFolder,
 					bootstrapClusterProxy: bootstrapClusterProxy,
-					e2eConfig:             *e2eConfig,
 				}, clusterResources)
 		})
 
