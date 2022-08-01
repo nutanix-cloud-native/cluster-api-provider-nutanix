@@ -52,7 +52,7 @@ var _ = Describe("Nutanix categories [PR-Blocking]", func() {
 	)
 
 	BeforeEach(func() {
-		testHelper = newTestHelper()
+		testHelper = newTestHelper(e2eConfig)
 		clusterName = testHelper.generateTestClusterName(specName)
 		clusterResources = new(clusterctl.ApplyClusterTemplateAndWaitResult)
 		Expect(bootstrapClusterProxy).NotTo(BeNil(), "BootstrapClusterProxy can't be nil")
@@ -76,7 +76,6 @@ var _ = Describe("Nutanix categories [PR-Blocking]", func() {
 					clusterctlConfigPath:  clusterctlConfigPath,
 					artifactFolder:        artifactFolder,
 					bootstrapClusterProxy: bootstrapClusterProxy,
-					e2eConfig:             *e2eConfig,
 				}, clusterResources)
 		})
 
@@ -119,7 +118,6 @@ var _ = Describe("Nutanix categories [PR-Blocking]", func() {
 					clusterctlConfigPath:  clusterctlConfigPath,
 					artifactFolder:        artifactFolder,
 					bootstrapClusterProxy: bootstrapClusterProxy,
-					e2eConfig:             *e2eConfig,
 				}, clusterResources)
 		})
 
@@ -164,7 +162,6 @@ var _ = Describe("Nutanix categories [PR-Blocking]", func() {
 					clusterctlConfigPath:  clusterctlConfigPath,
 					artifactFolder:        artifactFolder,
 					bootstrapClusterProxy: bootstrapClusterProxy,
-					e2eConfig:             *e2eConfig,
 				}, clusterResources)
 		})
 

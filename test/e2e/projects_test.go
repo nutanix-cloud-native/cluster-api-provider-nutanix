@@ -51,7 +51,7 @@ var _ = Describe("Nutanix projects [PR-Blocking]", func() {
 	)
 
 	BeforeEach(func() {
-		testHelper = newTestHelper()
+		testHelper = newTestHelper(e2eConfig)
 		nutanixProjectName = os.Getenv(nutanixProjectNameEnv)
 		Expect(nutanixProjectName).ToNot(BeEmpty(), "expected environment variable %s to be set", nutanixProjectNameEnv)
 		clusterName = testHelper.generateTestClusterName(specName)
@@ -90,7 +90,6 @@ var _ = Describe("Nutanix projects [PR-Blocking]", func() {
 					clusterctlConfigPath:  clusterctlConfigPath,
 					artifactFolder:        artifactFolder,
 					bootstrapClusterProxy: bootstrapClusterProxy,
-					e2eConfig:             *e2eConfig,
 				},
 				clusterResources,
 			)
@@ -137,7 +136,6 @@ var _ = Describe("Nutanix projects [PR-Blocking]", func() {
 				clusterctlConfigPath:  clusterctlConfigPath,
 				artifactFolder:        artifactFolder,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				e2eConfig:             *e2eConfig,
 			}, clusterResources)
 
 		By("Checking project assigned condition is true", func() {

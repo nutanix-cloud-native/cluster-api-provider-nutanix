@@ -28,6 +28,9 @@ make test-e2e-calico
 #run e2e with Flannel:
 make test-e2e-flannel
 
+#run e2e with Cilium:
+make test-e2e-cilium
+
 #run e2e tests with every CNI:
 make test-e2e-all-cni
 ```
