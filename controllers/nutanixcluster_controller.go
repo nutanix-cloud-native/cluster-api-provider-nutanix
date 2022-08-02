@@ -244,7 +244,8 @@ func (r *NutanixClusterReconciler) reconcileCategories(rctx *nctx.ClusterContext
 
 func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterContext) error {
 	klog.Infof("%s Reconciling deletion of categories for cluster %s", rctx.LogPrefix, rctx.Cluster.Name)
-	if conditions.IsTrue(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) {
+	if conditions.IsTrue(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) ||
+		conditions.GetReason(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) == infrav1.DeletionFailed {
 		defaultCategories := getDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
 		err := deleteCategories(rctx.NutanixClient, defaultCategories)
 		if err != nil {
