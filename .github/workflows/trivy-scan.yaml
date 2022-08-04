@@ -19,12 +19,34 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: "^1.17"
+
+      - name: Install tools
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          source: "github"
+          kustomize: "latest"
+          ko: "latest"
+
+      - name: Prepare build
+        run: make manifests generate
+
+      - name: Build container
+        env:
+          KO_DOCKER_REPO: ko.local
+          PLATFORMS: linux/amd64,linux/arm64,linux/arm
+        run: |
+          export SOURCE_DATE_EPOCH=$(date +%s)
+          ko build -B -t ${{ github.sha }} --platform=$PLATFORMS .
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.6.2
         with:
-          image-ref: "ghcr.io/${{ github.repository }}/controller:latest"
-          format: "template"
-          template: "@/contrib/sarif.tpl"
+          image-ref: "ko.local/${{ github.event.repository.name }}:${{ github.sha }}"
+          format: "sarif"
           output: "trivy-results.sarif"
           severity: "CRITICAL,HIGH"
 
