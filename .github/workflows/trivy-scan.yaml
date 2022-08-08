@@ -19,6 +19,9 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
+      - name: Get repository name
+        run: echo "REPOSITORY_NAME=${GITHUB_REPOSITORY#*/}" >> $GITHUB_ENV
+
       - name: Setup Go
         uses: actions/setup-go@v3
         with:
@@ -45,7 +48,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.6.2
         with:
-          image-ref: "ko.local/${{ github.event.repository.name }}:${{ github.sha }}"
+          image-ref: "ko.local/${{ env.REPOSITORY_NAME }}:${{ github.sha }}"
           format: "sarif"
           output: "trivy-results.sarif"
           severity: "CRITICAL,HIGH"
