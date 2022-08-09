@@ -332,10 +332,6 @@ test-e2e-calico:
 .PHONY: test-e2e-all-cni
 test-e2e-all-cni: test-e2e test-e2e-calico
 
-.PHONY: test-e2e-in-container
-test-e2e-in-container:
-	docker run -it --name test-e2e-in-container --rm -v $(PWD)/:/go/src/nutanix-cluster-api-nutanix -v /var/run/docker.sock:/var/run/docker.sock -w /go/src/nutanix-cluster-api-nutanix golang:latest ./scripts/ci-e2e.sh
-
 ## --------------------------------------
 ## Hack / Tools
 ## --------------------------------------
