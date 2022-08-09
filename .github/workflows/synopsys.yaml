@@ -4,7 +4,7 @@ on:
     branches:
       - main
   schedule:
-    - cron:  '0 0 * * *'
+    - cron: "0 0 * * *"
   push:
 
 jobs:
@@ -18,11 +18,24 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v3
         with:
-          go-version: '^1.17'
+          go-version: "^1.17"
 
-      - name: Build Project 
+      - uses: actions/setup-java@v3
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Build Project
         run: make build
-      
+
+      # - name: Run Synopsys Scan
+      #   env:
+      #     BLACKDUCK_URL: ${{ secrets.BLACKDUCK_URL }}
+      #     BLACKDUCK_API_TOKEN: ${{ secrets.BLACKDUCK_API_TOKEN }}
+      #   run: |
+      #     curl -s -LO https://detect.synopsys.com/detect7.sh && chmod 755 detect7.sh
+      #     ./detect7.sh --blackduck.url=$BLACKDUCK_URL --blackduck.api.token=$BLACKDUCK_API_TOKEN
+
       - name: Run Synopsys Detect
         uses: synopsys-sig/detect-action@v0.3.2
         with:
