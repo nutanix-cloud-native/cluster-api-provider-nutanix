@@ -1,0 +1,59 @@
+name: Trivy Scan
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 17 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    permissions:
+      contents: read
+      security-events: write
+    name: Scan
+    runs-on: "ubuntu-18.04"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Get repository name
+        run: echo "REPOSITORY_NAME=${GITHUB_REPOSITORY#*/}" >> $GITHUB_ENV
+
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: "^1.17"
+
+      - name: Install tools
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          source: "github"
+          kustomize: "latest"
+          ko: "latest"
+
+      - name: Prepare build
+        run: make manifests generate
+
+      - name: Build container
+        env:
+          KO_DOCKER_REPO: ko.local
+          PLATFORMS: linux/amd64,linux/arm64,linux/arm
+        run: |
+          export SOURCE_DATE_EPOCH=$(date +%s)
+          ko build -B -t ${{ github.sha }} --platform=$PLATFORMS .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.6.2
+        with:
+          image-ref: "ko.local/${{ env.REPOSITORY_NAME }}:${{ github.sha }}"
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: "trivy-results.sarif"

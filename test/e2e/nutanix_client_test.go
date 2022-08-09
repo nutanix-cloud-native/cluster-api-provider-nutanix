@@ -2,7 +2,7 @@
 // +build e2e
 
 /*
-Copyright 2021.
+Copyright 2022 Nutanix
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ var _ = Describe("Nutanix client [PR-Blocking]", func() {
 	)
 
 	BeforeEach(func() {
-		testHelper = newTestHelper()
+		testHelper = newTestHelper(e2eConfig)
 		clusterName = testHelper.generateTestClusterName(specName)
 		clusterResources = new(clusterctl.ApplyClusterTemplateAndWaitResult)
 		Expect(bootstrapClusterProxy).NotTo(BeNil(), "BootstrapClusterProxy can't be nil")
@@ -69,7 +69,6 @@ var _ = Describe("Nutanix client [PR-Blocking]", func() {
 					clusterctlConfigPath:  clusterctlConfigPath,
 					artifactFolder:        artifactFolder,
 					bootstrapClusterProxy: bootstrapClusterProxy,
-					e2eConfig:             *e2eConfig,
 				}, clusterResources)
 		})
 
@@ -101,7 +100,6 @@ var _ = Describe("Nutanix client [PR-Blocking]", func() {
 					clusterctlConfigPath:  clusterctlConfigPath,
 					artifactFolder:        artifactFolder,
 					bootstrapClusterProxy: bootstrapClusterProxy,
-					e2eConfig:             *e2eConfig,
 				}, clusterResources)
 		})
 
@@ -120,10 +118,10 @@ var _ = Describe("Nutanix client [PR-Blocking]", func() {
 		})
 
 		By("Creating secret using e2e credentials", func() {
-			nutanixCreds := getNutanixCredentialsFromEnvironment()
+			up := getBaseAuthCredentials(*e2eConfig)
 			testHelper.createSecret(createSecretParams{
-				username:    nutanixCreds.nutanixUsername,
-				password:    nutanixCreds.nutanixPassword,
+				username:    up.username,
+				password:    up.password,
 				namespace:   namespace,
 				clusterName: clusterName,
 			})
@@ -182,7 +180,6 @@ var _ = Describe("Nutanix client [PR-Blocking]", func() {
 					clusterctlConfigPath:  clusterctlConfigPath,
 					artifactFolder:        artifactFolder,
 					bootstrapClusterProxy: bootstrapClusterProxy,
-					e2eConfig:             *e2eConfig,
 				}, clusterResources)
 		})
 
