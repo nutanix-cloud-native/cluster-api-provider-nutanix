@@ -320,7 +320,7 @@ test-kubectl-workload: ## Run kubectl queries to get all capx workload related o
 	kubectl --kubeconfig ./${TEST_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
 
 .PHONY: test-e2e
-test-e2e: docker-build-e2e $(GINKGO) cluster-e2e-templates cluster-templates ## Run the end-to-end tests
+test-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates ## Run the end-to-end tests
 	mkdir -p $(ARTIFACTS)
 	$(GINKGO) -v -trace -tags=e2e -focus="$(GINKGO_FOCUS)" $(_SKIP_ARGS) -nodes=$(GINKGO_NODES) --noColor=$(GINKGO_NOCOLOR) $(GINKGO_ARGS) ./test/e2e -- \
 	    -e2e.artifacts-folder="$(ARTIFACTS)" \
@@ -342,7 +342,6 @@ test-e2e-cilium:
 
 .PHONY: test-e2e-all-cni
 test-e2e-all-cni: test-e2e test-e2e-calico test-e2e-flannel test-e2e-cilium
-
 
 
 ## --------------------------------------
