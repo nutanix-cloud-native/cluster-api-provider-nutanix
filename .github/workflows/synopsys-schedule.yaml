@@ -1,9 +1,7 @@
-name: Black Duck Policy Check
+name: Black Duck Intelligent Policy Check
 on:
-  pull_request:
-    branches:
-      - main
-  push:
+  schedule:
+    - cron: "0 0 * * *"
 
 jobs:
   security:
@@ -24,6 +22,7 @@ jobs:
       - name: Run Synopsys Detect
         uses: synopsys-sig/detect-action@v0.3.2
         with:
+          scan-mode: INTELLIGENT
           github-token: ${{ secrets.GITHUB_TOKEN }}
           detect-version: 7.9.0
           blackduck-url: ${{ secrets.BLACKDUCK_URL }}
