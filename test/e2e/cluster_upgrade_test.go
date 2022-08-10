@@ -20,11 +20,11 @@ limitations under the License.
 package e2e
 
 import (
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	"k8s.io/utils/pointer"
 
-	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
+	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 )
 
 var _ = Describe("When upgrading a workload cluster and testing K8S conformance [Conformance] [K8s-Upgrade]", func() {
