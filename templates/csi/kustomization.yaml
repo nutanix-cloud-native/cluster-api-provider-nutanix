@@ -14,12 +14,5 @@ resources:
 - nutanix-csi.yaml
 - nutanix-csi-crs.yaml
 
-patches:
-- patch: |-
-    - op: add
-      path: /metadata/labels
-      value: {
-            "csi": "nutanix"
-        }
-  target:
-    kind: Cluster
+patchesStrategicMerge:
+- csi-patch.yaml

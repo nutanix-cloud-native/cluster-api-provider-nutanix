@@ -45,6 +45,8 @@ export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 
 # CNI paths for e2e tests
 CNI_PATH_CALICO ?= "${E2E_DIR}/data/cni/calico/calico.yaml"
+CNI_PATH_FLANNEL ?= "${E2E_DIR}/data/cni/flannel/flannel.yaml" # From https://github.com/flannel-io/flannel/blob/master/Documentation/kube-flannel.yml
+CNI_PATH_CILIUM ?= "${E2E_DIR}/data/cni/cilium/cilium.yaml" # helm template cilium cilium/cilium --version 1.12.0 -n kube-system --set hubble.enabled=false | sed 's/${BIN_PATH}/$BIN_PATH/g'
 
 #
 # Binaries.
@@ -263,6 +265,7 @@ cluster-e2e-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-ccm --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-ccm.yaml
 
 cluster-templates: $(KUSTOMIZE) ## Generate cluster templates for all flavors
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/base > $(TEMPLATES_DIR)/cluster-template.yaml
@@ -318,7 +321,7 @@ test-kubectl-workload: ## Run kubectl queries to get all capx workload related o
 	kubectl --kubeconfig ./${TEST_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
 
 .PHONY: test-e2e
-test-e2e: docker-build-e2e $(GINKGO) cluster-e2e-templates cluster-templates ## Run the end-to-end tests
+test-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates ## Run the end-to-end tests
 	mkdir -p $(ARTIFACTS)
 	$(GINKGO) -v -trace -tags=e2e -focus="$(GINKGO_FOCUS)" $(_SKIP_ARGS) -nodes=$(GINKGO_NODES) --noColor=$(GINKGO_NOCOLOR) $(GINKGO_ARGS) ./test/e2e -- \
 	    -e2e.artifacts-folder="$(ARTIFACTS)" \
@@ -329,8 +332,17 @@ test-e2e: docker-build-e2e $(GINKGO) cluster-e2e-templates cluster-templates ## 
 test-e2e-calico:
 	CNI=$(CNI_PATH_CALICO) $(MAKE) test-e2e
 
+
+.PHONY: test-e2e-flannel
+test-e2e-flannel:
+	CNI=$(CNI_PATH_FLANNEL) $(MAKE) test-e2e
+
+.PHONY: test-e2e-cilium
+test-e2e-cilium:
+	CNI=$(CNI_PATH_CILIUM) $(MAKE) test-e2e
+
 .PHONY: test-e2e-all-cni
-test-e2e-all-cni: test-e2e test-e2e-calico
+test-e2e-all-cni: test-e2e test-e2e-calico test-e2e-flannel test-e2e-cilium
 
 .PHONY: print-capx-controller-logs
 print-capx-controller-logs: ## logs the controller pod output with -f mode

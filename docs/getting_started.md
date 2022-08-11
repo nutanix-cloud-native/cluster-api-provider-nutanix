@@ -117,7 +117,12 @@ This setting allow you to enable control plane load balancing using IPVS.
 This setting allow you to enable Service of type LoadBalancer.
 [Kubernetes Service Load Balancing documentation](https://kube-vip.chipzoller.dev/docs/about/architecture/#kubernetes-service-load-balancing)
 
+### Delete workload Cluster
+To remove the workload Cluster again from your management cluster you must remove the cluster object and the provider will clean-up everything. Deleting the entire cluster template with kubectl delete -f ./cluster.yaml might lead to pending resources to be cleaned up manually.
 
+<pre>
+kubectl delete cluster ${TEST_CLUSTER_NAME} -n $(TEST_NAMESPACE)
+</pre>
 ## Developer workflow
 
 ### Download source code

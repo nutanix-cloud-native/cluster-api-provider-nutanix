@@ -5,7 +5,6 @@ on:
 
   pull_request:
 
-
 jobs:
   build-container:
     runs-on: ubuntu-latest
@@ -19,8 +18,17 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v3
         with:
-          go-version: '^1.17'
+          go-version: "^1.17"
 
       - name: Test build
-        run: make test build
+        run: make manifests generate fmt vet build
 
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.6.2
+        with:
+          scan-type: "fs"
+          ignore-unfixed: true
+          format: "table"
+          exit-code: "1"
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"

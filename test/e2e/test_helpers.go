@@ -2,7 +2,7 @@
 // +build e2e
 
 /*
-Copyright 2021.
+Copyright 2022 Nutanix
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -55,14 +55,11 @@ const (
 	defaultSystemDiskSize = "40Gi"
 	defaultBootType       = "legacy"
 
-	nutanixUserKey     = "NUTANIX_USER"
-	nutanixPasswordKey = "NUTANIX_PASSWORD"
-
-	categoryKeyEnvVarKey   = "NUTANIX_ADDITIONAL_CATEGORY_KEY"
-	categoryValueEnvVarKey = "NUTANIX_ADDITIONAL_CATEGORY_VALUE"
-	imageEnvVarKey         = "NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME"
-	clusterEnvVarKey       = "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME"
-	subnetEnvVarKey        = "NUTANIX_SUBNET_NAME"
+	categoryKeyVarKey   = "NUTANIX_ADDITIONAL_CATEGORY_KEY"
+	categoryValueVarKey = "NUTANIX_ADDITIONAL_CATEGORY_VALUE"
+	imageVarKey         = "NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME"
+	clusterVarKey       = "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME"
+	subnetVarKey        = "NUTANIX_SUBNET_NAME"
 
 	nameType = "name"
 )
@@ -84,6 +81,7 @@ type testHelperInterface interface {
 	getNutanixClusterByName(ctx context.Context, input getNutanixClusterByNameInput) *infrav1.NutanixCluster
 	getNutanixVMsForCluster(clusterName, namespace string) []*prismGoClientV3.VMIntentResponse
 	getNutanixResourceIdentifierFromEnv(envVarKey string) infrav1.NutanixResourceIdentifier
+	getNutanixResourceIdentifierFromE2eConfig(variableKey string) infrav1.NutanixResourceIdentifier
 	stripNutanixIDFromProviderID(providerID string) string
 	verifyCategoryExists(categoryKey, categoyValue string)
 	verifyCategoriesNutanixMachines(clusterName, namespace string, expectedCategories map[string]string)
@@ -95,14 +93,16 @@ type testHelperInterface interface {
 
 type testHelper struct {
 	nutanixClient *prismGoClientV3.Client
+	e2eConfig     *clusterctl.E2EConfig
 }
 
-func newTestHelper() testHelperInterface {
-	c, err := initNutanixClient()
+func newTestHelper(e2eConfig *clusterctl.E2EConfig) testHelperInterface {
+	c, err := initNutanixClient(*e2eConfig)
 	Expect(err).ShouldNot(HaveOccurred())
 
 	return testHelper{
 		nutanixClient: c,
+		e2eConfig:     e2eConfig,
 	}
 }
 
@@ -151,10 +151,10 @@ func (t testHelper) createDefaultNMT(clusterName, namespace string) *infrav1.Nut
 					VCPUsPerSocket: defaultVCPUsPerSocket,
 					VCPUSockets:    defaultVCPUSockets,
 					MemorySize:     resource.MustParse(defaultMemorySize),
-					Image:          t.getNutanixResourceIdentifierFromEnv(imageEnvVarKey),
-					Cluster:        t.getNutanixResourceIdentifierFromEnv(clusterEnvVarKey),
+					Image:          t.getNutanixResourceIdentifierFromE2eConfig(imageVarKey),
+					Cluster:        t.getNutanixResourceIdentifierFromE2eConfig(clusterVarKey),
 					Subnets: []infrav1.NutanixResourceIdentifier{
-						t.getNutanixResourceIdentifierFromEnv(subnetEnvVarKey),
+						t.getNutanixResourceIdentifierFromE2eConfig(subnetVarKey),
 					},
 					SystemDiskSize: resource.MustParse(defaultSystemDiskSize),
 				},
@@ -204,7 +204,6 @@ type deployClusterParams struct {
 	clusterctlConfigPath  string
 	artifactFolder        string
 	bootstrapClusterProxy framework.ClusterProxy
-	e2eConfig             clusterctl.E2EConfig
 }
 
 func (t testHelper) deployCluster(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult) {
@@ -216,7 +215,7 @@ func (t testHelper) deployCluster(params deployClusterParams, clusterResources *
 		Flavor:                   params.flavor,
 		Namespace:                params.namespace.Name,
 		ClusterName:              params.clusterName,
-		KubernetesVersion:        params.e2eConfig.GetVariable(KubernetesVersion),
+		KubernetesVersion:        t.e2eConfig.GetVariable(KubernetesVersion),
 		ControlPlaneMachineCount: pointer.Int64Ptr(1),
 		WorkerMachineCount:       pointer.Int64Ptr(1),
 	}
@@ -224,9 +223,9 @@ func (t testHelper) deployCluster(params deployClusterParams, clusterResources *
 	t.createClusterFromConfig(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
 		ClusterProxy:                 params.bootstrapClusterProxy,
 		ConfigCluster:                cc,
-		WaitForClusterIntervals:      params.e2eConfig.GetIntervals("", "wait-cluster"),
-		WaitForControlPlaneIntervals: params.e2eConfig.GetIntervals("", "wait-control-plane"),
-		WaitForMachineDeployments:    params.e2eConfig.GetIntervals("", "wait-worker-nodes"),
+		WaitForClusterIntervals:      t.e2eConfig.GetIntervals("", "wait-cluster"),
+		WaitForControlPlaneIntervals: t.e2eConfig.GetIntervals("", "wait-control-plane"),
+		WaitForMachineDeployments:    t.e2eConfig.GetIntervals("", "wait-worker-nodes"),
 	}, clusterResources)
 }
 
@@ -239,7 +238,7 @@ func (t testHelper) deployClusterAndWait(params deployClusterParams, clusterReso
 		Flavor:                   params.flavor,
 		Namespace:                params.namespace.Name,
 		ClusterName:              params.clusterName,
-		KubernetesVersion:        params.e2eConfig.GetVariable(KubernetesVersion),
+		KubernetesVersion:        t.e2eConfig.GetVariable(KubernetesVersion),
 		ControlPlaneMachineCount: pointer.Int64Ptr(1),
 		WorkerMachineCount:       pointer.Int64Ptr(1),
 	}
@@ -247,9 +246,9 @@ func (t testHelper) deployClusterAndWait(params deployClusterParams, clusterReso
 	clusterctl.ApplyClusterTemplateAndWait(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
 		ClusterProxy:                 params.bootstrapClusterProxy,
 		ConfigCluster:                cc,
-		WaitForClusterIntervals:      params.e2eConfig.GetIntervals("", "wait-cluster"),
-		WaitForControlPlaneIntervals: params.e2eConfig.GetIntervals("", "wait-control-plane"),
-		WaitForMachineDeployments:    params.e2eConfig.GetIntervals("", "wait-worker-nodes"),
+		WaitForClusterIntervals:      t.e2eConfig.GetIntervals("", "wait-cluster"),
+		WaitForControlPlaneIntervals: t.e2eConfig.GetIntervals("", "wait-control-plane"),
+		WaitForMachineDeployments:    t.e2eConfig.GetIntervals("", "wait-worker-nodes"),
 	}, clusterResources)
 }
 
@@ -333,6 +332,16 @@ func (t testHelper) getNutanixResourceIdentifierFromEnv(envVarKey string) infrav
 	return infrav1.NutanixResourceIdentifier{
 		Type: nameType,
 		Name: pointer.StringPtr(envVarValue),
+	}
+}
+
+func (t testHelper) getNutanixResourceIdentifierFromE2eConfig(variableKey string) infrav1.NutanixResourceIdentifier {
+	Expect(t.e2eConfig.HasVariable(variableKey)).To(BeTrue(), "expected e2econfig variable %s to exist", variableKey)
+	variableValue := t.e2eConfig.GetVariable(variableKey)
+	Expect(variableValue).ToNot(BeEmpty(), "expected e2econfig variable %s to be set", variableKey)
+	return infrav1.NutanixResourceIdentifier{
+		Type: nameType,
+		Name: pointer.StringPtr(variableValue),
 	}
 }
 
