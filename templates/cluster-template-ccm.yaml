@@ -246,6 +246,7 @@ spec:
         nodeRegistration:
           kubeletExtraArgs:
             cloud-provider: external
+            eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
       postKubeadmCommands:
       - echo "after kubeadm call" > /var/log/postkubeadm.log
       preKubeadmCommands:
@@ -263,6 +264,7 @@ kind: Cluster
 metadata:
   labels:
     ccm: nutanix
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
   name: ${CLUSTER_NAME}
   namespace: ${NAMESPACE}
 spec:
@@ -362,6 +364,7 @@ spec:
       controllerManager:
         extraArgs:
           cloud-provider: external
+          enable-hostpath-provisioner: "true"
     files:
     - content: |
         apiVersion: v1
@@ -430,6 +433,7 @@ spec:
       nodeRegistration:
         kubeletExtraArgs:
           cloud-provider: external
+          eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
     postKubeadmCommands:
     - echo export KUBECONFIG=/etc/kubernetes/admin.conf >> /root/.bashrc
     - echo "after kubeadm call" > /var/log/postkubeadm.log
