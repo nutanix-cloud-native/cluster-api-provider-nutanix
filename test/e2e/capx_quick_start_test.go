@@ -25,7 +25,7 @@ import (
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 )
 
-var _ = Describe("When following the Cluster API quick-start [PR-Blocking]", func() {
+var _ = Describe("When following the Cluster API quick-start", Label("prblocker", "slow", "network"), func() {
 	capi_e2e.QuickStartSpec(ctx, func() capi_e2e.QuickStartSpecInput {
 		return capi_e2e.QuickStartSpecInput{
 			E2EConfig:             e2eConfig,

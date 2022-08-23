@@ -32,7 +32,7 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
-var _ = Describe("Nutanix client [PR-Blocking]", func() {
+var _ = Describe("Nutanix client", func() {
 	const (
 		specName = "cluster-ntnx-client"
 	)

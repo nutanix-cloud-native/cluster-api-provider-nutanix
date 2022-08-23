@@ -38,7 +38,7 @@ const (
 	nonExistingProjectName = "nonExistingProjectNameCAPX"
 )
 
-var _ = Describe("Nutanix projects [PR-Blocking]", func() {
+var _ = Describe("Nutanix projects", func() {
 	const specName = "cluster-projects"
 
 	var (

@@ -38,7 +38,7 @@ const (
 	defaultNonExistingAdditionalCategoryValue = "nonExistingCategoryValueCAPX"
 )
 
-var _ = Describe("Nutanix categories [PR-Blocking]", func() {
+var _ = Describe("Nutanix categories", func() {
 	const (
 		specName = "cluster-categories"
 	)

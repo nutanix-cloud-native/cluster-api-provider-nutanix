@@ -36,7 +36,7 @@ const (
 	additionalSubnetVarKey = "NUTANIX_ADDITIONAL_SUBNET_NAME"
 )
 
-var _ = Describe("Nutanix Subnets [PR-Blocking]", func() {
+var _ = Describe("Nutanix Subnets", func() {
 	const specName = "cluster-multi-nic"
 
 	var (

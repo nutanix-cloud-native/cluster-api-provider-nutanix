@@ -54,7 +54,7 @@ type NutanixClusterReconciler struct {
 }
 
 // SetupWithManager sets up the NutanixCluster controller with the Manager.
-func (r *NutanixClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		// Watch the controlled, infrastructure resource.
@@ -64,7 +64,11 @@ func (r *NutanixClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&source.Kind{Type: &capiv1.Cluster{}},
 			handler.EnqueueRequestsFromMapFunc(
 				capiutil.ClusterToInfrastructureMapFunc(
-					infrav1.GroupVersion.WithKind("NutanixCluster"))),
+					ctx,
+					infrav1.GroupVersion.WithKind("NutanixCluster"),
+					mgr.GetClient(),
+					&infrav1.NutanixCluster{},
+				)),
 		).
 		Complete(r)
 }

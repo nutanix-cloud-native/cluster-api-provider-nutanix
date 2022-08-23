@@ -131,7 +131,7 @@ endif
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-GINKGO_FOCUS ?= "\\[PR-Blocking\\]"
+LABEL_FILTERS ?= prblocker
 GINKGO_SKIP ?=
 GINKGO_NODES  ?= 1
 E2E_CONF_FILE  ?= ${E2E_DIR}/config/nutanix.yaml
@@ -322,7 +322,7 @@ test-kubectl-workload: ## Run kubectl queries to get all capx workload related o
 .PHONY: test-e2e
 test-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates ## Run the end-to-end tests
 	mkdir -p $(ARTIFACTS)
-	$(GINKGO) -v --trace --tags=e2e --focus="$(GINKGO_FOCUS)" $(_SKIP_ARGS) --nodes=$(GINKGO_NODES) \
+	$(GINKGO) -v --trace --tags=e2e --label-filter="$(LABEL_FILTERS)" --fail-fast $(_SKIP_ARGS) --nodes=$(GINKGO_NODES) \
 	    --no-color=$(GINKGO_NOCOLOR) --output-dir="$(ARTIFACTS)" --junit-report="junit.e2e_suite.1.xml" \
 	    $(GINKGO_ARGS) ./test/e2e -- \
 	    -e2e.artifacts-folder="$(ARTIFACTS)" \

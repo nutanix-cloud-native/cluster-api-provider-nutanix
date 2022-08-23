@@ -71,14 +71,15 @@ type NutanixMachineReconciler struct {
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *NutanixMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.NutanixMachine{}).
 		// Watch the CAPI resource that owns this infrastructure resource.
 		Watches(
 			&source.Kind{Type: &capiv1.Machine{}},
 			handler.EnqueueRequestsFromMapFunc(
-				capiutil.MachineToInfrastructureMapFunc(infrav1.GroupVersion.WithKind("NutanixMachine"))),
+				capiutil.MachineToInfrastructureMapFunc(
+					infrav1.GroupVersion.WithKind("NutanixMachine"))),
 		).
 		Complete(r)
 }

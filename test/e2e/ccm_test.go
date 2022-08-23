@@ -22,7 +22,7 @@ package e2e
 import (
 	"context"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gstruct"
 	corev1 "k8s.io/api/core/v1"
@@ -30,7 +30,7 @@ import (
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 )
 
-var _ = Describe("Nutanix flavor CCM [PR-Blocking]", func() {
+var _ = Describe("Nutanix flavor CCM", func() {
 	const (
 		specName           = "cluster-ccm"
 		ccmInstanceTypeKey = "node.kubernetes.io/instance-type"
@@ -40,11 +40,11 @@ var _ = Describe("Nutanix flavor CCM [PR-Blocking]", func() {
 	)
 
 	var (
-		namespace        *corev1.Namespace
-		clusterName      string
-		clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult
-		cancelWatches    context.CancelFunc
-		testHelper       testHelperInterface
+		namespace         *corev1.Namespace
+		clusterName       string
+		clusterResources  *clusterctl.ApplyClusterTemplateAndWaitResult
+		cancelWatches     context.CancelFunc
+		testHelper        testHelperInterface
 		expectedCCMLabels []string
 	)
 
@@ -54,7 +54,7 @@ var _ = Describe("Nutanix flavor CCM [PR-Blocking]", func() {
 		clusterResources = &clusterctl.ApplyClusterTemplateAndWaitResult{}
 		Expect(bootstrapClusterProxy).NotTo(BeNil(), "BootstrapClusterProxy can't be nil")
 		namespace, cancelWatches = setupSpecNamespace(ctx, specName, bootstrapClusterProxy, artifactFolder)
-		expectedCCMLabels = []string {
+		expectedCCMLabels = []string{
 			ccmZoneKey,
 			ccmRegionKey,
 			ccmInstanceTypeKey,
@@ -94,7 +94,7 @@ var _ = Describe("Nutanix flavor CCM [PR-Blocking]", func() {
 					ccmInstanceTypeKey: Equal(ccmInstanceType),
 				},
 			))
-			for _, k := range expectedCCMLabels{
+			for _, k := range expectedCCMLabels {
 				Expect(nodeLabels).To(HaveKey(k))
 			}
 		}
