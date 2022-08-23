@@ -54,14 +54,6 @@ const (
 	// provideridFmt is "nutanix://<vmUUID"
 	provideridFmt = "nutanix://%s"
 	projectKind   = "project"
-	ONE_MIB       = 1024
-)
-
-var (
-	minMachineSystemDiskSize = int64(20 * ONE_MIB)
-	minMachineMemorySize     = int64(2 * ONE_MIB)
-	minVCPUsPerSocket        = int64(1)
-	minVCPUSockets           = int64(1)
 )
 
 // NutanixMachineReconciler reconciles a NutanixMachine object
@@ -427,39 +419,6 @@ func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) erro
 	return nil
 }
 
-func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineContext) error {
-
-	if len(rctx.NutanixMachine.Spec.Subnets) == 0 {
-		return fmt.Errorf("Atleast one subnet is needed to create the VM %s.", rctx.NutanixMachine.Name)
-	}
-
-	diskSize := rctx.NutanixMachine.Spec.SystemDiskSize
-	diskSizeMib := getMibValueOfQuantity(diskSize)
-	// Validate disk size
-	if diskSizeMib < minMachineSystemDiskSize {
-		return fmt.Errorf("The minimum systemDiskSize is %vMib but given %vMib", minMachineSystemDiskSize, diskSizeMib)
-	}
-
-	memorySize := rctx.NutanixMachine.Spec.MemorySize
-	memorySizeMib := getMibValueOfQuantity(memorySize)
-	// Validate memory size
-	if memorySizeMib < minMachineMemorySize {
-		return fmt.Errorf("The minimum memorySize is %vMib but given %vMib", minMachineMemorySize, memorySizeMib)
-	}
-
-	vcpusPerSocket := rctx.NutanixMachine.Spec.VCPUsPerSocket
-	if vcpusPerSocket < int32(minVCPUsPerSocket) {
-		return fmt.Errorf("The minimum vcpus per socket is %v but given %v", minVCPUsPerSocket, vcpusPerSocket)
-	}
-
-	vcpuSockets := rctx.NutanixMachine.Spec.VCPUSockets
-	if vcpuSockets < int32(minVCPUSockets) {
-		return fmt.Errorf("The minimum vcpu sockets is %v but given %v", minVCPUSockets, vcpuSockets)
-	}
-
-	return nil
-}
-
 // GetOrCreateVM creates a VM and is invoked by the NutanixMachineReconciler
 func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nutanixClientV3.VMIntentResponse, error) {
 
@@ -481,12 +440,6 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 	} else {
 		// VM Does not exist case
 		klog.Infof("%s No existing VM found. Starting creation process of VM %s.", rctx.LogPrefix, vmName)
-
-		err = r.validateMachineConfig(rctx)
-		if err != nil {
-			rctx.SetFailureStatus(capierrors.CreateMachineError, err)
-			return nil, err
-		}
 
 		// Get PE UUID
 		peUUID, err := getPEUUID(client, rctx.NutanixMachine.Spec.Cluster.Name, rctx.NutanixMachine.Spec.Cluster.UUID)
@@ -582,15 +535,12 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 			return nil, err
 		}
 
-		memorySize := rctx.NutanixMachine.Spec.MemorySize
-		memorySizeMib := getMibValueOfQuantity(memorySize)
-
 		vmSpec.Resources = &nutanixClientV3.VMResources{
 			PowerState:            utils.StringPtr("ON"),
 			HardwareClockTimezone: utils.StringPtr("UTC"),
 			NumVcpusPerSocket:     utils.Int64Ptr(int64(rctx.NutanixMachine.Spec.VCPUsPerSocket)),
 			NumSockets:            utils.Int64Ptr(int64(rctx.NutanixMachine.Spec.VCPUSockets)),
-			MemorySizeMib:         utils.Int64Ptr(memorySizeMib),
+			MemorySizeMib:         utils.Int64Ptr(getMibValueOfQuantity(rctx.NutanixMachine.Spec.MemorySize)),
 			NicList:               nicList,
 			DiskList:              diskList,
 			GuestCustomization: &nutanixClientV3.GuestCustomization{
