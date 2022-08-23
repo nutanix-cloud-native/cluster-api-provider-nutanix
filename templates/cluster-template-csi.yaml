@@ -1365,6 +1365,7 @@ apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
 metadata:
   labels:
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
     csi: nutanix
   name: ${CLUSTER_NAME}
   namespace: ${NAMESPACE}

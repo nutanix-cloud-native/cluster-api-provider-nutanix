@@ -46,7 +46,7 @@ jobs:
           ko build -B -t ${{ github.sha }} --platform=$PLATFORMS .
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.6.2
+        uses: aquasecurity/trivy-action@0.7.1
         with:
           image-ref: "ko.local/${{ env.REPOSITORY_NAME }}:${{ github.sha }}"
           format: "sarif"
