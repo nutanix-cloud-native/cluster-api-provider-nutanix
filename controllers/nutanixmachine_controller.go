@@ -55,9 +55,6 @@ const (
 	// provideridFmt is "nutanix://<vmUUID"
 	provideridFmt = "nutanix://%s"
 	projectKind   = "project"
-	ONE_KIB       = 1024
-	ONE_MIB       = ONE_KIB * ONE_KIB
-	ONE_GIB       = ONE_MIB * ONE_KIB
 )
 
 var (
