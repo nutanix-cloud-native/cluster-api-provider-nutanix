@@ -335,7 +335,7 @@ test-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates
 list-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates ## Run the end-to-end tests
 	mkdir -p $(ARTIFACTS)
 	$(GINKGO) -v --trace --dry-run --tags=e2e --label-filter="$(LABEL_FILTERS)" --fail-fast $(_SKIP_ARGS) --nodes=$(GINKGO_NODES) \
-	    --no-color=$(GINKGO_NOCOLOR) --output-dir="$(ARTIFACTS)" --junit-report="junit.e2e_suite.1.xml" \
+	    --no-color=$(GINKGO_NOCOLOR) --output-dir="$(ARTIFACTS)" \
 	    $(GINKGO_ARGS) ./test/e2e -- \
 	    -e2e.artifacts-folder="$(ARTIFACTS)" \
 	    -e2e.config="$(E2E_CONF_FILE)" \
