@@ -27,7 +27,7 @@ import (
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 )
 
-var _ = Describe("When upgrading a workload cluster and testing K8S conformance", Label("conformance", "k8s-upgrade", "slow", "network"), func() {
+var _ = Describe("When upgrading a workload cluster and testing K8S conformance", Label("k8s-upgrade-conformance", "slow", "network"), func() {
 	capi_e2e.ClusterUpgradeConformanceSpec(ctx, func() capi_e2e.ClusterUpgradeConformanceSpecInput {
 		return capi_e2e.ClusterUpgradeConformanceSpecInput{
 			E2EConfig:             e2eConfig,
