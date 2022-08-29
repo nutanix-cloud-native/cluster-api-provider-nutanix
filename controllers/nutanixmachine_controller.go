@@ -535,15 +535,12 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 			return nil, err
 		}
 
-		memorySize := rctx.NutanixMachine.Spec.MemorySize
-		memorySizeMib := getMibValueOfQuantity(memorySize)
-
 		vmSpec.Resources = &nutanixClientV3.VMResources{
 			PowerState:            utils.StringPtr("ON"),
 			HardwareClockTimezone: utils.StringPtr("UTC"),
 			NumVcpusPerSocket:     utils.Int64Ptr(int64(rctx.NutanixMachine.Spec.VCPUsPerSocket)),
 			NumSockets:            utils.Int64Ptr(int64(rctx.NutanixMachine.Spec.VCPUSockets)),
-			MemorySizeMib:         utils.Int64Ptr(memorySizeMib),
+			MemorySizeMib:         utils.Int64Ptr(getMibValueOfQuantity(rctx.NutanixMachine.Spec.MemorySize)),
 			NicList:               nicList,
 			DiskList:              diskList,
 			GuestCustomization: &nutanixClientV3.GuestCustomization{
