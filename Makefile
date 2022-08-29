@@ -324,7 +324,7 @@ test-kubectl-workload: ## Run kubectl queries to get all capx workload related o
 .PHONY: test-e2e
 test-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates ## Run the end-to-end tests
 	mkdir -p $(ARTIFACTS)
-	$(GINKGO) -v --trace --tags=e2e --label-filter="$(LABEL_FILTERS)" --fail-fast $(_SKIP_ARGS) --nodes=$(GINKGO_NODES) \
+	$(GINKGO) -v --trace --tags=e2e --label-filter="$(LABEL_FILTERS)" $(_SKIP_ARGS) --nodes=$(GINKGO_NODES) \
 	    --no-color=$(GINKGO_NOCOLOR) --output-dir="$(ARTIFACTS)" --junit-report=${JUNIT_REPORT_FILE} \
 	    $(GINKGO_ARGS) ./test/e2e -- \
 	    -e2e.artifacts-folder="$(ARTIFACTS)" \
@@ -334,7 +334,7 @@ test-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates
 .PHONY: list-e2e
 list-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates ## Run the end-to-end tests
 	mkdir -p $(ARTIFACTS)
-	$(GINKGO) -v --trace --dry-run --tags=e2e --label-filter="$(LABEL_FILTERS)" --fail-fast $(_SKIP_ARGS) --nodes=$(GINKGO_NODES) \
+	$(GINKGO) -v --trace --dry-run --tags=e2e --label-filter="$(LABEL_FILTERS)" $(_SKIP_ARGS) --nodes=$(GINKGO_NODES) \
 	    --no-color=$(GINKGO_NOCOLOR) --output-dir="$(ARTIFACTS)" \
 	    $(GINKGO_ARGS) ./test/e2e -- \
 	    -e2e.artifacts-folder="$(ARTIFACTS)" \
