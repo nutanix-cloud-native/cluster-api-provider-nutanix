@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-//NOTE: https://pkg.go.dev/k8s.io/code-generator/cmd/conversion-gen
+// NOTE: https://pkg.go.dev/k8s.io/code-generator/cmd/conversion-gen
 // Package v1alpha4 contains API Schema definitions for the infrastructure v1alpha4 API group
-//+kubebuilder:object:generate=true
-//+groupName=infrastructure.cluster.x-k8s.io
-//+k8s:conversion-gen=github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1
+// +kubebuilder:object:generate=true
+// +groupName=infrastructure.cluster.x-k8s.io
+// +k8s:conversion-gen=github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1
 package v1alpha4

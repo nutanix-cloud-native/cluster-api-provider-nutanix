@@ -78,13 +78,13 @@ func GetConnectionInfo(client ctrlClient.Client, ctx context.Context, nutanixClu
 	var err error
 	credentialRef := prismCentralInfo.CredentialRef
 	if credentialRef == nil {
-		klog.Infof("Using credential information from manager environment for cluster %s", nutanixCluster.ClusterName)
+		klog.Infof("Using credential information from manager environment for cluster %s", nutanixCluster.Name)
 		credentials, err = getCredentialsFromEnv()
 	} else {
 		credentials, err = getCredentialsFromCredentialRef(client, ctx, nutanixCluster)
 	}
 	if err != nil {
-		errorMsg := fmt.Errorf("error occurred fetching credentials for cluster %s: %v", nutanixCluster.ClusterName, err)
+		errorMsg := fmt.Errorf("error occurred fetching credentials for cluster %s: %v", nutanixCluster.Name, err)
 		klog.Error(errorMsg)
 		return nil, errorMsg
 	}
@@ -109,15 +109,15 @@ func GetCredentialRefForCluster(nutanixCluster *infrav1.NutanixCluster) (*infrav
 }
 
 func getCredentialsFromCredentialRef(client ctrlClient.Client, ctx context.Context, nutanixCluster *infrav1.NutanixCluster) (*nutanixClient.Credentials, error) {
-	klog.Infof("using credential ref defined in cluster %s", nutanixCluster.ClusterName)
+	klog.Infof("using credential ref defined in cluster %s", nutanixCluster.Name)
 	credentialRef, err := GetCredentialRefForCluster(nutanixCluster)
 	if err != nil {
-		errorMsg := fmt.Errorf("error occurred fetching credential ref from cluster %s: %v", nutanixCluster.ClusterName, err)
+		errorMsg := fmt.Errorf("error occurred fetching credential ref from cluster %s: %v", nutanixCluster.Name, err)
 		klog.Error(errorMsg)
 		return nil, errorMsg
 	}
 	if credentialRef == nil {
-		errorMsg := fmt.Errorf("cannot use credentialRef to fetch credentials if it is nil for cluster %s", nutanixCluster.ClusterName)
+		errorMsg := fmt.Errorf("cannot use credentialRef to fetch credentials if it is nil for cluster %s", nutanixCluster.Name)
 		klog.Error(errorMsg)
 		return nil, errorMsg
 	}

@@ -54,7 +54,7 @@ type NutanixClusterReconciler struct {
 }
 
 // SetupWithManager sets up the NutanixCluster controller with the Manager.
-func (r *NutanixClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		// Watch the controlled, infrastructure resource.
@@ -64,7 +64,11 @@ func (r *NutanixClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&source.Kind{Type: &capiv1.Cluster{}},
 			handler.EnqueueRequestsFromMapFunc(
 				capiutil.ClusterToInfrastructureMapFunc(
-					infrav1.GroupVersion.WithKind("NutanixCluster"))),
+					ctx,
+					infrav1.GroupVersion.WithKind("NutanixCluster"),
+					mgr.GetClient(),
+					&infrav1.NutanixCluster{},
+				)),
 		).
 		Complete(r)
 }
@@ -183,7 +187,7 @@ func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (r
 
 	err = r.reconcileCredentialRefDelete(rctx.Context, rctx.NutanixCluster)
 	if err != nil {
-		klog.Errorf("%s error occurred while reconciling credential ref deletion for cluster %s: %v", rctx.LogPrefix, rctx.Cluster.ClusterName, err)
+		klog.Errorf("%s error occurred while reconciling credential ref deletion for cluster %s: %v", rctx.LogPrefix, rctx.Cluster.Name, err)
 		return reconcile.Result{}, err
 	}
 
@@ -267,7 +271,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Cont
 	if credentialRef == nil {
 		return nil
 	}
-	klog.Infof("Credential ref is kind Secret for cluster %s. Continue with deletion of secret", nutanixCluster.ClusterName)
+	klog.Infof("Credential ref is kind Secret for cluster %s. Continue with deletion of secret", nutanixCluster.Name)
 	secret := &corev1.Secret{}
 	secretKey := client.ObjectKey{
 		Namespace: nutanixCluster.Namespace,
@@ -278,11 +282,11 @@ func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Cont
 		return err
 	}
 	ctrlutil.RemoveFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer)
-	klog.Infof("removing finalizers from secret %s in namespace %s for cluster %s", secret.Name, secret.Namespace, nutanixCluster.ClusterName)
+	klog.Infof("removing finalizers from secret %s in namespace %s for cluster %s", secret.Name, secret.Namespace, nutanixCluster.Name)
 	if err := r.Client.Update(ctx, secret); err != nil {
 		return err
 	}
-	klog.Infof("removing secret %s in namespace %s for cluster %s", secret.Name, secret.Namespace, nutanixCluster.ClusterName)
+	klog.Infof("removing secret %s in namespace %s for cluster %s", secret.Name, secret.Namespace, nutanixCluster.Name)
 	if err := r.Client.Delete(ctx, secret); err != nil {
 		return err
 	}
@@ -297,7 +301,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, n
 	if credentialRef == nil {
 		return nil
 	}
-	klog.Infof("Credential ref is kind Secret for cluster %s", nutanixCluster.ClusterName)
+	klog.Infof("Credential ref is kind Secret for cluster %s", nutanixCluster.Name)
 	secret := &corev1.Secret{}
 	secretKey := client.ObjectKey{
 		Namespace: nutanixCluster.Namespace,
@@ -311,7 +315,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, n
 	}
 	if !capiutil.IsOwnedByObject(secret, nutanixCluster) {
 		if len(secret.GetOwnerReferences()) > 0 {
-			return fmt.Errorf("secret for cluster %s already has other owners set", nutanixCluster.ClusterName)
+			return fmt.Errorf("secret for cluster %s already has other owners set", nutanixCluster.Name)
 		}
 		secret.SetOwnerReferences([]metav1.OwnerReference{{
 			APIVersion: infrav1.GroupVersion.String(),
@@ -325,7 +329,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, n
 	}
 	err = r.Client.Update(ctx, secret)
 	if err != nil {
-		errorMsg := fmt.Errorf("Failed to update secret for cluster %s: %v", nutanixCluster.ClusterName, err)
+		errorMsg := fmt.Errorf("Failed to update secret for cluster %s: %v", nutanixCluster.Name, err)
 		klog.Error(errorMsg)
 		return errorMsg
 	}

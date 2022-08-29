@@ -63,14 +63,15 @@ type NutanixMachineReconciler struct {
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *NutanixMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.NutanixMachine{}).
 		// Watch the CAPI resource that owns this infrastructure resource.
 		Watches(
 			&source.Kind{Type: &capiv1.Machine{}},
 			handler.EnqueueRequestsFromMapFunc(
-				capiutil.MachineToInfrastructureMapFunc(infrav1.GroupVersion.WithKind("NutanixMachine"))),
+				capiutil.MachineToInfrastructureMapFunc(
+					infrav1.GroupVersion.WithKind("NutanixMachine"))),
 		).
 		Complete(r)
 }
@@ -316,7 +317,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		klog.Infof("%s Added the spec.bootstrapRef to NutanixMachine object: %v", rctx.LogPrefix, rctx.NutanixMachine.Spec.BootstrapRef)
 	}
 
-	// Create the  or get existing VM
+	// Create or get existing VM
 	vm, err := r.getOrCreateVM(rctx)
 	if err != nil {
 		klog.Errorf("%s Failed to create VM %s.", rctx.LogPrefix, rctx.NutanixMachine.Name)
@@ -432,10 +433,14 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		klog.Errorf("%s error occurred finding VM %s by name or uuid %s: %v", rctx.LogPrefix, vmName, err)
 		return nil, err
 	}
+
 	if vm != nil {
+		// VM exists case
 		klog.Infof("%s vm %s found with UUID %s", rctx.LogPrefix, *vm.Spec.Name, rctx.NutanixMachine.Status.VmUUID)
 	} else {
+		// VM Does not exist case
 		klog.Infof("%s No existing VM found. Starting creation process of VM %s.", rctx.LogPrefix, vmName)
+
 		// Get PE UUID
 		peUUID, err := getPEUUID(client, rctx.NutanixMachine.Spec.Cluster.Name, rctx.NutanixMachine.Spec.Cluster.UUID)
 		if err != nil {
@@ -444,6 +449,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 			klog.Errorf("%s %v", rctx.LogPrefix, errorMsg)
 			return nil, err
 		}
+
 		// Get Subnet UUIDs
 		subnetUUIDs, err := getSubnetUUIDList(client, rctx.NutanixMachine.Spec.Subnets, peUUID)
 		if err != nil {
@@ -452,6 +458,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 			rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
 			return nil, err
 		}
+
 		// Get Image UUID
 		imageUUID, err := getImageUUID(
 			client,
@@ -464,10 +471,11 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 			rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
 			return nil, err
 		}
+
 		// Get the bootstrapData from the referenced secret
 		bootstrapData, err := r.getBootstrapData(rctx)
 		if err != nil {
-			klog.Errorf("%s Failed to get the bootstrap data for create the VM %s. %v", rctx.LogPrefix, vmName, err)
+			klog.Errorf("%s Failed to get the bootstrap data to create the VM %s. %v", rctx.LogPrefix, vmName, err)
 			return nil, err
 		}
 		// Encode the bootstrapData by base64
@@ -475,11 +483,12 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		klog.Infof("%s Retrieved the bootstrap data from secret %s (before encoding size: %d, encoded string size:%d)",
 			rctx.LogPrefix, rctx.NutanixMachine.Spec.BootstrapRef.Name, len(bootstrapData), len(bsdataEncoded))
 
-		// Create the VM
-		klog.Infof("%s To create VM with name %s for cluster %s.", rctx.LogPrefix,
+		klog.Infof("%s Creating VM with name %s for cluster %s.", rctx.LogPrefix,
 			rctx.NutanixMachine.Name, rctx.NutanixCluster.Name)
+
 		vmInput := nutanixClientV3.VMIntentInput{}
 		vmSpec := nutanixClientV3.VM{Name: utils.StringPtr(vmName)}
+
 		nicList := []*nutanixClientV3.VMNic{}
 		for _, subnetUUID := range subnetUUIDs {
 			nicList = append(nicList, &nutanixClientV3.VMNic{
@@ -488,6 +497,8 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 					Kind: utils.StringPtr("subnet"),
 				}})
 		}
+
+		// Create Disk Spec for systemdisk to be set later in VM Spec
 		diskSize := rctx.NutanixMachine.Spec.SystemDiskSize
 		diskSizeMib := getMibValueOfQuantity(diskSize)
 		systemDisk, err := createSystemDiskSpec(imageUUID, diskSizeMib)
@@ -499,6 +510,8 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		diskList := []*nutanixClientV3.VMDisk{
 			systemDisk,
 		}
+
+		// Set Categories to VM Sepc before creating VM
 		categories, err := getCategoryVMSpec(client, r.getMachineCategoryIdentifiers(rctx))
 		if err != nil {
 			errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %v", vmName, err)
@@ -512,6 +525,8 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		}
 
 		vmMetadataPtr := &vmMetadata
+
+		// Set Project in VM Spec before creating VM
 		err = r.addVMToProject(rctx, vmMetadataPtr)
 		if err != nil {
 			errorMsg := fmt.Errorf("error occurred while trying to add VM %s to project: %v", vmName, err)
@@ -537,6 +552,8 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 			UUID: utils.StringPtr(peUUID),
 		}
 		vmSpecPtr := &vmSpec
+
+		// Set BootType in VM Spec before creating VM
 		err = r.addBootTypeToVM(rctx, vmSpecPtr)
 		if err != nil {
 			errorMsg := fmt.Errorf("error occurred while adding boot type to vm spec: %v", err)
@@ -547,6 +564,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		vmInput.Spec = vmSpecPtr
 		vmInput.Metadata = vmMetadataPtr
 
+		// Create the actual VM/Machine
 		vmResponse, err := client.V3.CreateVM(&vmInput)
 		if err != nil {
 			errorMsg := fmt.Errorf("Failed to create VM %s. error: %v", vmName, err)
