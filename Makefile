@@ -131,7 +131,7 @@ endif
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-LABEL_FILTERS ?= prblocker
+LABEL_FILTERS ?=
 JUNIT_REPORT_FILE ?= "junit.e2e_suite.1.xml"
 GINKGO_SKIP ?=
 GINKGO_NODES  ?= 1
