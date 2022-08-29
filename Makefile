@@ -131,7 +131,7 @@ endif
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-LABEL_FILTERS ?= prblocker
+LABEL_FILTERS ?=
 GINKGO_SKIP ?=
 GINKGO_NODES  ?= 1
 E2E_CONF_FILE  ?= ${E2E_DIR}/config/nutanix.yaml
