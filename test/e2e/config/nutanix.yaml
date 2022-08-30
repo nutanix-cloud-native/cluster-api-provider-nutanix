@@ -146,6 +146,8 @@ providers:
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-project.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-ccm.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-upgrades.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-md-remediation.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-kcp-remediation.yaml"
 
 variables:
   # Default variables for the e2e test; those values could be overridden via env variables, thus
