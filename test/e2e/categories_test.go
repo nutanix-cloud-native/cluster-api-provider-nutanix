@@ -63,7 +63,7 @@ var _ = Describe("Nutanix categories", func() {
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, clusterResources.Cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	It("Create a cluster with default cluster categories (no additional categories)", func() {
+	It("Create a cluster with default cluster categories (no additional categories)", Label("nutanix", "categories"), func() {
 		Expect(namespace).NotTo(BeNil())
 		flavor := clusterctl.DefaultFlavor
 		expectedCategoryKey := testHelper.getExpectedClusterCategoryKey(clusterName)
@@ -105,7 +105,7 @@ var _ = Describe("Nutanix categories", func() {
 		By("PASSED!")
 	})
 
-	It("Create a cluster with additional categories", func() {
+	It("Create a cluster with additional categories", Label("nutanix", "categories"), func() {
 		Expect(namespace).NotTo(BeNil())
 		flavor := "additional-categories"
 
@@ -135,7 +135,7 @@ var _ = Describe("Nutanix categories", func() {
 		By("PASSED!")
 	})
 
-	It("Create a cluster linked to non-existing categories (should fail)", func() {
+	It("Create a cluster linked to non-existing categories (should fail)", Label("nutanix", "categories"), func() {
 		flavor = "no-nmt"
 		Expect(namespace).NotTo(BeNil())
 

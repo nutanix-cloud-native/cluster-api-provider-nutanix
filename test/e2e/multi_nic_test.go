@@ -59,7 +59,7 @@ var _ = Describe("Nutanix Subnets", func() {
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, clusterResources.Cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	It("Create a cluster where machines have multiple subnets attached to the machines", func() {
+	It("Create a cluster where machines have multiple subnets attached to the machines", Label("nutanix", "subnets"), func() {
 		const (
 			flavor = "no-nmt"
 		)

@@ -65,7 +65,7 @@ var _ = Describe("Nutanix flavor CCM", func() {
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, clusterResources.Cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	It("Create a cluster with Nutanix CCM", func() {
+	It("Create a cluster with Nutanix CCM", Label("nutanix", "ccm"), func() {
 		const flavor = "ccm"
 
 		Expect(namespace).NotTo(BeNil())

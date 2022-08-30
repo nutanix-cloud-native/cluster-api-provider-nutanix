@@ -56,7 +56,7 @@ var _ = Describe("Nutanix client", func() {
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, clusterResources.Cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	It("Create a cluster without credentialRef (use default credentials)", func() {
+	It("Create a cluster without credentialRef (use default credentials)", Label("nutanix", "client"), func() {
 		flavor = "no-credential-ref"
 		Expect(namespace).NotTo(BeNil())
 
@@ -87,7 +87,7 @@ var _ = Describe("Nutanix client", func() {
 		By("PASSED!")
 	})
 
-	It("Create a cluster without secret and add it later", func() {
+	It("Create a cluster without secret and add it later", Label("nutanix", "client"), func() {
 		flavor = "no-secret"
 		Expect(namespace).NotTo(BeNil())
 
@@ -154,7 +154,7 @@ var _ = Describe("Nutanix client", func() {
 		By("PASSED!")
 	})
 
-	It("Create a cluster with invalid credentials (should fail)", func() {
+	It("Create a cluster with invalid credentials (should fail)", Label("nutanix", "client"), func() {
 		const (
 			flavor = "no-secret"
 		)
