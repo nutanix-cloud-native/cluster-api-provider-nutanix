@@ -2,6 +2,7 @@
 // +build e2e
 
 /*
+Copyright 2022 Nutanix, Inc
 Copyright 2021 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -91,6 +92,7 @@ var _ = Describe("When upgrading a workload cluster with a HA control plane", La
 	})
 })
 
+// TODO Uncomment once tested. 
 // var _ = Describe("When upgrading a workload cluster with a HA control plane using scale-in rollout", Label("k8s-upgrade", "slow", "network"), func() {
 // 	capi_e2e.ClusterUpgradeConformanceSpec(ctx, func() capi_e2e.ClusterUpgradeConformanceSpecInput {
 // 		return capi_e2e.ClusterUpgradeConformanceSpecInput{
