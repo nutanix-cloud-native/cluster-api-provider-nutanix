@@ -1,0 +1,21 @@
+---
+# Source: https://github.com/kubernetes-sigs/cluster-api/blob/main/test/e2e/data/infrastructure-docker/v1beta1/cluster-template-kcp-remediation/mhc.yaml
+
+# MachineHealthCheck object with
+# - a selector that targets all the machines with label cluster.x-k8s.io/control-plane=""
+# - unhealthyConditions triggering remediation after 10s the condition is set
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineHealthCheck
+metadata:
+  name: "${CLUSTER_NAME}-mhc-0"
+  namespace: "${NAMESPACE}"
+spec:
+  clusterName: "${CLUSTER_NAME}"
+  maxUnhealthy: 100%
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/control-plane: ""
+  unhealthyConditions:
+    - type: e2e.remediation.condition
+      status: "False"
+      timeout: 10s
