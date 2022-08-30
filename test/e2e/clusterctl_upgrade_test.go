@@ -25,7 +25,7 @@ import (
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 )
 
-var _ = Describe("When testing clusterctl upgrades [clusterctl-Upgrade]", func() {
+var _ = Describe("When testing clusterctl upgrades [clusterctl-Upgrade]", Label("clusterctl-upgrade", "slow", "network"), func() {
 	capi_e2e.ClusterctlUpgradeSpec(ctx, func() capi_e2e.ClusterctlUpgradeSpecInput {
 		return capi_e2e.ClusterctlUpgradeSpecInput{
 			E2EConfig:             e2eConfig,

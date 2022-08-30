@@ -32,7 +32,7 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
-var _ = Describe("Nutanix client", func() {
+var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client", "slow", "network"), func() {
 	const (
 		specName = "cluster-ntnx-client"
 	)
