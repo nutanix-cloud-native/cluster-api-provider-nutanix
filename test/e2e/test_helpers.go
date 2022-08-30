@@ -404,29 +404,38 @@ func (t testHelper) verifyConditionOnNutanixCluster(params verifyConditionParams
 }
 
 func (t testHelper) verifyConditionOnNutanixMachines(params verifyConditionParams) {
-	nutanixMachines := t.getNutanixMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
-	for _, m := range nutanixMachines.Items {
-		Eventually(
-			func() []clusterv1.Condition {
-				machine := t.getNutanixMachineForCluster(ctx, params.clusterName, params.namespace.Name, m.Name, params.bootstrapClusterProxy)
-				return machine.Status.Conditions
-			},
-			defaultTimeout,
-			defaultInterval,
-		).Should(
-			ContainElement(
-				gstruct.MatchFields(
-					gstruct.IgnoreExtras,
-					gstruct.Fields{
-						"Type":     Equal(params.expectedCondition.Type),
-						"Reason":   Equal(params.expectedCondition.Reason),
-						"Severity": Equal(params.expectedCondition.Severity),
-						"Status":   Equal(params.expectedCondition.Status),
-					},
-				),
+	Eventually(
+		func() []infrav1.NutanixMachine {
+			nutanixMachines := t.getNutanixMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
+			return nutanixMachines.Items
+		},
+		defaultTimeout,
+		defaultInterval,
+	).Should(
+		ContainElement(
+			gstruct.MatchFields(
+				gstruct.IgnoreExtras,
+				gstruct.Fields{
+					"Status": gstruct.MatchFields(
+						gstruct.IgnoreExtras,
+						gstruct.Fields{
+							"Conditions": ContainElement(
+								gstruct.MatchFields(
+									gstruct.IgnoreExtras,
+									gstruct.Fields{
+										"Type":     Equal(params.expectedCondition.Type),
+										"Reason":   Equal(params.expectedCondition.Reason),
+										"Severity": Equal(params.expectedCondition.Severity),
+										"Status":   Equal(params.expectedCondition.Status),
+									},
+								),
+							),
+						},
+					),
+				},
 			),
-		)
-	}
+		),
+	)
 }
 
 type verifyFailureMessageOnClusterMachinesParams struct {
