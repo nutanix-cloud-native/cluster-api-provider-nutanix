@@ -30,7 +30,7 @@ import (
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 )
 
-var _ = Describe("Nutanix flavor CCM", Label("capx-feature-test", "slow", "network"), func() {
+var _ = Describe("Nutanix flavor CCM", Label("capx-feature-test", "ccm", "slow", "network"), func() {
 	const (
 		specName           = "cluster-ccm"
 		ccmInstanceTypeKey = "node.kubernetes.io/instance-type"
