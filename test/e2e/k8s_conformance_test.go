@@ -2,6 +2,7 @@
 // +build e2e
 
 /*
+Copyright 2022 Nutanix, Inc
 Copyright 2020 The Kubernetes Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
