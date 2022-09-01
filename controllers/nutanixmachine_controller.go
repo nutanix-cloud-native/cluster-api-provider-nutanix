@@ -187,7 +187,7 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}()
 
 	// Handle deleted machines
-	if !machine.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !ntxMachine.ObjectMeta.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(rctx)
 	}
 
@@ -200,11 +200,11 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	vmName := rctx.NutanixMachine.Name
 	klog.Infof("%s Handling NutanixMachine deletion of VM: %s", rctx.LogPrefix, vmName)
 	conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, capiv1.DeletingReason, capiv1.ConditionSeverityInfo, "")
-	//Check if VMUUID is absent
+	// Check if VMUUID is absent
 	if rctx.NutanixMachine.Status.VmUUID == "" {
 		klog.Warningf("%s VMUUID was not found in spec for VM %s. Skipping delete", rctx.LogPrefix, vmName)
 	} else {
-		//Search for VM by UUID
+		// Search for VM by UUID
 		vmUUID := rctx.NutanixMachine.Status.VmUUID
 		vm, err := findVMByUUID(client, vmUUID)
 		// Error while finding VM
@@ -257,7 +257,6 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 }
 
 func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (reconcile.Result, error) {
-
 	if rctx.NutanixMachine.Status.FailureReason != nil || rctx.NutanixMachine.Status.FailureMessage != nil {
 		klog.Errorf("Nutanix Machine has failed. Will not reconcile %s", rctx.NutanixMachine.Name)
 		return reconcile.Result{}, nil
@@ -353,7 +352,6 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 // reconcileNode makes sure the NutanixMachine corresponding workload cluster node
 // is ready and set its spec.providerID
 func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) error {
-
 	klog.Infof("%s Reconcile the workload cluster node to set its spec.providerID", rctx.LogPrefix)
 
 	clusterKey := apitypes.NamespacedName{
@@ -421,7 +419,6 @@ func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) erro
 
 // GetOrCreateVM creates a VM and is invoked by the NutanixMachineReconciler
 func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nutanixClientV3.VMIntentResponse, error) {
-
 	var err error
 	var vm *nutanixClientV3.VMIntentResponse
 	vmName := rctx.NutanixMachine.Name
@@ -495,7 +492,8 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 				SubnetReference: &nutanixClientV3.Reference{
 					UUID: utils.StringPtr(subnetUUID),
 					Kind: utils.StringPtr("subnet"),
-				}})
+				},
+			})
 		}
 
 		// Create Disk Spec for systemdisk to be set later in VM Spec
@@ -545,7 +543,8 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 			DiskList:              diskList,
 			GuestCustomization: &nutanixClientV3.GuestCustomization{
 				IsOverridable: utils.BoolPtr(true),
-				CloudInit:     &nutanixClientV3.GuestCustomizationCloudInit{UserData: utils.StringPtr(bsdataEncoded)}},
+				CloudInit:     &nutanixClientV3.GuestCustomizationCloudInit{UserData: utils.StringPtr(bsdataEncoded)},
+			},
 		}
 		vmSpec.ClusterReference = &nutanixClientV3.Reference{
 			Kind: utils.StringPtr("cluster"),
@@ -714,7 +713,6 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 }
 
 func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vmMetadata *nutanixClientV3.Metadata) error {
-
 	vmName := rctx.NutanixMachine.Name
 	projectRef := rctx.NutanixMachine.Spec.Project
 	if projectRef == nil {

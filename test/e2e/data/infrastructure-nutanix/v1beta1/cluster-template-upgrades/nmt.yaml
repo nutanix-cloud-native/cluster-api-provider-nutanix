@@ -1,0 +1,49 @@
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixMachineTemplate
+metadata:
+  name: "${CLUSTER_NAME}-mt-0"
+  namespace: "${NAMESPACE}"
+spec:
+  template:
+    spec:
+      providerID: "nutanix://${CLUSTER_NAME}-m1"
+      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+      vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+      vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
+      memorySize: "${NUTANIX_MACHINE_MEMORY_SIZE=8Gi}"
+      systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
+      image:
+        type: name
+        name: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_FROM}"
+      cluster:
+        type: name
+        name: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
+      subnet:
+        - type: name
+          name: "${NUTANIX_SUBNET_NAME}"
+
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixMachineTemplate
+metadata:
+  name: "cluster-upgrade-conformance"
+  namespace: "${NAMESPACE}"
+spec:
+  template:
+    spec:
+      providerID: "nutanix://cluster-upgrade-conformance"
+      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+      vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+      vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
+      memorySize: "${NUTANIX_MACHINE_MEMORY_SIZE=8Gi}"
+      systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
+      image:
+        type: name
+        name: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_TO}"
+      cluster:
+        type: name
+        name: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
+      subnet:
+        - type: name
+          name: "${NUTANIX_SUBNET_NAME}"

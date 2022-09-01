@@ -269,6 +269,7 @@ cluster-e2e-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-upgrades --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-upgrades.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-remediation --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-remediation.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-remediation --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-remediation.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in.yaml
 
 cluster-templates: $(KUSTOMIZE) ## Generate cluster templates for all flavors
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/base > $(TEMPLATES_DIR)/cluster-template.yaml
@@ -331,7 +332,8 @@ test-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates
 	    $(GINKGO_ARGS) ./test/e2e -- \
 	    -e2e.artifacts-folder="$(ARTIFACTS)" \
 	    -e2e.config="$(E2E_CONF_FILE)" \
-	    -e2e.skip-resource-cleanup=$(SKIP_RESOURCE_CLEANUP) -e2e.use-existing-cluster=$(USE_EXISTING_CLUSTER)
+	    -e2e.skip-resource-cleanup=$(SKIP_RESOURCE_CLEANUP) -e2e.use-existing-cluster=$(USE_EXISTING_CLUSTER) \
+		--ginkgo.timeout="24h"
 
 .PHONY: list-e2e
 list-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates ## Run the end-to-end tests
