@@ -25,7 +25,6 @@ import (
 	"k8s.io/utils/pointer"
 
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
-	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 )
 
 var _ = Describe("When upgrading a workload cluster and testing K8S conformance", Label("cluster-upgrade-conformance", "slow", "network"), func() {
@@ -69,7 +68,6 @@ var _ = Describe("When upgrading a workload cluster with a single control plane 
 			SkipConformanceTests:     true,
 			ControlPlaneMachineCount: pointer.Int64(1),
 			WorkerMachineCount:       pointer.Int64(1),
-			Flavor:                   pointer.String(clusterctl.DefaultFlavor),
 		}
 	})
 })
@@ -87,7 +85,6 @@ var _ = Describe("When upgrading a workload cluster with a HA control plane", La
 			SkipConformanceTests:     true,
 			ControlPlaneMachineCount: pointer.Int64(3),
 			WorkerMachineCount:       pointer.Int64(1),
-			Flavor:                   pointer.String(clusterctl.DefaultFlavor),
 		}
 	})
 })

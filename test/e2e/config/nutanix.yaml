@@ -148,6 +148,7 @@ providers:
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-upgrades.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-md-remediation.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-kcp-remediation.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-kcp-scale-in.yaml"
 
 variables:
   # Default variables for the e2e test; those values could be overridden via env variables, thus
@@ -169,8 +170,10 @@ variables:
   WORKER_MACHINE_COUNT: 3
   NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ""
   NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: "ubuntu-2004-kube-v1.23.8.qcow2"
-  CONTROL_PLANE_MACHINE_TEMPLATE_UPGRADE_TO: "ubuntu-2004-kube-v1.24.10.qcow2"
-  WORKERS_MACHINE_TEMPLATE_UPGRADE_TO: "ubuntu-2004-kube-v1.24.10.qcow2"
+  CONTROL_PLANE_MACHINE_TEMPLATE_UPGRADE_TO: "cluster-upgrade-conformance"
+  WORKERS_MACHINE_TEMPLATE_UPGRADE_TO: "cluster-upgrade-conformance"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_TO: "ubuntu-2004-kube-v1.24.10.qcow2"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_FROM: "ubuntu-2004-kube-v1.23.8.qcow2"
   NUTANIX_SUBNET_NAME: ""
   # NOTE: 'NUTANIX_ADDITIONAL_SUBNET_NAME' is required for multi network interface e2e tests
   NUTANIX_ADDITIONAL_SUBNET_NAME: ""
