@@ -20,12 +20,12 @@ limitations under the License.
 package e2e
 
 import (
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 )
 
-var _ = Describe("When testing MachineDeployment scale out/in [scale-out-in]", func() {
+var _ = Describe("When testing MachineDeployment scale out/in", Label("md-scale-out-in", "slow", "network"), func() {
 	capi_e2e.MachineDeploymentScaleSpec(ctx, func() capi_e2e.MachineDeploymentScaleSpecInput {
 		return capi_e2e.MachineDeploymentScaleSpecInput{
 			E2EConfig:             e2eConfig,

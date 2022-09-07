@@ -23,7 +23,7 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -32,7 +32,7 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
-var _ = Describe("Nutanix client [PR-Blocking]", func() {
+var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client", "slow", "network"), func() {
 	const (
 		specName = "cluster-ntnx-client"
 	)

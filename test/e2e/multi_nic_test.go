@@ -22,7 +22,7 @@ package e2e
 import (
 	"context"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gstruct"
 	"github.com/onsi/gomega/types"
@@ -36,7 +36,7 @@ const (
 	additionalSubnetVarKey = "NUTANIX_ADDITIONAL_SUBNET_NAME"
 )
 
-var _ = Describe("Nutanix Subnets [PR-Blocking]", func() {
+var _ = Describe("Nutanix Subnets", Label("capx-feature-test", "multi-nic", "slow", "network"), func() {
 	const specName = "cluster-multi-nic"
 
 	var (

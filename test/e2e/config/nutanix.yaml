@@ -13,20 +13,38 @@ images:
     loadBehavior: mustLoad
   # ## PLEASE KEEP THESE UP TO DATE WITH THE COMPONENTS
   # Cluster API v1beta1 Preloads
-  - name: registry.k8s.io/cluster-api/cluster-api-controller:v1.1.4
+  - name: registry.k8s.io/cluster-api/cluster-api-controller:v1.2.0
     loadBehavior: tryLoad
-  - name: registry.k8s.io/cluster-api/kubeadm-bootstrap-controller:v1.1.4
+  - name: registry.k8s.io/cluster-api/kubeadm-bootstrap-controller:v1.2.0
     loadBehavior: tryLoad
-  - name: registry.k8s.io/cluster-api/kubeadm-control-plane-controller:v1.1.4
+  - name: registry.k8s.io/cluster-api/kubeadm-control-plane-controller:v1.2.0
     loadBehavior: tryLoad
 
 providers:
   - name: cluster-api
     type: CoreProvider
     versions:
-      - name: v1.1.4
+      - name: v0.3.25 # latest published release in the v1alpha3 series; this is used for v1alpha3 --> v1beta1 clusterctl upgrades test only.
+        value: https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.3.25/core-components.yaml
+        type: url
+        contract: v1alpha3
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+      - name: v0.4.7 # latest published release in the v1alpha4 series; this is used for v1alpha4 --> v1beta1 clusterctl upgrades test only.
+        contract: v1alpha4
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.7/core-components.yaml"
+        type: "url"
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+      - name: v1.2.0
         # Use manifest from source files
-        value: https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.1.4/core-components.yaml
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.2.0/core-components.yaml"
         type: "url"
         contract: v1beta1
         files:
@@ -34,13 +52,30 @@ providers:
         replacements:
           - old: "imagePullPolicy: Always"
             new: "imagePullPolicy: IfNotPresent"
-
   - name: kubeadm
     type: BootstrapProvider
     versions:
-      - name: v1.1.4
+      - name: v0.3.25 # latest published release in the v1alpha3 series; this is used for v1alpha3 --> v1beta1 clusterctl upgrades test only.
+        value: https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.3.25/bootstrap-components.yaml
+        type: url
+        contract: v1alpha3
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+      - name: v0.4.7 # latest published release in the v1alpha4 series; this is used for v1alpha4 --> v1beta1 clusterctl upgrades test only.
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.7/bootstrap-components.yaml"
+        type: "url"
+        contract: v1alpha4
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+      - name: v1.2.0
         # Use manifest from source files
-        value: https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.1.4/bootstrap-components.yaml
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.2.0/bootstrap-components.yaml"
         type: "url"
         contract: "v1beta1"
         files:
@@ -48,26 +83,51 @@ providers:
         replacements:
           - old: "imagePullPolicy: Always"
             new: "imagePullPolicy: IfNotPresent"
-
   - name: kubeadm
     type: ControlPlaneProvider
     versions:
-      - name: v1.1.4
-        # Use manifest from source files
-        value: https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.1.4/control-plane-components.yaml
-        type: "url"
+      - name: v0.3.25 # latest published release in the v1alpha3 series; this is used for v1alpha3 --> v1beta1 clusterctl upgrades test only.
+        value: https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.3.25/control-plane-components.yaml
+        type: url
+        contract: v1alpha3
         files:
           - sourcePath: "../data/shared/metadata.yaml"
         replacements:
           - old: "imagePullPolicy: Always"
             new: "imagePullPolicy: IfNotPresent"
-
+      - name: v0.4.7 # latest published release in the v1alpha4 series; this is used for v1alpha4 --> v1beta1 clusterctl upgrades test only.
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.7/control-plane-components.yaml"
+        type: "url"
+        contract: v1alpha4
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+      - name: v1.2.0
+        # Use manifest from source files
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.2.0/control-plane-components.yaml"
+        type: "url"
+        contract: v1beta1
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
   - name: nutanix
     type: InfrastructureProvider
     versions:
+      - name: v0.4.0 # next; use manifest from source files
+        type: "url"
+        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v0.4.0/infrastructure-components.yaml
+        contract: v1alpha4
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+        files:
+          - sourcePath: "../../../metadata.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1alpha4/cluster-template.yaml"
       - name: v0.5.0 # next; use manifest from source files
-        # type: "url"
-        # value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v0.4.0/infrastructure-components.yaml
         type: kustomize
         value: "../../../config/default"
         contract: v1beta1
@@ -85,13 +145,17 @@ providers:
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-nmt.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-project.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-ccm.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-upgrades.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-md-remediation.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-kcp-remediation.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-kcp-scale-in.yaml"
 
 variables:
   # Default variables for the e2e test; those values could be overridden via env variables, thus
   # allowing the same e2e config file to be re-used in different Prow jobs e.g. each one with a K8s version permutation.
   # The following Kubernetes versions should be the latest versions with already published kindest/node images.
   # This avoids building node images in the default case which improves the test duration significantly.
-  KUBERNETES_VERSION_MANAGEMENT: "v1.21.10"
+  KUBERNETES_VERSION_MANAGEMENT: "v1.23.6"
   IP_FAMILY: "IPv4"
   CLUSTERCTL_LOG_LEVEL: 10
   NUTANIX_PROVIDER: "true"
@@ -99,13 +163,17 @@ variables:
   NUTANIX_USER: ""
   NUTANIX_PASSWORD: ""
   NUTANIX_INSECURE: true
-  KUBERNETES_VERSION: "v1.21.10"
+  KUBERNETES_VERSION: "v1.23.6"
   NUTANIX_SSH_AUTHORIZED_KEY: ""
   CONTROL_PLANE_ENDPOINT_IP: ""
   CONTROL_PLANE_MACHINE_COUNT: 3
   WORKER_MACHINE_COUNT: 3
   NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ""
-  NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: "ubuntu-2004-kube-v1.21.10"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: "ubuntu-2004-kube-v1.23.8.qcow2"
+  CONTROL_PLANE_MACHINE_TEMPLATE_UPGRADE_TO: "cluster-upgrade-conformance"
+  WORKERS_MACHINE_TEMPLATE_UPGRADE_TO: "cluster-upgrade-conformance"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_TO: "ubuntu-2004-kube-v1.24.10.qcow2"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_FROM: "ubuntu-2004-kube-v1.23.8.qcow2"
   NUTANIX_SUBNET_NAME: ""
   # NOTE: 'NUTANIX_ADDITIONAL_SUBNET_NAME' is required for multi network interface e2e tests
   NUTANIX_ADDITIONAL_SUBNET_NAME: ""
@@ -116,17 +184,18 @@ variables:
   CNI: "./data/cni/kindnet/kindnet.yaml"
   EXP_CLUSTER_RESOURCE_SET: "true"
   DOCKER_POD_CIDRS: "192.168.0.0/16"
-  KUBERNETES_VERSION_UPGRADE_TO: "v1.20.0"
-  KUBERNETES_VERSION_UPGRADE_FROM: "v1.21.8"
+  KUBERNETES_VERSION_UPGRADE_TO: "v1.24.10"
+  KUBERNETES_VERSION_UPGRADE_FROM: "v1.23.6"
   ETCD_VERSION_UPGRADE_TO: "3.5.3-0"
   COREDNS_VERSION_UPGRADE_TO: "v1.8.6"
+  KUBETEST_CONFIGURATION: "./data/kubetest/conformance.yaml"
   # NOTE: INIT_WITH_BINARY and INIT_WITH_KUBERNETES_VERSION are only used by the clusterctl upgrade test to initialize
   # the management cluster to be upgraded.
   # NOTE: We test the latest release with a previous contract.
   INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.1.4/clusterctl-{OS}-{ARCH}"
-  INIT_WITH_BINARY_V1ALPHA4: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.7/clusterctl-{OS}-{ARCH}"
-  INIT_WITH_PROVIDERS_CONTRACT: "v1alpha4"
-  INIT_WITH_KUBERNETES_VERSION: "v1.21.10"
+  #INIT_WITH_BINARY_V1ALPHA4: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.7/clusterctl-{OS}-{ARCH}"
+  #INIT_WITH_PROVIDERS_CONTRACT: "v1alpha4"
+  INIT_WITH_KUBERNETES_VERSION: "v1.23.6"
 
 intervals:
   default/wait-controllers: ["3m", "10s"]

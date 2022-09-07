@@ -1,0 +1,7 @@
+bases:
+  - ../bases/cluster-with-kcp.yaml
+  - ../bases/secret.yaml
+  - ../bases/nmt.yaml
+  - ../bases/crs.yaml
+  - ../bases/md.yaml
+  - ./mhc.yaml
