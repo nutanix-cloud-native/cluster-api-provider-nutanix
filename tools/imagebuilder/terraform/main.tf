@@ -123,5 +123,10 @@ resource "null_resource" "copy_os_image" {
   provisioner "local-exec" {
     command = "scp -r ${var.vm_user}@${data.nutanix_virtual_machine.build_vm_datasource.nic_list.0.ip_endpoint_list[0].ip}:~/image-builder/images/capi/output ."
   }
+
+  depends_on = [
+    null_resource.build_os_image
+  ]
+
 }
 
