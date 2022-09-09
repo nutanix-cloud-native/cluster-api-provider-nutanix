@@ -133,7 +133,7 @@ SHELL = /usr/bin/env bash -o pipefail
 
 LABEL_FILTERS ?=
 JUNIT_REPORT_FILE ?= "junit.e2e_suite.1.xml"
-GINKGO_SKIP ?=
+GINKGO_SKIP ?= "clusterctl-Upgrade"
 GINKGO_NODES  ?= 1
 E2E_CONF_FILE  ?= ${E2E_DIR}/config/nutanix.yaml
 ARTIFACTS ?= ${REPO_ROOT}/_artifacts
@@ -147,7 +147,7 @@ TEST_CLUSTER_NAME=mycluster
 
 # to set multiple ginkgo skip flags, if any
 ifneq ($(strip $(GINKGO_SKIP)),)
-_SKIP_ARGS := $(foreach arg,$(strip $(GINKGO_SKIP)),-skip="$(arg)")
+_SKIP_ARGS := $(foreach arg,$(strip $(GINKGO_SKIP)),--skip="$(arg)")
 endif
 .PHONY: all
 all: build

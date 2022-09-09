@@ -25,6 +25,7 @@ import (
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 )
 
+// clusterctl upgrade test is being skipped. See 'GINKGO_SKIP' parameter in `Makefile`
 var _ = Describe("When testing clusterctl upgrades [clusterctl-Upgrade]", Label("clusterctl-upgrade", "slow", "network"), func() {
 	capi_e2e.ClusterctlUpgradeSpec(ctx, func() capi_e2e.ClusterctlUpgradeSpecInput {
 		return capi_e2e.ClusterctlUpgradeSpecInput{
