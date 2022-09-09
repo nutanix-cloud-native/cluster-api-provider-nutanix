@@ -26,6 +26,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -58,11 +59,16 @@ const (
 )
 
 var (
-	minMachineSystemDiskSize = int64(20 * ONE_MIB)
-	minMachineMemorySize     = int64(2 * ONE_MIB)
-	minVCPUsPerSocket        = int64(1)
-	minVCPUSockets           = int64(1)
+	minMachineSystemDiskSize *resource.Quantity
+	minMachineMemorySize     *resource.Quantity
+	minVCPUsPerSocket        = 1
+	minVCPUSockets           = 1
 )
+
+func init() {
+	minMachineSystemDiskSize = resource.NewQuantity(20*ONE_MIB, resource.BinarySI)
+	minMachineMemorySize = resource.NewQuantity(2*ONE_MIB, resource.BinarySI)
+}
 
 // NutanixMachineReconciler reconciles a NutanixMachine object
 type NutanixMachineReconciler struct {
@@ -432,17 +438,19 @@ func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineConte
 	}
 
 	diskSize := rctx.NutanixMachine.Spec.SystemDiskSize
-	diskSizeMib := getMibValueOfQuantity(diskSize)
 	// Validate disk size
-	if diskSizeMib < minMachineSystemDiskSize {
-		return fmt.Errorf("The minimum systemDiskSize is %vMib but given %vMib", minMachineSystemDiskSize, diskSizeMib)
+	if diskSize.Cmp(*minMachineSystemDiskSize) < 0 {
+		diskSizeMib := getMibValueOfQuantity(diskSize)
+		minMachineSystemDiskSizeMib := getMibValueOfQuantity(*minMachineSystemDiskSize)
+		return fmt.Errorf("The minimum systemDiskSize is %vMib but given %vMib", minMachineSystemDiskSizeMib, diskSizeMib)
 	}
 
 	memorySize := rctx.NutanixMachine.Spec.MemorySize
-	memorySizeMib := getMibValueOfQuantity(memorySize)
 	// Validate memory size
-	if memorySizeMib < minMachineMemorySize {
-		return fmt.Errorf("The minimum memorySize is %vMib but given %vMib", minMachineMemorySize, memorySizeMib)
+	if memorySize.Cmp(*minMachineMemorySize) < 0 {
+		memorySizeMib := getMibValueOfQuantity(memorySize)
+		minMachineMemorySizeMib := getMibValueOfQuantity(*minMachineMemorySize)
+		return fmt.Errorf("The minimum memorySize is %vMib but given %vMib", minMachineMemorySizeMib, memorySizeMib)
 	}
 
 	vcpusPerSocket := rctx.NutanixMachine.Spec.VCPUsPerSocket
