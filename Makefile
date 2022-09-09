@@ -336,16 +336,17 @@ test-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates
 		--progress \
 		--tags=e2e \
 		--label-filter="$(LABEL_FILTERS)" \
-		$(_SKIP_ARGS) --nodes=$(GINKGO_NODES) \
-	    --no-color=$(GINKGO_NOCOLOR) \
+		$(_SKIP_ARGS) \
+		--nodes=$(GINKGO_NODES) \
+		--no-color=$(GINKGO_NOCOLOR) \
 		--output-dir="$(ARTIFACTS)" \
 		--junit-report=${JUNIT_REPORT_FILE} \
 		--timeout="24h" \
 		--always-emit-ginkgo-writer \
-	    $(GINKGO_ARGS) ./test/e2e -- \
-	    -e2e.artifacts-folder="$(ARTIFACTS)" \
-	    -e2e.config="$(E2E_CONF_FILE)" \
-	    -e2e.skip-resource-cleanup=$(SKIP_RESOURCE_CLEANUP) \
+		$(GINKGO_ARGS) ./test/e2e -- \
+		-e2e.artifacts-folder="$(ARTIFACTS)" \
+		-e2e.config="$(E2E_CONF_FILE)" \
+		-e2e.skip-resource-cleanup=$(SKIP_RESOURCE_CLEANUP) \
 		-e2e.use-existing-cluster=$(USE_EXISTING_CLUSTER)
 
 .PHONY: list-e2e
