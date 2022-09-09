@@ -55,7 +55,9 @@ const (
 	// provideridFmt is "nutanix://<vmUUID"
 	provideridFmt = "nutanix://%s"
 	projectKind   = "project"
-	ONE_MIB       = 1024
+	ONE_KIB       = 1024
+	ONE_MIB       = ONE_KIB * ONE_KIB
+	ONE_GIB       = ONE_MIB * ONE_KIB
 )
 
 var (
@@ -66,8 +68,8 @@ var (
 )
 
 func init() {
-	minMachineSystemDiskSize = resource.NewQuantity(20*ONE_MIB, resource.BinarySI)
-	minMachineMemorySize = resource.NewQuantity(2*ONE_MIB, resource.BinarySI)
+	minMachineSystemDiskSize = resource.NewQuantity(20*ONE_GIB, resource.BinarySI)
+	minMachineMemorySize = resource.NewQuantity(2*ONE_GIB, resource.BinarySI)
 }
 
 // NutanixMachineReconciler reconciles a NutanixMachine object
