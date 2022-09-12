@@ -77,14 +77,6 @@ jobs:
         kustomize build config/default > infrastructure-components.yaml
         make cluster-templates
 
-    - name: update metadata.yaml
-      env:
-        MINOR: ${{ steps.semver.outputs.minor }}
-        MAJOR: ${{ steps.semver.outputs.major }}
-      run: |
-        yq -i '(.releaseSeries[] | select(.contract == "v1beta1")).major |= env(MAJOR)' metadata.yaml
-        yq -i '(.releaseSeries[] | select(.contract == "v1beta1")).minor |= env(MINOR)' metadata.yaml
-
     - name: generate image info
       env:
         NEW_IMG: ghcr.io/${{ github.repository }}/controller:${{ steps.meta.outputs.version }}
