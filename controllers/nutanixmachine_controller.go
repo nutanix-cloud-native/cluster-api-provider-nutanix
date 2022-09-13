@@ -61,15 +61,15 @@ const (
 )
 
 var (
-	minMachineSystemDiskSize *resource.Quantity
-	minMachineMemorySize     *resource.Quantity
+	minMachineSystemDiskSize resource.Quantity
+	minMachineMemorySize     resource.Quantity
 	minVCPUsPerSocket        = 1
 	minVCPUSockets           = 1
 )
 
 func init() {
-	minMachineSystemDiskSize = resource.NewQuantity(20*ONE_GIB, resource.BinarySI)
-	minMachineMemorySize = resource.NewQuantity(2*ONE_GIB, resource.BinarySI)
+	minMachineSystemDiskSize = resource.MustParse("20Gib")
+	minMachineMemorySize = resource.MustParse("2Gib")
 }
 
 // NutanixMachineReconciler reconciles a NutanixMachine object
@@ -434,24 +434,23 @@ func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) erro
 }
 
 func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineContext) error {
-
 	if len(rctx.NutanixMachine.Spec.Subnets) == 0 {
 		return fmt.Errorf("Atleast one subnet is needed to create the VM %s.", rctx.NutanixMachine.Name)
 	}
 
 	diskSize := rctx.NutanixMachine.Spec.SystemDiskSize
 	// Validate disk size
-	if diskSize.Cmp(*minMachineSystemDiskSize) < 0 {
+	if diskSize.Cmp(minMachineSystemDiskSize) < 0 {
 		diskSizeMib := getMibValueOfQuantity(diskSize)
-		minMachineSystemDiskSizeMib := getMibValueOfQuantity(*minMachineSystemDiskSize)
+		minMachineSystemDiskSizeMib := getMibValueOfQuantity(minMachineSystemDiskSize)
 		return fmt.Errorf("The minimum systemDiskSize is %vMib but given %vMib", minMachineSystemDiskSizeMib, diskSizeMib)
 	}
 
 	memorySize := rctx.NutanixMachine.Spec.MemorySize
 	// Validate memory size
-	if memorySize.Cmp(*minMachineMemorySize) < 0 {
+	if memorySize.Cmp(minMachineMemorySize) < 0 {
 		memorySizeMib := getMibValueOfQuantity(memorySize)
-		minMachineMemorySizeMib := getMibValueOfQuantity(*minMachineMemorySize)
+		minMachineMemorySizeMib := getMibValueOfQuantity(minMachineMemorySize)
 		return fmt.Errorf("The minimum memorySize is %vMib but given %vMib", minMachineMemorySizeMib, memorySizeMib)
 	}
 
