@@ -139,7 +139,7 @@ E2E_CONF_FILE  ?= ${E2E_DIR}/config/nutanix.yaml
 ARTIFACTS ?= ${REPO_ROOT}/_artifacts
 SKIP_RESOURCE_CLEANUP ?= false
 USE_EXISTING_CLUSTER ?= false
-GINKGO_NOCOLOR ?= true
+GINKGO_NOCOLOR ?= false
 FLAVOR ?= e2e
 
 TEST_NAMESPACE=capx-test-ns
