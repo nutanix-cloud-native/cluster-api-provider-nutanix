@@ -18,13 +18,14 @@ The [Cluster API](https://github.com/kubernetes-sigs/cluster-api) brings declara
 The API itself is shared across multiple cloud providers allowing for true Nutanix hybrid cloud deployments of Kubernetes. 
 
 ## How to Deploy a Kubernetes Cluster on Nutanix Cloud Infrastucture
-Check out the [getting started guide](./docs/getting_started.md) for launching a cluster on Nutanix Cloud Infrastructure.
+Check out the [getting started guide](https://opendocs.nutanix.com/capx/latest/getting_started/) for launching a cluster on Nutanix Cloud Infrastructure.
 
 ## Features
 
 ## Compatibility with Cluster API and Kubernetes Versions
 
 ## Documentation
+Visit the `Cluster API Provider: Nutanix (CAPX)` section on [opendocs.nutanix.com](https://opendocs.nutanix.com/) for all documentation related to CAPX.
 
 ## Contributing
 See the [contributing docs](CONTRIBUTING.md).
