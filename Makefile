@@ -324,16 +324,30 @@ test-kubectl-workload: ## Run kubectl queries to get all capx workload related o
 	kubectl -n ${TEST_NAMESPACE} get secret ${TEST_CLUSTER_NAME}-kubeconfig -o json | jq -r .data.value | base64 --decode > ${TEST_CLUSTER_NAME}.workload.kubeconfig
 	kubectl --kubeconfig ./${TEST_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
 
+.PHONY: ginkgo-help
+ginkgo-help:
+	$(GINKGO) help run
+
 .PHONY: test-e2e
 test-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates ## Run the end-to-end tests
 	mkdir -p $(ARTIFACTS)
-	$(GINKGO) -v --trace --tags=e2e --label-filter="$(LABEL_FILTERS)" $(_SKIP_ARGS) --nodes=$(GINKGO_NODES) \
-	    --no-color=$(GINKGO_NOCOLOR) --output-dir="$(ARTIFACTS)" --junit-report=${JUNIT_REPORT_FILE} \
-	    $(GINKGO_ARGS) ./test/e2e -- \
-	    -e2e.artifacts-folder="$(ARTIFACTS)" \
-	    -e2e.config="$(E2E_CONF_FILE)" \
-	    -e2e.skip-resource-cleanup=$(SKIP_RESOURCE_CLEANUP) -e2e.use-existing-cluster=$(USE_EXISTING_CLUSTER) \
-		--ginkgo.timeout="24h"
+	$(GINKGO) -v \
+		--trace \
+		--progress \
+		--tags=e2e \
+		--label-filter="$(LABEL_FILTERS)" \
+		$(_SKIP_ARGS) \
+		--nodes=$(GINKGO_NODES) \
+		--no-color=$(GINKGO_NOCOLOR) \
+		--output-dir="$(ARTIFACTS)" \
+		--junit-report=${JUNIT_REPORT_FILE} \
+		--timeout="24h" \
+		--always-emit-ginkgo-writer \
+		$(GINKGO_ARGS) ./test/e2e -- \
+		-e2e.artifacts-folder="$(ARTIFACTS)" \
+		-e2e.config="$(E2E_CONF_FILE)" \
+		-e2e.skip-resource-cleanup=$(SKIP_RESOURCE_CLEANUP) \
+		-e2e.use-existing-cluster=$(USE_EXISTING_CLUSTER)
 
 .PHONY: list-e2e
 list-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates ## Run the end-to-end tests
