@@ -65,8 +65,8 @@ var (
 )
 
 func init() {
-	minMachineSystemDiskSize = resource.MustParse("20Gib")
-	minMachineMemorySize = resource.MustParse("2Gib")
+	minMachineSystemDiskSize = resource.MustParse("20Gi")
+	minMachineMemorySize = resource.MustParse("2Gi")
 }
 
 // NutanixMachineReconciler reconciles a NutanixMachine object
