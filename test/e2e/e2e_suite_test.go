@@ -29,6 +29,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -185,6 +186,8 @@ func initScheme() *runtime.Scheme {
 	sc := runtime.NewScheme()
 	framework.TryAddDefaultSchemes(sc)
 	err := infrav1.AddToScheme(sc)
+	Expect(err).NotTo(HaveOccurred())
+	err = storagev1.AddToScheme(sc)
 	Expect(err).NotTo(HaveOccurred())
 	return sc
 }

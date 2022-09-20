@@ -149,6 +149,7 @@ providers:
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-md-remediation.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-kcp-remediation.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-kcp-scale-in.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-csi.yaml"
 
 variables:
   # Default variables for the e2e test; those values could be overridden via env variables, thus
@@ -190,6 +191,14 @@ variables:
   ETCD_VERSION_UPGRADE_TO: "3.5.3-0"
   COREDNS_VERSION_UPGRADE_TO: "v1.8.6"
   KUBETEST_CONFIGURATION: "./data/kubetest/conformance.yaml"
+  # NOTE: Following parameters are required for CSI flavor testing
+  WEBHOOK_CA: ""
+  WEBHOOK_CERT: ""
+  WEBHOOK_KEY: ""
+  NUTANIX_STORAGE_CONTAINER: ""
+  NUTANIX_PRISM_ELEMENT_CLUSTER_IP: ""
+  NUTANIX_PRISM_ELEMENT_CLUSTER_USERNAME: ""
+  NUTANIX_PRISM_ELEMENT_CLUSTER_PASSWORD: ""
   # NOTE: INIT_WITH_BINARY and INIT_WITH_KUBERNETES_VERSION are only used by the clusterctl upgrade test to initialize
   # the management cluster to be upgraded.
   # NOTE: We test the latest release with a previous contract.

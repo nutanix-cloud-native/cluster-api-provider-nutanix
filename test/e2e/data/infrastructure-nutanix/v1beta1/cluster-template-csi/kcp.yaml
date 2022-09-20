@@ -1,0 +1,13 @@
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: KubeadmControlPlane
+metadata:
+  name: "${CLUSTER_NAME}-kcp"
+  namespace: "${NAMESPACE}"
+spec:
+  kubeadmConfigSpec:
+    preKubeadmCommands:
+      - echo "before kubeadm call" > /var/log/prekubeadm.log
+      - apt update
+      - apt install -y nfs-common open-iscsi lvm2 xfsprogs
+      - systemctl enable --now iscsid
