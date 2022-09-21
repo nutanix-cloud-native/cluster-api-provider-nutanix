@@ -112,7 +112,7 @@ var _ = Describe("Nutanix Subnets", Label("capx-feature-test", "multi-nic", "slo
 				))
 			}
 
-			nutanixVMs := testHelper.getNutanixVMsForCluster(clusterName, namespace.Name)
+			nutanixVMs := testHelper.getNutanixVMsForCluster(ctx, clusterName, namespace.Name)
 			for _, vm := range nutanixVMs {
 				vmSubnets := vm.Status.Resources.NicList
 				Expect(len(vmSubnets)).To(Equal(len(nmtSubnets)), "expected amount subnets linked to VMs to be equal to %d but was %d", len(nmtSubnets), len(vmSubnets))

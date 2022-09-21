@@ -22,8 +22,8 @@ import (
 	"os"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixClient "github.com/nutanix-cloud-native/prism-go-client/pkg/nutanix"
-	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/pkg/nutanix/v3"
+	nutanixClient "github.com/nutanix-cloud-native/prism-go-client"
+	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	ctrlClient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -124,7 +124,7 @@ func getCredentialsFromCredentialRef(client ctrlClient.Client, ctx context.Conte
 	secret := &corev1.Secret{}
 	var secretKey ctrlClient.ObjectKey
 
-	//allows for future types
+	// allows for future types
 	switch credentialRef.Kind {
 	case infrav1.SecretKind:
 		secretKey = ctrlClient.ObjectKey{

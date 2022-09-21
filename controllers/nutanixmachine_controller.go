@@ -47,8 +47,8 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
-	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/pkg/nutanix/v3"
-	"github.com/nutanix-cloud-native/prism-go-client/pkg/utils"
+	"github.com/nutanix-cloud-native/prism-go-client/utils"
+	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 )
 
 const (
@@ -209,6 +209,7 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 }
 
 func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (reconcile.Result, error) {
+	ctx := rctx.Context
 	client := rctx.NutanixClient
 	vmName := rctx.NutanixMachine.Name
 	klog.Infof("%s Handling NutanixMachine deletion of VM: %s", rctx.LogPrefix, vmName)
@@ -219,7 +220,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	} else {
 		// Search for VM by UUID
 		vmUUID := rctx.NutanixMachine.Status.VmUUID
-		vm, err := findVMByUUID(client, vmUUID)
+		vm, err := findVMByUUID(ctx, client, vmUUID)
 		// Error while finding VM
 		if err != nil {
 			errorMsg := fmt.Errorf("%v: error finding vm %s with uuid %s: %v", rctx.LogPrefix, vmName, vmUUID, err)
@@ -240,7 +241,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 				return reconcile.Result{}, errorMsg
 			}
 			klog.Infof("%s checking if VM %s with UUID %s has in progress tasks", rctx.LogPrefix, vmName, vmUUID)
-			taskInProgress, err := hasTaskInProgress(rctx.NutanixClient, lastTaskUUID)
+			taskInProgress, err := hasTaskInProgress(ctx, rctx.NutanixClient, lastTaskUUID)
 			if err != nil {
 				klog.Warningf("%s error occurred while checking task %s for VM %s... err: %v ....Trying to delete VM", rctx.LogPrefix, lastTaskUUID, vmName, vmUUID, err)
 			}
@@ -250,7 +251,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 			}
 			klog.Infof("%s No running tasks anymore... Initiating delete for vm %s with UUID %s", rctx.LogPrefix, vmName, vmUUID)
 			// Delete the VM since the VM was found (err was nil)
-			deleteTaskUUID, err := deleteVM(client, vmName, vmUUID)
+			deleteTaskUUID, err := deleteVM(ctx, client, vmName, vmUUID)
 			if err != nil {
 				errorMsg := fmt.Errorf("Failed to delete VM %s with UUID %s: %v", vmName, vmUUID, err)
 				conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, errorMsg.Error())
@@ -468,11 +469,12 @@ func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineConte
 func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nutanixClientV3.VMIntentResponse, error) {
 	var err error
 	var vm *nutanixClientV3.VMIntentResponse
+	ctx := rctx.Context
 	vmName := rctx.NutanixMachine.Name
 	client := rctx.NutanixClient
 
 	// Check if the VM already exists
-	vm, err = findVM(client, rctx.NutanixMachine)
+	vm, err = findVM(ctx, client, rctx.NutanixMachine)
 	if err != nil {
 		klog.Errorf("%s error occurred finding VM %s by name or uuid %s: %v", rctx.LogPrefix, vmName, err)
 		return nil, err
@@ -492,7 +494,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		}
 
 		// Get PE UUID
-		peUUID, err := getPEUUID(client, rctx.NutanixMachine.Spec.Cluster.Name, rctx.NutanixMachine.Spec.Cluster.UUID)
+		peUUID, err := getPEUUID(ctx, client, rctx.NutanixMachine.Spec.Cluster.Name, rctx.NutanixMachine.Spec.Cluster.UUID)
 		if err != nil {
 			errorMsg := fmt.Errorf("Failed to get the Prism Element Cluster UUID to create the VM %s. %v", vmName, err)
 			rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
@@ -501,7 +503,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		}
 
 		// Get Subnet UUIDs
-		subnetUUIDs, err := getSubnetUUIDList(client, rctx.NutanixMachine.Spec.Subnets, peUUID)
+		subnetUUIDs, err := getSubnetUUIDList(ctx, client, rctx.NutanixMachine.Spec.Subnets, peUUID)
 		if err != nil {
 			errorMsg := fmt.Errorf("Failed to get the subnet UUIDs to create the VM %s. %v", vmName, err)
 			klog.Errorf("%s %v", rctx.LogPrefix, vmName, err)
@@ -511,6 +513,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 
 		// Get Image UUID
 		imageUUID, err := getImageUUID(
+			ctx,
 			client,
 			rctx.NutanixMachine.Spec.Image.Name,
 			rctx.NutanixMachine.Spec.Image.UUID,
@@ -563,7 +566,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		}
 
 		// Set Categories to VM Sepc before creating VM
-		categories, err := getCategoryVMSpec(client, r.getMachineCategoryIdentifiers(rctx))
+		categories, err := getCategoryVMSpec(ctx, client, r.getMachineCategoryIdentifiers(rctx))
 		if err != nil {
 			errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %v", vmName, err)
 			rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
@@ -620,7 +623,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		vmInput.Metadata = vmMetadataPtr
 
 		// Create the actual VM/Machine
-		vmResponse, err := client.V3.CreateVM(&vmInput)
+		vmResponse, err := client.V3.CreateVM(ctx, &vmInput)
 		if err != nil {
 			errorMsg := fmt.Errorf("Failed to create VM %s. error: %v", vmName, err)
 			rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
@@ -640,7 +643,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		}
 		klog.Infof("%s Waiting for task %s to get completed for VM %s", rctx.LogPrefix,
 			lastTaskUUID, rctx.NutanixMachine.Name)
-		err = nutanixClient.WaitForTaskCompletion(client, lastTaskUUID)
+		err = nutanixClient.WaitForTaskCompletion(ctx, client, lastTaskUUID)
 		if err != nil {
 			errorMsg := fmt.Errorf("%s  error occurred while waiting for task %s to start: %v", rctx.LogPrefix, lastTaskUUID, err)
 			klog.Error(errorMsg)
@@ -649,7 +652,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		}
 		klog.Infof("%s Fetching VM after creation %s", rctx.LogPrefix,
 			lastTaskUUID, rctx.NutanixMachine.Name)
-		vm, err = findVMByUUID(client, vmUuid)
+		vm, err = findVMByUUID(ctx, client, vmUuid)
 		if err != nil {
 			errorMsg := fmt.Errorf("%s  error occurred while getting VM %s after creation: %v", rctx.LogPrefix, rctx.NutanixMachine.Name, err)
 			klog.Error(errorMsg)
@@ -781,7 +784,7 @@ func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vmM
 		conditions.MarkFalse(rctx.NutanixMachine, infrav1.ProjectAssignedCondition, infrav1.ProjectAssignationFailed, capiv1.ConditionSeverityError, errorMsg.Error())
 		return errorMsg
 	}
-	projectUUID, err := getProjectUUID(rctx.NutanixClient, projectRef.Name, projectRef.UUID)
+	projectUUID, err := getProjectUUID(rctx.Context, rctx.NutanixClient, projectRef.Name, projectRef.UUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("%s error occurred while searching for project for VM %s: %v", rctx.LogPrefix, vmName, err)
 		klog.Error(errorMsg)

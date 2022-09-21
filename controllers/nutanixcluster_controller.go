@@ -55,7 +55,6 @@ type NutanixClusterReconciler struct {
 
 // SetupWithManager sets up the NutanixCluster controller with the Manager.
 func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
-
 	return ctrl.NewControllerManagedBy(mgr).
 		// Watch the controlled, infrastructure resource.
 		For(&infrav1.NutanixCluster{}).
@@ -88,7 +87,6 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, reterr error) {
-	//log := r.Logger.WithValues("namespace", req.Namespace, "name", req.Name)
 	logPrefix := fmt.Sprintf("NutanixCluster[namespace: %s, name: %s]", req.Namespace, req.Name)
 	klog.Infof("%s Reconciling the NutanixCluster.", logPrefix)
 
@@ -205,7 +203,6 @@ func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (r
 }
 
 func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (reconcile.Result, error) {
-
 	if rctx.NutanixCluster.Status.FailureReason != nil || rctx.NutanixCluster.Status.FailureMessage != nil {
 		klog.Errorf("Nutanix Cluster has failed. Will not reconcile %s", rctx.NutanixCluster.Name)
 		return reconcile.Result{}, nil
@@ -237,7 +234,7 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 func (r *NutanixClusterReconciler) reconcileCategories(rctx *nctx.ClusterContext) error {
 	klog.Infof("%s Reconciling categories for cluster %s", rctx.LogPrefix, rctx.Cluster.Name)
 	defaultCategories := getDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-	_, err := getOrCreateCategories(rctx.NutanixClient, defaultCategories)
+	_, err := getOrCreateCategories(rctx.Context, rctx.NutanixClient, defaultCategories)
 	if err != nil {
 		conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.ClusterCategoryCreationFailed, capiv1.ConditionSeverityError, err.Error())
 		return err
@@ -251,7 +248,7 @@ func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterC
 	if conditions.IsTrue(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) ||
 		conditions.GetReason(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) == infrav1.DeletionFailed {
 		defaultCategories := getDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-		err := deleteCategories(rctx.NutanixClient, defaultCategories)
+		err := deleteCategories(rctx.Context, rctx.NutanixClient, defaultCategories)
 		if err != nil {
 			conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, err.Error())
 			return err

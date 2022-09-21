@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/pkg/nutanix/v3"
+	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gstruct"
 	corev1 "k8s.io/api/core/v1"
@@ -79,12 +79,12 @@ type testHelperInterface interface {
 	getNutanixMachineForCluster(ctx context.Context, clusterName, namespace, machineName string, bootstrapClusterProxy framework.ClusterProxy) *infrav1.NutanixMachine
 	getNutanixMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *infrav1.NutanixMachineList
 	getNutanixClusterByName(ctx context.Context, input getNutanixClusterByNameInput) *infrav1.NutanixCluster
-	getNutanixVMsForCluster(clusterName, namespace string) []*prismGoClientV3.VMIntentResponse
+	getNutanixVMsForCluster(ctx context.Context, clusterName, namespace string) []*prismGoClientV3.VMIntentResponse
 	getNutanixResourceIdentifierFromEnv(envVarKey string) infrav1.NutanixResourceIdentifier
 	getNutanixResourceIdentifierFromE2eConfig(variableKey string) infrav1.NutanixResourceIdentifier
 	stripNutanixIDFromProviderID(providerID string) string
-	verifyCategoryExists(categoryKey, categoyValue string)
-	verifyCategoriesNutanixMachines(clusterName, namespace string, expectedCategories map[string]string)
+	verifyCategoryExists(ctx context.Context,categoryKey, categoyValue string)
+	verifyCategoriesNutanixMachines(ctx context.Context, clusterName, namespace string, expectedCategories map[string]string)
 	verifyConditionOnNutanixCluster(params verifyConditionParams)
 	verifyConditionOnNutanixMachines(params verifyConditionParams)
 	verifyFailureMessageOnClusterMachines(ctx context.Context, params verifyFailureMessageOnClusterMachinesParams)
@@ -312,14 +312,14 @@ func (t testHelper) getNutanixMachinesForCluster(ctx context.Context, clusterNam
 	return machineList
 }
 
-func (t testHelper) getNutanixVMsForCluster(clusterName, namespace string) []*prismGoClientV3.VMIntentResponse {
+func (t testHelper) getNutanixVMsForCluster(ctx context.Context, clusterName, namespace string) []*prismGoClientV3.VMIntentResponse {
 	nutanixMachines := t.getMachinesForCluster(ctx, clusterName, namespace, bootstrapClusterProxy)
 	vms := make([]*prismGoClientV3.VMIntentResponse, 0)
 	for _, m := range nutanixMachines.Items {
 		machineProviderID := m.Spec.ProviderID
 		Expect(machineProviderID).NotTo(BeNil())
 		machineVmUUID := t.stripNutanixIDFromProviderID(*machineProviderID)
-		vm, err := t.nutanixClient.V3.GetVM(machineVmUUID)
+		vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 		Expect(err).ShouldNot(HaveOccurred())
 		vms = append(vms, vm)
 	}
@@ -349,18 +349,18 @@ func (t testHelper) stripNutanixIDFromProviderID(providerID string) string {
 	return strings.TrimPrefix(providerID, nutanixProviderIDPrefix)
 }
 
-func (t testHelper) verifyCategoryExists(categoryKey, categoryValue string) {
-	_, err := t.nutanixClient.V3.GetCategoryValue(categoryKey, categoryValue)
+func (t testHelper) verifyCategoryExists(ctx context.Context, categoryKey, categoryValue string) {
+	_, err := t.nutanixClient.V3.GetCategoryValue(ctx, categoryKey, categoryValue)
 	Expect(err).ShouldNot(HaveOccurred())
 }
 
-func (t testHelper) verifyCategoriesNutanixMachines(clusterName, namespace string, expectedCategories map[string]string) {
+func (t testHelper) verifyCategoriesNutanixMachines(ctx context.Context, clusterName, namespace string, expectedCategories map[string]string) {
 	nutanixMachines := t.getMachinesForCluster(ctx, clusterName, namespace, bootstrapClusterProxy)
 	for _, m := range nutanixMachines.Items {
 		machineProviderID := m.Spec.ProviderID
 		Expect(machineProviderID).NotTo(BeNil())
 		machineVmUUID := t.stripNutanixIDFromProviderID(*machineProviderID)
-		vm, err := t.nutanixClient.V3.GetVM(machineVmUUID)
+		vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 		Expect(err).ShouldNot(HaveOccurred())
 		categoriesMeta := vm.Metadata.Categories
 		for k, v := range expectedCategories {
@@ -472,7 +472,7 @@ func (t testHelper) verifyProjectNutanixMachines(ctx context.Context, params ver
 		machineProviderID := m.Spec.ProviderID
 		Expect(machineProviderID).NotTo(BeEmpty())
 		machineVmUUID := t.stripNutanixIDFromProviderID(machineProviderID)
-		vm, err := t.nutanixClient.V3.GetVM(machineVmUUID)
+		vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 		Expect(err).ShouldNot(HaveOccurred())
 		assignedProjectName := *vm.Metadata.ProjectReference.Name
 		Expect(assignedProjectName).To(Equal(params.nutanixProjectName))

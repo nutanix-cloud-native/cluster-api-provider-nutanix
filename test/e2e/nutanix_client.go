@@ -25,8 +25,8 @@ import (
 	"os"
 	"strconv"
 
-	prismGoClient "github.com/nutanix-cloud-native/prism-go-client/pkg/nutanix"
-	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/pkg/nutanix/v3"
+	prismGoClient "github.com/nutanix-cloud-native/prism-go-client"
+	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 
