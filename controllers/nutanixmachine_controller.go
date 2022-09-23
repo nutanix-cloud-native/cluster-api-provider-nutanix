@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/klog/v2"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -72,7 +73,8 @@ func init() {
 // NutanixMachineReconciler reconciles a NutanixMachine object
 type NutanixMachineReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	SecretInformer coreinformers.SecretInformer
+	Scheme         *runtime.Scheme
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -169,7 +171,7 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	client, err := CreateNutanixClient(ctx, r.Client, ntxCluster)
+	client, err := CreateNutanixClient(ctx, r.SecretInformer, ntxCluster)
 	if err != nil {
 		conditions.MarkFalse(ntxMachine, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
 		return ctrl.Result{Requeue: true}, fmt.Errorf("Client Auth error: %v", err)

@@ -89,6 +89,9 @@ spec:
                         description: Name of the credential.
                         minLength: 1
                         type: string
+                      namespace:
+                        description: namespace of the credential.
+                        type: string
                     required:
                     - kind
                     - name
@@ -109,8 +112,6 @@ spec:
                 - address
                 - port
                 type: object
-            required:
-            - prismCentral
             type: object
           status:
             description: NutanixClusterStatus defines the observed state of NutanixCluster
@@ -262,6 +263,9 @@ spec:
                         description: Name of the credential.
                         minLength: 1
                         type: string
+                      namespace:
+                        description: namespace of the credential.
+                        type: string
                     required:
                     - kind
                     - name
@@ -282,8 +286,6 @@ spec:
                 - address
                 - port
                 type: object
-            required:
-            - prismCentral
             type: object
           status:
             description: NutanixClusterStatus defines the observed state of NutanixCluster

@@ -21,7 +21,6 @@ package e2e
 
 import (
 	"context"
-	"os"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -52,8 +51,7 @@ var _ = Describe("Nutanix projects", Label("capx-feature-test", "projects", "slo
 
 	BeforeEach(func() {
 		testHelper = newTestHelper(e2eConfig)
-		nutanixProjectName = os.Getenv(nutanixProjectNameEnv)
-		Expect(nutanixProjectName).ToNot(BeEmpty(), "expected environment variable %s to be set", nutanixProjectNameEnv)
+		nutanixProjectName = testHelper.getVariableFromE2eConfig(nutanixProjectNameEnv)
 		clusterName = testHelper.generateTestClusterName(specName)
 		clusterResources = new(clusterctl.ApplyClusterTemplateAndWaitResult)
 		Expect(bootstrapClusterProxy).NotTo(BeNil(), "BootstrapClusterProxy can't be nil")
@@ -75,9 +73,9 @@ var _ = Describe("Nutanix projects", Label("capx-feature-test", "projects", "slo
 				Type: "name",
 				Name: pointer.StringPtr(nonExistingProjectName),
 			}
-			testHelper.createNutanixMachineTemplate(ctx, createNutanixMachineTemplateParams{
-				creator:                bootstrapClusterProxy.GetClient(),
-				nutanixMachineTemplate: invalidProjectNMT,
+			testHelper.createCapiObject(ctx, createCapiObjectParams{
+				creator:    bootstrapClusterProxy.GetClient(),
+				capiObject: invalidProjectNMT,
 			})
 		})
 

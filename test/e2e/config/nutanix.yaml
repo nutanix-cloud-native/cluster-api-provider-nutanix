@@ -140,7 +140,7 @@ providers:
           - sourcePath: "../../../metadata.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-secret.yaml"
-          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-credential-ref.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-nutanix-cluster.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-additional-categories.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-nmt.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-project.yaml"

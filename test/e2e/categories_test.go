@@ -147,9 +147,9 @@ var _ = Describe("Nutanix categories", Label("capx-feature-test", "categories", 
 					Value: defaultNonExistingAdditionalCategoryValue,
 				},
 			}
-			testHelper.createNutanixMachineTemplate(ctx, createNutanixMachineTemplateParams{
-				creator:                bootstrapClusterProxy.GetClient(),
-				nutanixMachineTemplate: invalidProjectNMT,
+			testHelper.createCapiObject(ctx, createCapiObjectParams{
+				creator:    bootstrapClusterProxy.GetClient(),
+				capiObject: invalidProjectNMT,
 			})
 		})
 

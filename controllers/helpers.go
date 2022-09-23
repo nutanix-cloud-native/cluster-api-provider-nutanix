@@ -28,8 +28,8 @@ import (
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"k8s.io/apimachinery/pkg/api/resource"
+	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/klog/v2"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -37,23 +37,13 @@ const (
 	serviceNamePECluster = "AOS"
 )
 
-func CreateNutanixClient(ctx context.Context, client client.Client, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
-	creds, err := nutanixClientHelper.GetConnectionInfo(client, ctx, nutanixCluster)
+func CreateNutanixClient(ctx context.Context, secretInformer coreinformers.SecretInformer, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
+	helper, err := nutanixClientHelper.NewNutanixClientHelper(ctx, secretInformer)
 	if err != nil {
-		klog.Errorf("Error getting connection info for creating Nutanix client: %v", err)
+		klog.Errorf("error creating nutanix client helper: %v", err)
 		return nil, err
 	}
-	c, err := nutanixClientHelper.Client(*creds, nutanixClientHelper.ClientOptions{})
-	if err != nil {
-		klog.Errorf("Error creating Nutanix client: %v", err)
-		return nil, err
-	}
-	_, err = c.V3.GetCurrentLoggedInUser(ctx)
-	if err != nil {
-		klog.Errorf("Error validating Nutanix client connection: %v", err)
-		return nil, err
-	}
-	return c, nil
+	return helper.GetClientFromEnvironment(nutanixCluster)
 }
 
 // deleteVM deletes a VM and is invoked by the NutanixMachineReconciler

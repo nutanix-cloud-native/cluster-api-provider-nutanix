@@ -115,12 +115,8 @@ func initNutanixClient(e2eConfig clusterctl.E2EConfig) (*prismGoClientV3.Client,
 		return nil, err
 	}
 
-	nutanixClient, err := nutanixClientHelper.Client(*creds, nutanixClientHelper.ClientOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = nutanixClient.V3.GetCurrentLoggedInUser(ctx)
+	nch := nutanixClientHelper.NutanixClientHelper{}
+	nutanixClient, err := nch.GetClient(*creds)
 	if err != nil {
 		return nil, err
 	}

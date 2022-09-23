@@ -1321,8 +1321,9 @@ metadata:
   name: ${CLUSTER_NAME}
   namespace: ${NAMESPACE}
 stringData:
-  NUTANIX_PASSWORD: ${NUTANIX_PASSWORD}
-  NUTANIX_USER: ${NUTANIX_USER}
+  credentials: "[\n  {\n    \"type\": \"basic_auth\", \n    \"data\": { \n      \"prismCentral\":{\n
+    \       \"username\": \"${NUTANIX_USER}\", \n        \"password\": \"${NUTANIX_PASSWORD}\"\n
+    \     }\n    }\n  }\n]\n"
 ---
 apiVersion: addons.cluster.x-k8s.io/v1beta1
 kind: ClusterResourceSet

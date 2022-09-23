@@ -22,7 +22,9 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"strconv"
 
+	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -35,6 +37,10 @@ import (
 var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client", "slow", "network"), func() {
 	const (
 		specName = "cluster-ntnx-client"
+
+		controlplaneEndpointIPKey       = "CONTROL_PLANE_ENDPOINT_IP"
+		controlplaneEndpointPortKey     = "CONTROL_PLANE_ENDPOINT_PORT"
+		defaultControlPlaneEndpointPort = 6443
 	)
 
 	var (
@@ -43,6 +49,9 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client", 
 		clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult
 		cancelWatches    context.CancelFunc
 		testHelper       testHelperInterface
+
+		controlplaneEndpointIP   string
+		controlplaneEndpointPort int32
 	)
 
 	BeforeEach(func() {
@@ -51,17 +60,51 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client", 
 		clusterResources = new(clusterctl.ApplyClusterTemplateAndWaitResult)
 		Expect(bootstrapClusterProxy).NotTo(BeNil(), "BootstrapClusterProxy can't be nil")
 		namespace, cancelWatches = setupSpecNamespace(ctx, specName, bootstrapClusterProxy, artifactFolder)
+		controlplaneEndpointIP = testHelper.getVariableFromE2eConfig(controlplaneEndpointIPKey)
+		controlplaneEndpointPort = defaultControlPlaneEndpointPort
+		if e2eConfig.HasVariable(controlplaneEndpointPortKey) {
+			controlplaneEndpointPortInt, err := strconv.Atoi(e2eConfig.GetVariable(controlplaneEndpointPortKey))
+			Expect(err).ToNot(HaveOccurred())
+			controlplaneEndpointPort = int32(controlplaneEndpointPortInt)
+		}
 	})
+
 	AfterEach(func() {
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, clusterResources.Cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	It("Create a cluster without credentialRef (use default credentials)", func() {
-		flavor = "no-credential-ref"
+	// credentialRef is a mandatory parameters for the prismCentral attribute
+	It("Create a cluster without credentialRef (should fail)", func() {
+		flavor = "no-nutanix-cluster"
 		Expect(namespace).NotTo(BeNil())
 
+		By("Creating NutanixCluster resource without credentialRef", func() {
+			ntnxCluster := testHelper.createDefaultNutanixCluster(
+				clusterName,
+				namespace.Name,
+				controlplaneEndpointIP,
+				controlplaneEndpointPort,
+			)
+
+			ntnxCreds, err := getNutanixCredentials(*e2eConfig)
+			Expect(err).ToNot(HaveOccurred())
+
+			ntnxPort, err := strconv.Atoi(ntnxCreds.Port)
+			Expect(err).ToNot(HaveOccurred())
+
+			ntnxCluster.Spec.PrismCentral = &credentialTypes.NutanixPrismEndpoint{
+				Address:  ntnxCreds.Endpoint,
+				Port:     int32(ntnxPort),
+				Insecure: ntnxCreds.Insecure,
+			}
+			testHelper.createCapiObject(ctx, createCapiObjectParams{
+				creator:    bootstrapClusterProxy.GetClient(),
+				capiObject: ntnxCluster,
+			})
+		})
+
 		By("Creating a workload cluster", func() {
-			testHelper.deployClusterAndWait(
+			testHelper.deployCluster(
 				deployClusterParams{
 					clusterName:           clusterName,
 					namespace:             namespace,
@@ -72,7 +115,53 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client", 
 				}, clusterResources)
 		})
 
-		By("checking cluster prism client init condition is true", func() {
+		By("Checking CredentialRefSecretOwnerSet condition is false", func() {
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
+				clusterName:           clusterName,
+				namespace:             namespace,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+				expectedCondition: clusterv1.Condition{
+					Type:     infrav1.CredentialRefSecretOwnerSetCondition,
+					Status:   corev1.ConditionFalse,
+					Reason:   infrav1.CredentialRefSecretOwnerSetFailed,
+					Severity: clusterv1.ConditionSeverityError,
+				},
+			})
+		})
+
+		By("PASSED!")
+	})
+
+	It("Create a cluster without prismCentral attribute (use default credentials)", func() {
+		flavor = "no-nutanix-cluster"
+		Expect(namespace).NotTo(BeNil())
+
+		By("Creating NutanixCluster resource without credentialRef", func() {
+			ntnxCluster := testHelper.createDefaultNutanixCluster(
+				clusterName,
+				namespace.Name,
+				controlplaneEndpointIP,
+				controlplaneEndpointPort,
+			)
+
+			testHelper.createCapiObject(ctx, createCapiObjectParams{
+				creator:    bootstrapClusterProxy.GetClient(),
+				capiObject: ntnxCluster,
+			})
+		})
+
+		By("Creating a workload cluster", func() {
+			testHelper.deployCluster(
+				deployClusterParams{
+					clusterName:           clusterName,
+					namespace:             namespace,
+					flavor:                flavor,
+					clusterctlConfigPath:  clusterctlConfigPath,
+					artifactFolder:        artifactFolder,
+					bootstrapClusterProxy: bootstrapClusterProxy,
+				}, clusterResources)
+		})
+		By("Checking cluster prism client init condition is true", func() {
 			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
 				clusterName:           clusterName,
 				namespace:             namespace,
@@ -127,7 +216,7 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client", 
 			})
 		})
 
-		By("checking cluster credential condition is true", func() {
+		By("Checking cluster credential condition is true", func() {
 			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
 				clusterName:           clusterName,
 				namespace:             namespace,
@@ -139,7 +228,7 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client", 
 			})
 		})
 
-		By("checking cluster prism client init condition is true", func() {
+		By("Checking cluster prism client init condition is true", func() {
 			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
 				clusterName:           clusterName,
 				namespace:             namespace,

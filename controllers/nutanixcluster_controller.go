@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/klog/v2"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -49,8 +50,9 @@ import (
 
 // NutanixClusterReconciler reconciles a NutanixCluster object
 type NutanixClusterReconciler struct {
-	Client client.Client
-	Scheme *runtime.Scheme
+	Client         client.Client
+	SecretInformer coreinformers.SecretInformer
+	Scheme         *runtime.Scheme
 }
 
 // SetupWithManager sets up the NutanixCluster controller with the Manager.
@@ -150,7 +152,7 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	conditions.MarkTrue(cluster, infrav1.CredentialRefSecretOwnerSetCondition)
 
-	client, err := CreateNutanixClient(ctx, r.Client, cluster)
+	client, err := CreateNutanixClient(ctx, r.SecretInformer, cluster)
 	if err != nil {
 		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
 		return ctrl.Result{Requeue: true}, fmt.Errorf("Nutanix Client error: %v", err)

@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/errors"
@@ -47,8 +48,8 @@ type NutanixClusterSpec struct {
 	// When a cluster-wide proxy is installed, by default, this endpoint will be accessed via the proxy.
 	// Should you wish for communication with this endpoint not to be proxied, please add the endpoint to the
 	// proxy spec.noProxy list.
-	// +kubebuilder:validation:Required
-	PrismCentral NutanixPrismEndpoint `json:"prismCentral"`
+	// +optional
+	PrismCentral *credentialTypes.NutanixPrismEndpoint `json:"prismCentral"`
 }
 
 // NutanixClusterStatus defines the observed state of NutanixCluster
@@ -107,46 +108,6 @@ type NutanixClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []NutanixCluster `json:"items"`
-}
-
-// NutanixPrismEndpoint holds the endpoint address and port to access the Nutanix Prism Central or Element (cluster)
-type NutanixPrismEndpoint struct {
-	// address is the endpoint address (DNS name or IP address) of the Nutanix Prism Central or Element (cluster)
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MaxLength=256
-	Address string `json:"address"`
-
-	// port is the port number to access the Nutanix Prism Central or Element (cluster)
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=65535
-	// +kubebuilder:default=9440
-	Port int32 `json:"port"`
-
-	// use insecure connection to Prism endpoint
-	// +kubebuilder:default=false
-	// +optional
-	Insecure bool `json:"insecure"`
-
-	// Pass credential information for the target Prism instance
-	// +optional
-	CredentialRef *NutanixCredentialReference `json:"credentialRef,omitempty"`
-}
-
-type NutanixCredentialKind string
-
-var (
-	SecretKind = NutanixCredentialKind("Secret")
-)
-
-type NutanixCredentialReference struct {
-	// Kind of the Nutanix credential
-	// +kubebuilder:validation:Enum=Secret
-	Kind NutanixCredentialKind `json:"kind"`
-
-	// Name of the credential.
-	// +kubebuilder:validation:MinLength=1
-	Name string `json:"name"`
 }
 
 func init() {

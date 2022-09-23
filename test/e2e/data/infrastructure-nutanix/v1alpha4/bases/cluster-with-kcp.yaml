@@ -21,8 +21,18 @@ metadata:
   name: "${CLUSTER_NAME}"
   namespace: "${NAMESPACE}"
 stringData:
-  NUTANIX_PASSWORD: "${NUTANIX_PASSWORD}"
-  NUTANIX_USER: "${NUTANIX_USER}"
+  credentials: |
+    [
+      {
+        "type": "basic_auth", 
+        "data": { 
+          "prismCentral":{
+            "username": "${NUTANIX_USER}", 
+            "password": "${NUTANIX_PASSWORD}"
+          }
+        }
+      }
+    ]
 
 ---
 apiVersion: cluster.x-k8s.io/v1alpha4

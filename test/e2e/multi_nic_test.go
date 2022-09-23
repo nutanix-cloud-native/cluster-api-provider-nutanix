@@ -74,9 +74,9 @@ var _ = Describe("Nutanix Subnets", Label("capx-feature-test", "multi-nic", "slo
 				testHelper.getNutanixResourceIdentifierFromE2eConfig(additionalSubnetVarKey),
 			)
 			nmtSubnets = multiNicNMT.Spec.Template.Spec.Subnets
-			testHelper.createNutanixMachineTemplate(ctx, createNutanixMachineTemplateParams{
-				creator:                bootstrapClusterProxy.GetClient(),
-				nutanixMachineTemplate: multiNicNMT,
+			testHelper.createCapiObject(ctx, createCapiObjectParams{
+				creator:    bootstrapClusterProxy.GetClient(),
+				capiObject: multiNicNMT,
 			})
 		})
 
