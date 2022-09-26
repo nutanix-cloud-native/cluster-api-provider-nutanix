@@ -100,3 +100,9 @@ _artifacts
 
 # vscode directories
 .vscode
+
+# Makefile default RELEASE_DIR
+out
+
+# github.com
+github.com

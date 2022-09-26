@@ -74,8 +74,7 @@ jobs:
         NEW_IMG: ghcr.io/${{ github.repository }}/controller:${{ steps.meta.outputs.version }}
       run: |
         (cd config/manager && kustomize edit set image controller=$NEW_IMG)
-        kustomize build config/default > infrastructure-components.yaml
-        make cluster-templates
+        make release-manifests
 
     - name: generate image info
       env:
@@ -95,6 +94,6 @@ jobs:
         generate_release_notes: true
         append_body: true
         files: |
-          infrastructure-components.yaml
-          metadata.yaml
-          templates/cluster-template*.yaml
+          out/infrastructure-components.yaml
+          out/metadata.yaml
+          out/cluster-template*.yaml
