@@ -20,7 +20,7 @@ jobs:
         run: make build
 
       - name: Run Synopsys Detect
-        uses: synopsys-sig/detect-action@v0.3.2
+        uses: synopsys-sig/detect-action@v0.3.3
         with:
           scan-mode: INTELLIGENT
           github-token: ${{ secrets.GITHUB_TOKEN }}
