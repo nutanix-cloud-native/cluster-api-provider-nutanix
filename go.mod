@@ -6,7 +6,7 @@ require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/nutanix-cloud-native/prism-go-client v0.2.0
 	github.com/onsi/ginkgo/v2 v2.1.6
-	github.com/onsi/gomega v1.20.1
+	github.com/onsi/gomega v1.20.2
 	github.com/pkg/errors v0.9.1
 	k8s.io/api v0.25.2
 	k8s.io/apimachinery v0.25.2
