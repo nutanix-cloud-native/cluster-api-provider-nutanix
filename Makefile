@@ -40,6 +40,7 @@ E2E_FRAMEWORK_DIR := $(TEST_DIR)/framework
 CAPD_DIR := $(TEST_DIR)/infrastructure/docker
 GO_INSTALL := $(REPO_ROOT)/scripts/go_install.sh
 NUTANIX_E2E_TEMPLATES := ${E2E_DIR}/data/infrastructure-nutanix
+RELEASE_DIR ?= $(REPO_ROOT)/out
 
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 
@@ -175,6 +176,13 @@ help: ## Display this help.
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+
+.PHONY: release-manifests
+release-manifests: manifests cluster-templates
+	mkdir -p $(RELEASE_DIR)
+	$(KUSTOMIZE) build config/default > $(RELEASE_DIR)/infrastructure-components.yaml
+	cp $(TEMPLATES_DIR)/cluster-template*.yaml $(RELEASE_DIR)
+	cp $(REPO_ROOT)/metadata.yaml $(RELEASE_DIR)/metadata.yaml
 
 .PHONY: generate
 generate: controller-gen conversion-gen ## Generate code containing DeepCopy, DeepCopyInto, DeepCopyObject method implementations and API conversion implementations.
