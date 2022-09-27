@@ -3,8 +3,8 @@
 ---
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/nutanix-cloud-native/cluster-api-provider-nutanix)](https://goreportcard.com/report/github.com/nutanix-cloud-native/cluster-api-provider-nutanix)
-![CI](https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/actions/workflows/build-dev.yaml/badge.svg)
-![Release](https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/actions/workflows/release.yaml/badge.svg)
+[![CI](https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/actions/workflows/build-dev.yaml/badge.svg)](https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/actions/workflows/build-dev.yaml)
+[![Release](https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/actions/workflows/release.yaml/badge.svg)](https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/actions/workflows/release.yaml)
 
 [![release](https://img.shields.io/github/release-pre/nutanix-cloud-native/cluster-api-provider-nutanix.svg)](https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/blob/master/LICENSE)
