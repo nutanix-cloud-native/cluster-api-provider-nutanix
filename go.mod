@@ -1,6 +1,6 @@
 module github.com/nutanix-cloud-native/cluster-api-provider-nutanix
 
-go 1.17
+go 1.19
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
@@ -136,3 +136,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
+
+replace golang.org/x/net v0.0.0-20220812174116-3211cb980234 => golang.org/x/net v0.0.0-20220906165146-f3363e06e74c
