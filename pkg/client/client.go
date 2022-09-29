@@ -18,29 +18,106 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixClient "github.com/nutanix-cloud-native/prism-go-client/pkg/nutanix"
-	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/pkg/nutanix/v3"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/klog/v2"
-	ctrlClient "sigs.k8s.io/controller-runtime/pkg/client"
+	prismgoclient "github.com/nutanix-cloud-native/prism-go-client"
+	"github.com/nutanix-cloud-native/prism-go-client/environment"
+	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
+	kubernetesEnv "github.com/nutanix-cloud-native/prism-go-client/environment/providers/kubernetes"
+	envTypes "github.com/nutanix-cloud-native/prism-go-client/environment/types"
+	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+	coreinformers "k8s.io/client-go/informers/core/v1"
+	"k8s.io/klog"
 )
 
 const (
 	defaultEndpointPort = "9440"
 	ProviderName        = "nutanix"
-	nutanixUsernameKey  = "NUTANIX_USER"
-	nutanixPasswordKey  = "NUTANIX_PASSWORD"
+	configPath          = "/etc/nutanix/config"
+	endpointKey         = "prismCentral"
+	capxNamespaceKey    = "POD_NAMESPACE"
 )
 
-type ClientOptions struct {
-	Debug bool
+type NutanixClientHelper struct {
+	secretInformer coreinformers.SecretInformer
 }
 
-func Client(cred nutanixClient.Credentials, options ClientOptions) (*nutanixClientV3.Client, error) {
+func NewNutanixClientHelper(ctx context.Context, secretInformer coreinformers.SecretInformer) (*NutanixClientHelper, error) {
+	return &NutanixClientHelper{
+		secretInformer: secretInformer,
+	}, nil
+}
+
+func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
+	// Create a list of env providers
+	providers := make([]envTypes.Provider, 0)
+
+	// If PrismCentral is set, add the required env provider
+	prismCentralInfo := nutanixCluster.Spec.PrismCentral
+	if prismCentralInfo != nil {
+		if prismCentralInfo.Address == "" {
+			return nil, fmt.Errorf("cannot get credentials if Prism Address is not set")
+		}
+		if prismCentralInfo.Port == 0 {
+			return nil, fmt.Errorf("cannot get credentials if Prism Port is not set")
+		}
+		credentialRef := prismCentralInfo.CredentialRef
+		if credentialRef == nil {
+			return nil, fmt.Errorf("credentialRef must be set on prismCentral attribute for cluster %s in namespace %s", nutanixCluster.Name, nutanixCluster.Namespace)
+		}
+		// If namespace is empty, use the cluster namespace
+		if credentialRef.Namespace == "" {
+			credentialRef.Namespace = nutanixCluster.Namespace
+		}
+		providers = append(providers, kubernetesEnv.NewProvider(
+			*nutanixCluster.Spec.PrismCentral,
+			n.secretInformer))
+	} else {
+		klog.Warningf("[WARNING] prismCentral attribute was not set on NutanixCluster %s in namespace %s. Defaulting to CAPX manager credentials", nutanixCluster.Name, nutanixCluster.Namespace)
+	}
+
+	// Add env provider for CAPX manager
+	npe, err := n.getManagerNutanixPrismEndpoint()
+	if err != nil {
+		return nil, err
+	}
+	// If namespaces is not set, set it to the namespace of the CAPX manager
+	if npe.CredentialRef.Namespace == "" {
+		capxNamespace := os.Getenv(capxNamespaceKey)
+		if capxNamespace == "" {
+			return nil, fmt.Errorf("failed to retrieve capx-namespace. Make sure %s env variable is set", capxNamespaceKey)
+		}
+		npe.CredentialRef.Namespace = capxNamespace
+	}
+	providers = append(providers, kubernetesEnv.NewProvider(
+		*npe,
+		n.secretInformer))
+
+	// init env with providers
+	env := environment.NewEnvironment(
+		providers...,
+	)
+	// fetch endpoint details
+	me, err := env.GetManagementEndpoint(envTypes.Topology{})
+	if err != nil {
+		return nil, err
+	}
+	creds := prismgoclient.Credentials{
+		URL:      me.Address.Host,
+		Endpoint: me.Address.Host,
+		Insecure: me.Insecure,
+		Username: me.ApiCredentials.Username,
+		Password: me.ApiCredentials.Password,
+	}
+
+	return n.GetClient(creds)
+}
+
+func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials) (*nutanixClientV3.Client, error) {
 	if cred.Username == "" {
 		errorMsg := fmt.Errorf("could not create client because username was not set")
 		klog.Error(errorMsg)
@@ -63,117 +140,54 @@ func Client(cred nutanixClient.Credentials, options ClientOptions) (*nutanixClie
 		return nil, err
 	}
 
+	// Check if the client is working
+	_, err = cli.V3.GetCurrentLoggedInUser(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
 	return cli, nil
 }
 
-func GetConnectionInfo(client ctrlClient.Client, ctx context.Context, nutanixCluster *infrav1.NutanixCluster) (*nutanixClient.Credentials, error) {
-	prismCentralInfo := nutanixCluster.Spec.PrismCentral
-	if prismCentralInfo.Address == "" {
-		return nil, fmt.Errorf("cannot get credentials if Prism Address is not set")
-	}
-	if prismCentralInfo.Port == 0 {
-		return nil, fmt.Errorf("cannot get credentials if Prism Port is not set")
-	}
-	var credentials *nutanixClient.Credentials
-	var err error
-	credentialRef := prismCentralInfo.CredentialRef
-	if credentialRef == nil {
-		klog.Infof("Using credential information from manager environment for cluster %s", nutanixCluster.Name)
-		credentials, err = getCredentialsFromEnv()
-	} else {
-		credentials, err = getCredentialsFromCredentialRef(client, ctx, nutanixCluster)
-	}
+func (n *NutanixClientHelper) getManagerNutanixPrismEndpoint() (*credentialTypes.NutanixPrismEndpoint, error) {
+	npe := &credentialTypes.NutanixPrismEndpoint{}
+	config, err := n.readEndpointConfig()
 	if err != nil {
-		errorMsg := fmt.Errorf("error occurred fetching credentials for cluster %s: %v", nutanixCluster.Name, err)
-		klog.Error(errorMsg)
-		return nil, errorMsg
+		return npe, err
 	}
-	credentials.Insecure = prismCentralInfo.Insecure
-	credentials.Port = fmt.Sprint(prismCentralInfo.Port)
-	credentials.Endpoint = prismCentralInfo.Address
-	return credentials, nil
+	if err = json.Unmarshal(config, npe); err != nil {
+		return npe, err
+	}
+	if npe.CredentialRef == nil {
+		return nil, fmt.Errorf("credentialRef must be set on CAPX manager")
+	}
+	return npe, nil
 }
 
-func GetCredentialRefForCluster(nutanixCluster *infrav1.NutanixCluster) (*infrav1.NutanixCredentialReference, error) {
+func (n *NutanixClientHelper) readEndpointConfig() ([]byte, error) {
+	if b, err := os.ReadFile(filepath.Join(configPath, endpointKey)); err == nil {
+		return b, err
+	} else if os.IsNotExist(err) {
+		return []byte{}, nil
+	} else {
+		return []byte{}, err
+	}
+}
+
+func GetCredentialRefForCluster(nutanixCluster *infrav1.NutanixCluster) (*credentialTypes.NutanixCredentialReference, error) {
 	if nutanixCluster == nil {
 		return nil, fmt.Errorf("cannot get credential reference if nutanix cluster object is nil")
 	}
 	prismCentralinfo := nutanixCluster.Spec.PrismCentral
+	if prismCentralinfo == nil {
+		return nil, nil
+	}
 	if prismCentralinfo.CredentialRef == nil {
+		return nil, fmt.Errorf("credentialRef must be set on prismCentral attribute for cluster %s in namespace %s", nutanixCluster.Name, nutanixCluster.Namespace)
+	}
+	if prismCentralinfo.CredentialRef.Kind != credentialTypes.SecretKind {
 		return nil, nil
 	}
-	if prismCentralinfo.CredentialRef.Kind != infrav1.SecretKind {
-		return nil, nil
-	}
+
 	return prismCentralinfo.CredentialRef, nil
-}
-
-func getCredentialsFromCredentialRef(client ctrlClient.Client, ctx context.Context, nutanixCluster *infrav1.NutanixCluster) (*nutanixClient.Credentials, error) {
-	klog.Infof("using credential ref defined in cluster %s", nutanixCluster.Name)
-	credentialRef, err := GetCredentialRefForCluster(nutanixCluster)
-	if err != nil {
-		errorMsg := fmt.Errorf("error occurred fetching credential ref from cluster %s: %v", nutanixCluster.Name, err)
-		klog.Error(errorMsg)
-		return nil, errorMsg
-	}
-	if credentialRef == nil {
-		errorMsg := fmt.Errorf("cannot use credentialRef to fetch credentials if it is nil for cluster %s", nutanixCluster.Name)
-		klog.Error(errorMsg)
-		return nil, errorMsg
-	}
-	secret := &corev1.Secret{}
-	var secretKey ctrlClient.ObjectKey
-
-	//allows for future types
-	switch credentialRef.Kind {
-	case infrav1.SecretKind:
-		secretKey = ctrlClient.ObjectKey{
-			Namespace: nutanixCluster.Namespace,
-			Name:      credentialRef.Name,
-		}
-	default:
-		return nil, fmt.Errorf("unsupported type %s used for credential ref", credentialRef.Kind)
-	}
-
-	if err := client.Get(ctx, secretKey, secret); err != nil {
-		errorMsg := fmt.Errorf("error occurred getting secret %s in namespace %s: %v", credentialRef.Name, nutanixCluster.Namespace, err)
-		klog.Error(errorMsg)
-		return nil, errorMsg
-	}
-	return &nutanixClient.Credentials{
-		Username: getKeyFromSecret(secret, nutanixUsernameKey),
-		Password: getKeyFromSecret(secret, nutanixPasswordKey),
-	}, nil
-}
-
-func getCredentialsFromEnv() (*nutanixClient.Credentials, error) {
-	username := getEnvVar(nutanixUsernameKey)
-	if username == "" {
-		return nil, fmt.Errorf("failed to fetch NUTANIX_USER env variable")
-	}
-	password := getEnvVar(nutanixPasswordKey)
-	if password == "" {
-		return nil, fmt.Errorf("failed to fetch NUTANIX_PASSWORD env variable")
-	}
-
-	return &nutanixClient.Credentials{
-		Username: username,
-		Password: password,
-	}, nil
-}
-
-func getEnvVar(key string) (val string) {
-	if val, ok := os.LookupEnv(key); ok {
-		return val
-	}
-	return
-}
-
-func getKeyFromSecret(secret *corev1.Secret, key string) string {
-	if secret.Data != nil {
-		if val, ok := secret.Data[key]; ok {
-			return string(val)
-		}
-	}
-	return ""
 }

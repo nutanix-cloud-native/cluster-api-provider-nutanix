@@ -20,6 +20,7 @@ import (
 	"context"
 	"testing"
 
+	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -34,8 +35,7 @@ import (
 func TestNutanixClusterReconciler(t *testing.T) {
 	g := NewWithT(t)
 
-	var _ = Describe("NutanixClusterReconciler", func() {
-
+	_ = Describe("NutanixClusterReconciler", func() {
 		Context("Reconcile an NutanixCluster", func() {
 			It("should not error and not requeue the request", func() {
 				ctx := context.Background()
@@ -50,7 +50,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 						Namespace: "default",
 					},
 					Spec: infrav1.NutanixClusterSpec{
-						PrismCentral: infrav1.NutanixPrismEndpoint{
+						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
 							// Adding port info to override default value (0)
 							Port: 9440,
 						},

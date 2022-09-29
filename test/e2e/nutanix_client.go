@@ -25,8 +25,8 @@ import (
 	"os"
 	"strconv"
 
-	prismGoClient "github.com/nutanix-cloud-native/prism-go-client/pkg/nutanix"
-	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/pkg/nutanix/v3"
+	prismGoClient "github.com/nutanix-cloud-native/prism-go-client"
+	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 
@@ -115,12 +115,8 @@ func initNutanixClient(e2eConfig clusterctl.E2EConfig) (*prismGoClientV3.Client,
 		return nil, err
 	}
 
-	nutanixClient, err := nutanixClientHelper.Client(*creds, nutanixClientHelper.ClientOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = nutanixClient.V3.GetCurrentLoggedInUser(ctx)
+	nch := nutanixClientHelper.NutanixClientHelper{}
+	nutanixClient, err := nch.GetClient(*creds)
 	if err != nil {
 		return nil, err
 	}

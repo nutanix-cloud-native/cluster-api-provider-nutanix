@@ -92,14 +92,14 @@ var _ = Describe("Nutanix categories", Label("capx-feature-test", "categories", 
 		})
 
 		By("Checking if a category was created", func() {
-			testHelper.verifyCategoryExists(expectedCategoryKey, defaultClusterCategoryValue)
+			testHelper.verifyCategoryExists(ctx, expectedCategoryKey, defaultClusterCategoryValue)
 		})
 
 		By("Checking if there are VMs assigned to this category", func() {
 			expectedCategories := map[string]string{
 				expectedCategoryKey: defaultClusterCategoryValue,
 			}
-			testHelper.verifyCategoriesNutanixMachines(clusterName, namespace.Name, expectedCategories)
+			testHelper.verifyCategoriesNutanixMachines(ctx, clusterName, namespace.Name, expectedCategories)
 		})
 
 		By("PASSED!")
@@ -129,7 +129,7 @@ var _ = Describe("Nutanix categories", Label("capx-feature-test", "categories", 
 				"Environment":       "Dev",
 			}
 
-			testHelper.verifyCategoriesNutanixMachines(clusterName, namespace.Name, expectedCategories)
+			testHelper.verifyCategoriesNutanixMachines(ctx, clusterName, namespace.Name, expectedCategories)
 		})
 
 		By("PASSED!")
@@ -147,9 +147,9 @@ var _ = Describe("Nutanix categories", Label("capx-feature-test", "categories", 
 					Value: defaultNonExistingAdditionalCategoryValue,
 				},
 			}
-			testHelper.createNutanixMachineTemplate(ctx, createNutanixMachineTemplateParams{
-				creator:                bootstrapClusterProxy.GetClient(),
-				nutanixMachineTemplate: invalidProjectNMT,
+			testHelper.createCapiObject(ctx, createCapiObjectParams{
+				creator:    bootstrapClusterProxy.GetClient(),
+				capiObject: invalidProjectNMT,
 			})
 		})
 

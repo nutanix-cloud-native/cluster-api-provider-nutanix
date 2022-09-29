@@ -33,8 +33,7 @@ import (
 func TestNutanixMachineReconciler(t *testing.T) {
 	g := NewWithT(t)
 
-	var _ = Describe("NutanixMachineReconciler", func() {
-
+	_ = Describe("NutanixMachineReconciler", func() {
 		Context("Reconcile an NutanixMachine", func() {
 			It("should not error or requeue the request", func() {
 				By("Calling reconcile")

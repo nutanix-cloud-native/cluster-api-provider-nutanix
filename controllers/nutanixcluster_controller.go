@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/klog/v2"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -49,13 +50,13 @@ import (
 
 // NutanixClusterReconciler reconciles a NutanixCluster object
 type NutanixClusterReconciler struct {
-	Client client.Client
-	Scheme *runtime.Scheme
+	Client         client.Client
+	SecretInformer coreinformers.SecretInformer
+	Scheme         *runtime.Scheme
 }
 
 // SetupWithManager sets up the NutanixCluster controller with the Manager.
 func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
-
 	return ctrl.NewControllerManagedBy(mgr).
 		// Watch the controlled, infrastructure resource.
 		For(&infrav1.NutanixCluster{}).
@@ -88,7 +89,6 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, reterr error) {
-	//log := r.Logger.WithValues("namespace", req.Namespace, "name", req.Name)
 	logPrefix := fmt.Sprintf("NutanixCluster[namespace: %s, name: %s]", req.Namespace, req.Name)
 	klog.Infof("%s Reconciling the NutanixCluster.", logPrefix)
 
@@ -152,7 +152,7 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	conditions.MarkTrue(cluster, infrav1.CredentialRefSecretOwnerSetCondition)
 
-	client, err := CreateNutanixClient(ctx, r.Client, cluster)
+	client, err := CreateNutanixClient(ctx, r.SecretInformer, cluster)
 	if err != nil {
 		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
 		return ctrl.Result{Requeue: true}, fmt.Errorf("Nutanix Client error: %v", err)
@@ -205,7 +205,6 @@ func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (r
 }
 
 func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (reconcile.Result, error) {
-
 	if rctx.NutanixCluster.Status.FailureReason != nil || rctx.NutanixCluster.Status.FailureMessage != nil {
 		klog.Errorf("Nutanix Cluster has failed. Will not reconcile %s", rctx.NutanixCluster.Name)
 		return reconcile.Result{}, nil
@@ -237,7 +236,7 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 func (r *NutanixClusterReconciler) reconcileCategories(rctx *nctx.ClusterContext) error {
 	klog.Infof("%s Reconciling categories for cluster %s", rctx.LogPrefix, rctx.Cluster.Name)
 	defaultCategories := getDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-	_, err := getOrCreateCategories(rctx.NutanixClient, defaultCategories)
+	_, err := getOrCreateCategories(rctx.Context, rctx.NutanixClient, defaultCategories)
 	if err != nil {
 		conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.ClusterCategoryCreationFailed, capiv1.ConditionSeverityError, err.Error())
 		return err
@@ -251,7 +250,7 @@ func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterC
 	if conditions.IsTrue(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) ||
 		conditions.GetReason(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) == infrav1.DeletionFailed {
 		defaultCategories := getDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-		err := deleteCategories(rctx.NutanixClient, defaultCategories)
+		err := deleteCategories(rctx.Context, rctx.NutanixClient, defaultCategories)
 		if err != nil {
 			conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, err.Error())
 			return err

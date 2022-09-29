@@ -28,8 +28,8 @@ import (
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/pkg/nutanix/v3"
-	"github.com/nutanix-cloud-native/prism-go-client/pkg/utils"
+	"github.com/nutanix-cloud-native/prism-go-client/utils"
+	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	capierrors "sigs.k8s.io/cluster-api/errors"
 )
 
@@ -103,7 +103,6 @@ func GetMachinePreferredIPAddress(nma *infrav1.NutanixMachine) (string, error) {
 
 // GetNutanixMachinesInCluster gets a cluster's NutanixMachine resources.
 func (clctx *ClusterContext) GetNutanixMachinesInCluster(client ctlclient.Client) ([]*infrav1.NutanixMachine, error) {
-
 	clusterName := clctx.NutanixCluster.Name
 	clusterNamespace := clctx.NutanixCluster.Namespace
 	labels := map[string]string{capiv1.ClusterLabelName: clusterName}

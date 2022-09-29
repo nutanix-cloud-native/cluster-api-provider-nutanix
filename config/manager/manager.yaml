@@ -6,14 +6,42 @@ metadata:
   name: system
 ---
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nutanix-endpoint
+  namespace: capi-nutanix-system
+data:
+  prismCentral: |-
+    {
+      "address": "${NUTANIX_ENDPOINT}",
+      "port": ${NUTANIX_PORT=9440},
+      "insecure": ${NUTANIX_INSECURE=false},
+      "credentialRef": {
+        "kind": "secret",
+        "name": "capx-nutanix-creds"
+      }
+    }
+---
+apiVersion: v1
 kind: Secret
 type: Opaque
 metadata:
   name: nutanix-creds
   namespace: capi-nutanix-system
 stringData:
-  NUTANIX_USER: "${NUTANIX_USER}"
-  NUTANIX_PASSWORD: "${NUTANIX_PASSWORD}"
+  credentials: |
+    [
+      {
+        "type": "basic_auth", 
+        "data": { 
+          "prismCentral":{
+            "username": "${NUTANIX_USER}",
+            "password": "${NUTANIX_PASSWORD}"
+          },
+          "prismElements": null
+        }
+      }
+    ]
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -49,16 +77,9 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: NUTANIX_USER
-              valueFrom:
-                secretKeyRef:
-                  name: nutanix-creds
-                  key: NUTANIX_USER
-            - name: NUTANIX_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: nutanix-creds
-                  key: NUTANIX_PASSWORD
+          volumeMounts:
+            - name: endpoint
+              mountPath: "/etc/nutanix/config"
           securityContext:
             allowPrivilegeEscalation: false
           livenessProbe:
@@ -80,5 +101,9 @@ spec:
             requests:
               cpu: 30m
               memory: 50Mi
+      volumes:
+        - name: endpoint
+          configMap:
+            name: nutanix-endpoint
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
