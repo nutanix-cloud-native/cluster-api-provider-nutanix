@@ -27,6 +27,9 @@ Check out the [getting started guide](https://opendocs.nutanix.com/capx/latest/g
 ## Documentation
 Visit the `Cluster API Provider: Nutanix (CAPX)` section on [opendocs.nutanix.com](https://opendocs.nutanix.com/) for all documentation related to CAPX.
 
+## Development
+The [Development Workflow](./docs/developer_workflow.md) page explains how to build and test CAPX from source.
+
 ## Contributing
 See the [contributing docs](CONTRIBUTING.md).
 
