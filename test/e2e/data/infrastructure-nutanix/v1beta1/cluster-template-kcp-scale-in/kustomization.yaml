@@ -2,4 +2,5 @@ bases:
   - ../cluster-template-upgrades
 
 patchesStrategicMerge:
+  - ../base/cni-patch.yaml
   - ./cluster-with-kcp.yaml

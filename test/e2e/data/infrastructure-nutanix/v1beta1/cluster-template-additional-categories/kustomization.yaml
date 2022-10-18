@@ -1,10 +1,5 @@
 bases:
-  - ../bases/cluster-with-kcp.yaml
-  - ../bases/secret.yaml
-  - ../bases/nmt.yaml
-  - ../bases/crs.yaml
-  - ../bases/md.yaml
-  - ../bases/mhc.yaml
+  - ../cluster-template
 
 patchesStrategicMerge:
   - ./nmt.yaml

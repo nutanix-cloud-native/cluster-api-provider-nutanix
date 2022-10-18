@@ -15,25 +15,6 @@ spec:
     host: "${CONTROL_PLANE_ENDPOINT_IP}"
     port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
 ---
-apiVersion: v1
-kind: Secret
-metadata:
-  name: "${CLUSTER_NAME}"
-  namespace: "${NAMESPACE}"
-stringData:
-  credentials: |
-    [
-      {
-        "type": "basic_auth", 
-        "data": { 
-          "prismCentral":{
-            "username": "${NUTANIX_USER}", 
-            "password": "${NUTANIX_PASSWORD}"
-          }
-        }
-      }
-    ]
----
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
 metadata:
@@ -56,44 +37,6 @@ spec:
     apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
     kind: NutanixCluster
     name: "${CLUSTER_NAME}"
-
----
-apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-kind: NutanixMachineTemplate
-metadata:
-  name: "${CLUSTER_NAME}-mt-0"
-  namespace: "${NAMESPACE}"
-spec:
-  template:
-    spec:
-      providerID: "nutanix://${CLUSTER_NAME}-m1"
-      # Supported options for boot type: legacy and uefi
-      # Defaults to legacy if not set
-      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
-      vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
-      vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
-      memorySize: "${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}"
-      systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
-      image:
-        type: name
-        name: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}"
-      cluster:
-        type: name
-        name: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
-      subnet:
-        - type: name
-          name: "${NUTANIX_SUBNET_NAME}"
-      # Adds additional categories to the virtual machines.
-      # Note: Categories must already be present in Prism Central
-      # additionalCategories:
-      #   - key: AppType
-      #     value: Kubernetes
-      # Adds the cluster virtual machines to a project defined in Prism Central.
-      # Replace NUTANIX_PROJECT_NAME with the correct project defined in Prism Central
-      # Note: Project must already be present in Prism Central.
-      # project:
-      #   type: name
-      #   name: "NUTANIX_PROJECT_NAME"
 
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
@@ -232,65 +175,3 @@ spec:
         - echo "after kubeadm call" > /var/log/postkubeadm.log
       verbosity: 10
       #useExperimentalRetryJoin: true
----
-apiVersion: cluster.x-k8s.io/v1beta1
-kind: MachineDeployment
-metadata:
-  labels:
-    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
-  name: "${CLUSTER_NAME}-wmd"
-  namespace: "${NAMESPACE}"
-spec:
-  clusterName: "${CLUSTER_NAME}"
-  replicas: ${WORKER_MACHINE_COUNT}
-  selector:
-    matchLabels: {}
-  template:
-    metadata:
-      labels:
-        cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
-    spec:
-      bootstrap:
-        configRef:
-          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
-          kind: KubeadmConfigTemplate
-          name: "${CLUSTER_NAME}-kcfg-0"
-      clusterName: "${CLUSTER_NAME}"
-      infrastructureRef:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-        kind: NutanixMachineTemplate
-        name: "${CLUSTER_NAME}-mt-0"
-      version: "${KUBERNETES_VERSION}"
-
----
-apiVersion: cluster.x-k8s.io/v1beta1
-kind: MachineHealthCheck
-metadata:
-  name: "${CLUSTER_NAME}-mhc"
-  namespace: "${NAMESPACE}"
-spec:
-  clusterName: "${CLUSTER_NAME}"
-  maxUnhealthy: 40%
-  nodeStartupTimeout: 10m
-  selector:
-    matchLabels:
-      cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
-  unhealthyConditions:
-    - type: Ready
-      status: "False"
-      timeout: 300s
-    - type: Ready
-      status: Unknown
-      timeout: 300s
-    - type: MemoryPressure
-      status: "True"
-      timeout: 300s
-    - type: DiskPressure
-      status: "True"
-      timeout: 300s
-    - type: PIDPressure
-      status: "True"
-      timeout: 300s
-    - type: NetworkUnavailable
-      status: "True"
-      timeout: 300s

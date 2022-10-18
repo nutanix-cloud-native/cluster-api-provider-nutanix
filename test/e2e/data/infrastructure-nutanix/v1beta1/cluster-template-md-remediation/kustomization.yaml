@@ -1,10 +1,11 @@
 bases:
-  - ../bases/cluster-with-kcp.yaml
-  - ../bases/secret.yaml
-  - ../bases/nmt.yaml
-  - ../bases/crs.yaml
-  - ../bases/md.yaml
+  - ../../../../../../templates/base/cluster-with-kcp.yaml
+  - ../../../../../../templates/base/secret.yaml
+  - ../../../../../../templates/base/nmt.yaml
+  - ../../../../../../templates/base/md.yaml
+  - ../base/crs.yaml
   - ./mhc.yaml
 
 patchesStrategicMerge:
+  - ../base/cni-patch.yaml
   - ./md.yaml
