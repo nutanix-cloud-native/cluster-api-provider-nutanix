@@ -1,14 +1,8 @@
 bases:
   - ../../../../../../templates/csi/
-  - ../bases/crs.yaml
-patches:
-  - patch: |-
-      - op: add
-        path: /metadata/labels/cni
-        value: "${CLUSTER_NAME}-crs-cni"
-    target:
-      kind: Cluster
+  - ../base/crs.yaml
 
 patchesStrategicMerge:
+  - ../base/cni-patch.yaml
   - ./kcp.yaml
   - ./kct.yaml

@@ -1,9 +1,10 @@
 bases:
-  - ../bases/cluster-with-kcp.yaml
-  - ../bases/nmt.yaml
-  - ../bases/crs.yaml
-  - ../bases/md.yaml
-  - ../bases/mhc.yaml
+  - ../../../../../../templates/base/cluster-with-kcp.yaml
+  - ../../../../../../templates/base/nmt.yaml
+  - ../../../../../../templates/base/md.yaml
+  - ../../../../../../templates/base/mhc.yaml
+  - ../base/crs.yaml
 
 patchesStrategicMerge:
+  - ../base/cni-patch.yaml
   - ./nc.yaml
