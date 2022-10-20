@@ -248,6 +248,7 @@ spec:
           kubeletExtraArgs:
             cloud-provider: external
             eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+            tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
       postKubeadmCommands:
       - echo "after kubeadm call" > /var/log/postkubeadm.log
       preKubeadmCommands:
@@ -362,10 +363,15 @@ spec:
         - 0.0.0.0
         extraArgs:
           cloud-provider: external
+          tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
       controllerManager:
         extraArgs:
           cloud-provider: external
           enable-hostpath-provisioner: "true"
+          tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
+      scheduler:
+        extraArgs:
+          tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
     files:
     - content: |
         apiVersion: v1
@@ -376,7 +382,7 @@ spec:
         spec:
           containers:
             - name: kube-vip
-              image: ghcr.io/kube-vip/kube-vip:v0.5.0
+              image: ghcr.io/kube-vip/kube-vip:v0.5.5
               imagePullPolicy: IfNotPresent
               args:
                 - manager
@@ -407,6 +413,8 @@ spec:
                   value: "${KUBEVIP_SVC_ENABLE=false}"
                 - name: lb_enable
                   value: "${KUBEVIP_LB_ENABLE=false}"
+                - name: enableServicesElection
+                  value: "${KUBEVIP_SVC_ELECTION=false}"
               securityContext:
                 capabilities:
                   add:
@@ -435,6 +443,12 @@ spec:
         kubeletExtraArgs:
           cloud-provider: external
           eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+          tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
+    joinConfiguration:
+      nodeRegistration:
+        kubeletExtraArgs:
+          eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+          tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
     postKubeadmCommands:
     - echo export KUBECONFIG=/etc/kubernetes/admin.conf >> /root/.bashrc
     - echo "after kubeadm call" > /var/log/postkubeadm.log
