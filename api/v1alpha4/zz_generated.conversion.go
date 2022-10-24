@@ -24,6 +24,7 @@ import (
 	unsafe "unsafe"
 
 	v1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	credentials "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	v1 "k8s.io/api/core/v1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -302,7 +303,7 @@ func autoConvert_v1alpha4_NutanixClusterSpec_To_v1beta1_NutanixClusterSpec(in *N
 	if err := Convert_v1alpha4_APIEndpoint_To_v1beta1_APIEndpoint(&in.ControlPlaneEndpoint, &out.ControlPlaneEndpoint, s); err != nil {
 		return err
 	}
-	out.PrismCentral = in.PrismCentral
+	out.PrismCentral = (*credentials.NutanixPrismEndpoint)(unsafe.Pointer(in.PrismCentral))
 	return nil
 }
 
@@ -310,7 +311,7 @@ func autoConvert_v1beta1_NutanixClusterSpec_To_v1alpha4_NutanixClusterSpec(in *v
 	if err := Convert_v1beta1_APIEndpoint_To_v1alpha4_APIEndpoint(&in.ControlPlaneEndpoint, &out.ControlPlaneEndpoint, s); err != nil {
 		return err
 	}
-	out.PrismCentral = in.PrismCentral
+	out.PrismCentral = (*credentials.NutanixPrismEndpoint)(unsafe.Pointer(in.PrismCentral))
 	return nil
 }
 

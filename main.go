@@ -128,6 +128,18 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "NutanixMachine")
 		os.Exit(1)
 	}
+	if err = (&infrav1beta1.NutanixCluster{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "NutanixCluster")
+		os.Exit(1)
+	}
+	if err = (&infrav1beta1.NutanixMachine{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "NutanixMachine")
+		os.Exit(1)
+	}
+	if err = (&infrav1beta1.NutanixMachineTemplate{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "NutanixMachineTemplate")
+		os.Exit(1)
+	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
