@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/google/uuid"
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixClientHelper "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nutanixClient "github.com/nutanix-cloud-native/prism-go-client"
@@ -33,6 +34,8 @@ import (
 )
 
 const (
+	providerIdPrefix = "nutanix://"
+
 	taskSucceededMessage = "SUCCEEDED"
 	serviceNamePECluster = "AOS"
 )
@@ -84,20 +87,52 @@ func findVMByUUID(ctx context.Context, client *nutanixClientV3.Client, uuid stri
 	return response, nil
 }
 
+func generateProviderID(uuid string) string {
+	return fmt.Sprintf("%s%s", providerIdPrefix, uuid)
+}
+
+func getVMUUID(ctx context.Context, nutanixMachine *infrav1.NutanixMachine) (string, error) {
+	vmUUID := nutanixMachine.Status.VmUUID
+	if vmUUID != "" {
+		if _, err := uuid.Parse(vmUUID); err != nil {
+			return "", fmt.Errorf("VMUUID was set but was not a valid UUID: %s err: %v", vmUUID, err)
+		}
+		return vmUUID, nil
+	}
+	providerID := nutanixMachine.Spec.ProviderID
+	if providerID == "" {
+		return "", nil
+	}
+	id := strings.TrimPrefix(providerID, providerIdPrefix)
+	// Not returning error since the ProviderID initially is not a UUID. CAPX only sets the UUID after VM provisioning. If it is not a UUID, continue.
+	if _, err := uuid.Parse(id); err != nil {
+		return "", nil
+	}
+	return id, nil
+}
+
 func findVM(ctx context.Context, client *nutanixClientV3.Client, nutanixMachine *infrav1.NutanixMachine) (*nutanixClientV3.VMIntentResponse, error) {
 	vmName := nutanixMachine.Name
-	vmUUID := nutanixMachine.Status.VmUUID
+	vmUUID, err := getVMUUID(ctx, nutanixMachine)
+	if err != nil {
+		return nil, err
+	}
 	// Search via uuid if it is present
 	if vmUUID != "" {
 		klog.Infof("Searching for VM %s using UUID %s", vmName, vmUUID)
-		vm, err := findVMByUUID(ctx, client, nutanixMachine.Status.VmUUID)
+		vm, err := findVMByUUID(ctx, client, vmUUID)
 		if err != nil {
-			klog.Errorf("error occurred finding VM with uuid %s: %v", nutanixMachine.Status.VmUUID, err)
+			klog.Errorf("error occurred finding VM with uuid %s: %v", vmUUID, err)
 			return nil, err
 		}
 		if vm == nil {
 			errorMsg := fmt.Sprintf("no vm %s found with UUID %s but was expected to be present", vmName, vmUUID)
 			klog.Error(errorMsg)
+			return nil, fmt.Errorf(errorMsg)
+		}
+		if *vm.Spec.Name != vmName {
+			errorMsg := fmt.Sprintf("found VM with UUID %s but name did not match %s. error: %v", vmUUID, vmName, err)
+			klog.Errorf(errorMsg)
 			return nil, fmt.Errorf(errorMsg)
 		}
 		return vm, nil
