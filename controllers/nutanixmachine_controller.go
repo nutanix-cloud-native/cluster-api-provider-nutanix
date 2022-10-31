@@ -34,6 +34,7 @@ import (
 	"k8s.io/klog/v2"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	capierrors "sigs.k8s.io/cluster-api/errors"
+	"sigs.k8s.io/cluster-api/util"
 	capiutil "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -53,9 +54,7 @@ import (
 )
 
 const (
-	// provideridFmt is "nutanix://<vmUUID"
-	provideridFmt = "nutanix://%s"
-	projectKind   = "project"
+	projectKind = "project"
 )
 
 var (
@@ -88,7 +87,49 @@ func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctr
 				capiutil.MachineToInfrastructureMapFunc(
 					infrav1.GroupVersion.WithKind("NutanixMachine"))),
 		).
+		Watches(
+			&source.Kind{Type: &infrav1.NutanixCluster{}},
+			handler.EnqueueRequestsFromMapFunc(r.mapNutanixClusterToNutanixMachines(ctx)),
+		).
 		Complete(r)
+}
+
+func (r *NutanixMachineReconciler) mapNutanixClusterToNutanixMachines(ctx context.Context) handler.MapFunc {
+	return func(o client.Object) []ctrl.Request {
+		nutanixCluster, ok := o.(*infrav1.NutanixCluster)
+		if !ok {
+			klog.Errorf("Expected a NutanixCluster object in mapNutanixClusterToNutanixMachines but was %T", o)
+			return nil
+		}
+		logPrefix := fmt.Sprintf("NutanixCluster[namespace: %s, name: %s]", nutanixCluster.Namespace, nutanixCluster.Name)
+
+		cluster, err := util.GetOwnerCluster(ctx, r.Client, nutanixCluster.ObjectMeta)
+		if apierrors.IsNotFound(err) || cluster == nil {
+			klog.Errorf("%s failed to find CAPI cluster for NutanixCluster", logPrefix)
+			return nil
+		}
+		if err != nil {
+			klog.Errorf("%s error occurred finding CAPI cluster for NutanixCluster: %v", logPrefix, err)
+			return nil
+		}
+		searchLabels := map[string]string{capiv1.ClusterLabelName: cluster.Name}
+		machineList := &capiv1.MachineList{}
+		if err := r.List(ctx, machineList, client.InNamespace(cluster.Namespace), client.MatchingLabels(searchLabels)); err != nil {
+			klog.Errorf("%s failed to list machines for cluster: %v", logPrefix, err)
+			return nil
+		}
+		requests := make([]ctrl.Request, 0)
+		for _, m := range machineList.Items {
+			if m.Spec.InfrastructureRef.Name == "" || m.Spec.InfrastructureRef.GroupVersionKind().Kind != "NutanixMachine" {
+				continue
+			}
+
+			name := client.ObjectKey{Namespace: m.Namespace, Name: m.Spec.InfrastructureRef.Name}
+			requests = append(requests, ctrl.Request{NamespacedName: name})
+		}
+
+		return requests
+	}
 }
 
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;update;delete
@@ -216,12 +257,17 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	vmName := rctx.NutanixMachine.Name
 	klog.Infof("%s Handling NutanixMachine deletion of VM: %s", rctx.LogPrefix, vmName)
 	conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, capiv1.DeletingReason, capiv1.ConditionSeverityInfo, "")
+	vmUUID, err := getVMUUID(ctx, rctx.NutanixMachine)
+	if err != nil {
+		errorMsg := fmt.Errorf("failed to get VM UUID during delete: %v", err)
+		klog.Errorf("%s %v", rctx.LogPrefix, err)
+		return reconcile.Result{}, errorMsg
+	}
 	// Check if VMUUID is absent
-	if rctx.NutanixMachine.Status.VmUUID == "" {
+	if vmUUID == "" {
 		klog.Warningf("%s VMUUID was not found in spec for VM %s. Skipping delete", rctx.LogPrefix, vmName)
 	} else {
 		// Search for VM by UUID
-		vmUUID := rctx.NutanixMachine.Status.VmUUID
 		vm, err := findVMByUUID(ctx, client, vmUUID)
 		// Error while finding VM
 		if err != nil {
@@ -234,7 +280,12 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		if vm == nil {
 			klog.Infof("%s No vm found with UUID %s ... Already deleted? Skipping delete", rctx.LogPrefix, vmUUID)
 		} else {
-			klog.Infof("%s VM %s with UUID %s was found.", rctx.LogPrefix, vmName, vmUUID)
+			if *vm.Spec.Name != vmName {
+				errorMsg := fmt.Errorf("found VM with UUID %s but name did not match %s.", vmUUID, vmName)
+				klog.Errorf("%s %v", rctx.LogPrefix, errorMsg)
+				return reconcile.Result{}, errorMsg
+			}
+			klog.Infof("%s VM %s with UUID %s was found.", rctx.LogPrefix, *vm.Spec.Name, vmUUID)
 			lastTaskUUID, err := getTaskUUIDFromVM(vm)
 			if err != nil {
 				errorMsg := fmt.Errorf("error occurred fetching task UUID from vm: %v", err)
@@ -308,6 +359,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	klog.Infof("%s Checking if cluster infrastructure is ready", rctx.LogPrefix)
 	if !rctx.Cluster.Status.InfrastructureReady {
 		klog.Infof("%s The cluster infrastructure is not ready yet", rctx.LogPrefix)
+		conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.ClusterInfrastructureNotReady, capiv1.ConditionSeverityInfo, "")
 		return reconcile.Result{}, nil
 	}
 
@@ -317,7 +369,9 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 			if !nctx.IsControlPlaneMachine(rctx.NutanixMachine) &&
 				!conditions.IsTrue(rctx.Cluster, capiv1.ControlPlaneInitializedCondition) {
 				klog.Infof("%s Waiting for the control plane to be initialized", rctx.LogPrefix)
+				conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.ControlplaneNotInitialized, capiv1.ConditionSeverityInfo, "")
 			} else {
+				conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.BootstrapDataNotReady, capiv1.ConditionSeverityInfo, "")
 				klog.Infof("%s Waiting for bootstrap data to be available", rctx.LogPrefix)
 			}
 			return reconcile.Result{}, nil
@@ -357,7 +411,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	}
 	conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMAddressesAssignedCondition)
 	// Update the NutanixMachine Spec.ProviderID
-	rctx.NutanixMachine.Spec.ProviderID = fmt.Sprintf(provideridFmt, rctx.NutanixMachine.Status.VmUUID)
+	rctx.NutanixMachine.Spec.ProviderID = generateProviderID(rctx.NutanixMachine.Status.VmUUID)
 	rctx.NutanixMachine.Status.Ready = true
 	klog.Infof("%s Created VM %s for cluster %s, update NutanixMachine spec.providerID to %s, and machinespec %+v, vmUuid: %s",
 		rctx.LogPrefix, rctx.NutanixMachine.Name, rctx.NutanixCluster.Name, rctx.NutanixMachine.Spec.ProviderID,

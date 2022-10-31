@@ -30,7 +30,7 @@ const (
 )
 
 const (
-	//PrismCentralClientCondition indicates the status of the client used to connect to Prism Central
+	// PrismCentralClientCondition indicates the status of the client used to connect to Prism Central
 	PrismCentralClientCondition capiv1.ConditionType = "PrismClientInit"
 
 	PrismCentralClientInitializationFailed = "PrismClientInitFailed"
@@ -45,8 +45,11 @@ const (
 	// VMAddressesAssignedCondition shows the status of the process of assigning the VM addresses
 	VMAddressesAssignedCondition capiv1.ConditionType = "VMAddressesAssigned"
 
-	VMAddressesFailed = "VMAddressesFailed"
-	VMBootTypeInvalid = "VMBootTypeInvalid"
+	VMAddressesFailed             = "VMAddressesFailed"
+	VMBootTypeInvalid             = "VMBootTypeInvalid"
+	ClusterInfrastructureNotReady = "ClusterInfrastructureNotReady"
+	BootstrapDataNotReady         = "BootstrapDataNotReady"
+	ControlplaneNotInitialized    = "ControlplaneNotInitialized"
 )
 
 const (
