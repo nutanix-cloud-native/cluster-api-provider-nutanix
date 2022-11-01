@@ -24,7 +24,7 @@ jobs:
         run: make manifests generate fmt vet build
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.7.1
+        uses: aquasecurity/trivy-action@0.8.0
         with:
           scan-type: "fs"
           ignore-unfixed: true
