@@ -43,12 +43,14 @@ const (
 )
 
 type NutanixClientHelper struct {
-	secretInformer coreinformers.SecretInformer
+	secretInformer    coreinformers.SecretInformer
+	configMapInformer coreinformers.ConfigMapInformer
 }
 
-func NewNutanixClientHelper(ctx context.Context, secretInformer coreinformers.SecretInformer) (*NutanixClientHelper, error) {
+func NewNutanixClientHelper(secretInformer coreinformers.SecretInformer, cmInformer coreinformers.ConfigMapInformer) (*NutanixClientHelper, error) {
 	return &NutanixClientHelper{
-		secretInformer: secretInformer,
+		secretInformer:    secretInformer,
+		configMapInformer: cmInformer,
 	}, nil
 }
 
@@ -75,7 +77,8 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.N
 		}
 		providers = append(providers, kubernetesEnv.NewProvider(
 			*nutanixCluster.Spec.PrismCentral,
-			n.secretInformer))
+			n.secretInformer,
+			n.configMapInformer))
 	} else {
 		klog.Warningf("[WARNING] prismCentral attribute was not set on NutanixCluster %s in namespace %s. Defaulting to CAPX manager credentials", nutanixCluster.Name, nutanixCluster.Namespace)
 	}
@@ -95,7 +98,8 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.N
 	}
 	providers = append(providers, kubernetesEnv.NewProvider(
 		*npe,
-		n.secretInformer))
+		n.secretInformer,
+		n.configMapInformer))
 
 	// init env with providers
 	env := environment.NewEnvironment(
@@ -114,10 +118,10 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.N
 		Password: me.ApiCredentials.Password,
 	}
 
-	return n.GetClient(creds)
+	return n.GetClient(creds, me.AdditionalTrustBundle)
 }
 
-func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials) (*nutanixClientV3.Client, error) {
+func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials, additionalTrustBundle string) (*nutanixClientV3.Client, error) {
 	if cred.Username == "" {
 		errorMsg := fmt.Errorf("could not create client because username was not set")
 		klog.Error(errorMsg)
@@ -134,7 +138,11 @@ func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials) (*nutani
 	if cred.URL == "" {
 		cred.URL = fmt.Sprintf("%s:%s", cred.Endpoint, cred.Port)
 	}
-	cli, err := nutanixClientV3.NewV3Client(cred)
+	clientOpts := make([]nutanixClientV3.ClientOption, 0)
+	if additionalTrustBundle != "" {
+		clientOpts = append(clientOpts, nutanixClientV3.WithPEMEncodedCertBundle([]byte(additionalTrustBundle)))
+	}
+	cli, err := nutanixClientV3.NewV3Client(cred, clientOpts...)
 	if err != nil {
 		klog.Errorf("Failed to create the nutanix client. error: %v", err)
 		return nil, err

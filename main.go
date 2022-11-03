@@ -112,18 +112,25 @@ func main() {
 	go informer.Run(ctx.Done())
 	cache.WaitForCacheSync(ctx.Done(), informer.HasSynced)
 
+	configMapInformer := informerFactory.Core().V1().ConfigMaps()
+	cmInformer := configMapInformer.Informer()
+	go cmInformer.Run(ctx.Done())
+	cache.WaitForCacheSync(ctx.Done(), cmInformer.HasSynced)
+
 	if err = (&controllers.NutanixClusterReconciler{
-		Client:         mgr.GetClient(),
-		SecretInformer: secretInformer,
-		Scheme:         mgr.GetScheme(),
+		Client:            mgr.GetClient(),
+		SecretInformer:    secretInformer,
+		ConfigMapInformer: configMapInformer,
+		Scheme:            mgr.GetScheme(),
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NutanixCluster")
 		os.Exit(1)
 	}
 	if err = (&controllers.NutanixMachineReconciler{
-		Client:         mgr.GetClient(),
-		SecretInformer: secretInformer,
-		Scheme:         mgr.GetScheme(),
+		Client:            mgr.GetClient(),
+		SecretInformer:    secretInformer,
+		ConfigMapInformer: configMapInformer,
+		Scheme:            mgr.GetScheme(),
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NutanixMachine")
 		os.Exit(1)

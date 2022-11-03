@@ -72,8 +72,9 @@ func init() {
 // NutanixMachineReconciler reconciles a NutanixMachine object
 type NutanixMachineReconciler struct {
 	client.Client
-	SecretInformer coreinformers.SecretInformer
-	Scheme         *runtime.Scheme
+	SecretInformer    coreinformers.SecretInformer
+	ConfigMapInformer coreinformers.ConfigMapInformer
+	Scheme            *runtime.Scheme
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -212,7 +213,7 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	client, err := CreateNutanixClient(ctx, r.SecretInformer, ntxCluster)
+	v3Client, err := CreateNutanixClient(r.SecretInformer, r.ConfigMapInformer, ntxCluster)
 	if err != nil {
 		conditions.MarkFalse(ntxMachine, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
 		return ctrl.Result{Requeue: true}, fmt.Errorf("Client Auth error: %v", err)
@@ -225,7 +226,7 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		NutanixCluster: ntxCluster,
 		NutanixMachine: ntxMachine,
 		LogPrefix:      logPrefix,
-		NutanixClient:  client,
+		NutanixClient:  v3Client,
 	}
 
 	defer func() {

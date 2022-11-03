@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/google/uuid v1.3.0
-	github.com/nutanix-cloud-native/prism-go-client v0.3.0
+	github.com/nutanix-cloud-native/prism-go-client v0.3.2
 	github.com/onsi/ginkgo/v2 v2.2.0
 	github.com/onsi/gomega v1.20.2
 	github.com/pkg/errors v0.9.1
@@ -71,6 +71,7 @@ require (
 	github.com/google/go-github/v45 v45.2.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect

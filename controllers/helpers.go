@@ -40,8 +40,8 @@ const (
 	serviceNamePECluster = "AOS"
 )
 
-func CreateNutanixClient(ctx context.Context, secretInformer coreinformers.SecretInformer, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
-	helper, err := nutanixClientHelper.NewNutanixClientHelper(ctx, secretInformer)
+func CreateNutanixClient(secretInformer coreinformers.SecretInformer, cmInformer coreinformers.ConfigMapInformer, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
+	helper, err := nutanixClientHelper.NewNutanixClientHelper(secretInformer, cmInformer)
 	if err != nil {
 		klog.Errorf("error creating nutanix client helper: %v", err)
 		return nil, err
