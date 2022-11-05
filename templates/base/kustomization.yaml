@@ -4,6 +4,7 @@ kind: Kustomization
 bases:
   - ./cluster-with-kcp.yaml
   - ./secret.yaml
+  - ./cm.yaml
   - ./nmt.yaml
   - ./md.yaml
   - ./mhc.yaml

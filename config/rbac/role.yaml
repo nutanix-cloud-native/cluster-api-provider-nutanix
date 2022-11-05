@@ -25,6 +25,16 @@ rules:
   - update
   - watch
 - apiGroups:
+    - ""
+  resources:
+    - configmaps
+  verbs:
+    - delete
+    - get
+    - list
+    - update
+    - watch
+- apiGroups:
   - bootstrap.cluster.x-k8s.io
   resources:
   - kubeadmconfigs

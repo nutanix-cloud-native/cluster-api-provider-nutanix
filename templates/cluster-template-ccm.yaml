@@ -1,5 +1,13 @@
 apiVersion: v1
 data:
+  ca.crt: ${NUTANIX_ADDITIONAL_TRUST_BUNDLE}
+kind: ConfigMap
+metadata:
+  name: user-ca-bundle
+  namespace: ${NAMESPACE}
+---
+apiVersion: v1
+data:
   nutanix-ccm.yaml: |
     ---
     # Source: nutanix-cloud-provider/templates/rbac.yaml
