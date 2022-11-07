@@ -34,23 +34,26 @@ import (
 )
 
 const (
-	nutanixEndpointVarKey = "NUTANIX_ENDPOINT"
-	nutanixPortVarKey     = "NUTANIX_PORT"
-	nutanixInsecureVarKey = "NUTANIX_INSECURE"
-	nutanixUsernameVarKey = "NUTANIX_USER"
-	nutanixPasswordVarKey = "NUTANIX_PASSWORD"
+	nutanixEndpointVarKey              = "NUTANIX_ENDPOINT"
+	nutanixPortVarKey                  = "NUTANIX_PORT"
+	nutanixInsecureVarKey              = "NUTANIX_INSECURE"
+	nutanixUsernameVarKey              = "NUTANIX_USER"
+	nutanixPasswordVarKey              = "NUTANIX_PASSWORD"
+	nutanixAdditionalTrustBundleVarKey = "NUTANIX_ADDITIONAL_TRUST_BUNDLE"
 )
 
 var (
-	nutanixEndpoint string
-	nutanixPort     string
-	nutanixInsecure string
+	nutanixEndpoint              string
+	nutanixPort                  string
+	nutanixInsecure              string
+	nutanixAdditionalTrustBundle string
 )
 
 func init() {
 	flag.StringVar(&nutanixEndpoint, "e2e.nutanixEndpoint", os.Getenv(nutanixEndpointVarKey), "the Nutanix Prism Central used for e2e tests")
 	flag.StringVar(&nutanixPort, "e2e.nutanixPort", os.Getenv(nutanixPortVarKey), "the Nutanix Prism Central port used for e2e tests")
 	flag.StringVar(&nutanixInsecure, "e2e.nutanixInsecure", os.Getenv(nutanixInsecureVarKey), "Ignore certificate checks for e2e tests")
+	flag.StringVar(&nutanixAdditionalTrustBundle, "e2e.nutanixAdditionalTrustBundle", os.Getenv(nutanixAdditionalTrustBundleVarKey), "Additional trust bundle for e2e tests")
 }
 
 func fetchCredentialParameter(key string, config clusterctl.E2EConfig, allowEmpty bool) string {
@@ -90,6 +93,9 @@ func getNutanixCredentials(e2eConfig clusterctl.E2EConfig) (*prismGoClient.Crede
 	if nutanixInsecure == "" {
 		nutanixInsecure = fetchCredentialParameter(nutanixInsecureVarKey, e2eConfig, true)
 	}
+	if nutanixAdditionalTrustBundle == "" {
+		nutanixAdditionalTrustBundle = fetchCredentialParameter(nutanixAdditionalTrustBundleVarKey, e2eConfig, true)
+	}
 
 	var insecureBool bool
 	var err error
@@ -116,7 +122,7 @@ func initNutanixClient(e2eConfig clusterctl.E2EConfig) (*prismGoClientV3.Client,
 	}
 
 	nch := nutanixClientHelper.NutanixClientHelper{}
-	nutanixClient, err := nch.GetClient(*creds)
+	nutanixClient, err := nch.GetClient(*creds, nutanixAdditionalTrustBundle)
 	if err != nil {
 		return nil, err
 	}
