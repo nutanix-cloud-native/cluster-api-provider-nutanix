@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	prismgoclient "github.com/nutanix-cloud-native/prism-go-client"
@@ -140,6 +141,10 @@ func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials, addition
 	}
 	clientOpts := make([]nutanixClientV3.ClientOption, 0)
 	if additionalTrustBundle != "" {
+		// Strip 4 spaces from the cert bundle to keep the cert format usable
+		additionalTrustBundle = strings.ReplaceAll(additionalTrustBundle, "    ", "")
+		fmt.Println("additionalTrustBundle is set")
+		fmt.Println(additionalTrustBundle)
 		clientOpts = append(clientOpts, nutanixClientV3.WithPEMEncodedCertBundle([]byte(additionalTrustBundle)))
 	}
 	cli, err := nutanixClientV3.NewV3Client(cred, clientOpts...)
@@ -151,8 +156,10 @@ func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials, addition
 	// Check if the client is working
 	_, err = cli.V3.GetCurrentLoggedInUser(context.Background())
 	if err != nil {
+		fmt.Printf("failed to get current logged in user. error: %v", err)
 		return nil, err
 	}
+	fmt.Println("Successfully created the nutanix client")
 
 	return cli, nil
 }
