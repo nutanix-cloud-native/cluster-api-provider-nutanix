@@ -6,4 +6,4 @@ metadata:
   namespace: "${NAMESPACE}"
 data:
   ca.crt: |
-    "${NUTANIX_ADDITIONAL_TRUST_BUNDLE}"
+    ${NUTANIX_ADDITIONAL_TRUST_BUNDLE}
