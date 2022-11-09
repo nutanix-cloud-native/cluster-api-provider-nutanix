@@ -11,6 +11,9 @@ spec:
     credentialRef:
       name: "${CLUSTER_NAME}"
       kind: Secret
+    additionalTrustBundle:
+      name: user-ca-bundle
+      kind: ConfigMap
   controlPlaneEndpoint:
     host: "${CONTROL_PLANE_ENDPOINT_IP}"
     port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}

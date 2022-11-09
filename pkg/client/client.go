@@ -76,6 +76,21 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.N
 		if credentialRef.Namespace == "" {
 			credentialRef.Namespace = nutanixCluster.Namespace
 		}
+		additionalTrustBundleRef := prismCentralInfo.AdditionalTrustBundle
+		if additionalTrustBundleRef != nil {
+			if additionalTrustBundleRef.Kind == credentialTypes.NutanixTrustBundleKindConfigMap {
+				if additionalTrustBundleRef.Namespace == "" {
+					fmt.Printf("additionalTrustBundle Namespace is empty, using cluster namespace %s\n", nutanixCluster.Namespace)
+					additionalTrustBundleRef.Namespace = nutanixCluster.Namespace
+				} else {
+					fmt.Printf("additionalTrustBundle Namespace is set to %s\n", additionalTrustBundleRef.Namespace)
+				}
+			} else {
+				fmt.Printf("additionalTrustBundle Kind: %s is not supported, ignoring\n", additionalTrustBundleRef.Kind)
+			}
+		} else {
+			fmt.Println("additionalTrustBundleRef is nil")
+		}
 		providers = append(providers, kubernetesEnv.NewProvider(
 			*nutanixCluster.Spec.PrismCentral,
 			n.secretInformer,
@@ -97,6 +112,20 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.N
 		}
 		npe.CredentialRef.Namespace = capxNamespace
 	}
+	if npe.AdditionalTrustBundle != nil {
+		fmt.Println("AdditionalTrustBundle is present")
+		fmt.Println(*npe.AdditionalTrustBundle)
+		if npe.AdditionalTrustBundle.Namespace == "" {
+			capxNamespace := os.Getenv(capxNamespaceKey)
+			if capxNamespace == "" {
+				return nil, fmt.Errorf("failed to retrieve capx-namespace. Make sure %s env variable is set", capxNamespaceKey)
+			}
+			fmt.Printf("additionalTrustBundle namespace is empty. Defaulting to %s\n", capxNamespace)
+			npe.AdditionalTrustBundle.Namespace = capxNamespace
+		}
+	} else {
+		fmt.Println("No additional trust bundle")
+	}
 	providers = append(providers, kubernetesEnv.NewProvider(
 		*npe,
 		n.secretInformer,
@@ -111,6 +140,7 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.N
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("Found trust bundle from environment: %s\n", me.AdditionalTrustBundle)
 	creds := prismgoclient.Credentials{
 		URL:      me.Address.Host,
 		Endpoint: me.Address.Host,
@@ -146,6 +176,8 @@ func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials, addition
 		fmt.Println("additionalTrustBundle is set")
 		fmt.Println(additionalTrustBundle)
 		clientOpts = append(clientOpts, nutanixClientV3.WithPEMEncodedCertBundle([]byte(additionalTrustBundle)))
+	} else {
+		fmt.Println("additionalTrustBundle is not set because it's empty")
 	}
 	cli, err := nutanixClientV3.NewV3Client(cred, clientOpts...)
 	if err != nil {

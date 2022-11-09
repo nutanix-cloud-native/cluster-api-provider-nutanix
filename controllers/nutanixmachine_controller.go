@@ -216,7 +216,7 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	v3Client, err := CreateNutanixClient(r.SecretInformer, r.ConfigMapInformer, ntxCluster)
 	if err != nil {
 		conditions.MarkFalse(ntxMachine, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
-		return ctrl.Result{Requeue: true}, fmt.Errorf("Client Auth error: %v", err)
+		return ctrl.Result{Requeue: true}, fmt.Errorf("client auth error: %v", err)
 	}
 	conditions.MarkTrue(ntxMachine, infrav1.PrismCentralClientCondition)
 	rctx := &nctx.MachineContext{
