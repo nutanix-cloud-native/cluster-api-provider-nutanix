@@ -77,19 +77,10 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.N
 			credentialRef.Namespace = nutanixCluster.Namespace
 		}
 		additionalTrustBundleRef := prismCentralInfo.AdditionalTrustBundle
-		if additionalTrustBundleRef != nil {
-			if additionalTrustBundleRef.Kind == credentialTypes.NutanixTrustBundleKindConfigMap {
-				if additionalTrustBundleRef.Namespace == "" {
-					fmt.Printf("additionalTrustBundle Namespace is empty, using cluster namespace %s\n", nutanixCluster.Namespace)
-					additionalTrustBundleRef.Namespace = nutanixCluster.Namespace
-				} else {
-					fmt.Printf("additionalTrustBundle Namespace is set to %s\n", additionalTrustBundleRef.Namespace)
-				}
-			} else {
-				fmt.Printf("additionalTrustBundle Kind: %s is not supported, ignoring\n", additionalTrustBundleRef.Kind)
-			}
-		} else {
-			fmt.Println("additionalTrustBundleRef is nil")
+		if additionalTrustBundleRef != nil &&
+			additionalTrustBundleRef.Kind == credentialTypes.NutanixTrustBundleKindConfigMap &&
+			additionalTrustBundleRef.Namespace == "" {
+			additionalTrustBundleRef.Namespace = nutanixCluster.Namespace
 		}
 		providers = append(providers, kubernetesEnv.NewProvider(
 			*nutanixCluster.Spec.PrismCentral,
@@ -112,19 +103,12 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.N
 		}
 		npe.CredentialRef.Namespace = capxNamespace
 	}
-	if npe.AdditionalTrustBundle != nil {
-		fmt.Println("AdditionalTrustBundle is present")
-		fmt.Println(*npe.AdditionalTrustBundle)
-		if npe.AdditionalTrustBundle.Namespace == "" {
-			capxNamespace := os.Getenv(capxNamespaceKey)
-			if capxNamespace == "" {
-				return nil, fmt.Errorf("failed to retrieve capx-namespace. Make sure %s env variable is set", capxNamespaceKey)
-			}
-			fmt.Printf("additionalTrustBundle namespace is empty. Defaulting to %s\n", capxNamespace)
-			npe.AdditionalTrustBundle.Namespace = capxNamespace
+	if npe.AdditionalTrustBundle != nil && npe.AdditionalTrustBundle.Namespace == "" {
+		capxNamespace := os.Getenv(capxNamespaceKey)
+		if capxNamespace == "" {
+			return nil, fmt.Errorf("failed to retrieve capx-namespace. Make sure %s env variable is set", capxNamespaceKey)
 		}
-	} else {
-		fmt.Println("No additional trust bundle")
+		npe.AdditionalTrustBundle.Namespace = capxNamespace
 	}
 	providers = append(providers, kubernetesEnv.NewProvider(
 		*npe,
@@ -140,7 +124,6 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.N
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Found trust bundle from environment: %s\n", me.AdditionalTrustBundle)
 	creds := prismgoclient.Credentials{
 		URL:      me.Address.Host,
 		Endpoint: me.Address.Host,
@@ -171,13 +154,19 @@ func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials, addition
 	}
 	clientOpts := make([]nutanixClientV3.ClientOption, 0)
 	if additionalTrustBundle != "" {
-		// Strip 4 spaces from the cert bundle to keep the cert format usable
-		additionalTrustBundle = strings.ReplaceAll(additionalTrustBundle, "    ", "")
-		fmt.Println("additionalTrustBundle is set")
-		fmt.Println(additionalTrustBundle)
+		/*
+			Strip 4 spaces from the cert bundle before passing it on to the prism client.
+			Clusterctl uses envsubst (https://github.com/drone/envsubst) to replace variables in the templates.
+			This is	problematic for multi-line content like the cert bundle. envsubst will replace the variables,
+			honor the newlines, but ignore the expected indentation in the resulting YAML file. The workaround
+			is to include the expected indentation (4 spaces) in the environment variable itself. This is a
+			workaround to keep the indented cert bundle usable by stripping the 4 spaces present in the cert
+			bundle fetched from the environment	variable.
+		*/
+		const fourSpaces = "    "
+		const noSpaces = ""
+		additionalTrustBundle = strings.ReplaceAll(additionalTrustBundle, fourSpaces, noSpaces)
 		clientOpts = append(clientOpts, nutanixClientV3.WithPEMEncodedCertBundle([]byte(additionalTrustBundle)))
-	} else {
-		fmt.Println("additionalTrustBundle is not set because it's empty")
 	}
 	cli, err := nutanixClientV3.NewV3Client(cred, clientOpts...)
 	if err != nil {

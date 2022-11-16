@@ -279,7 +279,6 @@ func (t testHelper) deployClusterAndWait(params deployClusterParams, clusterReso
 		ControlPlaneMachineCount: pointer.Int64Ptr(1),
 		WorkerMachineCount:       pointer.Int64Ptr(1),
 	}
-	fmt.Println("apparently Custer config")
 	fmt.Println(cc)
 
 	clusterctl.ApplyClusterTemplateAndWait(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
