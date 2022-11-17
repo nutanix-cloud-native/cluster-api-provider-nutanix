@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	prismGoClient "github.com/nutanix-cloud-native/prism-go-client"
 	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
@@ -97,22 +98,20 @@ func getNutanixCredentials(e2eConfig clusterctl.E2EConfig) (*prismGoClient.Crede
 		nutanixAdditionalTrustBundle = fetchCredentialParameter(nutanixAdditionalTrustBundleVarKey, e2eConfig, true)
 	}
 
-	var insecureBool bool
-	var err error
-
-	if nutanixInsecure != "" {
-		insecureBool, err = strconv.ParseBool(nutanixInsecure)
-		if err != nil {
-			return nil, fmt.Errorf("unable to convert value for environment variable %s to bool: %v", nutanixInsecureVarKey, err)
-		}
-	}
-	return &prismGoClient.Credentials{
-		Insecure: insecureBool,
+	creds := &prismGoClient.Credentials{
 		Port:     nutanixPort,
 		Endpoint: nutanixEndpoint,
 		Username: up.username,
 		Password: up.password,
-	}, nil
+	}
+	if nutanixInsecure != "" {
+		insecureBool, err := strconv.ParseBool(nutanixInsecure)
+		if err != nil {
+			return nil, fmt.Errorf("unable to convert value for environment variable %s to bool: %v", nutanixInsecureVarKey, err)
+		}
+		creds.Insecure = insecureBool
+	}
+	return creds, nil
 }
 
 func initNutanixClient(e2eConfig clusterctl.E2EConfig) (*prismGoClientV3.Client, error) {
@@ -120,7 +119,7 @@ func initNutanixClient(e2eConfig clusterctl.E2EConfig) (*prismGoClientV3.Client,
 	if err != nil {
 		return nil, err
 	}
-
+	nutanixAdditionalTrustBundle = strings.Replace(nutanixAdditionalTrustBundle, `\n`, "\n", -1)
 	nch := nutanixClientHelper.NutanixClientHelper{}
 	nutanixClient, err := nch.GetClient(*creds, nutanixAdditionalTrustBundle)
 	if err != nil {

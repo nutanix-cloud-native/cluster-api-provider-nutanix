@@ -31,6 +31,7 @@ import (
 	"k8s.io/klog"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -152,6 +153,7 @@ func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials, addition
 	}
 	clientOpts := make([]nutanixClientV3.ClientOption, 0)
 	if additionalTrustBundle != "" {
+		additionalTrustBundle = strings.Replace(additionalTrustBundle, `\n`, "\n", -1)
 		clientOpts = append(clientOpts, nutanixClientV3.WithPEMEncodedCertBundle([]byte(additionalTrustBundle)))
 	}
 	cli, err := nutanixClientV3.NewV3Client(cred, clientOpts...)
