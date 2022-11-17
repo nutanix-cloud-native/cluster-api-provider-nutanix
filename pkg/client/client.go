@@ -20,10 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
-
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	prismgoclient "github.com/nutanix-cloud-native/prism-go-client"
 	"github.com/nutanix-cloud-native/prism-go-client/environment"
@@ -33,6 +29,8 @@ import (
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/klog"
+	"os"
+	"path/filepath"
 )
 
 const (
@@ -154,18 +152,6 @@ func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials, addition
 	}
 	clientOpts := make([]nutanixClientV3.ClientOption, 0)
 	if additionalTrustBundle != "" {
-		/*
-			Strip 4 spaces from the cert bundle before passing it on to the prism client.
-			Clusterctl uses envsubst (https://github.com/drone/envsubst) to replace variables in the templates.
-			This is	problematic for multi-line content like the cert bundle. envsubst will replace the variables,
-			honor the newlines, but ignore the expected indentation in the resulting YAML file. The workaround
-			is to include the expected indentation (4 spaces) in the environment variable itself. This is a
-			workaround to keep the indented cert bundle usable by stripping the 4 spaces present in the cert
-			bundle fetched from the environment	variable.
-		*/
-		const fourSpaces = "    "
-		const noSpaces = ""
-		additionalTrustBundle = strings.ReplaceAll(additionalTrustBundle, fourSpaces, noSpaces)
 		clientOpts = append(clientOpts, nutanixClientV3.WithPEMEncodedCertBundle([]byte(additionalTrustBundle)))
 	}
 	cli, err := nutanixClientV3.NewV3Client(cred, clientOpts...)
