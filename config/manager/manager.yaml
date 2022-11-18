@@ -53,7 +53,7 @@ metadata:
   name: user-ca-bundle
   namespace: capi-nutanix-system
 data:
-  ca.crt: "${NUTANIX_ADDITIONAL_TRUST_BUNDLE}"
+  ca.crt: "${NUTANIX_ADDITIONAL_TRUST_BUNDLE=''}"
 ---
 apiVersion: apps/v1
 kind: Deployment
