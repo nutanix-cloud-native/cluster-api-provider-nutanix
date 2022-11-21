@@ -119,6 +119,10 @@ func initNutanixClient(e2eConfig clusterctl.E2EConfig) (*prismGoClientV3.Client,
 	if err != nil {
 		return nil, err
 	}
+	// Replace the newline characters with actual newlines to ensure the certificate is properly formatted.
+	// This is done because the environment variable `NUTANIX_ADDITIONAL_TRUST_BUNDLE` is supposed to contain
+	// the certificate as a single line string with embedded `\n` characters to denote newlines. This is generated
+	// using `awk 'NF {sub(/\r/, ""); printf "%s\\n",$0;}' ca-cert.pem`
 	nutanixAdditionalTrustBundle = strings.Replace(nutanixAdditionalTrustBundle, `\n`, "\n", -1)
 	nch := nutanixClientHelper.NutanixClientHelper{}
 	nutanixClient, err := nch.GetClient(*creds, nutanixAdditionalTrustBundle)
