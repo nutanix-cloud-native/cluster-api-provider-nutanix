@@ -1,4 +1,12 @@
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-ca-bundle
+  namespace: kube-system
+data:
+  ca.crt: NUTANIX_ADDITIONAL_TRUST_BUNDLE
+---
 # Source: nutanix-cloud-provider/templates/rbac.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -22,6 +30,11 @@ data:
         "credentialRef": {
           "kind": "secret",
           "name": "nutanix-creds",
+          "namespace": "kube-system"
+        },
+        "additionalTrustBundle": {
+          "kind": "configmap",
+          "name": "user-ca-bundle",
           "namespace": "kube-system"
         }
       },
@@ -176,6 +189,11 @@ spec:
         - image: "${CCM_REPO=ghcr.io/nutanix-cloud-native/cloud-provider-nutanix/controller}:${CCM_TAG=v0.3.0}"
           imagePullPolicy: IfNotPresent
           name: nutanix-cloud-controller-manager
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           args:
             - "--leader-elect=true"
             - "--cloud-config=/etc/cloud/nutanix_config.json"
