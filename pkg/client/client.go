@@ -20,7 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	"os"
+	"path/filepath"
+
 	prismgoclient "github.com/nutanix-cloud-native/prism-go-client"
 	"github.com/nutanix-cloud-native/prism-go-client/environment"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
@@ -29,8 +31,8 @@ import (
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/klog"
-	"os"
-	"path/filepath"
+
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
 const (
