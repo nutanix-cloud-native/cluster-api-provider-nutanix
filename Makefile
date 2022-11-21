@@ -239,6 +239,7 @@ ifndef ignore-not-found
   ignore-not-found = false
 endif
 
+
 .PHONY: install
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl apply -f -
@@ -265,25 +266,41 @@ cluster-e2e-templates: $(KUSTOMIZE) cluster-e2e-templates-v1beta1 cluster-e2e-te
 
 cluster-e2e-templates-v1alpha4: $(KUSTOMIZE) ## Generate cluster templates for v1alpha4
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1alpha4/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1alpha4/cluster-template.yaml
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/' $(NUTANIX_E2E_TEMPLATES)/v1alpha4/cluster-template.yaml
 
 cluster-e2e-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1beta1
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template.yaml 
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/' $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-secret --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-secret.yaml
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/' $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-secret.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nutanix-cluster --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nutanix-cluster.yaml
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/' $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nutanix-cluster.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories.yaml
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/' $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt.yaml
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/' $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project.yaml
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/' $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-ccm --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-ccm.yaml
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/' $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-ccm.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-upgrades --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-upgrades.yaml
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/' $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-upgrades.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-remediation --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-remediation.yaml
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/' $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-remediation.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-remediation --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-remediation.yaml
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/'  $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-remediation.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in.yaml
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/' $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi.yaml
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/' $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi.yaml
 
 cluster-templates: $(KUSTOMIZE) ## Generate cluster templates for all flavors
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/base > $(TEMPLATES_DIR)/cluster-template.yaml
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/' $(TEMPLATES_DIR)/cluster-template.yaml
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/csi > $(TEMPLATES_DIR)/cluster-template-csi.yaml
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/' $(TEMPLATES_DIR)/cluster-template-csi.yaml
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/ccm > $(TEMPLATES_DIR)/cluster-template-ccm.yaml
+	sed -i '' 's/NUTANIX_ADDITIONAL_TRUST_BUNDLE/"$${NUTANIX_ADDITIONAL_TRUST_BUNDLE=\x27\x27}"/' $(TEMPLATES_DIR)/cluster-template-ccm.yaml
 
 ##@ Testing
 
