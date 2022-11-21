@@ -75,6 +75,7 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 		Complete(r)
 }
 
+//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update;delete
 //+kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters;clusters/status,verbs=get;list;watch
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters/status,verbs=get;update;patch
