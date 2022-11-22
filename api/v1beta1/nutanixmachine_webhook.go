@@ -142,6 +142,15 @@ func (r *NutanixMachine) validateMachine(operation string) error {
 		}
 	}
 
+	for _, category := range r.Spec.AdditionalCategories {
+		if category.Key == "" {
+			return errors.New("AdditionalCategories key cannot be empty")
+		}
+		if category.Value == "" {
+			return errors.New("AdditionalCategories value cannot be empty")
+		}
+	}
+
 	return nil
 }
 
