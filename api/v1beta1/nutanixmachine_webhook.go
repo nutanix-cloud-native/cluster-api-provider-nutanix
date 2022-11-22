@@ -19,13 +19,13 @@ package v1beta1
 import (
 	"errors"
 	"fmt"
-
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"strings"
 )
 
 // log is for logging in this package.
@@ -118,6 +118,10 @@ func (r *NutanixMachine) validateMachine(operation string) error {
 		return errors.New(fmt.Sprintf("SystemDiskGiB must be greater than or equal to %d", minNutanixDiskGiB))
 	}
 
+	if strings.ToLower(r.Spec.BootType) != "uefi" && strings.ToLower(r.Spec.BootType) != "legacy" {
+		return errors.New("BootType must be either uefi or legacy")
+	}
+
 	if err := validateNutanixResourceIdentifier("cluster", r.Spec.Cluster); err != nil {
 		return err
 	}
@@ -128,6 +132,12 @@ func (r *NutanixMachine) validateMachine(operation string) error {
 
 	for _, subnet := range r.Spec.Subnets {
 		if err := validateNutanixResourceIdentifier("subnet", subnet); err != nil {
+			return err
+		}
+	}
+
+	if r.Spec.Project != nil {
+		if err := validateNutanixResourceIdentifier("project", *r.Spec.Project); err != nil {
 			return err
 		}
 	}
