@@ -17,6 +17,10 @@ limitations under the License.
 package v1beta1
 
 import (
+	"errors"
+	"fmt"
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -38,11 +42,19 @@ func (r *NutanixMachine) SetupWebhookWithManager(mgr ctrl.Manager) error {
 
 var _ webhook.Defaulter = &NutanixMachine{}
 
+// Nutanix Defaults
+// Minimum Nutanix values taken from Nutanix reconciler
+const (
+	defaultNutanixCredentialsSecret = "nutanix-credentials"
+	minNutanixCPUSockets            = 1
+	minNutanixCPUPerSocket          = 1
+	minNutanixMemoryMiB             = 2048
+	minNutanixDiskGiB               = 20
+)
+
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *NutanixMachine) Default() {
 	nutanixmachinelog.Info("default", "name", r.Name)
-
-	// TODO(user): fill in your defaulting logic.
 }
 
 // TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
@@ -53,8 +65,27 @@ var _ webhook.Validator = &NutanixMachine{}
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (r *NutanixMachine) ValidateCreate() error {
 	nutanixmachinelog.Info("validate create", "name", r.Name)
+	if r.Spec.VCPUSockets < minNutanixCPUSockets {
+		return errors.New(fmt.Sprintf("VCPUSockets must be greater than or equal to %d", minNutanixCPUSockets))
+	}
+	if r.Spec.VCPUsPerSocket < minNutanixCPUPerSocket {
+		return errors.New(fmt.Sprintf("VCPUPerSocket must be greater than or equal to %d", minNutanixCPUPerSocket))
+	}
+	minNutanixMemory, err := resource.ParseQuantity(fmt.Sprintf("%dMi", minNutanixMemoryMiB))
+	if err != nil {
+		return err
+	}
+	if r.Spec.MemorySize.Cmp(minNutanixMemory) < 0 {
+		return errors.New(fmt.Sprintf("MemoryMiB must be greater than or equal to %d", minNutanixMemoryMiB))
+	}
+	minNutanixDisk, err := resource.ParseQuantity(fmt.Sprintf("%dGi", minNutanixDiskGiB))
+	if err != nil {
+		return err
+	}
+	if r.Spec.SystemDiskSize.Cmp(minNutanixDisk) < 0 {
+		return errors.New(fmt.Sprintf("SystemDiskGiB must be greater than or equal to %d", minNutanixDiskGiB))
+	}
 
-	// TODO(user): fill in your validation logic upon object creation.
 	return nil
 }
 
