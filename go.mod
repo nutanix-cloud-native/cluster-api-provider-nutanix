@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/google/uuid v1.3.0
-	github.com/nutanix-cloud-native/prism-go-client v0.3.3
+	github.com/nutanix-cloud-native/prism-go-client v0.3.4
 	github.com/onsi/ginkgo/v2 v2.2.0
 	github.com/onsi/gomega v1.20.2
 	github.com/pkg/errors v0.9.1
