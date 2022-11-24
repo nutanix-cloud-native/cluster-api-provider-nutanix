@@ -4,5 +4,5 @@ kind: ConfigMap
 metadata:
   name: user-ca-bundle
   namespace: "${NAMESPACE}"
-data:
-  ca.crt: NUTANIX_ADDITIONAL_TRUST_BUNDLE
+binaryData:
+  ca.crt: "${NUTANIX_ADDITIONAL_TRUST_BUNDLE=''}"

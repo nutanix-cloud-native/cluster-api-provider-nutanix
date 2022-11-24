@@ -20,11 +20,11 @@ limitations under the License.
 package e2e
 
 import (
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 
 	prismGoClient "github.com/nutanix-cloud-native/prism-go-client"
 	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
@@ -119,13 +119,17 @@ func initNutanixClient(e2eConfig clusterctl.E2EConfig) (*prismGoClientV3.Client,
 	if err != nil {
 		return nil, err
 	}
-	// Replace the newline characters with actual newlines to ensure the certificate is properly formatted.
-	// This is done because the environment variable `NUTANIX_ADDITIONAL_TRUST_BUNDLE` is supposed to contain
-	// the certificate as a single line string with embedded `\n` characters to denote newlines. This is generated
-	// using `awk 'NF {sub(/\r/, ""); printf "%s\\n",$0;}' ca-cert.pem`
-	nutanixAdditionalTrustBundle = strings.Replace(nutanixAdditionalTrustBundle, `\n`, "\n", -1)
+
+	var trustBundle string
+	if nutanixAdditionalTrustBundle != "" {
+		decodedCert, err := base64.StdEncoding.DecodeString(nutanixAdditionalTrustBundle)
+		if err != nil {
+			return nil, err
+		}
+		trustBundle = string(decodedCert)
+	}
 	nch := nutanixClientHelper.NutanixClientHelper{}
-	nutanixClient, err := nch.GetClient(*creds, nutanixAdditionalTrustBundle)
+	nutanixClient, err := nch.GetClient(*creds, trustBundle)
 	if err != nil {
 		return nil, err
 	}
