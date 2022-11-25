@@ -5,4 +5,4 @@ metadata:
   name: user-ca-bundle
   namespace: "${NAMESPACE}"
 data:
-  ca.crt: NUTANIX_ADDITIONAL_TRUST_BUNDLE
+  ca.crt: "${NUTANIX_ADDITIONAL_TRUST_BUNDLE=''}"
