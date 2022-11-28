@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-NUTANIX_CCM_VERSION=0.3.0
+NUTANIX_CCM_VERSION=0.3.1
 NUTANIX_CCM_REPO=ghcr.io/nutanix-cloud-native/cloud-provider-nutanix/controller
 
 helm repo add nutanix https://nutanix.github.io/helm/ --force-update && helm repo update
