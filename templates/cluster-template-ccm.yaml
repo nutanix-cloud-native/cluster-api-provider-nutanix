@@ -44,7 +44,7 @@ data:
               "namespace": "kube-system"
             },
             "additionalTrustBundle": {
-              "kind": "configmap",
+              "kind": "ConfigMap",
               "name": "user-ca-bundle",
               "namespace": "kube-system"
             }
