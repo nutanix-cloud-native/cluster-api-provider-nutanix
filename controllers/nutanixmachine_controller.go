@@ -72,8 +72,9 @@ func init() {
 // NutanixMachineReconciler reconciles a NutanixMachine object
 type NutanixMachineReconciler struct {
 	client.Client
-	SecretInformer coreinformers.SecretInformer
-	Scheme         *runtime.Scheme
+	SecretInformer    coreinformers.SecretInformer
+	ConfigMapInformer coreinformers.ConfigMapInformer
+	Scheme            *runtime.Scheme
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -134,6 +135,7 @@ func (r *NutanixMachineReconciler) mapNutanixClusterToNutanixMachines(ctx contex
 
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;update;delete
 //+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;patch
+//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update;delete
 //+kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machines;machines/status,verbs=get;list;watch
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixmachines,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixmachines/status,verbs=get;update;patch
@@ -212,10 +214,10 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	client, err := CreateNutanixClient(ctx, r.SecretInformer, ntxCluster)
+	v3Client, err := CreateNutanixClient(r.SecretInformer, r.ConfigMapInformer, ntxCluster)
 	if err != nil {
 		conditions.MarkFalse(ntxMachine, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
-		return ctrl.Result{Requeue: true}, fmt.Errorf("Client Auth error: %v", err)
+		return ctrl.Result{Requeue: true}, fmt.Errorf("client auth error: %v", err)
 	}
 	conditions.MarkTrue(ntxMachine, infrav1.PrismCentralClientCondition)
 	rctx := &nctx.MachineContext{
@@ -225,7 +227,7 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		NutanixCluster: ntxCluster,
 		NutanixMachine: ntxMachine,
 		LogPrefix:      logPrefix,
-		NutanixClient:  client,
+		NutanixClient:  v3Client,
 	}
 
 	defer func() {

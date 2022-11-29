@@ -1,6 +1,7 @@
 bases:
   - ../../../../../../templates/base/cluster-with-kcp.yaml
   - ../../../../../../templates/base/secret.yaml
+  - ../../../../../../templates/base/cm.yaml
   - ../../../../../../templates/base/nmt.yaml
   - ../../../../../../templates/base/md.yaml
   - ../base/crs.yaml

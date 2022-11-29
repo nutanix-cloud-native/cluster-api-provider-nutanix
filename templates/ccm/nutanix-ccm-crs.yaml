@@ -11,6 +11,8 @@ spec:
     name: nutanix-ccm
   - kind: Secret
     name: nutanix-ccm-secret
+  - kind: ConfigMap
+    name: user-ca-bundle
   strategy: ApplyOnce
 ---
 apiVersion: v1

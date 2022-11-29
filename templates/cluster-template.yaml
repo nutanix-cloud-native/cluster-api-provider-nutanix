@@ -1,4 +1,12 @@
 apiVersion: v1
+binaryData:
+  ca.crt: ${NUTANIX_ADDITIONAL_TRUST_BUNDLE=''}
+kind: ConfigMap
+metadata:
+  name: user-ca-bundle
+  namespace: ${NAMESPACE}
+---
+apiVersion: v1
 kind: Secret
 metadata:
   name: ${CLUSTER_NAME}
@@ -248,6 +256,9 @@ spec:
     host: ${CONTROL_PLANE_ENDPOINT_IP}
     port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
   prismCentral:
+    additionalTrustBundle:
+      kind: ConfigMap
+      name: user-ca-bundle
     address: ${NUTANIX_ENDPOINT}
     credentialRef:
       kind: Secret

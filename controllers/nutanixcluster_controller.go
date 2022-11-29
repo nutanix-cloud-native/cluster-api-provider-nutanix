@@ -50,9 +50,10 @@ import (
 
 // NutanixClusterReconciler reconciles a NutanixCluster object
 type NutanixClusterReconciler struct {
-	Client         client.Client
-	SecretInformer coreinformers.SecretInformer
-	Scheme         *runtime.Scheme
+	Client            client.Client
+	SecretInformer    coreinformers.SecretInformer
+	ConfigMapInformer coreinformers.ConfigMapInformer
+	Scheme            *runtime.Scheme
 }
 
 // SetupWithManager sets up the NutanixCluster controller with the Manager.
@@ -74,6 +75,7 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 		Complete(r)
 }
 
+//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update;delete
 //+kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters;clusters/status,verbs=get;list;watch
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters/status,verbs=get;update;patch
@@ -152,10 +154,10 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	conditions.MarkTrue(cluster, infrav1.CredentialRefSecretOwnerSetCondition)
 
-	client, err := CreateNutanixClient(ctx, r.SecretInformer, cluster)
+	v3Client, err := CreateNutanixClient(r.SecretInformer, r.ConfigMapInformer, cluster)
 	if err != nil {
 		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
-		return ctrl.Result{Requeue: true}, fmt.Errorf("Nutanix Client error: %v", err)
+		return ctrl.Result{Requeue: true}, fmt.Errorf("nutanix client error: %v", err)
 	}
 	conditions.MarkTrue(cluster, infrav1.PrismCentralClientCondition)
 
@@ -164,7 +166,7 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		Cluster:        capiCluster,
 		NutanixCluster: cluster,
 		LogPrefix:      logPrefix,
-		NutanixClient:  client,
+		NutanixClient:  v3Client,
 	}
 
 	// Check for request action

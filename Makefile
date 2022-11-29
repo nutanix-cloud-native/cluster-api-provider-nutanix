@@ -212,7 +212,7 @@ kind-delete: ## Delete the kind cluster
 ##@ Build
 
 .PHONY: build
-build: generate fmt vet ## Build manager binary.
+build: generate fmt ## Build manager binary.
 	go build -o bin/manager main.go
 
 .PHONY: run
@@ -238,6 +238,7 @@ docker-push-kind: $(KO) test-unittest ## Make docker image available to kind clu
 ifndef ignore-not-found
   ignore-not-found = false
 endif
+
 
 .PHONY: install
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
@@ -389,8 +390,6 @@ test-e2e-all-cni: test-e2e test-e2e-calico test-e2e-flannel test-e2e-cilium
 ## Hack / Tools
 ## --------------------------------------
 
-##@ hack/tools:
-
 .PHONY: $(CONTROLLER_GEN_BIN)
 $(CONTROLLER_GEN_BIN): $(CONTROLLER_GEN) ## Build a local copy of controller-gen.
 
@@ -479,7 +478,7 @@ $(GOLANGCI_LINT): # Build golangci-lint from tools folder
 ## Lint / Verify
 ## --------------------------------------
 
-##@ lint and verify:
+##@ Lint and Verify
 
 .PHONY: lint
 lint: $(GOLANGCI_LINT) ## Lint the codebase
@@ -490,3 +489,13 @@ lint: $(GOLANGCI_LINT) ## Lint the codebase
 .PHONY: lint-fix
 lint-fix: $(GOLANGCI_LINT) ## Lint the codebase and run auto-fixers if supported by the linter
 	GOLANGCI_LINT_EXTRA_ARGS=--fix $(MAKE) lint
+
+## --------------------------------------
+## Clean
+## --------------------------------------
+
+##@ Clean
+.PHONY: clean
+clean: ## Clean the build and test artifacts
+	rm -rf $(ARTIFACTS) $(BIN_DIR)
+

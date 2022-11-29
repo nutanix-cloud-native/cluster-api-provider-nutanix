@@ -23,7 +23,6 @@ import (
 	"os"
 	"path/filepath"
 
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	prismgoclient "github.com/nutanix-cloud-native/prism-go-client"
 	"github.com/nutanix-cloud-native/prism-go-client/environment"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
@@ -32,6 +31,8 @@ import (
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/klog"
+
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
 const (
@@ -43,12 +44,14 @@ const (
 )
 
 type NutanixClientHelper struct {
-	secretInformer coreinformers.SecretInformer
+	secretInformer    coreinformers.SecretInformer
+	configMapInformer coreinformers.ConfigMapInformer
 }
 
-func NewNutanixClientHelper(ctx context.Context, secretInformer coreinformers.SecretInformer) (*NutanixClientHelper, error) {
+func NewNutanixClientHelper(secretInformer coreinformers.SecretInformer, cmInformer coreinformers.ConfigMapInformer) (*NutanixClientHelper, error) {
 	return &NutanixClientHelper{
-		secretInformer: secretInformer,
+		secretInformer:    secretInformer,
+		configMapInformer: cmInformer,
 	}, nil
 }
 
@@ -73,9 +76,16 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.N
 		if credentialRef.Namespace == "" {
 			credentialRef.Namespace = nutanixCluster.Namespace
 		}
+		additionalTrustBundleRef := prismCentralInfo.AdditionalTrustBundle
+		if additionalTrustBundleRef != nil &&
+			additionalTrustBundleRef.Kind == credentialTypes.NutanixTrustBundleKindConfigMap &&
+			additionalTrustBundleRef.Namespace == "" {
+			additionalTrustBundleRef.Namespace = nutanixCluster.Namespace
+		}
 		providers = append(providers, kubernetesEnv.NewProvider(
 			*nutanixCluster.Spec.PrismCentral,
-			n.secretInformer))
+			n.secretInformer,
+			n.configMapInformer))
 	} else {
 		klog.Warningf("[WARNING] prismCentral attribute was not set on NutanixCluster %s in namespace %s. Defaulting to CAPX manager credentials", nutanixCluster.Name, nutanixCluster.Namespace)
 	}
@@ -93,9 +103,17 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.N
 		}
 		npe.CredentialRef.Namespace = capxNamespace
 	}
+	if npe.AdditionalTrustBundle != nil && npe.AdditionalTrustBundle.Namespace == "" {
+		capxNamespace := os.Getenv(capxNamespaceKey)
+		if capxNamespace == "" {
+			return nil, fmt.Errorf("failed to retrieve capx-namespace. Make sure %s env variable is set", capxNamespaceKey)
+		}
+		npe.AdditionalTrustBundle.Namespace = capxNamespace
+	}
 	providers = append(providers, kubernetesEnv.NewProvider(
 		*npe,
-		n.secretInformer))
+		n.secretInformer,
+		n.configMapInformer))
 
 	// init env with providers
 	env := environment.NewEnvironment(
@@ -114,10 +132,10 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.N
 		Password: me.ApiCredentials.Password,
 	}
 
-	return n.GetClient(creds)
+	return n.GetClient(creds, me.AdditionalTrustBundle)
 }
 
-func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials) (*nutanixClientV3.Client, error) {
+func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials, additionalTrustBundle string) (*nutanixClientV3.Client, error) {
 	if cred.Username == "" {
 		errorMsg := fmt.Errorf("could not create client because username was not set")
 		klog.Error(errorMsg)
@@ -134,7 +152,11 @@ func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials) (*nutani
 	if cred.URL == "" {
 		cred.URL = fmt.Sprintf("%s:%s", cred.Endpoint, cred.Port)
 	}
-	cli, err := nutanixClientV3.NewV3Client(cred)
+	clientOpts := make([]nutanixClientV3.ClientOption, 0)
+	if additionalTrustBundle != "" {
+		clientOpts = append(clientOpts, nutanixClientV3.WithPEMEncodedCertBundle([]byte(additionalTrustBundle)))
+	}
+	cli, err := nutanixClientV3.NewV3Client(cred, clientOpts...)
 	if err != nil {
 		klog.Errorf("Failed to create the nutanix client. error: %v", err)
 		return nil, err
@@ -143,8 +165,10 @@ func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials) (*nutani
 	// Check if the client is working
 	_, err = cli.V3.GetCurrentLoggedInUser(context.Background())
 	if err != nil {
+		fmt.Printf("failed to get current logged in user. error: %v", err)
 		return nil, err
 	}
+	fmt.Println("Successfully created the nutanix client")
 
 	return cli, nil
 }

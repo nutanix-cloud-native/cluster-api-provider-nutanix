@@ -71,6 +71,31 @@ spec:
                   you wish for communication with this endpoint not to be proxied,
                   please add the endpoint to the proxy spec.noProxy list.
                 properties:
+                  additionalTrustBundle:
+                    description: AdditionalTrustBundle is a PEM encoded x509 cert
+                      for the RootCA that was used to create the certificate for a
+                      Prism Central that uses certificates that were issued by a non-publicly
+                      trusted RootCA. The trust bundle is added to the cert pool used
+                      to authenticate the TLS connection to the Prism Central.
+                    properties:
+                      data:
+                        description: Data of the trust bundle if Kind is String.
+                        type: string
+                      kind:
+                        description: Kind of the Nutanix trust bundle
+                        enum:
+                        - String
+                        - ConfigMap
+                        type: string
+                      name:
+                        description: Name of the credential.
+                        type: string
+                      namespace:
+                        description: namespace of the credential.
+                        type: string
+                    required:
+                    - kind
+                    type: object
                   address:
                     description: address is the endpoint address (DNS name or IP address)
                       of the Nutanix Prism Central or Element (cluster)
@@ -245,6 +270,31 @@ spec:
                   you wish for communication with this endpoint not to be proxied,
                   please add the endpoint to the proxy spec.noProxy list.
                 properties:
+                  additionalTrustBundle:
+                    description: AdditionalTrustBundle is a PEM encoded x509 cert
+                      for the RootCA that was used to create the certificate for a
+                      Prism Central that uses certificates that were issued by a non-publicly
+                      trusted RootCA. The trust bundle is added to the cert pool used
+                      to authenticate the TLS connection to the Prism Central.
+                    properties:
+                      data:
+                        description: Data of the trust bundle if Kind is String.
+                        type: string
+                      kind:
+                        description: Kind of the Nutanix trust bundle
+                        enum:
+                        - String
+                        - ConfigMap
+                        type: string
+                      name:
+                        description: Name of the credential.
+                        type: string
+                      namespace:
+                        description: namespace of the credential.
+                        type: string
+                    required:
+                    - kind
+                    type: object
                   address:
                     description: address is the endpoint address (DNS name or IP address)
                       of the Nutanix Prism Central or Element (cluster)
