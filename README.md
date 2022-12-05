@@ -13,7 +13,7 @@
 
 ---
 ## What is the Cluster API Provider Nutanix Cloud Infrastucture
-The [Cluster API](https://github.com/kubernetes-sigs/cluster-api) brings declarative, Kubernetes-style APIs to cluster creation, configuration and management. Cluster API Provider for Nutanix Cloud Infrastructure is a concrete implementation of Cluster API for Nutanix Cloud Infrastucture.
+The [Cluster API](https://github.com/kubernetes-sigs/cluster-api) brings declarative, Kubernetes-style APIs to cluster creation, configuration and management. Cluster API Provider for Nutanix Cloud Infrastructure is a concrete implementation of Cluster API for Nutanix Cloud Infrastructure.
 
 The API itself is shared across multiple cloud providers allowing for true Nutanix hybrid cloud deployments of Kubernetes. 
 
