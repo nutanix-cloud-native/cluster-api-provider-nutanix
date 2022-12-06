@@ -5,7 +5,7 @@ metadata:
   name: user-ca-bundle
   namespace: kube-system
 binaryData:
-  ca.crt: "${NUTANIX_ADDITIONAL_TRUST_BUNDLE=''}"
+  ca.crt: ${NUTANIX_ADDITIONAL_TRUST_BUNDLE=""}
 ---
 # Source: nutanix-cloud-provider/templates/rbac.yaml
 apiVersion: v1
