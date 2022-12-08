@@ -44,6 +44,6 @@ openssl req -new -key ${tmpdir}/server.key -out ${tmpdir}/server.csr -subj "/CN=
 openssl x509 -req -in ${tmpdir}/server.csr -CA ${tmpdir}/ca.crt -CAkey ${tmpdir}/ca.key -CAcreateserial -out ${tmpdir}/server.crt -days 100000 -extensions v3_req -extfile ${tmpdir}/server.conf
 
 
-export WEBHOOK_KEY=`cat ${tmpdir}/server.key | base64`
-export WEBHOOK_CERT=`cat ${tmpdir}/server.crt | base64`
-export WEBHOOK_CA=`cat ${tmpdir}/ca.crt | base64`
+export WEBHOOK_KEY=`cat ${tmpdir}/server.key | base64 | tr -d '\n'`
+export WEBHOOK_CERT=`cat ${tmpdir}/server.crt | base64 | tr -d '\n'`
+export WEBHOOK_CA=`cat ${tmpdir}/ca.crt | base64 | tr -d '\n'`
