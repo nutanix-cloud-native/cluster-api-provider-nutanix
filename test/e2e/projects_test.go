@@ -159,4 +159,51 @@ var _ = Describe("Nutanix projects", Label("capx-feature-test", "projects", "slo
 
 		By("PASSED!")
 	})
+
+	It("Create a cluster linked to an existing project by UUID", Label("uuid"), func() {
+		flavor = "no-nmt"
+		Expect(namespace).NotTo(BeNil())
+
+		By("Creating Nutanix Machine Template with UUIDs", func() {
+			uuidNMT := testHelper.createUUIDProjectNMT(ctx, clusterName, namespace.Name)
+			testHelper.createCapiObject(ctx, createCapiObjectParams{
+				creator:    bootstrapClusterProxy.GetClient(),
+				capiObject: uuidNMT,
+			})
+		})
+
+		By("Creating a workload cluster linked to a project")
+		testHelper.deployClusterAndWait(
+			deployClusterParams{
+				clusterName:           clusterName,
+				namespace:             namespace,
+				flavor:                flavor,
+				clusterctlConfigPath:  clusterctlConfigPath,
+				artifactFolder:        artifactFolder,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+			}, clusterResources)
+
+		By("Checking project assigned condition is true", func() {
+			testHelper.verifyConditionOnNutanixMachines(verifyConditionParams{
+				clusterName:           clusterName,
+				namespace:             namespace,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+				expectedCondition: clusterv1.Condition{
+					Type:   infrav1.ProjectAssignedCondition,
+					Status: corev1.ConditionTrue,
+				},
+			})
+		})
+
+		By("Verifying if project is assigned to the VMs")
+		Expect(nutanixProjectName).ToNot(BeEmpty())
+		testHelper.verifyProjectNutanixMachines(ctx, verifyProjectNutanixMachinesParams{
+			clusterName:           clusterName,
+			namespace:             namespace.Name,
+			nutanixProjectName:    nutanixProjectName,
+			bootstrapClusterProxy: bootstrapClusterProxy,
+		})
+
+		By("PASSED!")
+	})
 })
