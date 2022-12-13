@@ -165,10 +165,9 @@ func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials, addition
 	// Check if the client is working
 	_, err = cli.V3.GetCurrentLoggedInUser(context.Background())
 	if err != nil {
-		fmt.Printf("failed to get current logged in user. error: %v", err)
+		klog.Errorf("failed to get current logged in user. error: %v", err)
 		return nil, err
 	}
-	fmt.Println("Successfully created the nutanix client")
 
 	return cli, nil
 }
