@@ -347,14 +347,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		klog.Infof("%s The NutanixMachine is already ready, providerID: %s", rctx.LogPrefix, rctx.NutanixMachine.Spec.ProviderID)
 
 		if rctx.NutanixMachine.Status.NodeRef == nil {
-			reconcileNodeResult, err := r.reconcileNode(rctx)
-			if err != nil {
-				klog.Errorf("%s Failed to reconcile the workload cluster node. %v", rctx.LogPrefix, err)
-				return reconcile.Result{}, err
-			}
-			if reconcileNodeResult != nil {
-				return *reconcileNodeResult, nil
-			}
+			return r.reconcileNode(rctx)
 		}
 
 		return reconcile.Result{}, nil
@@ -426,7 +419,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 
 // reconcileNode makes sure the NutanixMachine corresponding workload cluster node
 // is ready and set its spec.providerID
-func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) (*reconcile.Result, error) {
+func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) (reconcile.Result, error) {
 	klog.Infof("%s Reconcile the workload cluster node to set its spec.providerID", rctx.LogPrefix)
 
 	clusterKey := apitypes.NamespacedName{
@@ -437,10 +430,10 @@ func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) (*re
 	if err != nil {
 		if r.isGetRemoteClientConnectionError(err) {
 			klog.Warningf("%s Controlplane endpoint not yet responding. Requeuing: %v", rctx.LogPrefix, err)
-			return &reconcile.Result{Requeue: true}, nil
+			return reconcile.Result{Requeue: true}, nil
 		}
 		klog.Errorf("%s Failed to get the client to access remote workload cluster %s. %v", rctx.LogPrefix, rctx.Cluster.Name, err)
-		return nil, err
+		return reconcile.Result{}, err
 	}
 
 	// Retrieve the remote node
@@ -458,10 +451,10 @@ func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) (*re
 		}
 		if apierrors.IsNotFound(err) {
 			klog.Warningf("%s workload node %s not yet ready. Requeuing", rctx.LogPrefix, nodeName)
-			return &reconcile.Result{Requeue: true}, nil
+			return reconcile.Result{Requeue: true}, nil
 		} else {
 			klog.Errorf("%s failed to retrieve the remote workload cluster node %s", rctx.LogPrefix, nodeName)
-			return nil, err
+			return reconcile.Result{}, err
 		}
 	}
 
@@ -480,18 +473,18 @@ func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) (*re
 	patchHelper, err := patch.NewHelper(node, remoteClient)
 	if err != nil {
 		klog.Errorf("%s Failed to create patchHelper for the workload cluster node %s. %v", rctx.LogPrefix, nodeName, err)
-		return nil, err
+		return reconcile.Result{}, err
 	}
 
 	node.Spec.ProviderID = rctx.NutanixMachine.Spec.ProviderID
 	err = patchHelper.Patch(rctx.Context, node)
 	if err != nil {
 		klog.Errorf("%s Failed to patch the remote workload cluster node %s's spec.providerID. %v", rctx.LogPrefix, nodeName, err)
-		return nil, err
+		return reconcile.Result{}, err
 	}
 	klog.Infof("%s Patched the workload node %s spec.providerID: %s", rctx.LogPrefix, nodeName, node.Spec.ProviderID)
 
-	return nil, nil
+	return reconcile.Result{}, nil
 }
 
 func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineContext) error {
