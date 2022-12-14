@@ -347,11 +347,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		klog.Infof("%s The NutanixMachine is already ready, providerID: %s", rctx.LogPrefix, rctx.NutanixMachine.Spec.ProviderID)
 
 		if rctx.NutanixMachine.Status.NodeRef == nil {
-			err = r.reconcileNode(rctx)
-			if err != nil {
-				klog.Errorf("%s Failed to reconcile the workload cluster node. %v", rctx.LogPrefix, err)
-				return reconcile.Result{}, err
-			}
+			return r.reconcileNode(rctx)
 		}
 
 		return reconcile.Result{}, nil
@@ -423,7 +419,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 
 // reconcileNode makes sure the NutanixMachine corresponding workload cluster node
 // is ready and set its spec.providerID
-func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) error {
+func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) (reconcile.Result, error) {
 	klog.Infof("%s Reconcile the workload cluster node to set its spec.providerID", rctx.LogPrefix)
 
 	clusterKey := apitypes.NamespacedName{
@@ -432,8 +428,12 @@ func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) erro
 	}
 	remoteClient, err := nctx.GetRemoteClient(rctx.Context, r.Client, clusterKey)
 	if err != nil {
+		if r.isGetRemoteClientConnectionError(err) {
+			klog.Warningf("%s Controlplane endpoint not yet responding. Requeuing: %v", rctx.LogPrefix, err)
+			return reconcile.Result{Requeue: true}, nil
+		}
 		klog.Errorf("%s Failed to get the client to access remote workload cluster %s. %v", rctx.LogPrefix, rctx.Cluster.Name, err)
-		return err
+		return reconcile.Result{}, err
 	}
 
 	// Retrieve the remote node
@@ -449,14 +449,12 @@ func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) erro
 		if err == nil {
 			break
 		}
-
 		if apierrors.IsNotFound(err) {
-			errorMessage := fmt.Sprintf("%s workload node %s not yet ready ... Retrying", rctx.LogPrefix, nodeName)
-			klog.Errorf(errorMessage)
-			return fmt.Errorf(errorMessage)
+			klog.Warningf("%s workload node %s not yet ready. Requeuing", rctx.LogPrefix, nodeName)
+			return reconcile.Result{Requeue: true}, nil
 		} else {
-			klog.Errorf("%s Failed to retrieve the remote workload cluster node %s", rctx.LogPrefix, nodeName)
-			return err
+			klog.Errorf("%s failed to retrieve the remote workload cluster node %s", rctx.LogPrefix, nodeName)
+			return reconcile.Result{}, err
 		}
 	}
 
@@ -475,23 +473,23 @@ func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) erro
 	patchHelper, err := patch.NewHelper(node, remoteClient)
 	if err != nil {
 		klog.Errorf("%s Failed to create patchHelper for the workload cluster node %s. %v", rctx.LogPrefix, nodeName, err)
-		return err
+		return reconcile.Result{}, err
 	}
 
 	node.Spec.ProviderID = rctx.NutanixMachine.Spec.ProviderID
 	err = patchHelper.Patch(rctx.Context, node)
 	if err != nil {
 		klog.Errorf("%s Failed to patch the remote workload cluster node %s's spec.providerID. %v", rctx.LogPrefix, nodeName, err)
-		return err
+		return reconcile.Result{}, err
 	}
 	klog.Infof("%s Patched the workload node %s spec.providerID: %s", rctx.LogPrefix, nodeName, node.Spec.ProviderID)
 
-	return nil
+	return reconcile.Result{}, nil
 }
 
 func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineContext) error {
 	if len(rctx.NutanixMachine.Spec.Subnets) == 0 {
-		return fmt.Errorf("Atleast one subnet is needed to create the VM %s.", rctx.NutanixMachine.Name)
+		return fmt.Errorf("atleast one subnet is needed to create the VM %s.", rctx.NutanixMachine.Name)
 	}
 
 	diskSize := rctx.NutanixMachine.Spec.SystemDiskSize
@@ -855,4 +853,10 @@ func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vmM
 	}
 	conditions.MarkTrue(rctx.NutanixMachine, infrav1.ProjectAssignedCondition)
 	return nil
+}
+
+func (r *NutanixMachineReconciler) isGetRemoteClientConnectionError(err error) bool {
+	// Check if error contains connection refused message. This can occur during provisioning when Kubernetes API is not available yet.
+	const expectedErrString = "connect: connection refused"
+	return strings.Contains(err.Error(), expectedErrString)
 }
