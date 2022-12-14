@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
+	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -58,21 +59,31 @@ type NutanixClusterReconciler struct {
 
 // SetupWithManager sets up the NutanixCluster controller with the Manager.
 func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	log := ctrl.LoggerFrom(ctx)
+	controller, err := ctrl.NewControllerManagedBy(mgr).
 		// Watch the controlled, infrastructure resource.
 		For(&infrav1.NutanixCluster{}).
+		Build(r)
+	if err != nil {
+		return err
+	}
+
+	if err = controller.Watch(
 		// Watch the CAPI resource that owns this infrastructure resource.
-		Watches(
-			&source.Kind{Type: &capiv1.Cluster{}},
-			handler.EnqueueRequestsFromMapFunc(
-				capiutil.ClusterToInfrastructureMapFunc(
-					ctx,
-					infrav1.GroupVersion.WithKind("NutanixCluster"),
-					mgr.GetClient(),
-					&infrav1.NutanixCluster{},
-				)),
-		).
-		Complete(r)
+		&source.Kind{Type: &capiv1.Cluster{}},
+		handler.EnqueueRequestsFromMapFunc(
+			capiutil.ClusterToInfrastructureMapFunc(
+				ctx,
+				infrav1.GroupVersion.WithKind("NutanixCluster"),
+				mgr.GetClient(),
+				&infrav1.NutanixCluster{},
+			)),
+		predicates.ClusterUnpausedAndInfrastructureReady(log),
+	); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update;delete
