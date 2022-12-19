@@ -40,32 +40,8 @@ const (
 	serviceNamePECluster = "AOS"
 )
 
-type Helpers interface {
-	CreateNutanixClient(secretInformer coreinformers.SecretInformer, cmInformer coreinformers.ConfigMapInformer, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error)
-	CreateSystemDiskSpec(imageUUID string, systemDiskSize int64) (*nutanixClientV3.VMDisk, error)
-	DeleteCategories(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) error
-	DeleteVM(ctx context.Context, client *nutanixClientV3.Client, vmName, vmUUID string) (string, error)
-	FindVM(ctx context.Context, client *nutanixClientV3.Client, nutanixMachine *infrav1.NutanixMachine) (*nutanixClientV3.VMIntentResponse, error)
-	FindVMByName(ctx context.Context, client *nutanixClientV3.Client, vmName string) (*nutanixClientV3.VMIntentResponse, error)
-	FindVMByUUID(ctx context.Context, client *nutanixClientV3.Client, uuid string) (*nutanixClientV3.VMIntentResponse, error)
-	GenerateProviderID(uuid string) string
-	GetCategoryVMSpec(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) (map[string]string, error)
-	GetDefaultCAPICategoryIdentifiers(clusterName string) []*infrav1.NutanixCategoryIdentifier
-	GetImageUUID(ctx context.Context, client *nutanixClientV3.Client, imageName, imageUUID *string) (string, error)
-	GetMibValueOfQuantity(quantity resource.Quantity) int64
-	GetOrCreateCategories(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) ([]*nutanixClientV3.CategoryValueStatus, error)
-	GetPEUUID(ctx context.Context, client *nutanixClientV3.Client, peName, peUUID *string) (string, error)
-	GetProjectUUID(ctx context.Context, client *nutanixClientV3.Client, projectName, projectUUID *string) (string, error)
-	GetSubnetUUID(ctx context.Context, client *nutanixClientV3.Client, peUUID string, subnetName, subnetUUID *string) (string, error)
-	GetSubnetUUIDList(ctx context.Context, client *nutanixClientV3.Client, machineSubnets []infrav1.NutanixResourceIdentifier, peUUID string) ([]string, error)
-	GetTaskUUIDFromVM(vm *nutanixClientV3.VMIntentResponse) (string, error)
-	GetVMUUID(ctx context.Context, nutanixMachine *infrav1.NutanixMachine) (string, error)
-	HasTaskInProgress(ctx context.Context, client *nutanixClientV3.Client, taskUUID string) (bool, error)
-}
-
-type CapxHelpers struct{}
-
-func (c *CapxHelpers) CreateNutanixClient(secretInformer coreinformers.SecretInformer, cmInformer coreinformers.ConfigMapInformer, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
+// CreateNutanixClient creates a new Nutanix client from the environment
+func CreateNutanixClient(secretInformer coreinformers.SecretInformer, cmInformer coreinformers.ConfigMapInformer, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
 	helper, err := nutanixClientHelper.NewNutanixClientHelper(secretInformer, cmInformer)
 	if err != nil {
 		klog.Errorf("error creating nutanix client helper: %v", err)
@@ -74,8 +50,8 @@ func (c *CapxHelpers) CreateNutanixClient(secretInformer coreinformers.SecretInf
 	return helper.GetClientFromEnvironment(nutanixCluster)
 }
 
-// deleteVM deletes a VM and is invoked by the NutanixMachineReconciler
-func (c *CapxHelpers) DeleteVM(ctx context.Context, client *nutanixClientV3.Client, vmName, vmUUID string) (string, error) {
+// DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
+func DeleteVM(ctx context.Context, client *nutanixClientV3.Client, vmName, vmUUID string) (string, error) {
 	var err error
 
 	if vmUUID == "" {
@@ -95,7 +71,7 @@ func (c *CapxHelpers) DeleteVM(ctx context.Context, client *nutanixClientV3.Clie
 }
 
 // FindVMByUUID retrieves the VM with the given vm UUID. Returns nil if not found
-func (c *CapxHelpers) FindVMByUUID(ctx context.Context, client *nutanixClientV3.Client, uuid string) (*nutanixClientV3.VMIntentResponse, error) {
+func FindVMByUUID(ctx context.Context, client *nutanixClientV3.Client, uuid string) (*nutanixClientV3.VMIntentResponse, error) {
 	klog.Infof("Checking if VM with UUID %s exists.", uuid)
 
 	response, err := client.V3.GetVM(ctx, uuid)
@@ -112,11 +88,13 @@ func (c *CapxHelpers) FindVMByUUID(ctx context.Context, client *nutanixClientV3.
 	return response, nil
 }
 
-func (c *CapxHelpers) GenerateProviderID(uuid string) string {
+// GenerateProviderID generates a provider ID for the given resource UUID
+func GenerateProviderID(uuid string) string {
 	return fmt.Sprintf("%s%s", providerIdPrefix, uuid)
 }
 
-func (c *CapxHelpers) GetVMUUID(ctx context.Context, nutanixMachine *infrav1.NutanixMachine) (string, error) {
+// GetVMUUID returns the UUID of the VM with the given name
+func GetVMUUID(ctx context.Context, nutanixMachine *infrav1.NutanixMachine) (string, error) {
 	vmUUID := nutanixMachine.Status.VmUUID
 	if vmUUID != "" {
 		if _, err := uuid.Parse(vmUUID); err != nil {
@@ -129,23 +107,25 @@ func (c *CapxHelpers) GetVMUUID(ctx context.Context, nutanixMachine *infrav1.Nut
 		return "", nil
 	}
 	id := strings.TrimPrefix(providerID, providerIdPrefix)
-	// Not returning error since the ProviderID initially is not a UUID. CAPX only sets the UUID after VM provisioning. If it is not a UUID, continue.
+	// Not returning error since the ProviderID initially is not a UUID. CAPX only sets the UUID after VM provisioning.
+	// If it is not a UUID, continue.
 	if _, err := uuid.Parse(id); err != nil {
 		return "", nil
 	}
 	return id, nil
 }
 
-func (c *CapxHelpers) FindVM(ctx context.Context, client *nutanixClientV3.Client, nutanixMachine *infrav1.NutanixMachine) (*nutanixClientV3.VMIntentResponse, error) {
+// FindVM retrieves the VM with the given uuid or name
+func FindVM(ctx context.Context, client *nutanixClientV3.Client, nutanixMachine *infrav1.NutanixMachine) (*nutanixClientV3.VMIntentResponse, error) {
 	vmName := nutanixMachine.Name
-	vmUUID, err := c.GetVMUUID(ctx, nutanixMachine)
+	vmUUID, err := GetVMUUID(ctx, nutanixMachine)
 	if err != nil {
 		return nil, err
 	}
 	// Search via uuid if it is present
 	if vmUUID != "" {
 		klog.Infof("Searching for VM %s using UUID %s", vmName, vmUUID)
-		vm, err := c.FindVMByUUID(ctx, client, vmUUID)
+		vm, err := FindVMByUUID(ctx, client, vmUUID)
 		if err != nil {
 			klog.Errorf("error occurred finding VM with uuid %s: %v", vmUUID, err)
 			return nil, err
@@ -164,7 +144,7 @@ func (c *CapxHelpers) FindVM(ctx context.Context, client *nutanixClientV3.Client
 		// otherwise search via name
 	} else {
 		klog.Infof("Searching for VM %s using name", vmName)
-		vm, err := c.FindVMByName(ctx, client, vmName)
+		vm, err := FindVMByName(ctx, client, vmName)
 		if err != nil {
 			klog.Errorf("error occurred finding VM %s by name: %v", vmName, err)
 			return nil, err
@@ -174,7 +154,7 @@ func (c *CapxHelpers) FindVM(ctx context.Context, client *nutanixClientV3.Client
 }
 
 // FindVMByName retrieves the VM with the given vm name
-func (c *CapxHelpers) FindVMByName(ctx context.Context, client *nutanixClientV3.Client, vmName string) (*nutanixClientV3.VMIntentResponse, error) {
+func FindVMByName(ctx context.Context, client *nutanixClientV3.Client, vmName string) (*nutanixClientV3.VMIntentResponse, error) {
 	klog.Infof("Checking if VM with name %s exists.", vmName)
 
 	res, err := client.V3.ListVM(ctx, &nutanixClientV3.DSMetadata{
@@ -196,10 +176,11 @@ func (c *CapxHelpers) FindVMByName(ctx context.Context, client *nutanixClientV3.
 		return nil, nil
 	}
 
-	return c.FindVMByUUID(ctx, client, *res.Entities[0].Metadata.UUID)
+	return FindVMByUUID(ctx, client, *res.Entities[0].Metadata.UUID)
 }
 
-func (c *CapxHelpers) GetPEUUID(ctx context.Context, client *nutanixClientV3.Client, peName, peUUID *string) (string, error) {
+// GetPEUUID returns the UUID of the Prism Element cluster with the given name
+func GetPEUUID(ctx context.Context, client *nutanixClientV3.Client, peName, peUUID *string) (string, error) {
 	if peUUID == nil && peName == nil {
 		return "", fmt.Errorf("cluster name or uuid must be passed in order to retrieve the pe")
 	}
@@ -212,7 +193,7 @@ func (c *CapxHelpers) GetPEUUID(ctx context.Context, client *nutanixClientV3.Cli
 		}
 		return *peIntentResponse.Metadata.UUID, nil
 	} else if peName != nil && *peName != "" {
-		filter := c.getFilterForName(*peName)
+		filter := getFilterForName(*peName)
 		responsePEs, err := client.V3.ListAllCluster(ctx, filter)
 		if err != nil {
 			return "", err
@@ -221,7 +202,7 @@ func (c *CapxHelpers) GetPEUUID(ctx context.Context, client *nutanixClientV3.Cli
 		foundPEs := make([]*nutanixClientV3.ClusterIntentResponse, 0)
 		for _, s := range responsePEs.Entities {
 			peSpec := s.Spec
-			if *peSpec.Name == *peName && c.hasPEClusterServiceEnabled(s, serviceNamePECluster) {
+			if *peSpec.Name == *peName && hasPEClusterServiceEnabled(s, serviceNamePECluster) {
 				foundPEs = append(foundPEs, s)
 			}
 		}
@@ -234,15 +215,15 @@ func (c *CapxHelpers) GetPEUUID(ctx context.Context, client *nutanixClientV3.Cli
 			return "", fmt.Errorf("more than one Prism Element cluster found with name %s", *peName)
 		}
 	}
-	return "", fmt.Errorf("failed to retrieve Prism Element cluster by name or uuid. Verify input parameters.")
+	return "", fmt.Errorf("failed to retrieve Prism Element cluster by name or uuid. Verify input parameters")
 }
 
 // GetMibValueOfQuantity returns the given quantity value in Mib
-func (c *CapxHelpers) GetMibValueOfQuantity(quantity resource.Quantity) int64 {
+func GetMibValueOfQuantity(quantity resource.Quantity) int64 {
 	return quantity.Value() / (1024 * 1024)
 }
 
-func (c *CapxHelpers) CreateSystemDiskSpec(imageUUID string, systemDiskSize int64) (*nutanixClientV3.VMDisk, error) {
+func CreateSystemDiskSpec(imageUUID string, systemDiskSize int64) (*nutanixClientV3.VMDisk, error) {
 	if imageUUID == "" {
 		return nil, fmt.Errorf("image UUID must be set when creating system disk")
 	}
@@ -259,7 +240,8 @@ func (c *CapxHelpers) CreateSystemDiskSpec(imageUUID string, systemDiskSize int6
 	return systemDisk, nil
 }
 
-func (c *CapxHelpers) GetSubnetUUID(ctx context.Context, client *nutanixClientV3.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
+// GetSubnetUUID returns the UUID of the subnet with the given name
+func GetSubnetUUID(ctx context.Context, client *nutanixClientV3.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
 	var foundSubnetUUID string
 	if subnetUUID == nil && subnetName == nil {
 		return "", fmt.Errorf("subnet name or subnet uuid must be passed in order to retrieve the subnet")
@@ -273,8 +255,8 @@ func (c *CapxHelpers) GetSubnetUUID(ctx context.Context, client *nutanixClientV3
 		}
 		foundSubnetUUID = *subnetIntentResponse.Metadata.UUID
 	} else if subnetName != nil {
-		filter := c.getFilterForName(*subnetName)
-		subnetClientSideFilter := c.getSubnetClientSideFilter(peUUID)
+		filter := getFilterForName(*subnetName)
+		subnetClientSideFilter := getSubnetClientSideFilter(peUUID)
 		responseSubnets, err := client.V3.ListAllSubnet(ctx, filter, subnetClientSideFilter)
 		if err != nil {
 			return "", err
@@ -295,13 +277,14 @@ func (c *CapxHelpers) GetSubnetUUID(ctx context.Context, client *nutanixClientV3
 			foundSubnetUUID = *foundSubnets[0].Metadata.UUID
 		}
 		if foundSubnetUUID == "" {
-			return "", fmt.Errorf("failed to retrieve subnet by name or uuid. Verify input parameters.")
+			return "", fmt.Errorf("failed to retrieve subnet by name or uuid. Verify input parameters")
 		}
 	}
 	return foundSubnetUUID, nil
 }
 
-func (c *CapxHelpers) GetImageUUID(ctx context.Context, client *nutanixClientV3.Client, imageName, imageUUID *string) (string, error) {
+// GetImageUUID returns the UUID of the image with the given name
+func GetImageUUID(ctx context.Context, client *nutanixClientV3.Client, imageName, imageUUID *string) (string, error) {
 	var foundImageUUID string
 
 	if imageUUID == nil && imageName == nil {
@@ -316,7 +299,7 @@ func (c *CapxHelpers) GetImageUUID(ctx context.Context, client *nutanixClientV3.
 		}
 		foundImageUUID = *imageIntentResponse.Metadata.UUID
 	} else if imageName != nil {
-		filter := c.getFilterForName(*imageName)
+		filter := getFilterForName(*imageName)
 		responseImages, err := client.V3.ListAllImage(ctx, filter)
 		if err != nil {
 			return "", err
@@ -337,13 +320,14 @@ func (c *CapxHelpers) GetImageUUID(ctx context.Context, client *nutanixClientV3.
 			foundImageUUID = *foundImages[0].Metadata.UUID
 		}
 		if foundImageUUID == "" {
-			return "", fmt.Errorf("failed to retrieve image by name or uuid. Verify input parameters.")
+			return "", fmt.Errorf("failed to retrieve image by name or uuid. Verify input parameters")
 		}
 	}
 	return foundImageUUID, nil
 }
 
-func (c *CapxHelpers) HasTaskInProgress(ctx context.Context, client *nutanixClientV3.Client, taskUUID string) (bool, error) {
+// HasTaskInProgress returns true if the given task is in progress
+func HasTaskInProgress(ctx context.Context, client *nutanixClientV3.Client, taskUUID string) (bool, error) {
 	taskStatus, err := nutanixClientHelper.GetTaskState(ctx, client, taskUUID)
 	if err != nil {
 		return false, err
@@ -355,7 +339,8 @@ func (c *CapxHelpers) HasTaskInProgress(ctx context.Context, client *nutanixClie
 	return false, nil
 }
 
-func (c *CapxHelpers) GetTaskUUIDFromVM(vm *nutanixClientV3.VMIntentResponse) (string, error) {
+// GetTaskUUIDFromVM returns the UUID of the task that created the VM with the given UUID
+func GetTaskUUIDFromVM(vm *nutanixClientV3.VMIntentResponse) (string, error) {
 	if vm == nil {
 		return "", fmt.Errorf("cannot extract task uuid from empty vm object")
 	}
@@ -376,10 +361,11 @@ func (c *CapxHelpers) GetTaskUUIDFromVM(vm *nutanixClientV3.VMIntentResponse) (s
 	}
 }
 
-func (c *CapxHelpers) GetSubnetUUIDList(ctx context.Context, client *nutanixClientV3.Client, machineSubnets []infrav1.NutanixResourceIdentifier, peUUID string) ([]string, error) {
+// GetSubnetUUIDList returns a list of subnet UUIDs for the given list of subnet names
+func GetSubnetUUIDList(ctx context.Context, client *nutanixClientV3.Client, machineSubnets []infrav1.NutanixResourceIdentifier, peUUID string) ([]string, error) {
 	subnetUUIDs := make([]string, 0)
 	for _, machineSubnet := range machineSubnets {
-		subnetUUID, err := c.GetSubnetUUID(
+		subnetUUID, err := GetSubnetUUID(
 			ctx,
 			client,
 			peUUID,
@@ -394,7 +380,8 @@ func (c *CapxHelpers) GetSubnetUUIDList(ctx context.Context, client *nutanixClie
 	return subnetUUIDs, nil
 }
 
-func (c *CapxHelpers) GetDefaultCAPICategoryIdentifiers(clusterName string) []*infrav1.NutanixCategoryIdentifier {
+// GetDefaultCAPICategoryIdentifiers returns the default CAPI category identifiers
+func GetDefaultCAPICategoryIdentifiers(clusterName string) []*infrav1.NutanixCategoryIdentifier {
 	return []*infrav1.NutanixCategoryIdentifier{
 		{
 			Key:   fmt.Sprintf("%s%s", infrav1.DefaultCAPICategoryPrefix, clusterName),
@@ -403,13 +390,14 @@ func (c *CapxHelpers) GetDefaultCAPICategoryIdentifiers(clusterName string) []*i
 	}
 }
 
-func (c *CapxHelpers) GetOrCreateCategories(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) ([]*nutanixClientV3.CategoryValueStatus, error) {
+// GetOrCreateCategories returns the list of category UUIDs for the given list of category names
+func GetOrCreateCategories(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) ([]*nutanixClientV3.CategoryValueStatus, error) {
 	categories := make([]*nutanixClientV3.CategoryValueStatus, 0)
 	for _, ci := range categoryIdentifiers {
 		if ci == nil {
 			return categories, fmt.Errorf("cannot get or create nil category")
 		}
-		category, err := c.getOrCreateCategory(ctx, client, ci)
+		category, err := getOrCreateCategory(ctx, client, ci)
 		if err != nil {
 			return categories, err
 		}
@@ -418,11 +406,11 @@ func (c *CapxHelpers) GetOrCreateCategories(ctx context.Context, client *nutanix
 	return categories, nil
 }
 
-func (c *CapxHelpers) getCategoryKey(ctx context.Context, client *nutanixClientV3.Client, key string) (*nutanixClientV3.CategoryKeyStatus, error) {
+func getCategoryKey(ctx context.Context, client *nutanixClientV3.Client, key string) (*nutanixClientV3.CategoryKeyStatus, error) {
 	categoryKey, err := client.V3.GetCategoryKey(ctx, key)
 	if err != nil {
 		if !strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-			errorMsg := fmt.Errorf("Failed to retrieve category with key %s. error: %v", key, err)
+			errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", key, err)
 			klog.Error(errorMsg)
 			return nil, errorMsg
 		} else {
@@ -432,7 +420,7 @@ func (c *CapxHelpers) getCategoryKey(ctx context.Context, client *nutanixClientV
 	return categoryKey, nil
 }
 
-func (c *CapxHelpers) getCategoryValue(ctx context.Context, client *nutanixClientV3.Client, key, value string) (*nutanixClientV3.CategoryValueStatus, error) {
+func getCategoryValue(ctx context.Context, client *nutanixClientV3.Client, key, value string) (*nutanixClientV3.CategoryValueStatus, error) {
 	categoryValue, err := client.V3.GetCategoryValue(ctx, key, value)
 	if err != nil {
 		if !strings.Contains(fmt.Sprint(err), "CATEGORY_NAME_VALUE_MISMATCH") {
@@ -446,7 +434,8 @@ func (c *CapxHelpers) getCategoryValue(ctx context.Context, client *nutanixClien
 	return categoryValue, nil
 }
 
-func (c *CapxHelpers) DeleteCategories(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) error {
+// DeleteCategories deletes the given list of categories
+func DeleteCategories(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) error {
 	groupCategoriesByKey := make(map[string][]string, 0)
 	for _, ci := range categoryIdentifiers {
 		ciKey := ci.Key
@@ -460,7 +449,7 @@ func (c *CapxHelpers) DeleteCategories(ctx context.Context, client *nutanixClien
 
 	for key, values := range groupCategoriesByKey {
 		klog.Infof("Retrieving category with key %s", key)
-		categoryKey, err := c.getCategoryKey(ctx, client, key)
+		categoryKey, err := getCategoryKey(ctx, client, key)
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", key, err)
 			klog.Error(errorMsg)
@@ -472,7 +461,7 @@ func (c *CapxHelpers) DeleteCategories(ctx context.Context, client *nutanixClien
 			continue
 		}
 		for _, value := range values {
-			categoryValue, err := c.getCategoryValue(ctx, client, key, value)
+			categoryValue, err := getCategoryValue(ctx, client, key, value)
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
 				klog.Error(errorMsg)
@@ -512,7 +501,7 @@ func (c *CapxHelpers) DeleteCategories(ctx context.Context, client *nutanixClien
 	return nil
 }
 
-func (c *CapxHelpers) getOrCreateCategory(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifier *infrav1.NutanixCategoryIdentifier) (*nutanixClientV3.CategoryValueStatus, error) {
+func getOrCreateCategory(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifier *infrav1.NutanixCategoryIdentifier) (*nutanixClientV3.CategoryValueStatus, error) {
 	if categoryIdentifier == nil {
 		return nil, fmt.Errorf("category identifier cannot be nil when getting or creating categories")
 	}
@@ -523,9 +512,9 @@ func (c *CapxHelpers) getOrCreateCategory(ctx context.Context, client *nutanixCl
 		return nil, fmt.Errorf("category identifier key must be set when when getting or creating categories")
 	}
 	klog.Infof("Checking existence of category with key %s", categoryIdentifier.Key)
-	categoryKey, err := c.getCategoryKey(ctx, client, categoryIdentifier.Key)
+	categoryKey, err := getCategoryKey(ctx, client, categoryIdentifier.Key)
 	if err != nil {
-		errorMsg := fmt.Errorf("Failed to retrieve category with key %s. error: %v", categoryIdentifier.Key, err)
+		errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", categoryIdentifier.Key, err)
 		klog.Error(errorMsg)
 		return nil, errorMsg
 	}
@@ -536,14 +525,14 @@ func (c *CapxHelpers) getOrCreateCategory(ctx context.Context, client *nutanixCl
 			Name:        utils.StringPtr(categoryIdentifier.Key),
 		})
 		if err != nil {
-			errorMsg := fmt.Errorf("Failed to create category with key %s. error: %v", categoryIdentifier.Key, err)
+			errorMsg := fmt.Errorf("failed to create category with key %s. error: %v", categoryIdentifier.Key, err)
 			klog.Error(errorMsg)
 			return nil, errorMsg
 		}
 	}
-	categoryValue, err := c.getCategoryValue(ctx, client, *categoryKey.Name, categoryIdentifier.Value)
+	categoryValue, err := getCategoryValue(ctx, client, *categoryKey.Name, categoryIdentifier.Value)
 	if err != nil {
-		errorMsg := fmt.Errorf("Failed to retrieve category value %s in category %s. error: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
+		errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
 		klog.Error(errorMsg)
 		return nil, errorMsg
 	}
@@ -559,10 +548,11 @@ func (c *CapxHelpers) getOrCreateCategory(ctx context.Context, client *nutanixCl
 	return categoryValue, nil
 }
 
-func (c *CapxHelpers) GetCategoryVMSpec(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) (map[string]string, error) {
+// GetCategoryVMSpec returns a flatmap of categories and their values
+func GetCategoryVMSpec(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) (map[string]string, error) {
 	categorySpec := map[string]string{}
 	for _, ci := range categoryIdentifiers {
-		categoryValue, err := c.getCategoryValue(ctx, client, ci.Key, ci.Value)
+		categoryValue, err := getCategoryValue(ctx, client, ci.Key, ci.Value)
 		if err != nil {
 			errorMsg := fmt.Errorf("error occurred while to retrieving category value %s in category %s. error: %v", ci.Value, ci.Key, err)
 			klog.Error(errorMsg)
@@ -578,7 +568,8 @@ func (c *CapxHelpers) GetCategoryVMSpec(ctx context.Context, client *nutanixClie
 	return categorySpec, nil
 }
 
-func (c *CapxHelpers) GetProjectUUID(ctx context.Context, client *nutanixClientV3.Client, projectName, projectUUID *string) (string, error) {
+// GetProjectUUID returns the UUID of the project with the given name
+func GetProjectUUID(ctx context.Context, client *nutanixClientV3.Client, projectName, projectUUID *string) (string, error) {
 	var foundProjectUUID string
 	if projectUUID == nil && projectName == nil {
 		return "", fmt.Errorf("name or uuid must be passed in order to retrieve the project")
@@ -592,7 +583,7 @@ func (c *CapxHelpers) GetProjectUUID(ctx context.Context, client *nutanixClientV
 		}
 		foundProjectUUID = *projectIntentResponse.Metadata.UUID
 	} else if projectName != nil {
-		filter := c.getFilterForName(*projectName)
+		filter := getFilterForName(*projectName)
 		responseProjects, err := client.V3.ListAllProject(ctx, filter)
 		if err != nil {
 			return "", err
@@ -612,13 +603,13 @@ func (c *CapxHelpers) GetProjectUUID(ctx context.Context, client *nutanixClientV
 			foundProjectUUID = *foundProjects[0].Metadata.UUID
 		}
 		if foundProjectUUID == "" {
-			return "", fmt.Errorf("failed to retrieve project by name or uuid. Verify input parameters.")
+			return "", fmt.Errorf("failed to retrieve project by name or uuid. Verify input parameters")
 		}
 	}
 	return foundProjectUUID, nil
 }
 
-func (c *CapxHelpers) getSubnetClientSideFilter(peUUID string) []*nutanixClient.AdditionalFilter {
+func getSubnetClientSideFilter(peUUID string) []*nutanixClient.AdditionalFilter {
 	clientSideFilters := make([]*nutanixClient.AdditionalFilter, 0)
 	return append(clientSideFilters, &nutanixClient.AdditionalFilter{
 		Name: "cluster_reference.uuid",
@@ -628,11 +619,11 @@ func (c *CapxHelpers) getSubnetClientSideFilter(peUUID string) []*nutanixClient.
 	})
 }
 
-func (c *CapxHelpers) getFilterForName(name string) string {
+func getFilterForName(name string) string {
 	return fmt.Sprintf("name==%s", name)
 }
 
-func (c *CapxHelpers) hasPEClusterServiceEnabled(peCluster *nutanixClientV3.ClusterIntentResponse, serviceName string) bool {
+func hasPEClusterServiceEnabled(peCluster *nutanixClientV3.ClusterIntentResponse, serviceName string) bool {
 	if peCluster.Status == nil ||
 		peCluster.Status.Resources == nil ||
 		peCluster.Status.Resources.Config == nil {

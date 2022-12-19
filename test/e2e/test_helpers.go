@@ -102,7 +102,6 @@ type testHelperInterface interface {
 type testHelper struct {
 	nutanixClient *prismGoClientV3.Client
 	e2eConfig     *clusterctl.E2EConfig
-	capxHelpers   controllers.Helpers
 }
 
 func newTestHelper(e2eConfig *clusterctl.E2EConfig) testHelperInterface {
@@ -112,7 +111,6 @@ func newTestHelper(e2eConfig *clusterctl.E2EConfig) testHelperInterface {
 	return testHelper{
 		nutanixClient: c,
 		e2eConfig:     e2eConfig,
-		capxHelpers:   &controllers.CapxHelpers{},
 	}
 }
 
@@ -178,13 +176,13 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
 	subnetVarValue := t.getVariableFromE2eConfig(subnetVarKey)
 
-	clusterUUID, err := t.capxHelpers.GetPEUUID(ctx, t.nutanixClient, &clusterVarValue, nil)
+	clusterUUID, err := controllers.GetPEUUID(ctx, t.nutanixClient, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
-	imageUUID, err := t.capxHelpers.GetImageUUID(ctx, t.nutanixClient, &imageVarValue, nil)
+	imageUUID, err := controllers.GetImageUUID(ctx, t.nutanixClient, &imageVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
-	subnetUUID, err := t.capxHelpers.GetSubnetUUID(ctx, t.nutanixClient, clusterUUID, &subnetVarValue, nil)
+	subnetUUID, err := controllers.GetSubnetUUID(ctx, t.nutanixClient, clusterUUID, &subnetVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
 	return &infrav1.NutanixMachineTemplate{
@@ -223,7 +221,7 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 
 func (t testHelper) createUUIDProjectNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate {
 	projectVarValue := t.getVariableFromE2eConfig(nutanixProjectNameEnv)
-	projectUUID, err := t.capxHelpers.GetProjectUUID(ctx, t.nutanixClient, &projectVarValue, nil)
+	projectUUID, err := controllers.GetProjectUUID(ctx, t.nutanixClient, &projectVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
 	nmt := t.createUUIDNMT(ctx, clusterName, namespace)

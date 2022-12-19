@@ -55,7 +55,6 @@ type NutanixClusterReconciler struct {
 	SecretInformer    coreinformers.SecretInformer
 	ConfigMapInformer coreinformers.ConfigMapInformer
 	Scheme            *runtime.Scheme
-	capxHelpers       Helpers
 }
 
 func NewNutanixClusterReconciler(client client.Client, secretInformer coreinformers.SecretInformer, configMapInformer coreinformers.ConfigMapInformer, scheme *runtime.Scheme) *NutanixClusterReconciler {
@@ -64,7 +63,6 @@ func NewNutanixClusterReconciler(client client.Client, secretInformer coreinform
 		SecretInformer:    secretInformer,
 		ConfigMapInformer: configMapInformer,
 		Scheme:            scheme,
-		capxHelpers:       &CapxHelpers{},
 	}
 }
 
@@ -176,7 +174,7 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	conditions.MarkTrue(cluster, infrav1.CredentialRefSecretOwnerSetCondition)
 
-	v3Client, err := r.capxHelpers.CreateNutanixClient(r.SecretInformer, r.ConfigMapInformer, cluster)
+	v3Client, err := CreateNutanixClient(r.SecretInformer, r.ConfigMapInformer, cluster)
 	if err != nil {
 		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
 		return ctrl.Result{Requeue: true}, fmt.Errorf("nutanix client error: %v", err)
@@ -247,7 +245,7 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 
 	err := r.reconcileCategories(rctx)
 	if err != nil {
-		errorMsg := fmt.Errorf("Failed to reconcile categories for cluster %s: %v", rctx.Cluster.Name, err)
+		errorMsg := fmt.Errorf("failed to reconcile categories for cluster %s: %v", rctx.Cluster.Name, err)
 		klog.Errorf("%s %v", rctx.LogPrefix, errorMsg)
 		rctx.SetFailureStatus(capierrors.CreateClusterError, errorMsg)
 		return reconcile.Result{}, err
@@ -259,8 +257,8 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 
 func (r *NutanixClusterReconciler) reconcileCategories(rctx *nctx.ClusterContext) error {
 	klog.Infof("%s Reconciling categories for cluster %s", rctx.LogPrefix, rctx.Cluster.Name)
-	defaultCategories := r.capxHelpers.GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-	_, err := r.capxHelpers.GetOrCreateCategories(rctx.Context, rctx.NutanixClient, defaultCategories)
+	defaultCategories := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
+	_, err := GetOrCreateCategories(rctx.Context, rctx.NutanixClient, defaultCategories)
 	if err != nil {
 		conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.ClusterCategoryCreationFailed, capiv1.ConditionSeverityError, err.Error())
 		return err
@@ -273,8 +271,8 @@ func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterC
 	klog.Infof("%s Reconciling deletion of categories for cluster %s", rctx.LogPrefix, rctx.Cluster.Name)
 	if conditions.IsTrue(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) ||
 		conditions.GetReason(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) == infrav1.DeletionFailed {
-		defaultCategories := r.capxHelpers.GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-		err := r.capxHelpers.DeleteCategories(rctx.Context, rctx.NutanixClient, defaultCategories)
+		defaultCategories := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
+		err := DeleteCategories(rctx.Context, rctx.NutanixClient, defaultCategories)
 		if err != nil {
 			conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, err.Error())
 			return err
@@ -352,7 +350,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, n
 	}
 	err = r.Client.Update(ctx, secret)
 	if err != nil {
-		errorMsg := fmt.Errorf("Failed to update secret for cluster %s: %v", nutanixCluster.Name, err)
+		errorMsg := fmt.Errorf("failed to update secret for cluster %s: %v", nutanixCluster.Name, err)
 		klog.Error(errorMsg)
 		return errorMsg
 	}
