@@ -44,6 +44,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
 )
 
 const (
@@ -73,6 +74,8 @@ type testHelperInterface interface {
 	createDefaultNutanixCluster(clusterName, namespace, controlPlaneEndpointIP string, controlPlanePort int32) *infrav1.NutanixCluster
 	createCapiObject(ctx context.Context, params createCapiObjectParams)
 	createSecret(params createSecretParams)
+	createUUIDNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate
+	createUUIDProjectNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate
 	deployCluster(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult)
 	deployClusterAndWait(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult)
 	generateNMTName(clusterName string) string
@@ -166,6 +169,67 @@ func (t testHelper) createDefaultNMT(clusterName, namespace string) *infrav1.Nut
 			},
 		},
 	}
+}
+
+func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate {
+	imageVarValue := t.getVariableFromE2eConfig(imageVarKey)
+	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
+	subnetVarValue := t.getVariableFromE2eConfig(subnetVarKey)
+
+	clusterUUID, err := controllers.GetPEUUID(ctx, t.nutanixClient, &clusterVarValue, nil)
+	Expect(err).ToNot(HaveOccurred())
+
+	imageUUID, err := controllers.GetImageUUID(ctx, t.nutanixClient, &imageVarValue, nil)
+	Expect(err).ToNot(HaveOccurred())
+
+	subnetUUID, err := controllers.GetSubnetUUID(ctx, t.nutanixClient, clusterUUID, &subnetVarValue, nil)
+	Expect(err).ToNot(HaveOccurred())
+
+	return &infrav1.NutanixMachineTemplate{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.generateNMTName(clusterName),
+			Namespace: namespace,
+		},
+		Spec: infrav1.NutanixMachineTemplateSpec{
+			Template: infrav1.NutanixMachineTemplateResource{
+				Spec: infrav1.NutanixMachineSpec{
+					ProviderID:     t.generateNMTProviderID(clusterName),
+					BootType:       defaultBootType,
+					VCPUsPerSocket: defaultVCPUsPerSocket,
+					VCPUSockets:    defaultVCPUSockets,
+					MemorySize:     resource.MustParse(defaultMemorySize),
+					Image: infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierUUID,
+						UUID: pointer.StringPtr(imageUUID),
+					},
+					Cluster: infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierUUID,
+						UUID: pointer.StringPtr(clusterUUID),
+					},
+					Subnets: []infrav1.NutanixResourceIdentifier{
+						{
+							Type: infrav1.NutanixIdentifierUUID,
+							UUID: pointer.StringPtr(subnetUUID),
+						},
+					},
+					SystemDiskSize: resource.MustParse(defaultSystemDiskSize),
+				},
+			},
+		},
+	}
+}
+
+func (t testHelper) createUUIDProjectNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate {
+	projectVarValue := t.getVariableFromE2eConfig(nutanixProjectNameEnv)
+	projectUUID, err := controllers.GetProjectUUID(ctx, t.nutanixClient, &projectVarValue, nil)
+	Expect(err).ToNot(HaveOccurred())
+
+	nmt := t.createUUIDNMT(ctx, clusterName, namespace)
+	nmt.Spec.Template.Spec.Project = &infrav1.NutanixResourceIdentifier{
+		Type: infrav1.NutanixIdentifierUUID,
+		UUID: &projectUUID,
+	}
+	return nmt
 }
 
 func (t testHelper) createDefaultNutanixCluster(clusterName, namespace, controlPlaneEndpointIP string, controlPlanePort int32) *infrav1.NutanixCluster {
