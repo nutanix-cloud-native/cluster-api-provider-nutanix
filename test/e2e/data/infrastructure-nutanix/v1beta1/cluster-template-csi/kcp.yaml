@@ -8,6 +8,7 @@ spec:
   kubeadmConfigSpec:
     preKubeadmCommands:
       - echo "before kubeadm call" > /var/log/prekubeadm.log
+      - hostnamectl set-hostname "{{ ds.meta_data.hostname }}"
       - apt update
       - apt install -y nfs-common open-iscsi lvm2 xfsprogs
       - systemctl enable --now iscsid
