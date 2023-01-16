@@ -161,6 +161,7 @@ spec:
           - ${NUTANIX_SSH_AUTHORIZED_KEY}
     preKubeadmCommands:
       - echo "before kubeadm call" > /var/log/prekubeadm.log
+      - hostnamectl set-hostname "{{ ds.meta_data.hostname }}"
     postKubeadmCommands:
       - echo export KUBECONFIG=/etc/kubernetes/admin.conf >> /root/.bashrc
       - echo "after kubeadm call" > /var/log/postkubeadm.log
@@ -192,6 +193,7 @@ spec:
             - ${NUTANIX_SSH_AUTHORIZED_KEY}
       preKubeadmCommands:
         - echo "before kubeadm call" > /var/log/prekubeadm.log
+        - hostnamectl set-hostname "{{ ds.meta_data.hostname }}"
       postKubeadmCommands:
         - echo "after kubeadm call" > /var/log/postkubeadm.log
       verbosity: 10

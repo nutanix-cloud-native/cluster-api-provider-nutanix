@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -601,6 +602,13 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		klog.Infof("%s Retrieved the bootstrap data from secret %s (before encoding size: %d, encoded string size:%d)",
 			rctx.LogPrefix, rctx.NutanixMachine.Spec.BootstrapRef.Name, len(bootstrapData), len(bsdataEncoded))
 
+		// Generate metadata for the VM
+		uuid := uuid.New()
+		metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"uuid\": \"%s\"}", rctx.NutanixMachine.Name, uuid)
+
+		// Encode the metadata by base64
+		metadataEncoded := base64.StdEncoding.EncodeToString([]byte(metadata))
+
 		klog.Infof("%s Creating VM with name %s for cluster %s.", rctx.LogPrefix,
 			rctx.NutanixMachine.Name, rctx.NutanixCluster.Name)
 
@@ -667,7 +675,10 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 			DiskList:              diskList,
 			GuestCustomization: &nutanixClientV3.GuestCustomization{
 				IsOverridable: utils.BoolPtr(true),
-				CloudInit:     &nutanixClientV3.GuestCustomizationCloudInit{UserData: utils.StringPtr(bsdataEncoded)},
+				CloudInit: &nutanixClientV3.GuestCustomizationCloudInit{
+					UserData: utils.StringPtr(bsdataEncoded),
+					MetaData: utils.StringPtr(metadataEncoded),
+				},
 			},
 		}
 		vmSpec.ClusterReference = &nutanixClientV3.Reference{

@@ -1363,6 +1363,7 @@ spec:
       - echo "after kubeadm call" > /var/log/postkubeadm.log
       preKubeadmCommands:
       - echo "before kubeadm call" > /var/log/prekubeadm.log
+      - hostnamectl set-hostname "{{ ds.meta_data.hostname }}"
       users:
       - lockPassword: false
         name: capiuser
@@ -1561,6 +1562,7 @@ spec:
     - echo "after kubeadm call" > /var/log/postkubeadm.log
     preKubeadmCommands:
     - echo "before kubeadm call" > /var/log/prekubeadm.log
+    - hostnamectl set-hostname "{{ ds.meta_data.hostname }}"
     useExperimentalRetryJoin: true
     users:
     - lockPassword: false
