@@ -49,7 +49,7 @@ data:
               "namespace": "kube-system"
             }
           },
-          "enableCustomLabeling": false,
+          "enableCustomLabeling": ${CCM_CUSTOM_LABEL=false},
           "topologyDiscovery": {
             "type": "Prism"
           }
