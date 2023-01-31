@@ -1,3 +1,9 @@
+SHELL := /bin/bash
+GOCMD=go
+GOTEST=$(GOCMD) test
+GOGET=$(GOCMD) get
+GOTOOL=$(GOCMD) tool
+EXPORT_RESULT?=false # for CI please set EXPORT_RESULT to true
 # Image URL to use all building/pushing image targets
 IMG ?= ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:latest
 
@@ -220,15 +226,15 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: docker-build
-docker-build: $(KO) test-unittest ## Build docker image with the manager.
+docker-build: $(KO) ## Build docker image with the manager.
 	KO_DOCKER_REPO=ko.local $(KO) build -B --platform=${PLATFORMS} -t ${IMG_TAG} -L .
 
 .PHONY: docker-push
-docker-push: $(KO) test-unittest ## Push docker image with the manager.
+docker-push: $(KO) ## Push docker image with the manager.
 	KO_DOCKER_REPO=${IMG_REPO} $(KO) build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push-kind
-docker-push-kind: $(KO) test-unittest ## Make docker image available to kind cluster.
+docker-push-kind: $(KO) ## Make docker image available to kind cluster.
 	GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local ${KO} build -B -t ${IMG_TAG} -L .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG}
 	kind load docker-image --name ${KIND_CLUSTER_NAME} ${IMG}
@@ -302,9 +308,23 @@ prepare-local-clusterctl: manifests kustomize cluster-templates ## Prepare overi
 	cp ./templates/cluster-template*.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/
 	cp ./clusterctl.yaml ~/.cluster-api/clusterctl.yaml
 
-.PHONY: test-unittest
-test-unittest: manifests generate fmt vet setup-envtest ## Run unit tests.
-	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" go test ./... -coverprofile cover.out
+.PHONY: unit-test
+unit-test: setup-envtest ## Run unit tests.
+ifeq ($(EXPORT_RESULT), true)
+	GO111MODULE=off $(GOGET) -u github.com/jstemmer/go-junit-report
+	$(eval OUTPUT_OPTIONS = | go-junit-report -set-exit-code > junit-report.xml)
+endif
+	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) ./... $(OUTPUT_OPTIONS)
+
+.PHONY: coverage
+coverage: setup-envtest ## Run the tests of the project and export the coverage
+	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) -cover -covermode=count -coverprofile=profile.cov ./...
+	$(GOTOOL) cover -func profile.cov
+ifeq ($(EXPORT_RESULT), true)
+	GO111MODULE=off $(GOGET) -u github.com/AlekSi/gocov-xml
+	GO111MODULE=off $(GOGET) -u github.com/axw/gocov/gocov
+	gocov convert profile.cov | gocov-xml > coverage.xml
+endif
 
 .PHONY: test-clusterctl-create
 test-clusterctl-create: ## Run the tests using clusterctl
