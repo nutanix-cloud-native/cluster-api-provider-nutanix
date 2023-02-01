@@ -365,7 +365,7 @@ test-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates
 		--trace \
 		--progress \
 		--tags=e2e \
-		--label-filter="$(LABEL_FILTERS)" \
+		--label-filter="$(LABEL_FILTERS) && !only-for-validation" \
 		$(_SKIP_ARGS) \
 		--nodes=$(GINKGO_NODES) \
 		--no-color=$(GINKGO_NOCOLOR) \
