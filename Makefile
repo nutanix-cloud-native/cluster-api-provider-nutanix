@@ -138,7 +138,16 @@ endif
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
+RUN_VALIDATION_TESTS_ONLY?=false # for CI please set EXPORT_RESULT to true
 LABEL_FILTERS ?=
+ifeq ($(RUN_VALIDATION_TESTS_ONLY), true)
+		LABEL_FILTER_ARGS = "only-for-validation"
+else
+		LABEL_FILTER_ARGS = "!only-for-validation"
+endif
+ifneq ($(LABEL_FILTERS),)
+		LABEL_FILTER_ARGS += "&& $(LABEL_FILTERS)"
+endif
 JUNIT_REPORT_FILE ?= "junit.e2e_suite.1.xml"
 GINKGO_SKIP ?= "clusterctl-Upgrade"
 GINKGO_NODES  ?= 1
@@ -365,7 +374,7 @@ test-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates
 		--trace \
 		--progress \
 		--tags=e2e \
-		--label-filter="$(LABEL_FILTERS) && !only-for-validation" \
+		--label-filter=$(LABEL_FILTER_ARGS) \
 		$(_SKIP_ARGS) \
 		--nodes=$(GINKGO_NODES) \
 		--no-color=$(GINKGO_NOCOLOR) \

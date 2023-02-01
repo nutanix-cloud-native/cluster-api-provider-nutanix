@@ -48,7 +48,7 @@ var _ = Describe("When testing MachineDeployment scale out/in", Label("md-scale-
 })
 
 // Label `only-for-validation` is used to run this test only for validation and not as part of the regular test suite.
-var _ = Describe("When testing MachineDeployment scale up/down from 50 replicas to 1", Label("md-scale-up-down", "slow", "network", "only-for-validation"), func() {
+var _ = Describe("When testing MachineDeployment scale up/down from 10 replicas to 20 replicas to 10 again", Label("md-scale-up-down", "slow", "network", "only-for-validation"), func() {
 	// MachineDeploymentScaleSpec implements a test that verifies that MachineDeployment scale operations are successful.
 	var inputGetter = func() capi_e2e.MachineDeploymentScaleSpecInput {
 		return capi_e2e.MachineDeploymentScaleSpecInput{
@@ -60,7 +60,7 @@ var _ = Describe("When testing MachineDeployment scale up/down from 50 replicas 
 		}
 	}
 	var (
-		specName = "md-scale-up-down-50-nodes"
+		specName = "md-scale-up-down-10-20-10-nodes"
 
 		input            capi_e2e.MachineDeploymentScaleSpecInput
 		namespace        *corev1.Namespace
@@ -98,7 +98,7 @@ var _ = Describe("When testing MachineDeployment scale up/down from 50 replicas 
 				ClusterName:              fmt.Sprintf("%s-%s", specName, util.RandomString(6)),
 				KubernetesVersion:        input.E2EConfig.GetVariable(KubernetesVersion),
 				ControlPlaneMachineCount: pointer.Int64Ptr(1),
-				WorkerMachineCount:       pointer.Int64Ptr(1),
+				WorkerMachineCount:       pointer.Int64Ptr(10),
 			},
 			ControlPlaneWaiters:          input.ControlPlaneWaiters,
 			WaitForClusterIntervals:      input.E2EConfig.GetIntervals(specName, "wait-cluster"),
@@ -106,22 +106,22 @@ var _ = Describe("When testing MachineDeployment scale up/down from 50 replicas 
 			WaitForMachineDeployments:    input.E2EConfig.GetIntervals(specName, "wait-worker-nodes"),
 		}, clusterResources)
 
-		Expect(clusterResources.MachineDeployments[0].Spec.Replicas).To(Equal(pointer.Int32Ptr(1)))
+		Expect(clusterResources.MachineDeployments[0].Spec.Replicas).To(Equal(pointer.Int32Ptr(10)))
 
-		By("Scaling the MachineDeployment out to 50")
+		By("Scaling the MachineDeployment out to 20")
 		framework.ScaleAndWaitMachineDeployment(ctx, framework.ScaleAndWaitMachineDeploymentInput{
 			ClusterProxy:              input.BootstrapClusterProxy,
 			Cluster:                   clusterResources.Cluster,
 			MachineDeployment:         clusterResources.MachineDeployments[0],
-			Replicas:                  50,
+			Replicas:                  20,
 			WaitForMachineDeployments: input.E2EConfig.GetIntervals(specName, "wait-worker-nodes"),
 		})
-		By("Scaling the MachineDeployment down to 1")
+		By("Scaling the MachineDeployment down to 10")
 		framework.ScaleAndWaitMachineDeployment(ctx, framework.ScaleAndWaitMachineDeploymentInput{
 			ClusterProxy:              input.BootstrapClusterProxy,
 			Cluster:                   clusterResources.Cluster,
 			MachineDeployment:         clusterResources.MachineDeployments[0],
-			Replicas:                  1,
+			Replicas:                  10,
 			WaitForMachineDeployments: input.E2EConfig.GetIntervals(specName, "wait-worker-nodes"),
 		})
 		By("PASSED!")
