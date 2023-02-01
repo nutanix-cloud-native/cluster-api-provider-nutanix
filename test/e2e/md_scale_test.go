@@ -108,7 +108,7 @@ var _ = Describe("When testing MachineDeployment scale up/down from 50 replicas 
 
 		Expect(clusterResources.MachineDeployments[0].Spec.Replicas).To(Equal(pointer.Int32Ptr(1)))
 
-		By("Scaling the MachineDeployment out to 3")
+		By("Scaling the MachineDeployment out to 50")
 		framework.ScaleAndWaitMachineDeployment(ctx, framework.ScaleAndWaitMachineDeploymentInput{
 			ClusterProxy:              input.BootstrapClusterProxy,
 			Cluster:                   clusterResources.Cluster,
