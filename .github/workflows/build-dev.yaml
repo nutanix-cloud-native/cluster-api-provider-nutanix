@@ -1,10 +1,11 @@
 name: Test Build
-
+env:
+  EXPORT_RESULT: true
 on:
   push:
-
+    branches: [ "main" ]
   pull_request:
-
+    branches: [ "main" ]
 jobs:
   build-container:
     runs-on: ubuntu-latest
@@ -22,6 +23,15 @@ jobs:
 
       - name: Test build
         run: make manifests generate fmt vet build
+
+      - name: Run unit tests
+        run: make unit-test
+
+      - name: Run coverage report
+        run: make coverage
+
+      - name: Codecov
+        uses: codecov/codecov-action@v3.1.1
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.8.0
