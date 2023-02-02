@@ -398,11 +398,15 @@ func GetSubnetUUIDList(ctx context.Context, client *nutanixClientV3.Client, mach
 }
 
 // GetDefaultCAPICategoryIdentifiers returns the default CAPI category identifiers
-func GetDefaultCAPICategoryIdentifiers(clusterName string) []*infrav1.NutanixCategoryIdentifier {
+func GetDefaultCAPICategoryIdentifiers(clusterName string, clusterUUID string) []*infrav1.NutanixCategoryIdentifier {
 	return []*infrav1.NutanixCategoryIdentifier{
 		{
-			Key:   fmt.Sprintf("%s%s", infrav1.DefaultCAPICategoryPrefix, clusterName),
-			Value: infrav1.DefaultCAPICategoryOwnedValue,
+			Key:   infrav1.DefaultCAPICategoryKeyForName,
+			Value: clusterName,
+		},
+		{
+			Key:   infrav1.DefaultCAPICategoryKeyForUUID,
+			Value: clusterUUID,
 		},
 	}
 }

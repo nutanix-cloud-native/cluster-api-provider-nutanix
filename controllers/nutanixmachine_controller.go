@@ -836,7 +836,7 @@ func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineCo
 }
 
 func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.MachineContext) []*infrav1.NutanixCategoryIdentifier {
-	categoryIdentifiers := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
+	categoryIdentifiers := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name, string(rctx.Cluster.GetUID()))
 	additionalCategories := rctx.NutanixMachine.Spec.AdditionalCategories
 	if len(additionalCategories) > 0 {
 		for _, at := range additionalCategories {
