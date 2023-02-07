@@ -42,7 +42,6 @@ import (
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -77,29 +76,19 @@ type NutanixMachineReconciler struct {
 	SecretInformer    coreinformers.SecretInformer
 	ConfigMapInformer coreinformers.ConfigMapInformer
 	Scheme            *runtime.Scheme
-	controllerConfig  *ControllerConfig
 }
 
-func NewNutanixMachineReconciler(client client.Client, secretInformer coreinformers.SecretInformer, configMapInformer coreinformers.ConfigMapInformer, scheme *runtime.Scheme, copts ...ControllerConfigOpts) (*NutanixMachineReconciler, error) {
-	controllerConf := &ControllerConfig{}
-	for _, opt := range copts {
-		if err := opt(controllerConf); err != nil {
-			return nil, err
-		}
-	}
-
+func NewNutanixMachineReconciler(client client.Client, secretInformer coreinformers.SecretInformer, configMapInformer coreinformers.ConfigMapInformer, scheme *runtime.Scheme) *NutanixMachineReconciler {
 	return &NutanixMachineReconciler{
 		Client:            client,
 		SecretInformer:    secretInformer,
 		ConfigMapInformer: configMapInformer,
 		Scheme:            scheme,
-		controllerConfig:  controllerConf,
-	}, nil
+	}
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, copts ...ControllerConfigOpts) error {
-
+func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.NutanixMachine{}).
 		// Watch the CAPI resource that owns this infrastructure resource.
@@ -113,7 +102,6 @@ func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctr
 			&source.Kind{Type: &infrav1.NutanixCluster{}},
 			handler.EnqueueRequestsFromMapFunc(r.mapNutanixClusterToNutanixMachines(ctx)),
 		).
-		WithOptions(controller.Options{MaxConcurrentReconciles: r.controllerConfig.MaxConcurrentReconciles}).
 		Complete(r)
 }
 
