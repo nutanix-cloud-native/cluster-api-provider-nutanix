@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	//"reflect"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,7 +39,6 @@ import (
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -54,37 +55,29 @@ type NutanixClusterReconciler struct {
 	SecretInformer    coreinformers.SecretInformer
 	ConfigMapInformer coreinformers.ConfigMapInformer
 	Scheme            *runtime.Scheme
-	controllerConfig  *ControllerConfig
 }
 
-func NewNutanixClusterReconciler(client client.Client, secretInformer coreinformers.SecretInformer, configMapInformer coreinformers.ConfigMapInformer, scheme *runtime.Scheme, copts ...ControllerConfigOpts) (*NutanixClusterReconciler, error) {
-	controllerConf := &ControllerConfig{}
-	for _, opt := range copts {
-		if err := opt(controllerConf); err != nil {
-			return nil, err
-		}
-	}
+func NewNutanixClusterReconciler(client client.Client, secretInformer coreinformers.SecretInformer, configMapInformer coreinformers.ConfigMapInformer, scheme *runtime.Scheme) *NutanixClusterReconciler {
 	return &NutanixClusterReconciler{
 		Client:            client,
 		SecretInformer:    secretInformer,
 		ConfigMapInformer: configMapInformer,
 		Scheme:            scheme,
-		controllerConfig:  controllerConf,
-	}, nil
+	}
 }
 
 // SetupWithManager sets up the NutanixCluster controller with the Manager.
 func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	log := ctrl.LoggerFrom(ctx)
-	c, err := ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1.NutanixCluster{}). // Watch the controlled, infrastructure resource.
-		WithOptions(controller.Options{MaxConcurrentReconciles: r.controllerConfig.MaxConcurrentReconciles}).
+	controller, err := ctrl.NewControllerManagedBy(mgr).
+		// Watch the controlled, infrastructure resource.
+		For(&infrav1.NutanixCluster{}).
 		Build(r)
 	if err != nil {
 		return err
 	}
 
-	if err = c.Watch(
+	if err = controller.Watch(
 		// Watch the CAPI resource that owns this infrastructure resource.
 		&source.Kind{Type: &capiv1.Cluster{}},
 		handler.EnqueueRequestsFromMapFunc(

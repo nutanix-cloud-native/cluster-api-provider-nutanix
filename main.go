@@ -66,28 +66,15 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 }
 
-const (
-	// DefaultMaxConcurrentReconciles is the default maximum number of concurrent reconciles
-	defaultMaxConcurrentReconciles = 10
-)
-
 func main() {
-	var (
-		metricsAddr             string
-		enableLeaderElection    bool
-		probeAddr               string
-		maxConcurrentReconciles int
-	)
+	var metricsAddr string
+	var enableLeaderElection bool
+	var probeAddr string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.IntVar(
-		&maxConcurrentReconciles,
-		"max-concurrent-reconciles",
-		defaultMaxConcurrentReconciles,
-		"The maximum number of allowed, concurrent reconciles.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -130,33 +117,20 @@ func main() {
 	go cmInformer.Run(ctx.Done())
 	cache.WaitForCacheSync(ctx.Done(), cmInformer.HasSynced)
 
-	clusterCtrl, err := controllers.NewNutanixClusterReconciler(mgr.GetClient(),
+	if err = (controllers.NewNutanixClusterReconciler(mgr.GetClient(),
 		secretInformer,
 		configMapInformer,
 		mgr.GetScheme(),
-		controllers.WithMaxConcurrentReconciles(maxConcurrentReconciles),
-	)
-	if err != nil {
+	)).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NutanixCluster")
 		os.Exit(1)
 	}
-
-	if err = clusterCtrl.SetupWithManager(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "NutanixCluster")
-		os.Exit(1)
-	}
-	machineCtrl, err := controllers.NewNutanixMachineReconciler(
+	if err = (controllers.NewNutanixMachineReconciler(
 		mgr.GetClient(),
 		secretInformer,
 		configMapInformer,
 		mgr.GetScheme(),
-		controllers.WithMaxConcurrentReconciles(maxConcurrentReconciles),
-	)
-	if err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "NutanixMachine")
-		os.Exit(1)
-	}
-	if err = machineCtrl.SetupWithManager(ctx, mgr); err != nil {
+	)).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NutanixMachine")
 		os.Exit(1)
 	}
