@@ -170,7 +170,7 @@ spec:
       hostNetwork: true
       containers:
         - name: driver-registrar
-          image: k8s.gcr.io/sig-storage/csi-node-driver-registrar:v2.5.1
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.5.1
           imagePullPolicy: IfNotPresent
           args:
             - --v=2
@@ -257,7 +257,7 @@ spec:
           volumeMounts:
             - mountPath: /csi
               name: plugin-dir
-          image: k8s.gcr.io/sig-storage/livenessprobe:v2.7.0
+          image: registry.k8s.io/sig-storage/livenessprobe:v2.7.0
           imagePullPolicy: IfNotPresent
           args:
             - --csi-address=/csi/csi.sock
@@ -326,7 +326,7 @@ spec:
       hostNetwork: true
       containers:
         - name: csi-provisioner
-          image: k8s.gcr.io/sig-storage/csi-provisioner:v3.2.0
+          image: registry.k8s.io/sig-storage/csi-provisioner:v3.2.0
           imagePullPolicy: IfNotPresent
           args:
             - --csi-address=$(ADDRESS)
@@ -353,7 +353,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: csi-resizer
-          image: k8s.gcr.io/sig-storage/csi-resizer:v1.5.0
+          image: registry.k8s.io/sig-storage/csi-resizer:v1.5.0
           imagePullPolicy: IfNotPresent
           args:
             - --v=2
@@ -370,7 +370,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: csi-snapshotter
-          image: k8s.gcr.io/sig-storage/csi-snapshotter:v3.0.3
+          image: registry.k8s.io/sig-storage/csi-snapshotter:v3.0.3
           imagePullPolicy: IfNotPresent
           args:
           - --csi-address=$(ADDRESS)
@@ -429,7 +429,7 @@ spec:
           volumeMounts:
             - mountPath: /csi
               name: socket-dir
-          image: k8s.gcr.io/sig-storage/livenessprobe:v2.7.0
+          image: registry.k8s.io/sig-storage/livenessprobe:v2.7.0
           imagePullPolicy: IfNotPresent
           args:
             - --csi-address=/csi/csi.sock
