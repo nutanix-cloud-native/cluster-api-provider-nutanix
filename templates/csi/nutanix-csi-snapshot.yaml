@@ -1004,7 +1004,7 @@ spec:
       serviceAccount: csi-snapshot-controller
       containers:
         - name: snapshot-controller
-          image: k8s.gcr.io/sig-storage/snapshot-controller:v6.0.1
+          image: registry.k8s.io/sig-storage/snapshot-controller:v6.0.1
           imagePullPolicy: IfNotPresent
           args:
             - "--v=2"
@@ -1059,7 +1059,7 @@ spec:
       serviceAccountName: csi-snapshot-webhook
       containers:
       - name: snapshot-validation
-        image: k8s.gcr.io/sig-storage/snapshot-validation-webhook:v6.0.1
+        image: registry.k8s.io/sig-storage/snapshot-validation-webhook:v6.0.1
         imagePullPolicy: IfNotPresent
         args:
           - --tls-cert-file=/etc/snapshot-validation-webhook/certs/tls.crt
