@@ -614,7 +614,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 
 	// Generate metadata for the VM
 	vmUUID := uuid.New()
-	metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"vmUUID\": \"%s\"}", rctx.Machine.Name, vmUUID)
+	metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"uuid\": \"%s\"}", rctx.Machine.Name, vmUUID)
 	// Encode the metadata by base64
 	metadataEncoded := base64.StdEncoding.EncodeToString([]byte(metadata))
 
