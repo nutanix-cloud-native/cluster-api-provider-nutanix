@@ -25,7 +25,6 @@ import (
 	"github.com/google/uuid"
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixClientHelper "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
-	nutanixClient "github.com/nutanix-cloud-native/prism-go-client"
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -38,6 +37,8 @@ const (
 
 	taskSucceededMessage = "SUCCEEDED"
 	serviceNamePECluster = "AOS"
+
+	subnetTypeOverlay = "OVERLAY"
 )
 
 // CreateNutanixClient creates a new Nutanix client from the environment
@@ -260,17 +261,27 @@ func GetSubnetUUID(ctx context.Context, client *nutanixClientV3.Client, peUUID s
 		foundSubnetUUID = *subnetIntentResponse.Metadata.UUID
 	} else if subnetName != nil {
 		filter := getFilterForName(*subnetName)
-		subnetClientSideFilter := getSubnetClientSideFilter(peUUID)
-		responseSubnets, err := client.V3.ListAllSubnet(ctx, filter, subnetClientSideFilter)
+		// Not using additional filtering since we want to list overlay and vlan subnets
+		responseSubnets, err := client.V3.ListAllSubnet(ctx, filter, nil)
 		if err != nil {
 			return "", err
 		}
 		// Validate filtered Subnets
 		foundSubnets := make([]*nutanixClientV3.SubnetIntentResponse, 0)
-		for _, s := range responseSubnets.Entities {
-			subnetSpec := s.Spec
-			if *subnetSpec.Name == *subnetName && *subnetSpec.ClusterReference.UUID == peUUID {
-				foundSubnets = append(foundSubnets, s)
+		for _, subnet := range responseSubnets.Entities {
+			if subnet == nil || subnet.Spec == nil || subnet.Spec.Name == nil || subnet.Spec.Resources == nil || subnet.Spec.Resources.SubnetType == nil {
+				continue
+			}
+			if *subnet.Spec.Name == *subnetName {
+				if *subnet.Spec.Resources.SubnetType == subnetTypeOverlay {
+					// Overlay subnets are present on all PEs managed by PC.
+					foundSubnets = append(foundSubnets, subnet)
+				} else {
+					// By default check if the PE UUID matches if it is not an overlay subnet.
+					if *subnet.Spec.ClusterReference.UUID == peUUID {
+						foundSubnets = append(foundSubnets, subnet)
+					}
+				}
 			}
 		}
 		if len(foundSubnets) == 0 {
@@ -611,16 +622,6 @@ func GetProjectUUID(ctx context.Context, client *nutanixClientV3.Client, project
 		}
 	}
 	return foundProjectUUID, nil
-}
-
-func getSubnetClientSideFilter(peUUID string) []*nutanixClient.AdditionalFilter {
-	clientSideFilters := make([]*nutanixClient.AdditionalFilter, 0)
-	return append(clientSideFilters, &nutanixClient.AdditionalFilter{
-		Name: "cluster_reference.uuid",
-		Values: []string{
-			peUUID,
-		},
-	})
 }
 
 func getFilterForName(name string) string {
