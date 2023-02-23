@@ -141,12 +141,12 @@ SHELL = /usr/bin/env bash -o pipefail
 RUN_VALIDATION_TESTS_ONLY?=false # for CI please set EXPORT_RESULT to true
 LABEL_FILTERS ?=
 ifeq ($(RUN_VALIDATION_TESTS_ONLY), true)
-		LABEL_FILTER_ARGS = "only-for-validation"
+		LABEL_FILTER_ARGS = only-for-validation
 else
-		LABEL_FILTER_ARGS = "!only-for-validation"
+		LABEL_FILTER_ARGS = !only-for-validation
 endif
 ifneq ($(LABEL_FILTERS),)
-		LABEL_FILTER_ARGS += "&& $(LABEL_FILTERS)"
+		LABEL_FILTER_ARGS := "$(LABEL_FILTER_ARGS) && $(LABEL_FILTERS)"
 endif
 JUNIT_REPORT_FILE ?= "junit.e2e_suite.1.xml"
 GINKGO_SKIP ?= "clusterctl-Upgrade"
