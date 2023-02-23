@@ -278,7 +278,7 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (reconcile.Result, error) {
 	ctx := rctx.Context
 	nc := rctx.NutanixClient
-	vmName := rctx.NutanixMachine.Name
+	vmName := rctx.Machine.Name
 	klog.Infof("%s Handling NutanixMachine deletion of VM: %s", rctx.LogPrefix, vmName)
 	conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, capiv1.DeletingReason, capiv1.ConditionSeverityInfo, "")
 	vmUUID, err := GetVMUUID(ctx, rctx.NutanixMachine)
@@ -304,8 +304,13 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		if vm == nil {
 			klog.Infof("%s No vm found with UUID %s ... Already deleted? Skipping delete", rctx.LogPrefix, vmUUID)
 		} else {
-			if *vm.Spec.Name != vmName {
-				errorMsg := fmt.Errorf("found VM with UUID %s but name did not match %s", vmUUID, vmName)
+			// Check if the VM name matches the Machine name or the NutanixMachine name.
+			// Earlier, we were creating VMs with the same name as the NutanixMachine name.
+			// Now, we create VMs with the same name as the Machine name in line with other CAPI providers.
+			// This check is to ensure that we are deleting the correct VM for both cases as older CAPX VMs
+			// will have the NutanixMachine name as the VM name.
+			if *vm.Spec.Name != vmName && *vm.Spec.Name != rctx.NutanixMachine.Name {
+				errorMsg := fmt.Errorf("found VM with UUID %s but name %s did not match Machine name %s or NutanixMachineName %s", vmUUID, *vm.Spec.Name, vmName, rctx.NutanixMachine.Name)
 				klog.Errorf("%s %v", rctx.LogPrefix, errorMsg)
 				return reconcile.Result{}, errorMsg
 			}
@@ -459,7 +464,7 @@ func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) (rec
 	}
 
 	// Retrieve the remote node
-	nodeName := rctx.NutanixMachine.Name
+	nodeName := rctx.Machine.Name
 	node := &corev1.Node{}
 	nodeKey := apitypes.NamespacedName{
 		Namespace: "",
@@ -548,11 +553,11 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 	var err error
 	var vm *nutanixClientV3.VMIntentResponse
 	ctx := rctx.Context
-	vmName := rctx.NutanixMachine.Name
+	vmName := rctx.Machine.Name
 	nc := rctx.NutanixClient
 
 	// Check if the VM already exists
-	vm, err = FindVM(ctx, nc, rctx.NutanixMachine)
+	vm, err = FindVM(ctx, nc, rctx.NutanixMachine, vmName)
 	if err != nil {
 		klog.Errorf("%s error occurred finding VM %s by name or uuid %s: %v", rctx.LogPrefix, vmName, err)
 		return nil, err
@@ -616,7 +621,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 
 		// Generate metadata for the VM
 		uuid := uuid.New()
-		metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"uuid\": \"%s\"}", rctx.NutanixMachine.Name, uuid)
+		metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"uuid\": \"%s\"}", rctx.Machine.Name, uuid)
 
 		// Encode the metadata by base64
 		metadataEncoded := base64.StdEncoding.EncodeToString([]byte(metadata))
@@ -860,7 +865,7 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 }
 
 func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vmMetadata *nutanixClientV3.Metadata) error {
-	vmName := rctx.NutanixMachine.Name
+	vmName := rctx.Machine.Name
 	projectRef := rctx.NutanixMachine.Spec.Project
 	if projectRef == nil {
 		klog.Infof("%s Not linking VM %s to a project", rctx.LogPrefix, vmName)

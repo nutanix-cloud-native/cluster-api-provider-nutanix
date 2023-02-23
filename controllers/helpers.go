@@ -116,8 +116,7 @@ func GetVMUUID(ctx context.Context, nutanixMachine *infrav1.NutanixMachine) (str
 }
 
 // FindVM retrieves the VM with the given uuid or name
-func FindVM(ctx context.Context, client *nutanixClientV3.Client, nutanixMachine *infrav1.NutanixMachine) (*nutanixClientV3.VMIntentResponse, error) {
-	vmName := nutanixMachine.Name
+func FindVM(ctx context.Context, client *nutanixClientV3.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*nutanixClientV3.VMIntentResponse, error) {
 	vmUUID, err := GetVMUUID(ctx, nutanixMachine)
 	if err != nil {
 		return nil, err
@@ -135,8 +134,13 @@ func FindVM(ctx context.Context, client *nutanixClientV3.Client, nutanixMachine 
 			klog.Error(errorMsg)
 			return nil, fmt.Errorf(errorMsg)
 		}
-		if *vm.Spec.Name != vmName {
-			errorMsg := fmt.Sprintf("found VM with UUID %s but name did not match %s. error: %v", vmUUID, vmName, err)
+		// Check if the VM name matches the Machine name or the NutanixMachine name.
+		// Earlier, we were creating VMs with the same name as the NutanixMachine name.
+		// Now, we create VMs with the same name as the Machine name in line with other CAPI providers.
+		// This check is to ensure that we are deleting the correct VM for both cases as older CAPX VMs
+		// will have the NutanixMachine name as the VM name.
+		if *vm.Spec.Name != vmName && *vm.Spec.Name != nutanixMachine.Name {
+			errorMsg := fmt.Sprintf("found VM with UUID %s but name %s did not match %s. error: %v", vmUUID, *vm.Spec.Name, vmName, err)
 			klog.Errorf(errorMsg)
 			return nil, fmt.Errorf(errorMsg)
 		}
