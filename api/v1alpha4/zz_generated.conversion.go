@@ -426,7 +426,7 @@ func autoConvert_v1alpha4_NutanixMachineSpec_To_v1beta1_NutanixMachineSpec(in *N
 	out.Subnets = *(*[]v1beta1.NutanixResourceIdentifier)(unsafe.Pointer(&in.Subnets))
 	out.AdditionalCategories = *(*[]v1beta1.NutanixCategoryIdentifier)(unsafe.Pointer(&in.AdditionalCategories))
 	out.Project = (*v1beta1.NutanixResourceIdentifier)(unsafe.Pointer(in.Project))
-	out.BootType = in.BootType
+	out.BootType = v1beta1.NutanixBootType(in.BootType)
 	out.SystemDiskSize = in.SystemDiskSize
 	out.BootstrapRef = (*v1.ObjectReference)(unsafe.Pointer(in.BootstrapRef))
 	return nil
@@ -446,7 +446,7 @@ func autoConvert_v1beta1_NutanixMachineSpec_To_v1alpha4_NutanixMachineSpec(in *v
 	out.Subnets = *(*[]NutanixResourceIdentifier)(unsafe.Pointer(&in.Subnets))
 	out.AdditionalCategories = *(*[]NutanixCategoryIdentifier)(unsafe.Pointer(&in.AdditionalCategories))
 	out.Project = (*NutanixResourceIdentifier)(unsafe.Pointer(in.Project))
-	out.BootType = in.BootType
+	out.BootType = NutanixBootType(in.BootType)
 	out.SystemDiskSize = in.SystemDiskSize
 	out.BootstrapRef = (*v1.ObjectReference)(unsafe.Pointer(in.BootstrapRef))
 	return nil

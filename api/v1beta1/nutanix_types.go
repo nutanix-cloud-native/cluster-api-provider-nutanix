@@ -19,6 +19,9 @@ package v1beta1
 // NutanixIdentifierType is an enumeration of different resource identifier types.
 type NutanixIdentifierType string
 
+// NutanixBootType is an enumeration of different boot types.
+type NutanixBootType string
+
 const (
 	// NutanixIdentifierUUID is a resource identifier identifying the object by UUID.
 	NutanixIdentifierUUID NutanixIdentifierType = "uuid"
@@ -26,11 +29,11 @@ const (
 	// NutanixIdentifierName is a resource identifier identifying the object by Name.
 	NutanixIdentifierName NutanixIdentifierType = "name"
 
-	// NutanixIdentifierBootTypeLegacy is a resource identifier identifying the legacy boot type for virtual machines.
-	NutanixIdentifierBootTypeLegacy NutanixIdentifierType = "legacy"
+	// NutanixBootTypeLegacy is a resource identifier identifying the legacy boot type for virtual machines.
+	NutanixBootTypeLegacy NutanixBootType = "legacy"
 
-	// NutanixIdentifierBootTypeUEFI is a resource identifier identifying the UEFI boot type for virtual machines.
-	NutanixIdentifierBootTypeUEFI NutanixIdentifierType = "uefi"
+	// NutanixBootTypeUEFI is a resource identifier identifying the UEFI boot type for virtual machines.
+	NutanixBootTypeUEFI NutanixBootType = "uefi"
 
 	// DefaultCAPICategoryPrefix is the default category prefix used for CAPI clusters.
 	DefaultCAPICategoryPrefix = "kubernetes-io-cluster-"

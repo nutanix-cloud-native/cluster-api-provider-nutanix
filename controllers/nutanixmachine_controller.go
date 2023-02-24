@@ -831,17 +831,17 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 	bootType := rctx.NutanixMachine.Spec.BootType
 	// Defaults to legacy if boot type is not set.
 	if bootType != "" {
-		if bootType != string(infrav1.NutanixIdentifierBootTypeLegacy) && bootType != string(infrav1.NutanixIdentifierBootTypeUEFI) {
-			errorMsg := fmt.Errorf("%s boot type must be %s or %s but was %s", rctx.LogPrefix, string(infrav1.NutanixIdentifierBootTypeLegacy), string(infrav1.NutanixIdentifierBootTypeUEFI), bootType)
+		if bootType != infrav1.NutanixBootTypeLegacy && bootType != infrav1.NutanixBootTypeUEFI {
+			errorMsg := fmt.Errorf("%s boot type must be %s or %s but was %s", rctx.LogPrefix, string(infrav1.NutanixBootTypeLegacy), string(infrav1.NutanixBootTypeUEFI), bootType)
 			klog.Error(errorMsg)
 			conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VMBootTypeInvalid, capiv1.ConditionSeverityError, errorMsg.Error())
 			return errorMsg
 		}
 
 		// Only modify VM spec if boot type is UEFI. Otherwise, assume default Legacy mode
-		if bootType == string(infrav1.NutanixIdentifierBootTypeUEFI) {
+		if bootType == infrav1.NutanixBootTypeUEFI {
 			vmSpec.Resources.BootConfig = &nutanixClientV3.VMBootConfig{
-				BootType: utils.StringPtr(strings.ToUpper(bootType)),
+				BootType: utils.StringPtr(strings.ToUpper(string(bootType))),
 			}
 		}
 	}
