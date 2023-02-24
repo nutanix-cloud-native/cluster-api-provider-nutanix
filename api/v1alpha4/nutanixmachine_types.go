@@ -71,14 +71,14 @@ type NutanixMachineSpec struct {
 	Subnets []NutanixResourceIdentifier `json:"subnet"`
 	// List of categories that need to be added to the machines. Categories must already exist in Prism Central
 	// +kubebuilder:validation:Optional
-	AdditionalCategories []NutanixCategoryIdentifier `json:"additionalCategories"`
+	AdditionalCategories []NutanixCategoryIdentifier `json:"additionalCategories,omitempty"`
 	// Add the machine resources to a Prism Central project
 	// +optional
-	Project *NutanixResourceIdentifier `json:"project"`
+	Project *NutanixResourceIdentifier `json:"project,omitempty"`
 	// Defines the boot type of the virtual machine. Only supports UEFI and Legacy
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum:=legacy;uefi
-	BootType string `json:"bootType"`
+	BootType NutanixBootType `json:"bootType,omitempty"`
 
 	// systemDiskSize is size (in Quantity format) of the system disk of the VM
 	// The minimum systemDiskSize is 20Gi bytes
