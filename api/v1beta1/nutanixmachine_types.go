@@ -89,6 +89,10 @@ type NutanixMachineSpec struct {
 	// that holds configuration details.
 	// +optional
 	BootstrapRef *corev1.ObjectReference `json:"bootstrapRef,omitempty"`
+
+	// List of GPU devices that need to be added to the machines.
+	// +kubebuilder:validation:Optional
+	GPUs []NutanixGPU `json:"gpus,omitempty"`
 }
 
 // NutanixMachineStatus defines the observed state of NutanixMachine
