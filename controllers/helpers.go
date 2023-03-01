@@ -39,6 +39,8 @@ const (
 	serviceNamePECluster = "AOS"
 
 	subnetTypeOverlay = "OVERLAY"
+
+	gpuUnused = "UNUSED"
 )
 
 // CreateNutanixClient creates a new Nutanix client from the environment
@@ -641,4 +643,73 @@ func hasPEClusterServiceEnabled(peCluster *nutanixClientV3.ClusterIntentResponse
 		}
 	}
 	return false
+}
+
+// GetGPUList returns a list of GPU device IDs for the given list of GPUs
+func GetGPUList(ctx context.Context, client *nutanixClientV3.Client, gpus []infrav1.NutanixGPU, peUUID string) ([]*nutanixClientV3.VMGpu, error) {
+	resultGPUs := make([]*nutanixClientV3.VMGpu, 0)
+	for _, gpu := range gpus {
+		foundGPU, err := GetGPU(ctx, client, peUUID, gpu)
+		if err != nil {
+			return nil, err
+		}
+		resultGPUs = append(resultGPUs, foundGPU)
+	}
+	return resultGPUs, nil
+}
+
+// GetGPUDeviceID returns the device ID of a GPU with the given name
+func GetGPU(ctx context.Context, client *nutanixClientV3.Client, peUUID string, gpu infrav1.NutanixGPU) (*nutanixClientV3.VMGpu, error) {
+	gpuDeviceID := gpu.DeviceID
+	gpuDeviceName := gpu.Name
+	if gpuDeviceID == nil && gpuDeviceName == nil {
+		return nil, fmt.Errorf("gpu name or gpu device ID must be passed in order to retrieve the GPU")
+	}
+	allGPUs, err := GetGPUsForPE(ctx, client, peUUID)
+	if err != nil {
+		return nil, err
+	}
+	if len(allGPUs) == 0 {
+		return nil, fmt.Errorf("no available GPUs found in Prism Element cluster with UUID %s", peUUID)
+	}
+	for _, peGPU := range allGPUs {
+		if peGPU.Status != gpuUnused {
+			continue
+		}
+		if (gpuDeviceID != nil && *peGPU.DeviceID == *gpuDeviceID) || (gpuDeviceName != nil && *gpuDeviceName == peGPU.Name) {
+			return &nutanixClientV3.VMGpu{
+				DeviceID: peGPU.DeviceID,
+				Mode:     &peGPU.Mode,
+				Vendor:   &peGPU.Vendor,
+			}, err
+		}
+	}
+	return nil, fmt.Errorf("no available GPU found in Prism Element that matches required GPU inputs")
+}
+
+func GetGPUsForPE(ctx context.Context, client *nutanixClientV3.Client, peUUID string) ([]*nutanixClientV3.GPU, error) {
+	gpus := make([]*nutanixClientV3.GPU, 0)
+	hosts, err := client.V3.ListAllHost(ctx)
+	if err != nil {
+		return gpus, err
+	}
+
+	for _, host := range hosts.Entities {
+		if host == nil ||
+			host.Status == nil ||
+			host.Status.ClusterReference == nil ||
+			host.Status.Resources == nil ||
+			len(host.Status.Resources.GPUList) == 0 ||
+			host.Status.ClusterReference.UUID != peUUID {
+			continue
+		}
+
+		for _, peGpu := range host.Status.Resources.GPUList {
+			if peGpu == nil {
+				continue
+			}
+			gpus = append(gpus, peGpu)
+		}
+	}
+	return gpus, nil
 }

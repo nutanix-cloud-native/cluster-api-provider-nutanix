@@ -476,6 +476,27 @@ spec:
                 required:
                 - type
                 type: object
+              gpus:
+                description: List of GPU devices that need to be added to the machines.
+                items:
+                  properties:
+                    deviceID:
+                      description: deviceID is the id of the GPU entity.
+                      format: int64
+                      type: integer
+                    name:
+                      description: name is the GPU name
+                      type: string
+                    type:
+                      description: Type is the identifier type to use for this resource.
+                      enum:
+                      - deviceID
+                      - name
+                      type: string
+                  required:
+                  - type
+                  type: object
+                type: array
               image:
                 description: image is to identify the rhcos image uploaded to the
                   Prism Central (PC) The image identifier (uuid or name) can be obtained

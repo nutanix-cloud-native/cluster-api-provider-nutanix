@@ -665,6 +665,15 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		return nil, err
 	}
 
+	// Get GPU list
+	gpuList, err := GetGPUList(ctx, nc, rctx.NutanixMachine.Spec.GPUs, peUUID)
+	if err != nil {
+		errorMsg := fmt.Errorf("failed to get the GPU list to create the VM %s. %v", vmName, err)
+		klog.Errorf("%s %v", rctx.LogPrefix, vmName, err)
+		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		return nil, err
+	}
+
 	memorySize := rctx.NutanixMachine.Spec.MemorySize
 	memorySizeMib := GetMibValueOfQuantity(memorySize)
 	vmSpec.Resources = &nutanixClientV3.VMResources{
@@ -675,6 +684,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		MemorySizeMib:         utils.Int64Ptr(memorySizeMib),
 		NicList:               nicList,
 		DiskList:              diskList,
+		GpuList:               gpuList,
 		GuestCustomization: &nutanixClientV3.GuestCustomization{
 			IsOverridable: utils.BoolPtr(true),
 			CloudInit: &nutanixClientV3.GuestCustomizationCloudInit{

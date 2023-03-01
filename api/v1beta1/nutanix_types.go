@@ -22,6 +22,9 @@ type NutanixIdentifierType string
 // NutanixBootType is an enumeration of different boot types.
 type NutanixBootType string
 
+// NutanixGPUIdentifierType is an enumeration of different resource identifier types for GPU entities.
+type NutanixGPUIdentifierType string
+
 const (
 	// NutanixIdentifierUUID is a resource identifier identifying the object by UUID.
 	NutanixIdentifierUUID NutanixIdentifierType = "uuid"
@@ -34,6 +37,12 @@ const (
 
 	// NutanixBootTypeUEFI is a resource identifier identifying the UEFI boot type for virtual machines.
 	NutanixBootTypeUEFI NutanixBootType = "uefi"
+
+	// NutanixGPUIdentifierName is a resource identifier identifying a GPU by Name.
+	NutanixGPUIdentifierName NutanixGPUIdentifierType = "name"
+
+	// NutanixGPUIdentifierDeviceID is a resource identifier identifying a GPU using device ID.
+	NutanixGPUIdentifierDeviceID NutanixGPUIdentifierType = "deviceID"
 
 	// DefaultCAPICategoryPrefix is the default category prefix used for CAPI clusters.
 	DefaultCAPICategoryPrefix = "kubernetes-io-cluster-"
@@ -70,4 +79,19 @@ type NutanixCategoryIdentifier struct {
 	// value is the category value linked to the category key in PC
 	// +optional
 	Value string `json:"value,omitempty"`
+}
+
+type NutanixGPU struct {
+	// Type is the identifier type to use for this resource.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum:=deviceID;name
+	Type NutanixGPUIdentifierType `json:"type"`
+
+	// deviceID is the id of the GPU entity.
+	// +optional
+	DeviceID *int64 `json:"deviceID,omitempty"`
+
+	// name is the GPU name
+	// +optional
+	Name *string `json:"name,omitempty"`
 }
