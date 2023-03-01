@@ -99,7 +99,6 @@ func NewNutanixMachineReconciler(client client.Client, secretInformer coreinform
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, copts ...ControllerConfigOpts) error {
-
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.NutanixMachine{}).
 		// Watch the CAPI resource that owns this infrastructure resource.
@@ -710,13 +709,24 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		return nil, err
 	}
 
+	if vmResponse == nil || vmResponse.Metadata == nil || vmResponse.Metadata.UUID == nil || *vmResponse.Metadata.UUID == "" {
+		errorMsg := fmt.Errorf("%s no valid VM UUID found in response after creating vm %s", rctx.LogPrefix, rctx.Machine.Name)
+		klog.Error(errorMsg)
+		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		return nil, errorMsg
+	}
 	vmUuid := *vmResponse.Metadata.UUID
+	// set the VM UUID on the nutanix machine as soon as it is available. VM UUID can be used for cleanup in case of failure
+	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUuid)
+	rctx.NutanixMachine.Status.VmUUID = vmUuid
+
 	klog.Infof("%s Sent the post request to create VM %s. Got the vm UUID: %s, status.state: %s", rctx.LogPrefix, vmName, vmUuid, *vmResponse.Status.State)
 	klog.Infof("%s Getting task vmUUID for VM %s", rctx.LogPrefix, vmName)
 	lastTaskUUID, err := GetTaskUUIDFromVM(vmResponse)
 	if err != nil {
-		errorMsg := fmt.Errorf("%s error occurred fetching task UUID from vm %s after creation: %v", rctx.LogPrefix, rctx.NutanixMachine.Name, err)
+		errorMsg := fmt.Errorf("%s error occurred fetching task UUID from vm %s after creation: %v", rctx.LogPrefix, rctx.Machine.Name, err)
 		klog.Error(errorMsg)
+		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
 		return nil, errorMsg
 	}
 
