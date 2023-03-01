@@ -480,7 +480,7 @@ spec:
                 description: List of GPU devices that need to be added to the machines.
                 items:
                   properties:
-                    deviceId:
+                    deviceID:
                       description: deviceID is the id of the GPU entity.
                       format: int64
                       type: integer
@@ -490,7 +490,7 @@ spec:
                     type:
                       description: Type is the identifier type to use for this resource.
                       enum:
-                      - deviceId
+                      - deviceID
                       - name
                       type: string
                   required:

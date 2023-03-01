@@ -42,7 +42,7 @@ const (
 	NutanixGPUIdentifierName NutanixGPUIdentifierType = "name"
 
 	// NutanixGPUIdentifierDeviceID is a resource identifier identifying a GPU using device ID.
-	NutanixGPUIdentifierDeviceID NutanixGPUIdentifierType = "deviceId"
+	NutanixGPUIdentifierDeviceID NutanixGPUIdentifierType = "deviceID"
 
 	// DefaultCAPICategoryPrefix is the default category prefix used for CAPI clusters.
 	DefaultCAPICategoryPrefix = "kubernetes-io-cluster-"
@@ -84,12 +84,12 @@ type NutanixCategoryIdentifier struct {
 type NutanixGPU struct {
 	// Type is the identifier type to use for this resource.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum:=deviceId;name
+	// +kubebuilder:validation:Enum:=deviceID;name
 	Type NutanixGPUIdentifierType `json:"type"`
 
 	// deviceID is the id of the GPU entity.
 	// +optional
-	DeviceId *int64 `json:"deviceId,omitempty"`
+	DeviceID *int64 `json:"deviceID,omitempty"`
 
 	// name is the GPU name
 	// +optional

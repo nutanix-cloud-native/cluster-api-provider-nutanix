@@ -154,7 +154,7 @@ var _ = Describe("Nutanix Passthrough GPU", Label("capx-feature-test", "only-for
 		Expect(namespace).NotTo(BeNil())
 
 		By("Creating passthrough GPU Nutanix Machine Template using deviceID", func() {
-			GPUNMT := testHelper.createDeviceIdGPUNMT(ctx, clusterName, namespace.Name, createGPUNMTParams{
+			GPUNMT := testHelper.createDeviceIDGPUNMT(ctx, clusterName, namespace.Name, createGPUNMTParams{
 				gpuNameEnvKey: nutanixGPUPassthroughNameEnv,
 			})
 
@@ -306,7 +306,7 @@ var _ = Describe("Nutanix Virtual GPU", Label("capx-feature-test", "only-for-val
 		Expect(namespace).NotTo(BeNil())
 
 		By("Creating virtual GPU Nutanix Machine Template using deviceID", func() {
-			GPUNMT := testHelper.createDeviceIdGPUNMT(ctx, clusterName, namespace.Name, createGPUNMTParams{
+			GPUNMT := testHelper.createDeviceIDGPUNMT(ctx, clusterName, namespace.Name, createGPUNMTParams{
 				gpuNameEnvKey: nutanixGPUVirtualNameEnv,
 			})
 

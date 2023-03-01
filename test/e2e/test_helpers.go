@@ -74,7 +74,7 @@ type testHelperInterface interface {
 	createDefaultNutanixCluster(clusterName, namespace, controlPlaneEndpointIP string, controlPlanePort int32) *infrav1.NutanixCluster
 	createNameGPUNMT(ctx context.Context, clusterName, namespace string, params createGPUNMTParams) *infrav1.NutanixMachineTemplate
 	createCapiObject(ctx context.Context, params createCapiObjectParams)
-	createDeviceIdGPUNMT(ctx context.Context, clusterName, namespace string, params createGPUNMTParams) *infrav1.NutanixMachineTemplate
+	createDeviceIDGPUNMT(ctx context.Context, clusterName, namespace string, params createGPUNMTParams) *infrav1.NutanixMachineTemplate
 	createSecret(params createSecretParams)
 	createUUIDNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate
 	createUUIDProjectNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate
@@ -275,7 +275,7 @@ func (t testHelper) findGPU(ctx context.Context, gpuName string) *prismGoClientV
 	return nil
 }
 
-func (t testHelper) createDeviceIdGPUNMT(ctx context.Context, clusterName, namespace string, params createGPUNMTParams) *infrav1.NutanixMachineTemplate {
+func (t testHelper) createDeviceIDGPUNMT(ctx context.Context, clusterName, namespace string, params createGPUNMTParams) *infrav1.NutanixMachineTemplate {
 	gpuName := t.getVariableFromE2eConfig(params.gpuNameEnvKey)
 	foundGpu := t.findGPU(ctx, gpuName)
 	Expect(foundGpu).ToNot(BeNil())
@@ -284,7 +284,7 @@ func (t testHelper) createDeviceIdGPUNMT(ctx context.Context, clusterName, names
 	nmt.Spec.Template.Spec.GPUs = []infrav1.NutanixGPU{
 		{
 			Type:     infrav1.NutanixGPUIdentifierDeviceID,
-			DeviceId: foundGpu.DeviceID,
+			DeviceID: foundGpu.DeviceID,
 		},
 	}
 	return nmt

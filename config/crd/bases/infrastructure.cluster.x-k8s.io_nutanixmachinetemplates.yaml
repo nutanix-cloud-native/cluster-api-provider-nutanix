@@ -408,7 +408,7 @@ spec:
                           the machines.
                         items:
                           properties:
-                            deviceId:
+                            deviceID:
                               description: deviceID is the id of the GPU entity.
                               format: int64
                               type: integer
@@ -419,7 +419,7 @@ spec:
                               description: Type is the identifier type to use for
                                 this resource.
                               enum:
-                              - deviceId
+                              - deviceID
                               - name
                               type: string
                           required:

@@ -645,16 +645,11 @@ func hasPEClusterServiceEnabled(peCluster *nutanixClientV3.ClusterIntentResponse
 	return false
 }
 
-// GetGPUDeviceIdList returns a list of GPU device IDs for the given list of GPUs
+// GetGPUList returns a list of GPU device IDs for the given list of GPUs
 func GetGPUList(ctx context.Context, client *nutanixClientV3.Client, gpus []infrav1.NutanixGPU, peUUID string) ([]*nutanixClientV3.VMGpu, error) {
 	resultGPUs := make([]*nutanixClientV3.VMGpu, 0)
 	for _, gpu := range gpus {
-		foundGPU, err := GetGPU(
-			ctx,
-			client,
-			peUUID,
-			gpu,
-		)
+		foundGPU, err := GetGPU(ctx, client, peUUID, gpu)
 		if err != nil {
 			return nil, err
 		}
@@ -665,9 +660,9 @@ func GetGPUList(ctx context.Context, client *nutanixClientV3.Client, gpus []infr
 
 // GetGPUDeviceID returns the device ID of a GPU with the given name
 func GetGPU(ctx context.Context, client *nutanixClientV3.Client, peUUID string, gpu infrav1.NutanixGPU) (*nutanixClientV3.VMGpu, error) {
-	gpuDeviceId := gpu.DeviceId
+	gpuDeviceID := gpu.DeviceID
 	gpuDeviceName := gpu.Name
-	if gpuDeviceId == nil && gpuDeviceName == nil {
+	if gpuDeviceID == nil && gpuDeviceName == nil {
 		return nil, fmt.Errorf("gpu name or gpu device ID must be passed in order to retrieve the GPU")
 	}
 	allGPUs, err := GetGPUsForPE(ctx, client, peUUID)
@@ -681,7 +676,7 @@ func GetGPU(ctx context.Context, client *nutanixClientV3.Client, peUUID string, 
 		if peGPU.Status != gpuUnused {
 			continue
 		}
-		if (gpuDeviceId != nil && *peGPU.DeviceID == *gpuDeviceId) || (gpuDeviceName != nil && *gpuDeviceName == peGPU.Name) {
+		if (gpuDeviceID != nil && *peGPU.DeviceID == *gpuDeviceID) || (gpuDeviceName != nil && *gpuDeviceName == peGPU.Name) {
 			return &nutanixClientV3.VMGpu{
 				DeviceID: peGPU.DeviceID,
 				Mode:     &peGPU.Mode,
