@@ -32,8 +32,8 @@ import (
 )
 
 const (
-	defaultClusterCategoryKeyPrefix           = "kubernetes-io-cluster"
-	defaultClusterCategoryValue               = "owned"
+	defaultCAPICategoryKeyForName             = "KubernetesClusterName"
+	defaultCAPICategoryKeyForUUID             = "KubernetesClusterUUID"
 	defaultNonExistingAdditionalCategoryKey   = "nonExistingCategoryKeyCAPX"
 	defaultNonExistingAdditionalCategoryValue = "nonExistingCategoryValueCAPX"
 )
@@ -66,7 +66,7 @@ var _ = Describe("Nutanix categories", Label("capx-feature-test", "categories", 
 	It("Create a cluster with default cluster categories (no additional categories)", func() {
 		Expect(namespace).NotTo(BeNil())
 		flavor := clusterctl.DefaultFlavor
-		expectedCategoryKey := testHelper.getExpectedClusterCategoryKey(clusterName)
+		expectedClusterNameCategoryKey := testHelper.getExpectedClusterNameCategoryKey(clusterName)
 		By("Creating a workload cluster (no additional categories)", func() {
 			testHelper.deployClusterAndWait(
 				deployClusterParams{
@@ -92,12 +92,12 @@ var _ = Describe("Nutanix categories", Label("capx-feature-test", "categories", 
 		})
 
 		By("Checking if a category was created", func() {
-			testHelper.verifyCategoryExists(ctx, expectedCategoryKey, defaultClusterCategoryValue)
+			testHelper.verifyCategoryExists(ctx, expectedClusterNameCategoryKey, clusterName)
 		})
 
 		By("Checking if there are VMs assigned to this category", func() {
 			expectedCategories := map[string]string{
-				expectedCategoryKey: defaultClusterCategoryValue,
+				expectedClusterNameCategoryKey: clusterName,
 			}
 			testHelper.verifyCategoriesNutanixMachines(ctx, clusterName, namespace.Name, expectedCategories)
 		})
@@ -122,11 +122,11 @@ var _ = Describe("Nutanix categories", Label("capx-feature-test", "categories", 
 		})
 
 		By("Verify if additional categories are assigned to the vms", func() {
-			expectedCategoryKey := testHelper.getExpectedClusterCategoryKey(clusterName)
+			expectedClusterNameCategoryKey := testHelper.getExpectedClusterNameCategoryKey(clusterName)
 			expectedCategories := map[string]string{
-				expectedCategoryKey: defaultClusterCategoryValue,
-				"AppType":           "Kubernetes",
-				"Environment":       "Dev",
+				expectedClusterNameCategoryKey: clusterName,
+				"AppType":                      "Kubernetes",
+				"Environment":                  "Dev",
 			}
 
 			testHelper.verifyCategoriesNutanixMachines(ctx, clusterName, namespace.Name, expectedCategories)
