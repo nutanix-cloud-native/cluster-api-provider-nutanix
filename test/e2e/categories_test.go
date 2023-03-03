@@ -66,7 +66,7 @@ var _ = Describe("Nutanix categories", Label("capx-feature-test", "categories", 
 	It("Create a cluster with default cluster categories (no additional categories)", func() {
 		Expect(namespace).NotTo(BeNil())
 		flavor := clusterctl.DefaultFlavor
-		expectedClusterNameCategoryKey := testHelper.getExpectedClusterNameCategoryKey(clusterName)
+		expectedClusterNameCategoryKey := defaultCAPICategoryKeyForName
 		By("Creating a workload cluster (no additional categories)", func() {
 			testHelper.deployClusterAndWait(
 				deployClusterParams{
@@ -122,7 +122,7 @@ var _ = Describe("Nutanix categories", Label("capx-feature-test", "categories", 
 		})
 
 		By("Verify if additional categories are assigned to the vms", func() {
-			expectedClusterNameCategoryKey := testHelper.getExpectedClusterNameCategoryKey(clusterName)
+			expectedClusterNameCategoryKey := defaultCAPICategoryKeyForName
 			expectedCategories := map[string]string{
 				expectedClusterNameCategoryKey: clusterName,
 				"AppType":                      "Kubernetes",
