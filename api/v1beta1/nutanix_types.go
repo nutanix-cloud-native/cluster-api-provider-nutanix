@@ -47,9 +47,6 @@ const (
 	// DefaultCAPICategoryKeyForName is the default category key used for CAPI clusters for cluster names.
 	DefaultCAPICategoryKeyForName = "KubernetesClusterName"
 
-	// DefaultCAPICategoryKeyForUUID is the default category prefix used for CAPI clusters for cluster uuids.
-	DefaultCAPICategoryKeyForUUID = "KubernetesClusterUUID"
-
 	// DefaultCAPICategoryDescription is the default category description used for CAPI clusters.
 	DefaultCAPICategoryDescription = "Managed by CAPX"
 )
