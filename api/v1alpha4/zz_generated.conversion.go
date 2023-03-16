@@ -449,6 +449,7 @@ func autoConvert_v1beta1_NutanixMachineSpec_To_v1alpha4_NutanixMachineSpec(in *v
 	out.BootType = NutanixBootType(in.BootType)
 	out.SystemDiskSize = in.SystemDiskSize
 	out.BootstrapRef = (*v1.ObjectReference)(unsafe.Pointer(in.BootstrapRef))
+	// WARNING: in.GPUs requires manual conversion: does not exist in peer-type
 	return nil
 }
 
