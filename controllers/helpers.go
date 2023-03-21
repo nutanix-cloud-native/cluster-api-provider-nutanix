@@ -505,7 +505,7 @@ func deleteCategoryKeyValues(ctx context.Context, client *nutanixClientV3.Client
 			}
 		}
 
-		if ignoreKeyDeletion {
+		if !ignoreKeyDeletion {
 			// check if there are remaining category values
 			categoryKeyValues, err := client.V3.ListCategoryValues(ctx, key, &nutanixClientV3.CategoryListMetadata{})
 			if err != nil {
