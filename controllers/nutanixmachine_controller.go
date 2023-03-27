@@ -844,6 +844,12 @@ func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.Mach
 			categoryIdentifiers = append(categoryIdentifiers, &additionalCat)
 		}
 	}
+
+	_, err := GetOrCreateCategories(rctx.Context, rctx.NutanixClient, categoryIdentifiers)
+	if err != nil {
+		return categoryIdentifiers
+	}
+
 	return categoryIdentifiers
 }
 
