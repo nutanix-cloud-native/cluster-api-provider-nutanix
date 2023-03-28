@@ -841,7 +841,7 @@ func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.Mach
 	// additionalCategories as well
 	_, err := GetOrCreateCategories(rctx.Context, rctx.NutanixClient, categoryIdentifiers)
 	if err != nil {
-		klog.Errorf("%s Failed to getOrCreateCategories :5s", rctx.LogPrefix, err.Error())
+		klog.Errorf("%s Failed to getOrCreateCategories %s", rctx.LogPrefix, err.Error())
 	}
 
 	additionalCategories := rctx.NutanixMachine.Spec.AdditionalCategories
