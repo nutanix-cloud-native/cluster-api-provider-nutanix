@@ -44,14 +44,17 @@ const (
 	// NutanixGPUIdentifierDeviceID is a resource identifier identifying a GPU using device ID.
 	NutanixGPUIdentifierDeviceID NutanixGPUIdentifierType = "deviceID"
 
-	// DefaultCAPICategoryPrefix is the default category prefix used for CAPI clusters.
-	DefaultCAPICategoryPrefix = "kubernetes-io-cluster-"
+	// ObsoleteDefaultCAPICategoryPrefix is the obsolete default category prefix used for CAPI clusters.
+	ObsoleteDefaultCAPICategoryPrefix = "kubernetes-io-cluster-"
+
+	// DefaultCAPICategoryKeyForName is the default category key used for CAPI clusters for cluster names.
+	DefaultCAPICategoryKeyForName = "KubernetesClusterName"
 
 	// DefaultCAPICategoryDescription is the default category description used for CAPI clusters.
 	DefaultCAPICategoryDescription = "Managed by CAPX"
 
-	// DefaultCAPICategoryOwnedValue is the default category value used for CAPI clusters.
-	DefaultCAPICategoryOwnedValue = "owned"
+	// ObsoleteDefaultCAPICategoryOwnedValue is the obsolete default category value used for CAPI clusters.
+	ObsoleteDefaultCAPICategoryOwnedValue = "owned"
 )
 
 // NutanixResourceIdentifier holds the identity of a Nutanix PC resource (cluster, image, subnet, etc.)

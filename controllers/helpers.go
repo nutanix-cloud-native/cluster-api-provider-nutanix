@@ -401,8 +401,18 @@ func GetSubnetUUIDList(ctx context.Context, client *nutanixClientV3.Client, mach
 func GetDefaultCAPICategoryIdentifiers(clusterName string) []*infrav1.NutanixCategoryIdentifier {
 	return []*infrav1.NutanixCategoryIdentifier{
 		{
-			Key:   fmt.Sprintf("%s%s", infrav1.DefaultCAPICategoryPrefix, clusterName),
-			Value: infrav1.DefaultCAPICategoryOwnedValue,
+			Key:   infrav1.DefaultCAPICategoryKeyForName,
+			Value: clusterName,
+		},
+	}
+}
+
+// GetObsoleteDefaultCAPICategoryIdentifiers returns the default CAPI category identifiers
+func GetObsoleteDefaultCAPICategoryIdentifiers(clusterName string) []*infrav1.NutanixCategoryIdentifier {
+	return []*infrav1.NutanixCategoryIdentifier{
+		{
+			Key:   fmt.Sprintf("%s%s", infrav1.ObsoleteDefaultCAPICategoryPrefix, clusterName),
+			Value: infrav1.ObsoleteDefaultCAPICategoryOwnedValue,
 		},
 	}
 }
@@ -451,8 +461,7 @@ func getCategoryValue(ctx context.Context, client *nutanixClientV3.Client, key, 
 	return categoryValue, nil
 }
 
-// DeleteCategories deletes the given list of categories
-func DeleteCategories(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) error {
+func deleteCategoryKeyValues(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier, ignoreKeyDeletion bool) error {
 	groupCategoriesByKey := make(map[string][]string, 0)
 	for _, ci := range categoryIdentifiers {
 		ciKey := ci.Key
@@ -495,26 +504,45 @@ func DeleteCategories(ctx context.Context, client *nutanixClientV3.Client, categ
 				return errorMsg
 			}
 		}
-		// check if there are remaining category values
-		categoryKeyValues, err := client.V3.ListCategoryValues(ctx, key, &nutanixClientV3.CategoryListMetadata{})
-		if err != nil {
-			errorMsg := fmt.Errorf("failed to get values of category with key %s: %v", key, err)
-			klog.Error(errorMsg)
-			return errorMsg
-		}
-		if len(categoryKeyValues.Entities) > 0 {
-			errorMsg := fmt.Errorf("cannot remove category with key %s because it still has category values assigned", key)
-			klog.Error(errorMsg)
-			return errorMsg
-		}
-		klog.Infof("No values assigned to category. Removing category with key %s", key)
-		err = client.V3.DeleteCategoryKey(ctx, key)
-		if err != nil {
-			errorMsg := fmt.Errorf("failed to delete category with key %s: %v", key, err)
-			klog.Error(errorMsg)
-			return errorMsg
+
+		if !ignoreKeyDeletion {
+			// check if there are remaining category values
+			categoryKeyValues, err := client.V3.ListCategoryValues(ctx, key, &nutanixClientV3.CategoryListMetadata{})
+			if err != nil {
+				errorMsg := fmt.Errorf("failed to get values of category with key %s: %v", key, err)
+				klog.Error(errorMsg)
+				return errorMsg
+			}
+			if len(categoryKeyValues.Entities) > 0 {
+				errorMsg := fmt.Errorf("cannot remove category with key %s because it still has category values assigned", key)
+				klog.Error(errorMsg)
+				return errorMsg
+			}
+			klog.Infof("No values assigned to category. Removing category with key %s", key)
+			err = client.V3.DeleteCategoryKey(ctx, key)
+			if err != nil {
+				errorMsg := fmt.Errorf("failed to delete category with key %s: %v", key, err)
+				klog.Error(errorMsg)
+				return errorMsg
+			}
 		}
 	}
+	return nil
+}
+
+// DeleteCategories deletes the given list of categories
+func DeleteCategories(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers, obsoleteCategoryIdentifiers []*infrav1.NutanixCategoryIdentifier) error {
+	// Dont delete keys with newer format as key is constant string
+	err := deleteCategoryKeyValues(ctx, client, categoryIdentifiers, true)
+	if err != nil {
+		return err
+	}
+	// Delete obsolete keys with older format to cleanup brownfield setups
+	err = deleteCategoryKeyValues(ctx, client, obsoleteCategoryIdentifiers, false)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -84,7 +84,6 @@ type testHelperInterface interface {
 	generateNMTName(clusterName string) string
 	generateNMTProviderID(clusterName string) string
 	generateTestClusterName(specName string) string
-	getExpectedClusterCategoryKey(clusterName string) string
 	getMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *clusterv1.MachineList
 	getNutanixMachineForCluster(ctx context.Context, clusterName, namespace, machineName string, bootstrapClusterProxy framework.ClusterProxy) *infrav1.NutanixMachine
 	getNutanixMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *infrav1.NutanixMachineList
@@ -421,10 +420,6 @@ func (t testHelper) generateNMTProviderID(clusterName string) string {
 
 func (t testHelper) generateTestClusterName(specName string) string {
 	return fmt.Sprintf("%s-%s", specName, util.RandomString(6))
-}
-
-func (t testHelper) getExpectedClusterCategoryKey(clusterName string) string {
-	return fmt.Sprintf("%s-%s", defaultClusterCategoryKeyPrefix, clusterName)
 }
 
 type getNutanixClusterByNameInput struct {
