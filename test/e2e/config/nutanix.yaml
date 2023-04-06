@@ -147,7 +147,47 @@ providers:
         files:
           - sourcePath: "../../../metadata.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"
-      - name: v1.1.0 # next; use manifest from source files
+      - name: v1.1.0
+        type: url
+        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.1.0/infrastructure-components.yaml
+        contract: v1beta1
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+        files:
+          - sourcePath: "../../../metadata.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"
+      - name: v1.1.1
+        type: url
+        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.1.1/infrastructure-components.yaml
+        contract: v1beta1
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+        files:
+          - sourcePath: "../../../metadata.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"
+      - name: v1.1.2
+        type: url
+        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.1.2/infrastructure-components.yaml
+        contract: v1beta1
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+        files:
+          - sourcePath: "../../../metadata.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"
+      - name: v1.1.3
+        type: url
+        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.1.3/infrastructure-components.yaml
+        contract: v1beta1
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+        files:
+          - sourcePath: "../../../metadata.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"
+      - name: v1.2.0 # next; use manifest from source files
         type: kustomize
         value: "../../../config/default"
         contract: v1beta1
