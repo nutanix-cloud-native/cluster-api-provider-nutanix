@@ -29,7 +29,7 @@ import (
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"k8s.io/apimachinery/pkg/api/resource"
 	coreinformers "k8s.io/client-go/informers/core/v1"
-	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 const (
@@ -44,28 +44,31 @@ const (
 )
 
 // CreateNutanixClient creates a new Nutanix client from the environment
-func CreateNutanixClient(secretInformer coreinformers.SecretInformer, cmInformer coreinformers.ConfigMapInformer, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
+func CreateNutanixClient(ctx context.Context, secretInformer coreinformers.SecretInformer, cmInformer coreinformers.ConfigMapInformer, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
+	log := ctrl.LoggerFrom(ctx)
+	log.V(1).Info("creating nutanix client")
 	helper, err := nutanixClientHelper.NewNutanixClientHelper(secretInformer, cmInformer)
 	if err != nil {
-		klog.Errorf("error creating nutanix client helper: %v", err)
+		log.Error(err, "error creating nutanix client helper")
 		return nil, err
 	}
-	return helper.GetClientFromEnvironment(nutanixCluster)
+	return helper.GetClientFromEnvironment(ctx, nutanixCluster)
 }
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
 func DeleteVM(ctx context.Context, client *nutanixClientV3.Client, vmName, vmUUID string) (string, error) {
+	log := ctrl.LoggerFrom(ctx)
 	var err error
 
 	if vmUUID == "" {
-		klog.Warning("VmUUID was empty. Skipping delete")
+		log.V(1).Info("VmUUID was empty. Skipping delete")
 		return "", nil
 	}
 
-	klog.Infof("Deleting VM %s with UUID: %s", vmName, vmUUID)
+	log.Info(fmt.Sprintf("Deleting VM %s with UUID: %s", vmName, vmUUID))
 	vmDeleteResponse, err := client.V3.DeleteVM(ctx, vmUUID)
 	if err != nil {
-		klog.Infof("Error deleting machine %s", vmName)
+		log.Error(err, fmt.Sprintf("error deleting vm %s", vmName))
 		return "", err
 	}
 	deleteTaskUUID := vmDeleteResponse.Status.ExecutionContext.TaskUUID.(string)
@@ -75,15 +78,16 @@ func DeleteVM(ctx context.Context, client *nutanixClientV3.Client, vmName, vmUUI
 
 // FindVMByUUID retrieves the VM with the given vm UUID. Returns nil if not found
 func FindVMByUUID(ctx context.Context, client *nutanixClientV3.Client, uuid string) (*nutanixClientV3.VMIntentResponse, error) {
-	klog.Infof("Checking if VM with UUID %s exists.", uuid)
+	log := ctrl.LoggerFrom(ctx)
+	log.V(1).Info(fmt.Sprintf("Checking if VM with UUID %s exists.", uuid))
 
 	response, err := client.V3.GetVM(ctx, uuid)
 	if err != nil {
 		if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-			klog.Infof("vm with uuid %s does not exist.", uuid)
+			log.V(1).Info(fmt.Sprintf("vm with uuid %s does not exist.", uuid))
 			return nil, nil
 		} else {
-			klog.Errorf("Failed to find VM by vmUUID %s. error: %v", uuid, err)
+			log.Error(err, fmt.Sprintf("Failed to find VM by vmUUID %s", uuid))
 			return nil, err
 		}
 	}
@@ -120,22 +124,20 @@ func GetVMUUID(nutanixMachine *infrav1.NutanixMachine) (string, error) {
 
 // FindVM retrieves the VM with the given uuid or name
 func FindVM(ctx context.Context, client *nutanixClientV3.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*nutanixClientV3.VMIntentResponse, error) {
+	log := ctrl.LoggerFrom(ctx)
 	vmUUID, err := GetVMUUID(nutanixMachine)
 	if err != nil {
 		return nil, err
 	}
 	// Search via uuid if it is present
 	if vmUUID != "" {
-		klog.Infof("Searching for VM %s using UUID %s", vmName, vmUUID)
+		log.V(1).Info(fmt.Sprintf("Searching for VM %s using UUID %s", vmName, vmUUID))
 		vm, err := FindVMByUUID(ctx, client, vmUUID)
 		if err != nil {
-			klog.Errorf("error occurred finding VM with uuid %s: %v", vmUUID, err)
 			return nil, err
 		}
 		if vm == nil {
-			errorMsg := fmt.Sprintf("no vm %s found with UUID %s but was expected to be present", vmName, vmUUID)
-			klog.Error(errorMsg)
-			return nil, fmt.Errorf(errorMsg)
+			return nil, fmt.Errorf("no vm %s found with UUID %s but was expected to be present", vmName, vmUUID)
 		}
 		// Check if the VM name matches the Machine name or the NutanixMachine name.
 		// Earlier, we were creating VMs with the same name as the NutanixMachine name.
@@ -143,17 +145,15 @@ func FindVM(ctx context.Context, client *nutanixClientV3.Client, nutanixMachine 
 		// This check is to ensure that we are deleting the correct VM for both cases as older CAPX VMs
 		// will have the NutanixMachine name as the VM name.
 		if *vm.Spec.Name != vmName && *vm.Spec.Name != nutanixMachine.Name {
-			errorMsg := fmt.Sprintf("found VM with UUID %s but name %s did not match %s. error: %v", vmUUID, *vm.Spec.Name, vmName, err)
-			klog.Errorf(errorMsg)
-			return nil, fmt.Errorf(errorMsg)
+			return nil, fmt.Errorf("found VM with UUID %s but name %s did not match %s", vmUUID, *vm.Spec.Name, vmName)
 		}
 		return vm, nil
 		// otherwise search via name
 	} else {
-		klog.Infof("Searching for VM %s using name", vmName)
+		log.Info(fmt.Sprintf("Searching for VM %s using name", vmName))
 		vm, err := FindVMByName(ctx, client, vmName)
 		if err != nil {
-			klog.Errorf("error occurred finding VM %s by name: %v", vmName, err)
+			log.Error(err, fmt.Sprintf("error occurred finding VM %s by name", vmName))
 			return nil, err
 		}
 		return vm, nil
@@ -162,21 +162,18 @@ func FindVM(ctx context.Context, client *nutanixClientV3.Client, nutanixMachine 
 
 // FindVMByName retrieves the VM with the given vm name
 func FindVMByName(ctx context.Context, client *nutanixClientV3.Client, vmName string) (*nutanixClientV3.VMIntentResponse, error) {
-	klog.Infof("Checking if VM with name %s exists.", vmName)
+	log := ctrl.LoggerFrom(ctx)
+	log.Info(fmt.Sprintf("Checking if VM with name %s exists.", vmName))
 
 	res, err := client.V3.ListVM(ctx, &nutanixClientV3.DSMetadata{
 		Filter: utils.StringPtr(fmt.Sprintf("vm_name==%s", vmName)),
 	})
 	if err != nil {
-		errorMsg := fmt.Errorf("error occurred when searching for VM by name %s. error: %v", vmName, err)
-		klog.Error(errorMsg)
-		return nil, errorMsg
+		return nil, err
 	}
 
 	if len(res.Entities) > 1 {
-		errorMsg := fmt.Sprintf("Found more than one (%v) vms with name %s.", len(res.Entities), vmName)
-		klog.Errorf(errorMsg)
-		return nil, fmt.Errorf(errorMsg)
+		return nil, fmt.Errorf("error: found more than one (%v) vms with name %s", len(res.Entities), vmName)
 	}
 
 	if len(res.Entities) == 0 {
@@ -345,12 +342,13 @@ func GetImageUUID(ctx context.Context, client *nutanixClientV3.Client, imageName
 
 // HasTaskInProgress returns true if the given task is in progress
 func HasTaskInProgress(ctx context.Context, client *nutanixClientV3.Client, taskUUID string) (bool, error) {
+	log := ctrl.LoggerFrom(ctx)
 	taskStatus, err := nutanixClientHelper.GetTaskState(ctx, client, taskUUID)
 	if err != nil {
 		return false, err
 	}
 	if taskStatus != taskSucceededMessage {
-		klog.Infof("VM task with UUID %s still in progress: %s. Requeuing", taskUUID, taskStatus)
+		log.V(1).Info(fmt.Sprintf("VM task with UUID %s still in progress: %s", taskUUID, taskStatus))
 		return true, nil
 	}
 	return false, nil
@@ -437,9 +435,7 @@ func getCategoryKey(ctx context.Context, client *nutanixClientV3.Client, key str
 	categoryKey, err := client.V3.GetCategoryKey(ctx, key)
 	if err != nil {
 		if !strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-			errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", key, err)
-			klog.Error(errorMsg)
-			return nil, errorMsg
+			return nil, fmt.Errorf("failed to retrieve category with key %s. error: %v", key, err)
 		} else {
 			return nil, nil
 		}
@@ -451,9 +447,7 @@ func getCategoryValue(ctx context.Context, client *nutanixClientV3.Client, key, 
 	categoryValue, err := client.V3.GetCategoryValue(ctx, key, value)
 	if err != nil {
 		if !strings.Contains(fmt.Sprint(err), "CATEGORY_NAME_VALUE_MISMATCH") {
-			errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
-			klog.Error(errorMsg)
-			return nil, errorMsg
+			return nil, fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
 		} else {
 			return nil, nil
 		}
@@ -462,6 +456,7 @@ func getCategoryValue(ctx context.Context, client *nutanixClientV3.Client, key, 
 }
 
 func deleteCategoryKeyValues(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier, ignoreKeyDeletion bool) error {
+	log := ctrl.LoggerFrom(ctx)
 	groupCategoriesByKey := make(map[string][]string, 0)
 	for _, ci := range categoryIdentifiers {
 		ciKey := ci.Key
@@ -474,33 +469,34 @@ func deleteCategoryKeyValues(ctx context.Context, client *nutanixClientV3.Client
 	}
 
 	for key, values := range groupCategoriesByKey {
-		klog.Infof("Retrieving category with key %s", key)
+		log.V(1).Info(fmt.Sprintf("Retrieving category with key %s", key))
 		categoryKey, err := getCategoryKey(ctx, client, key)
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", key, err)
-			klog.Error(errorMsg)
+			log.Error(errorMsg, "failed to retrieve category")
 			return errorMsg
 		}
-		klog.Infof("Category with key %s found. Starting deletion of values", key)
+		log.V(1).Info(fmt.Sprintf("Category with key %s found. Starting deletion of values", key))
 		if categoryKey == nil {
-			klog.Infof("Category with key %s not found. Already deleted?", key)
+			log.V(1).Info(fmt.Sprintf("Category with key %s not found. Already deleted?", key))
 			continue
 		}
 		for _, value := range values {
 			categoryValue, err := getCategoryValue(ctx, client, key, value)
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
-				klog.Error(errorMsg)
+				log.Error(errorMsg, "failed to retrieve category value")
 				return errorMsg
 			}
 			if categoryValue == nil {
-				klog.Infof("Category with value %s in category %s not found. Already deleted?", value, key)
+				log.V(1).Info(fmt.Sprintf("Category with value %s in category %s not found. Already deleted?", value, key))
 				continue
 			}
 
 			err = client.V3.DeleteCategoryValue(ctx, key, value)
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to delete category with key %s. error: %v", key, err)
+				log.Error(errorMsg, "failed to delete category")
 				return errorMsg
 			}
 		}
@@ -510,19 +506,19 @@ func deleteCategoryKeyValues(ctx context.Context, client *nutanixClientV3.Client
 			categoryKeyValues, err := client.V3.ListCategoryValues(ctx, key, &nutanixClientV3.CategoryListMetadata{})
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to get values of category with key %s: %v", key, err)
-				klog.Error(errorMsg)
+				log.Error(errorMsg, "failed to get values of category")
 				return errorMsg
 			}
 			if len(categoryKeyValues.Entities) > 0 {
 				errorMsg := fmt.Errorf("cannot remove category with key %s because it still has category values assigned", key)
-				klog.Error(errorMsg)
+				log.Error(errorMsg, "cannot remove category")
 				return errorMsg
 			}
-			klog.Infof("No values assigned to category. Removing category with key %s", key)
+			log.V(1).Info(fmt.Sprintf("No values assigned to category. Removing category with key %s", key))
 			err = client.V3.DeleteCategoryKey(ctx, key)
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to delete category with key %s: %v", key, err)
-				klog.Error(errorMsg)
+				log.Error(errorMsg, "failed to delete category")
 				return errorMsg
 			}
 		}
@@ -547,6 +543,7 @@ func DeleteCategories(ctx context.Context, client *nutanixClientV3.Client, categ
 }
 
 func getOrCreateCategory(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifier *infrav1.NutanixCategoryIdentifier) (*nutanixClientV3.CategoryValueStatus, error) {
+	log := ctrl.LoggerFrom(ctx)
 	if categoryIdentifier == nil {
 		return nil, fmt.Errorf("category identifier cannot be nil when getting or creating categories")
 	}
@@ -556,29 +553,29 @@ func getOrCreateCategory(ctx context.Context, client *nutanixClientV3.Client, ca
 	if categoryIdentifier.Value == "" {
 		return nil, fmt.Errorf("category identifier key must be set when when getting or creating categories")
 	}
-	klog.Infof("Checking existence of category with key %s", categoryIdentifier.Key)
+	log.V(1).Info(fmt.Sprintf("Checking existence of category with key %s", categoryIdentifier.Key))
 	categoryKey, err := getCategoryKey(ctx, client, categoryIdentifier.Key)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", categoryIdentifier.Key, err)
-		klog.Error(errorMsg)
+		log.Error(errorMsg, "failed to retrieve category")
 		return nil, errorMsg
 	}
 	if categoryKey == nil {
-		klog.Infof("Category with key %s did not exist.", categoryIdentifier.Key)
+		log.V(1).Info(fmt.Sprintf("Category with key %s did not exist.", categoryIdentifier.Key))
 		categoryKey, err = client.V3.CreateOrUpdateCategoryKey(ctx, &nutanixClientV3.CategoryKey{
 			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
 			Name:        utils.StringPtr(categoryIdentifier.Key),
 		})
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to create category with key %s. error: %v", categoryIdentifier.Key, err)
-			klog.Error(errorMsg)
+			log.Error(errorMsg, "failed to create category")
 			return nil, errorMsg
 		}
 	}
 	categoryValue, err := getCategoryValue(ctx, client, *categoryKey.Name, categoryIdentifier.Value)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
-		klog.Error(errorMsg)
+		log.Error(errorMsg, "failed to retrieve category")
 		return nil, errorMsg
 	}
 	if categoryValue == nil {
@@ -587,7 +584,7 @@ func getOrCreateCategory(ctx context.Context, client *nutanixClientV3.Client, ca
 			Value:       utils.StringPtr(categoryIdentifier.Value),
 		})
 		if err != nil {
-			klog.Errorf("Failed to create category value %s in category key %s. error: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
+			log.Error(err, fmt.Sprintf("failed to create category value %s in category key %s", categoryIdentifier.Value, categoryIdentifier.Key))
 		}
 	}
 	return categoryValue, nil
@@ -595,17 +592,18 @@ func getOrCreateCategory(ctx context.Context, client *nutanixClientV3.Client, ca
 
 // GetCategoryVMSpec returns a flatmap of categories and their values
 func GetCategoryVMSpec(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) (map[string]string, error) {
+	log := ctrl.LoggerFrom(ctx)
 	categorySpec := map[string]string{}
 	for _, ci := range categoryIdentifiers {
 		categoryValue, err := getCategoryValue(ctx, client, ci.Key, ci.Value)
 		if err != nil {
 			errorMsg := fmt.Errorf("error occurred while to retrieving category value %s in category %s. error: %v", ci.Value, ci.Key, err)
-			klog.Error(errorMsg)
+			log.Error(errorMsg, "failed to retrieve category")
 			return nil, errorMsg
 		}
 		if categoryValue == nil {
 			errorMsg := fmt.Errorf("category value %s not found in category %s. error", ci.Value, ci.Key)
-			klog.Error(errorMsg)
+			log.Error(errorMsg, "category value not found")
 			return nil, errorMsg
 		}
 		categorySpec[ci.Key] = ci.Value

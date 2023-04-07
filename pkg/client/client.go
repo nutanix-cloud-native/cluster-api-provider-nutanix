@@ -30,7 +30,7 @@ import (
 	envTypes "github.com/nutanix-cloud-native/prism-go-client/environment/types"
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	coreinformers "k8s.io/client-go/informers/core/v1"
-	"k8s.io/klog"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
@@ -55,7 +55,8 @@ func NewNutanixClientHelper(secretInformer coreinformers.SecretInformer, cmInfor
 	}, nil
 }
 
-func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
+func (n *NutanixClientHelper) GetClientFromEnvironment(ctx context.Context, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
+	log := ctrl.LoggerFrom(ctx)
 	// Create a list of env providers
 	providers := make([]envTypes.Provider, 0)
 
@@ -87,7 +88,7 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.N
 			n.secretInformer,
 			n.configMapInformer))
 	} else {
-		klog.Warningf("[WARNING] prismCentral attribute was not set on NutanixCluster %s in namespace %s. Defaulting to CAPX manager credentials", nutanixCluster.Name, nutanixCluster.Namespace)
+		log.Info(fmt.Sprintf("[WARNING] prismCentral attribute was not set on NutanixCluster %s in namespace %s. Defaulting to CAPX manager credentials", nutanixCluster.Name, nutanixCluster.Namespace))
 	}
 
 	// Add env provider for CAPX manager
@@ -137,14 +138,10 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(nutanixCluster *infrav1.N
 
 func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials, additionalTrustBundle string) (*nutanixClientV3.Client, error) {
 	if cred.Username == "" {
-		errorMsg := fmt.Errorf("could not create client because username was not set")
-		klog.Error(errorMsg)
-		return nil, errorMsg
+		return nil, fmt.Errorf("could not create client because username was not set")
 	}
 	if cred.Password == "" {
-		errorMsg := fmt.Errorf("could not create client because password was not set")
-		klog.Error(errorMsg)
-		return nil, errorMsg
+		return nil, fmt.Errorf("could not create client because password was not set")
 	}
 	if cred.Port == "" {
 		cred.Port = defaultEndpointPort
@@ -158,14 +155,12 @@ func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials, addition
 	}
 	cli, err := nutanixClientV3.NewV3Client(cred, clientOpts...)
 	if err != nil {
-		klog.Errorf("Failed to create the nutanix client. error: %v", err)
 		return nil, err
 	}
 
 	// Check if the client is working
 	_, err = cli.V3.GetCurrentLoggedInUser(context.Background())
 	if err != nil {
-		klog.Errorf("failed to get current logged in user. error: %v", err)
 		return nil, err
 	}
 

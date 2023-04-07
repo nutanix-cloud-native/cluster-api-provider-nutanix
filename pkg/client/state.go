@@ -22,7 +22,7 @@ import (
 	"math"
 	"time"
 
-	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
@@ -61,10 +61,11 @@ func waitUntilTaskStateFunc(ctx context.Context, conn *nutanixClientV3.Client, u
 }
 
 func GetTaskState(ctx context.Context, client *nutanixClientV3.Client, taskUUID string) (string, error) {
-	klog.Infof("Getting task with UUID %s", taskUUID)
+	log := ctrl.LoggerFrom(ctx)
+	log.V(1).Info(fmt.Sprintf("Getting task with UUID %s", taskUUID))
 	v, err := client.V3.GetTask(ctx, taskUUID)
 	if err != nil {
-		klog.Errorf("error occurred while waiting for task with UUID %s: %v", taskUUID, err)
+		log.Error(err, fmt.Sprintf("error occurred while waiting for task with UUID %s", taskUUID))
 		return "", err
 	}
 
@@ -73,7 +74,7 @@ func GetTaskState(ctx context.Context, client *nutanixClientV3.Client, taskUUID 
 			fmt.Errorf("error_detail: %s, progress_message: %s", utils.StringValue(v.ErrorDetail), utils.StringValue(v.ProgressMessage))
 	}
 	taskStatus := *v.Status
-	klog.Infof("Status for task with UUID %s: %s", taskUUID, taskStatus)
+	log.V(1).Info(fmt.Sprintf("Status for task with UUID %s: %s", taskUUID, taskStatus))
 	return taskStatus, nil
 }
 
@@ -97,7 +98,7 @@ func Retry(initialInterval float64, maxInterval float64, numTries uint, function
 	if maxInterval == 0 {
 		maxInterval = math.Inf(1)
 	} else if initialInterval < 0 || initialInterval > maxInterval {
-		return fmt.Errorf("Invalid retry intervals (negative or initial < max). Initial: %f, Max: %f.", initialInterval, maxInterval)
+		return fmt.Errorf("invalid retry intervals (negative or initial < max). Initial: %f, Max: %f", initialInterval, maxInterval)
 	}
 
 	var err error
@@ -117,7 +118,7 @@ func Retry(initialInterval float64, maxInterval float64, numTries uint, function
 	}
 
 	if !done {
-		return fmt.Errorf("Function never succeeded in Retry")
+		return fmt.Errorf("function never succeeded in Retry")
 	}
 	return nil
 }
