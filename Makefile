@@ -370,7 +370,7 @@ ginkgo-help:
 .PHONY: test-e2e
 test-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates ## Run the end-to-end tests
 	mkdir -p $(ARTIFACTS)
-	$(GINKGO) -v \
+	NUTANIX_LOG_LEVEL=debug $(GINKGO) -v \
 		--trace \
 		--progress \
 		--tags=e2e \

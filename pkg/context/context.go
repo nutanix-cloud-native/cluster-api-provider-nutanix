@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"sync"
 
-	"k8s.io/klog/v2"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/remote"
+	ctrl "sigs.k8s.io/controller-runtime"
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
@@ -45,9 +45,6 @@ type ClusterContext struct {
 
 	Cluster        *capiv1.Cluster
 	NutanixCluster *infrav1.NutanixCluster
-
-	// The prefix to prepend to logs
-	LogPrefix string
 }
 
 // MachineContext is a context used with a NutanixMachine reconciler
@@ -62,9 +59,6 @@ type MachineContext struct {
 
 	// The VM ip address
 	IP string
-
-	// The prefix to prepend to logs
-	LogPrefix string
 }
 
 // IsControlPlaneMachine returns true if the provided resource is
@@ -111,7 +105,6 @@ func (clctx *ClusterContext) GetNutanixMachinesInCluster(client ctlclient.Client
 	err := client.List(clctx.Context, machineList,
 		ctlclient.InNamespace(clusterNamespace), ctlclient.MatchingLabels(labels))
 	if err != nil {
-		klog.Errorf("%s Failed to list NutanixMachines. %v", clctx.LogPrefix, err)
 		return nil, err
 	}
 
@@ -124,13 +117,15 @@ func (clctx *ClusterContext) GetNutanixMachinesInCluster(client ctlclient.Client
 }
 
 func (clctx *ClusterContext) SetFailureStatus(failureReason capierrors.ClusterStatusError, failureMessage error) {
-	klog.Infof("Setting cluster failure status. Reason: %s, Message: %v", failureReason, failureMessage)
+	log := ctrl.LoggerFrom(clctx.Context)
+	log.Error(failureMessage, fmt.Sprintf("cluster failed: %s", failureReason))
 	clctx.NutanixCluster.Status.FailureMessage = utils.StringPtr(fmt.Sprintf("%v", failureMessage))
 	clctx.NutanixCluster.Status.FailureReason = &failureReason
 }
 
 func (clctx *MachineContext) SetFailureStatus(failureReason capierrors.MachineStatusError, failureMessage error) {
-	klog.Infof("Setting machine failure status. Reason: %s, Message: %v", failureReason, failureMessage)
+	log := ctrl.LoggerFrom(clctx.Context)
+	log.Error(failureMessage, fmt.Sprintf("machine failed: %s", failureReason))
 	clctx.NutanixMachine.Status.FailureMessage = utils.StringPtr(fmt.Sprintf("%v", failureMessage))
 	clctx.NutanixMachine.Status.FailureReason = &failureReason
 }
@@ -138,15 +133,12 @@ func (clctx *MachineContext) SetFailureStatus(failureReason capierrors.MachineSt
 func GetRemoteClient(ctx context.Context, client ctlclient.Client, clusterKey ctlclient.ObjectKey) (ctlclient.Client, error) {
 	cacheLock.Lock()
 	defer cacheLock.Unlock()
-
 	remoteClient, ok := RemoteClientCache[clusterKey]
 	if ok {
 		return remoteClient, nil
 	}
-
 	remoteClient, err := remote.NewClusterClient(ctx, "remote-cluster-cache", client, clusterKey)
 	if err != nil {
-		klog.Errorf("Failed to create client for remote cluster %v", clusterKey)
 		return nil, err
 	}
 	RemoteClientCache[clusterKey] = remoteClient
