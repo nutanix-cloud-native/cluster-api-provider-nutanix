@@ -359,6 +359,9 @@ func GetTaskUUIDFromVM(vm *nutanixClientV3.VMIntentResponse) (string, error) {
 	if vm == nil {
 		return "", fmt.Errorf("cannot extract task uuid from empty vm object")
 	}
+	if vm.Status.ExecutionContext == nil {
+		return "", nil
+	}
 	taskInterface := vm.Status.ExecutionContext.TaskUUID
 	vmName := *vm.Spec.Name
 

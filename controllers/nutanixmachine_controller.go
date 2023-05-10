@@ -317,16 +317,20 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 				conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, errorMsg.Error())
 				return reconcile.Result{}, errorMsg
 			}
-			log.Info(fmt.Sprintf("checking if VM %s with UUID %s has in progress tasks", vmName, vmUUID))
-			taskInProgress, err := HasTaskInProgress(ctx, rctx.NutanixClient, lastTaskUUID)
-			if err != nil {
-				log.Error(err, fmt.Sprintf("error occurred while checking task %s for VM %s. Trying to delete VM", lastTaskUUID, vmName))
+			if lastTaskUUID != "" {
+				log.Info(fmt.Sprintf("checking if VM %s with UUID %s has in progress tasks", vmName, vmUUID))
+				taskInProgress, err := HasTaskInProgress(ctx, rctx.NutanixClient, lastTaskUUID)
+				if err != nil {
+					log.Error(err, fmt.Sprintf("error occurred while checking task %s for VM %s. Trying to delete VM", lastTaskUUID, vmName))
+				}
+				if taskInProgress {
+					log.Info(fmt.Sprintf("VM %s task with UUID %s still in progress. Requeuing", vmName, vmUUID))
+					return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+				}
+				log.V(1).Info(fmt.Sprintf("No running tasks anymore... Initiating delete for vm %s with UUID %s", vmName, vmUUID))
+			} else {
+				log.V(1).Info(fmt.Sprintf("no task UUID found on VM %s. Starting delete.", *vm.Spec.Name))
 			}
-			if taskInProgress {
-				log.Info(fmt.Sprintf("VM %s task with UUID %s still in progress. Requeuing", vmName, vmUUID))
-				return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
-			}
-			log.V(1).Info(fmt.Sprintf("No running tasks anymore... Initiating delete for vm %s with UUID %s", vmName, vmUUID))
 			// Delete the VM since the VM was found (err was nil)
 			deleteTaskUUID, err := DeleteVM(ctx, nc, vmName, vmUUID)
 			if err != nil {
@@ -730,6 +734,11 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		return nil, errorMsg
 	}
 
+	if lastTaskUUID == "" {
+		errorMsg := fmt.Errorf("failed to retrieve task UUID for VM %s after creation", vmName)
+		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		return nil, errorMsg
+	}
 	log.Info(fmt.Sprintf("Waiting for task %s to get completed for VM %s", lastTaskUUID, rctx.NutanixMachine.Name))
 	err = nutanixClient.WaitForTaskCompletion(ctx, nc, lastTaskUUID)
 	if err != nil {
