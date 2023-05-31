@@ -99,6 +99,9 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             privileged: false
+            capabilities:
+              drop:
+                - ALL
           livenessProbe:
             httpGet:
               path: /healthz
