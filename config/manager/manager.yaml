@@ -74,8 +74,10 @@ spec:
       labels:
         control-plane: controller-manager
     spec:
-      # securityContext:
-      #   runAsNonRoot: true
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - args:
             - --leader-elect
@@ -96,6 +98,10 @@ spec:
               mountPath: "/etc/nutanix/config"
           securityContext:
             allowPrivilegeEscalation: false
+            privileged: false
+            capabilities:
+              drop:
+                - ALL
           livenessProbe:
             httpGet:
               path: /healthz
