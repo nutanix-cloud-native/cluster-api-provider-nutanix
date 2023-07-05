@@ -1437,28 +1437,28 @@ metadata:
 spec:
   clusterName: ${CLUSTER_NAME}
   maxUnhealthy: 40%
-  nodeStartupTimeout: 10m
+  nodeStartupTimeout: 10m0s
   selector:
     matchLabels:
       cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
   unhealthyConditions:
   - status: "False"
-    timeout: 300s
+    timeout: 5m0s
     type: Ready
   - status: Unknown
-    timeout: 300s
+    timeout: 5m0s
     type: Ready
   - status: "True"
-    timeout: 300s
+    timeout: 5m0s
     type: MemoryPressure
   - status: "True"
-    timeout: 300s
+    timeout: 5m0s
     type: DiskPressure
   - status: "True"
-    timeout: 300s
+    timeout: 5m0s
     type: PIDPressure
   - status: "True"
-    timeout: 300s
+    timeout: 5m0s
     type: NetworkUnavailable
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
