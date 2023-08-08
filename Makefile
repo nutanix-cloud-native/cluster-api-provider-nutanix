@@ -54,6 +54,7 @@ export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 CNI_PATH_CALICO ?= "${E2E_DIR}/data/cni/calico/calico.yaml"
 CNI_PATH_FLANNEL ?= "${E2E_DIR}/data/cni/flannel/flannel.yaml" # From https://github.com/flannel-io/flannel/blob/master/Documentation/kube-flannel.yml
 CNI_PATH_CILIUM ?= "${E2E_DIR}/data/cni/cilium/cilium.yaml" # helm template cilium cilium/cilium --version 1.13.0 -n kube-system --set hubble.enabled=false | sed 's/${BIN_PATH}/$BIN_PATH/g'
+CNI_PATH_CILIUM_NO_KUBEPROXY ?= "${E2E_DIR}/data/cni/cilium/cilium-no-kubeproxy.yaml" # helm template cilium cilium/cilium --version 1.13.0 -n kube-system --set hubble.enabled=false --set kubeProxyReplacement=strict | sed 's/${BIN_PATH}/$BIN_PATH/g'
 
 #
 # Binaries.
@@ -302,6 +303,24 @@ cluster-e2e-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi.yaml
 
+cluster-e2e-templates-no-kubeproxy: $(KUSTOMIZE) ##Generate cluster templates without kubeproxy
+	# v1alpha4
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1alpha4/no-kubeproxy/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1alpha4/cluster-template.yaml
+
+	# v1beta1
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-no-secret --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-secret.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-no-nutanix-cluster --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nutanix-cluster.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-additional-categories --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-no-nmt --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-project --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-ccm --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-ccm.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-upgrades --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-upgrades.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-md-remediation --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-remediation.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-kcp-remediation --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-remediation.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-kcp-scale-in --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-csi --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi.yaml
+
 cluster-templates: $(KUSTOMIZE) ## Generate cluster templates for all flavors
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/base > $(TEMPLATES_DIR)/cluster-template.yaml
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/csi > $(TEMPLATES_DIR)/cluster-template-csi.yaml
@@ -395,6 +414,27 @@ test-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates
 		-e2e.skip-resource-cleanup=$(SKIP_RESOURCE_CLEANUP) \
 		-e2e.use-existing-cluster=$(USE_EXISTING_CLUSTER)
 
+.PHONY: test-e2e-no-kubeproxy
+test-e2e-no-kubeproxy: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates-no-kubeproxy cluster-templates ## Run the end-to-end tests without kubeproxy
+	mkdir -p $(ARTIFACTS)
+	NUTANIX_LOG_LEVEL=debug $(GINKGO) -v \
+		--trace \
+		--progress \
+		--tags=e2e \
+		--label-filter=$(LABEL_FILTER_ARGS) \
+		$(_SKIP_ARGS) \
+		--nodes=$(GINKGO_NODES) \
+		--no-color=$(GINKGO_NOCOLOR) \
+		--output-dir="$(ARTIFACTS)" \
+		--junit-report=${JUNIT_REPORT_FILE} \
+		--timeout="24h" \
+		--always-emit-ginkgo-writer \
+		$(GINKGO_ARGS) ./test/e2e -- \
+		-e2e.artifacts-folder="$(ARTIFACTS)" \
+		-e2e.config="$(E2E_CONF_FILE)" \
+		-e2e.skip-resource-cleanup=$(SKIP_RESOURCE_CLEANUP) \
+		-e2e.use-existing-cluster=$(USE_EXISTING_CLUSTER)
+
 .PHONY: list-e2e
 list-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates ## Run the end-to-end tests
 	mkdir -p $(ARTIFACTS)
@@ -409,7 +449,6 @@ list-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates
 test-e2e-calico:
 	CNI=$(CNI_PATH_CALICO) $(MAKE) test-e2e
 
-
 .PHONY: test-e2e-flannel
 test-e2e-flannel:
 	CNI=$(CNI_PATH_FLANNEL) $(MAKE) test-e2e
@@ -418,8 +457,12 @@ test-e2e-flannel:
 test-e2e-cilium:
 	CNI=$(CNI_PATH_CILIUM) $(MAKE) test-e2e
 
+.PHONY: test-e2e-cilium-no-kubeproxy
+test-e2e-cilium-no-kubeproxy:
+	CNI=$(CNI_PATH_CILIUM_NO_KUBEPROXY) $(MAKE) test-e2e-no-kubeproxy
+
 .PHONY: test-e2e-all-cni
-test-e2e-all-cni: test-e2e test-e2e-calico test-e2e-flannel test-e2e-cilium
+test-e2e-all-cni: test-e2e test-e2e-calico test-e2e-flannel test-e2e-cilium test-e2e-cilium-no-kubeproxy
 
 
 ## --------------------------------------

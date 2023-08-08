@@ -1,0 +1,5 @@
+bases:
+  - ../../cluster-template-csi/
+
+patchesStrategicMerge:
+  - ../no-kubeproxy.yaml
