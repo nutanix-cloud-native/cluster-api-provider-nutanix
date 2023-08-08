@@ -65,6 +65,9 @@ const (
 	clusterVarKey       = "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME"
 	subnetVarKey        = "NUTANIX_SUBNET_NAME"
 
+	envVarControlPlaneEndpointIP   = "CONTROL_PLANE_ENDPOINT_IP"
+	envVarControlPlaneEndpointPort = "CONTROL_PLANE_ENDPOINT_PORT"
+
 	nameType = "name"
 )
 
@@ -80,6 +83,7 @@ type testHelperInterface interface {
 	createUUIDProjectNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate
 	deployCluster(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult)
 	deployClusterAndWait(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult)
+	deleteSecret(params deleteSecretParams)
 	findGPU(ctx context.Context, gpuName string) *prismGoClientV3.GPU
 	generateNMTName(clusterName string) string
 	generateNMTProviderID(clusterName string) string
@@ -668,4 +672,22 @@ func (t testHelper) verifyGPUNutanixMachines(ctx context.Context, params verifyG
 				),
 			)))
 	}
+}
+
+type deleteSecretParams struct {
+	namespace   *corev1.Namespace
+	clusterName string
+}
+
+func (t testHelper) deleteSecret(params deleteSecretParams) {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      params.clusterName,
+			Namespace: params.namespace.Name,
+		},
+	}
+
+	Eventually(func() error {
+		return bootstrapClusterProxy.GetClient().Delete(ctx, secret)
+	}, time.Second*5, defaultInterval).Should(Succeed())
 }
