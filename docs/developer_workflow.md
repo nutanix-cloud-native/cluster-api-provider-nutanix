@@ -16,6 +16,11 @@ make docker-build
 make kind-create
 </pre>
 
+## Prepare local clusterctl
+<pre>
+make prepare-local-clusterctl
+</pre>
+
 ## Deploy cluster-api-provider-nutanix CRDs on test management cluster
 <pre>
 make deploy
