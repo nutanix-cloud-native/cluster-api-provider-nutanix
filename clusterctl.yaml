@@ -6,7 +6,7 @@ NUTANIX_PASSWORD: ""
 
 KUBERNETES_VERSION: "v1.21.9"
 NUTANIX_SSH_AUTHORIZED_KEY: ""
-CONTROLPLANE_ENDPOINT_IP: ""
+CONTROL_PLANE_ENDPOINT_IP: ""
 WORKER_MACHINE_COUNT: 2
 
 NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ""
@@ -19,5 +19,5 @@ KUBEVIP_SVC_ENABLE: "false"
 providers:
   # add a custom provider
   - name: "nutanix"
-    url: "file://$HOME/.cluster-api/overrides/infrastructure-nutanix/v0.0.0/infrastructure-components.yaml"
+    url: "file:///$HOME/.cluster-api/overrides/infrastructure-nutanix/v0.0.0/infrastructure-components.yaml"
     type: "InfrastructureProvider"
