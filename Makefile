@@ -300,6 +300,7 @@ cluster-templates: $(KUSTOMIZE) ## Generate cluster templates for all flavors
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/base > $(TEMPLATES_DIR)/cluster-template.yaml
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/csi > $(TEMPLATES_DIR)/cluster-template-csi.yaml
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/ccm > $(TEMPLATES_DIR)/cluster-template-ccm.yaml
+	$(KUSTOMIZE) build $(TEMPLATES_DIR)/cluster-registration > $(TEMPLATES_DIR)/cluster-template-cluster-registration.yaml
 
 ##@ Testing
 

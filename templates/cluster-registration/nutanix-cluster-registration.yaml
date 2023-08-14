@@ -1,0 +1,627 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/component: manager
+    app.kubernetes.io/created-by: k8s-onboarding-operator
+    app.kubernetes.io/instance: system
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: namespace
+    app.kubernetes.io/part-of: k8s-onboarding-operator
+    control-plane: controller-manager
+  name: k8s-onboarding-system
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: k8s-onboarding-system/k8s-onboarding-serving-cert
+    controller-gen.kubebuilder.io/version: v0.9.2
+  name: clusterregistrations.k8s.onboarding.nutanix.com
+spec:
+  conversion:
+    strategy: Webhook
+    webhook:
+      clientConfig:
+        service:
+          name: k8s-onboarding-webhook-service
+          namespace: k8s-onboarding-system
+          path: /convert
+      conversionReviewVersions:
+      - v1
+  group: k8s.onboarding.nutanix.com
+  names:
+    kind: ClusterRegistration
+    listKind: ClusterRegistrationList
+    plural: clusterregistrations
+    singular: clusterregistration
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: ClusterRegistration is the Schema for the clusterregistrations API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ClusterRegistrationSpec defines the desired state of ClusterRegistration
+            properties:
+              categoryMappings:
+                additionalProperties:
+                  type: string
+                description: CategoryMappings contains the mappings of categories used by cluster provider to categorise its resources like VMs, VGs etc
+                type: object
+              clusterName:
+                description: ClusterName represents the name of the k8s cluster to onboard
+                type: string
+              clusterUUID:
+                description: ClusterUUID represents the uuid of the k8s cluster to onboard
+                type: string
+              k8sdistribution:
+                description: 'K8sDistribution represents the type of Kubernetes distribution eg: Openshift, CAPX, etc'
+                type: string
+              prismCentral:
+                description: prismCentral holds the endpoint address and port to access the Nutanix Prism Central. When a cluster-wide proxy is installed, by default, this endpoint will be accessed via the proxy. Should you wish for communication with this endpoint not to be proxied, please add the endpoint to the proxy spec.noProxy list.
+                properties:
+                  additionalTrustBundle:
+                    description: AdditionalTrustBundle is a PEM encoded x509 cert for the RootCA that was used to create the certificate for a Prism Central that uses certificates that were issued by a non-publicly trusted RootCA. The trust bundle is added to the cert pool used to authenticate the TLS connection to the Prism Central.
+                    properties:
+                      data:
+                        description: Data of the trust bundle if Kind is String.
+                        type: string
+                      kind:
+                        description: Kind of the Nutanix trust bundle
+                        enum:
+                        - String
+                        - ConfigMap
+                        type: string
+                      name:
+                        description: Name of the credential.
+                        type: string
+                      namespace:
+                        description: namespace of the credential.
+                        type: string
+                    required:
+                    - kind
+                    type: object
+                  address:
+                    description: address is the endpoint address (DNS name or IP address) of the Nutanix Prism Central or Element (cluster)
+                    maxLength: 256
+                    type: string
+                  credentialRef:
+                    description: Pass credential information for the target Prism instance
+                    properties:
+                      kind:
+                        description: Kind of the Nutanix credential
+                        enum:
+                        - Secret
+                        type: string
+                      name:
+                        description: Name of the credential.
+                        minLength: 1
+                        type: string
+                      namespace:
+                        description: namespace of the credential.
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
+                  insecure:
+                    default: false
+                    description: use insecure connection to Prism endpoint
+                    type: boolean
+                  port:
+                    default: 9440
+                    description: port is the port number to access the Nutanix Prism Central or Element (cluster)
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                required:
+                - address
+                - port
+                type: object
+            required:
+            - prismCentral
+            type: object
+          status:
+            description: ClusterRegistrationStatus defines the observed state of ClusterRegistration
+            properties:
+              clusterRegistered:
+                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state of cluster Important: Run "make" to regenerate code after modifying this file'
+                type: boolean
+              failureMessage:
+                description: Will be set in case of failure to register cluster
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kuberentes.io/instance: controller-manager
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: k8s-onboarding-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: serviceaccount
+    app.kubernetes.io/part-of: k8s-onboarding-operator
+  name: k8s-onboarding-controller-manager
+  namespace: k8s-onboarding-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: k8s-onboarding-operator
+    app.kubernetes.io/instance: leader-election-role
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: role
+    app.kubernetes.io/part-of: k8s-onboarding-operator
+  name: k8s-onboarding-leader-election-role
+  namespace: k8s-onboarding-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: k8s-onboarding-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - k8s.onboarding.nutanix.com
+  resources:
+  - clusterregistrations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - k8s.onboarding.nutanix.com
+  resources:
+  - clusterregistrations/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - k8s.onboarding.nutanix.com
+  resources:
+  - clusterregistrations/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: kube-rbac-proxy
+    app.kubernetes.io/created-by: k8s-onboarding-operator
+    app.kubernetes.io/instance: metrics-reader
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/part-of: k8s-onboarding-operator
+  name: k8s-onboarding-metrics-reader
+rules:
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/component: kube-rbac-proxy
+    app.kubernetes.io/created-by: k8s-onboarding-operator
+    app.kubernetes.io/instance: proxy-role
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/part-of: k8s-onboarding-operator
+  name: k8s-onboarding-proxy-role
+rules:
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: k8s-onboarding-operator
+    app.kubernetes.io/instance: leader-election-rolebinding
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: rolebinding
+    app.kubernetes.io/part-of: k8s-onboarding-operator
+  name: k8s-onboarding-leader-election-rolebinding
+  namespace: k8s-onboarding-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: k8s-onboarding-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: k8s-onboarding-controller-manager
+  namespace: k8s-onboarding-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: k8s-onboarding-operator
+    app.kubernetes.io/instance: manager-rolebinding
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: clusterrolebinding
+    app.kubernetes.io/part-of: k8s-onboarding-operator
+  name: k8s-onboarding-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k8s-onboarding-manager-role
+subjects:
+- kind: ServiceAccount
+  name: k8s-onboarding-controller-manager
+  namespace: k8s-onboarding-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: kube-rbac-proxy
+    app.kubernetes.io/created-by: k8s-onboarding-operator
+    app.kubernetes.io/instance: proxy-rolebinding
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: clusterrolebinding
+    app.kubernetes.io/part-of: k8s-onboarding-operator
+  name: k8s-onboarding-proxy-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k8s-onboarding-proxy-role
+subjects:
+- kind: ServiceAccount
+  name: k8s-onboarding-controller-manager
+  namespace: k8s-onboarding-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: kube-rbac-proxy
+    app.kubernetes.io/created-by: k8s-onboarding-operator
+    app.kubernetes.io/instance: controller-manager-metrics-service
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: service
+    app.kubernetes.io/part-of: k8s-onboarding-operator
+    control-plane: controller-manager
+  name: k8s-onboarding-controller-manager-metrics-service
+  namespace: k8s-onboarding-system
+spec:
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: https
+  selector:
+    control-plane: controller-manager
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/created-by: k8s-onboarding-operator
+    app.kubernetes.io/instance: webhook-service
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: service
+    app.kubernetes.io/part-of: k8s-onboarding-operator
+  name: k8s-onboarding-webhook-service
+  namespace: k8s-onboarding-system
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 9443
+  selector:
+    control-plane: controller-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: manager
+    app.kubernetes.io/created-by: k8s-onboarding-operator
+    app.kubernetes.io/instance: controller-manager
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: deployment
+    app.kubernetes.io/part-of: k8s-onboarding-operator
+    control-plane: controller-manager
+  name: k8s-onboarding-controller-manager
+  namespace: k8s-onboarding-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: controller-manager
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+                - arm64
+                - ppc64le
+                - s390x
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      containers:
+      - args:
+        - --secure-listen-address=0.0.0.0:8443
+        - --upstream=http://127.0.0.1:8080/
+        - --logtostderr=true
+        - --v=0
+        image: gcr.io/kubebuilder/kube-rbac-proxy:v0.13.0
+        name: kube-rbac-proxy
+        ports:
+        - containerPort: 8443
+          name: https
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 5m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      - args:
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=127.0.0.1:8080
+        - --leader-elect
+        command:
+        - /manager
+        image: deepakmntnx/test-controller:latest
+        imagePullPolicy: Always
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: k8s-onboarding-controller-manager
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: webhook-server-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    app.kubernetes.io/component: certificate
+    app.kubernetes.io/created-by: k8s-onboarding-operator
+    app.kubernetes.io/instance: serving-cert
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: certificate
+    app.kubernetes.io/part-of: k8s-onboarding-operator
+  name: k8s-onboarding-serving-cert
+  namespace: k8s-onboarding-system
+spec:
+  dnsNames:
+  - k8s-onboarding-webhook-service.k8s-onboarding-system.svc
+  - k8s-onboarding-webhook-service.k8s-onboarding-system.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: k8s-onboarding-selfsigned-issuer
+  secretName: webhook-server-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  labels:
+    app.kuberentes.io/name: issuer
+    app.kubernetes.io/component: certificate
+    app.kubernetes.io/created-by: k8s-onboarding-operator
+    app.kubernetes.io/instance: selfsigned-issuer
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: k8s-onboarding-operator
+  name: k8s-onboarding-selfsigned-issuer
+  namespace: k8s-onboarding-system
+spec:
+  selfSigned: {}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: k8s-onboarding-system/k8s-onboarding-serving-cert
+  labels:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/created-by: k8s-onboarding-operator
+    app.kubernetes.io/instance: mutating-webhook-configuration
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: mutatingwebhookconfiguration
+    app.kubernetes.io/part-of: k8s-onboarding-operator
+  name: k8s-onboarding-mutating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: k8s-onboarding-webhook-service
+      namespace: k8s-onboarding-system
+      path: /mutate-k8s-onboarding-nutanix-com-v1-clusterregistration
+  failurePolicy: Fail
+  name: mclusterregistration.kb.io
+  rules:
+  - apiGroups:
+    - k8s.onboarding.nutanix.com
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - clusterregistrations
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: k8s-onboarding-system/k8s-onboarding-serving-cert
+  labels:
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/created-by: k8s-onboarding-operator
+    app.kubernetes.io/instance: validating-webhook-configuration
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: validatingwebhookconfiguration
+    app.kubernetes.io/part-of: k8s-onboarding-operator
+  name: k8s-onboarding-validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: k8s-onboarding-webhook-service
+      namespace: k8s-onboarding-system
+      path: /validate-k8s-onboarding-nutanix-com-v1-clusterregistration
+  failurePolicy: Fail
+  name: vclusterregistration.kb.io
+  rules:
+  - apiGroups:
+    - k8s.onboarding.nutanix.com
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - clusterregistrations
+  sideEffects: None

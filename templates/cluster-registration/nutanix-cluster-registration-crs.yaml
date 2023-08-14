@@ -1,0 +1,13 @@
+apiVersion: addons.cluster.x-k8s.io/v1beta1
+kind: ClusterResourceSet
+metadata:
+  name: nutanix-cluster-registration-crs
+spec:
+  clusterSelector:
+    matchLabels:
+      cluster-registration: nutanix
+  resources:
+  - kind: ConfigMap
+    name: nutanix-cluster-registration
+  strategy: ApplyOnce
+
