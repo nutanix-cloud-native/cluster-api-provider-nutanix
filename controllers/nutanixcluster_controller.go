@@ -204,7 +204,7 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (reconcile.Result, error) {
 	log := ctrl.LoggerFrom(rctx.Context)
 	log.Info("Handling NutanixCluster deletion")
-	// Check if there are nutanixmachine resources left. Only continue of all of them have been cleaned
+	// Check if there are nutanixmachine resources left. Only continue if all of them have been cleaned
 	nutanixMachines, err := rctx.GetNutanixMachinesInCluster(r.Client)
 	if err != nil {
 		log.Error(err, "error occurred while checking nutanixmachines during cluster deletion")
