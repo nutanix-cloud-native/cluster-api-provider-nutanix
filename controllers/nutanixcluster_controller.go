@@ -263,6 +263,7 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 
 	err := r.reconcileCategories(rctx)
 	if err != nil {
+		log.Error(err, "error occurred while reconciling categories")
 		// Don't return fatal error but keep retrying until categories are created.
 		return reconcile.Result{}, err
 	}
