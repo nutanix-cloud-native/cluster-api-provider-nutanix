@@ -30,3 +30,4 @@ spec:
         - "--leader-elect"
         - "--zap-log-level=${NUTANIX_LOG_LEVEL=info}"
         - "--zap-devel=${NUTANIX_LOG_DEVELOPMENT=true}"
+        - "--zap-stacktrace-level=${NUTANIX_LOG_STACKTRACE_LEVEL=panic}"
