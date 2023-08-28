@@ -60,7 +60,7 @@ CNI_PATH_CILIUM_NO_KUBEPROXY ?= "${E2E_DIR}/data/cni/cilium/cilium-no-kubeproxy.
 # Binaries.
 #
 # Note: Need to use abspath so we can invoke these from subdirectories
-KO_VER := v0.11.2
+KO_VER := v0.15.1
 KO_BIN := ko
 KO := $(abspath $(TOOLS_BIN_DIR)/$(KO_BIN)-$(KO_VER))
 KO_PKG := github.com/google/ko

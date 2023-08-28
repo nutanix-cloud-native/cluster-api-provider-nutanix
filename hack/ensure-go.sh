@@ -42,7 +42,23 @@ EOF
   fi
 }
 
+# ensure GOPATH/bin is in PATH as we may install binaries to that directory in
+# other ensure-* scripts, and expect them to be found in PATH later on
+verify_gopath_bin() {
+    local gopath_bin
+
+    gopath_bin="$(go env GOPATH)/bin"
+    if ! printenv PATH | grep -q "${gopath_bin}"; then
+        cat <<EOF
+error: \$GOPATH/bin=${gopath_bin} is not in your PATH.
+See https://go.dev/doc/gopath_code for more instructions.
+EOF
+        return 2
+    fi
+}
+
 verify_go_version
+verify_gopath_bin
 
 # Explicitly opt into go modules, even though we're inside a GOPATH directory
 export GO111MODULE=on
