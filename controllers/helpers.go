@@ -587,7 +587,9 @@ func getOrCreateCategory(ctx context.Context, client *nutanixClientV3.Client, ca
 			Value:       utils.StringPtr(categoryIdentifier.Value),
 		})
 		if err != nil {
-			log.Error(err, fmt.Sprintf("failed to create category value %s in category key %s", categoryIdentifier.Value, categoryIdentifier.Key))
+			errorMsg := fmt.Errorf("failed to create category value %s in category key %s: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
+			log.Error(errorMsg, "failed to create category value")
+			return nil, errorMsg
 		}
 	}
 	return categoryValue, nil
