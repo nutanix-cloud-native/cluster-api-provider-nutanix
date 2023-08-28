@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -28,7 +29,6 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	capierrors "sigs.k8s.io/cluster-api/errors"
 	capiutil "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -204,8 +204,21 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (reconcile.Result, error) {
 	log := ctrl.LoggerFrom(rctx.Context)
 	log.Info("Handling NutanixCluster deletion")
+	// Check if there are nutanixmachine resources left. Only continue if all of them have been cleaned
+	nutanixMachines, err := rctx.GetNutanixMachinesInCluster(r.Client)
+	if err != nil {
+		log.Error(err, "error occurred while checking nutanixmachines during cluster deletion")
+		return reconcile.Result{}, err
+	}
 
-	err := r.reconcileCategoriesDelete(rctx)
+	if len(nutanixMachines) > 0 {
+		log.Info(fmt.Sprintf("waiting for %d nutanixmachines to be deleted", len(nutanixMachines)))
+		return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+	}
+
+	log.V(1).Info("no existing nutanixMachine resources found. Continuing with deleting cluster")
+
+	err = r.reconcileCategoriesDelete(rctx)
 	if err != nil {
 		log.Error(err, "error occurred while running deletion of categories")
 		return reconcile.Result{}, err
@@ -250,8 +263,8 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 
 	err := r.reconcileCategories(rctx)
 	if err != nil {
-		errorMsg := fmt.Errorf("failed to reconcile categories for cluster %s: %v", rctx.Cluster.Name, err)
-		rctx.SetFailureStatus(capierrors.CreateClusterError, errorMsg)
+		log.Error(err, "error occurred while reconciling categories")
+		// Don't return fatal error but keep retrying until categories are created.
 		return reconcile.Result{}, err
 	}
 
