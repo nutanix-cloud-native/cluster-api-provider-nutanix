@@ -150,6 +150,7 @@ ifneq ($(LABEL_FILTERS),)
 endif
 JUNIT_REPORT_FILE ?= "junit.e2e_suite.1.xml"
 GINKGO_SKIP ?= "clusterctl-Upgrade"
+GINKGO_FOCUS ?= ""
 GINKGO_NODES  ?= 1
 E2E_CONF_FILE  ?= ${E2E_DIR}/config/nutanix.yaml
 ARTIFACTS ?= ${REPO_ROOT}/_artifacts
@@ -160,6 +161,11 @@ FLAVOR ?= e2e
 
 TEST_NAMESPACE=capx-test-ns
 TEST_CLUSTER_NAME=mycluster
+
+# set ginkgo focus flags, if any
+ifneq ($(strip $(GINKGO_FOCUS)),)
+_FOCUS_ARGS := $(foreach arg,$(strip $(GINKGO_FOCUS)),--focus="$(arg)")
+endif
 
 # to set multiple ginkgo skip flags, if any
 ifneq ($(strip $(GINKGO_SKIP)),)
@@ -376,6 +382,7 @@ test-e2e: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates
 		--tags=e2e \
 		--label-filter=$(LABEL_FILTER_ARGS) \
 		$(_SKIP_ARGS) \
+		$(_FOCUS_ARGS) \
 		--nodes=$(GINKGO_NODES) \
 		--no-color=$(GINKGO_NOCOLOR) \
 		--output-dir="$(ARTIFACTS)" \

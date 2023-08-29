@@ -321,6 +321,10 @@ func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Cont
 	}
 	err = r.Client.Get(ctx, secretKey, secret)
 	if err != nil {
+		if errors.IsNotFound(err) {
+			log.V(1).Info(fmt.Sprintf("Secret %s in namespace %s for cluster %s not found. Ignoring since object must be deleted", secret.Name, secret.Namespace, nutanixCluster.Name))
+			return nil
+		}
 		return err
 	}
 	ctrlutil.RemoveFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer)
@@ -328,10 +332,14 @@ func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Cont
 	if err := r.Client.Update(ctx, secret); err != nil {
 		return err
 	}
-	log.Info(fmt.Sprintf("removing secret %s in namespace %s for cluster %s", secret.Name, secret.Namespace, nutanixCluster.Name))
-	if err := r.Client.Delete(ctx, secret); err != nil {
-		return err
+
+	if secret.DeletionTimestamp.IsZero() {
+		log.Info(fmt.Sprintf("removing secret %s in namespace %s for cluster %s", secret.Name, secret.Namespace, nutanixCluster.Name))
+		if err := r.Client.Delete(ctx, secret); err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
