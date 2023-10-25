@@ -1,0 +1,5 @@
+bases:
+  - ../../cluster-template-kcp-remediation/
+
+patchesStrategicMerge:
+  - ../no-kubeproxy.yaml
