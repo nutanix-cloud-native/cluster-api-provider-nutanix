@@ -1,0 +1,5 @@
+bases:
+  - ../../cluster-template-no-nutanix-cluster/
+
+patchesStrategicMerge:
+  - ../no-kubeproxy.yaml

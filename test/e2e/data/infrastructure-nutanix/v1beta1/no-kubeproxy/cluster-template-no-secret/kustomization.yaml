@@ -1,0 +1,5 @@
+bases:
+  - ../../cluster-template-no-secret/
+
+patchesStrategicMerge:
+  - ../no-kubeproxy.yaml

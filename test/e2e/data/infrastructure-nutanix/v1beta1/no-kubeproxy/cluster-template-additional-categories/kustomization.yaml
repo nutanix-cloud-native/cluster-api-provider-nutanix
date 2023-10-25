@@ -1,0 +1,5 @@
+bases:
+  - ../../cluster-template-additional-categories/
+
+patchesStrategicMerge:
+  - ../no-kubeproxy.yaml
