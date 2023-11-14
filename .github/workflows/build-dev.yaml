@@ -20,7 +20,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: "^1.19"
+          go-version: "^1.21"
 
       - name: Test build
         run: make manifests generate fmt vet build
@@ -33,6 +33,9 @@ jobs:
 
       - name: Codecov
         uses: codecov/codecov-action@v3.1.4
+        with:
+          file: ./coverage.xml  # Replace with the path to your coverage report
+          fail_ci_if_error: true
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.14.0
