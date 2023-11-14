@@ -373,10 +373,6 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		}
 		log.Info(fmt.Sprintf("The NutanixMachine is ready, providerID: %s", rctx.NutanixMachine.Spec.ProviderID))
 
-		if rctx.NutanixMachine.Status.NodeRef == nil {
-			return r.reconcileNode(rctx)
-		}
-
 		return reconcile.Result{}, nil
 	}
 
@@ -442,73 +438,6 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	log.V(1).Info(fmt.Sprintf("Created VM %s for cluster %s, update NutanixMachine spec.providerID to %s, and machinespec %+v, vmUuid: %s",
 		rctx.Machine.Name, rctx.NutanixCluster.Name, rctx.NutanixMachine.Spec.ProviderID,
 		rctx.NutanixMachine, rctx.NutanixMachine.Status.VmUUID))
-	return reconcile.Result{}, nil
-}
-
-// reconcileNode makes sure the NutanixMachine corresponding workload cluster node
-// is ready and set its spec.providerID
-func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) (reconcile.Result, error) {
-	log := ctrl.LoggerFrom(rctx.Context)
-	log.V(1).Info("Reconcile the workload cluster node to set its spec.providerID")
-
-	clusterKey := apitypes.NamespacedName{
-		Namespace: rctx.Cluster.Namespace,
-		Name:      rctx.Cluster.Name,
-	}
-	remoteClient, err := nctx.GetRemoteClient(rctx.Context, r.Client, clusterKey)
-	if err != nil {
-		if r.isGetRemoteClientConnectionError(err) {
-			log.Info(fmt.Sprintf("Controlplane endpoint not yet responding. Requeuing: %v", err))
-			return reconcile.Result{Requeue: true}, nil
-		}
-		log.Info(fmt.Sprintf("Failed to get the client to access remote workload cluster %s. %v", rctx.Cluster.Name, err))
-		return reconcile.Result{}, err
-	}
-
-	// Retrieve the remote node
-	nodeName := rctx.Machine.Name
-	node := &corev1.Node{}
-	nodeKey := apitypes.NamespacedName{
-		Namespace: "",
-		Name:      nodeName,
-	}
-
-	if err := remoteClient.Get(rctx.Context, nodeKey, node); err != nil {
-		if apierrors.IsNotFound(err) {
-			log.Info(fmt.Sprintf("workload node %s not yet ready. Requeuing", nodeName))
-			return reconcile.Result{Requeue: true}, nil
-		} else {
-			log.Error(err, fmt.Sprintf("failed to retrieve the remote workload cluster node %s", nodeName))
-			return reconcile.Result{}, err
-		}
-	}
-
-	// Set the NutanixMachine Status.NodeRef
-	if rctx.NutanixMachine.Status.NodeRef == nil {
-		rctx.NutanixMachine.Status.NodeRef = &corev1.ObjectReference{
-			Kind:       node.Kind,
-			APIVersion: node.APIVersion,
-			Name:       node.Name,
-			UID:        node.UID,
-		}
-		log.V(1).Info(fmt.Sprintf("Set NutanixMachine's status.nodeRef: %v", *rctx.NutanixMachine.Status.NodeRef))
-	}
-
-	// Update the node's Spec.ProviderID
-	patchHelper, err := patch.NewHelper(node, remoteClient)
-	if err != nil {
-		log.Error(err, fmt.Sprintf("failed to create patchHelper for the workload cluster node %s", nodeName))
-		return reconcile.Result{}, err
-	}
-
-	node.Spec.ProviderID = rctx.NutanixMachine.Spec.ProviderID
-	err = patchHelper.Patch(rctx.Context, node)
-	if err != nil {
-		log.Error(err, fmt.Sprintf("failed to patch the remote workload cluster node %s's spec.providerID", nodeName))
-		return reconcile.Result{}, err
-	}
-	log.Info(fmt.Sprintf("Patched the workload node %s spec.providerID: %s", nodeName, node.Spec.ProviderID))
-
 	return reconcile.Result{}, nil
 }
 

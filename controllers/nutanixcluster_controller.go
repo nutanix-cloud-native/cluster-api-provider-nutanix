@@ -333,9 +333,11 @@ func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Cont
 	log := ctrl.LoggerFrom(ctx)
 	credentialRef, err := nutanixClient.GetCredentialRefForCluster(nutanixCluster)
 	if err != nil {
+		log.Error(err, fmt.Sprintf("error occurred while getting credential ref for cluster %s", nutanixCluster.Name))
 		return err
 	}
 	if credentialRef == nil {
+		log.V(1).Info(fmt.Sprintf("Credential ref is nil for cluster %s. Ignoring since object must be deleted", nutanixCluster.Name))
 		return nil
 	}
 	log.V(1).Info(fmt.Sprintf("Credential ref is kind Secret for cluster %s. Continue with deletion of secret", nutanixCluster.Name))
@@ -360,7 +362,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Cont
 
 	if secret.DeletionTimestamp.IsZero() {
 		log.Info(fmt.Sprintf("removing secret %s in namespace %s for cluster %s", secret.Name, secret.Namespace, nutanixCluster.Name))
-		if err := r.Client.Delete(ctx, secret); err != nil {
+		if err := r.Client.Delete(ctx, secret); err != nil && !errors.IsNotFound(err) {
 			return err
 		}
 	}

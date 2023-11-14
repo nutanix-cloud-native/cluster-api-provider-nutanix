@@ -23,21 +23,28 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gstruct"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 )
 
 var _ = Describe("Nutanix Basic Creation with UUID", Label("capx-feature-test", "uuid", "slow", "network"), func() {
 	const (
-		specName = "cluster-uuid"
+		specName           = "cluster-uuid"
+		ccmInstanceTypeKey = "node.kubernetes.io/instance-type"
+		ccmInstanceType    = "ahv-vm"
+		ccmZoneKey         = "topology.kubernetes.io/zone"
+		ccmRegionKey       = "topology.kubernetes.io/region"
 	)
 
 	var (
-		namespace        *corev1.Namespace
-		clusterName      string
-		clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult
-		cancelWatches    context.CancelFunc
-		testHelper       testHelperInterface
+		namespace         *corev1.Namespace
+		clusterName       string
+		clusterResources  *clusterctl.ApplyClusterTemplateAndWaitResult
+		cancelWatches     context.CancelFunc
+		testHelper        testHelperInterface
+		expectedCCMLabels []string
 	)
 
 	BeforeEach(func() {
@@ -46,6 +53,11 @@ var _ = Describe("Nutanix Basic Creation with UUID", Label("capx-feature-test", 
 		clusterResources = new(clusterctl.ApplyClusterTemplateAndWaitResult)
 		Expect(bootstrapClusterProxy).NotTo(BeNil(), "BootstrapClusterProxy can't be nil")
 		namespace, cancelWatches = setupSpecNamespace(ctx, specName, bootstrapClusterProxy, artifactFolder)
+		expectedCCMLabels = []string{
+			ccmZoneKey,
+			ccmRegionKey,
+			ccmInstanceTypeKey,
+		}
 	})
 
 	AfterEach(func() {
@@ -75,6 +87,24 @@ var _ = Describe("Nutanix Basic Creation with UUID", Label("capx-feature-test", 
 					bootstrapClusterProxy: bootstrapClusterProxy,
 				}, clusterResources)
 		})
+
+		By("Fetching workload proxy")
+		workloadProxy := bootstrapClusterProxy.GetWorkloadCluster(ctx, namespace.Name, clusterResources.Cluster.Name)
+
+		By("Checking if nodes have correct CCM labels")
+		nodes, err := workloadProxy.GetClientSet().CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		for _, n := range nodes.Items {
+			nodeLabels := n.Labels
+			Expect(nodeLabels).To(gstruct.MatchKeys(gstruct.IgnoreExtras,
+				gstruct.Keys{
+					ccmInstanceTypeKey: Equal(ccmInstanceType),
+				},
+			))
+			for _, k := range expectedCCMLabels {
+				Expect(nodeLabels).To(HaveKey(k))
+			}
+		}
 
 		By("PASSED!")
 	})

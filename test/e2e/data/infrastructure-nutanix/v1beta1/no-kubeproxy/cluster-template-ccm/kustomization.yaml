@@ -1,5 +1,0 @@
-bases:
-  - ../../cluster-template-ccm/
-
-patchesStrategicMerge:
-  - ../no-kubeproxy.yaml

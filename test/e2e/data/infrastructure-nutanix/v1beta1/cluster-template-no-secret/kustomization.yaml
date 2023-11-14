@@ -4,7 +4,16 @@ bases:
   - ../../../../../../templates/base/nmt.yaml
   - ../../../../../../templates/base/md.yaml
   - ../../../../../../templates/base/mhc.yaml
+  - ../../../../../../templates/base/nutanix-ccm-crs.yaml
+  - ../../../../../../templates/base/nutanix-ccm-secret.yaml
   - ../base/crs.yaml
+
+configMapGenerator:
+- name: nutanix-ccm
+  behavior: merge
+  files:
+  - ../../../../../../templates/base/nutanix-ccm.yaml
 
 patchesStrategicMerge:
   - ../base/cni-patch.yaml
+  - ../../../../../../templates/base/ccm-patch.yaml

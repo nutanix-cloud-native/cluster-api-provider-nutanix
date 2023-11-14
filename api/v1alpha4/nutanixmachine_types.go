@@ -108,6 +108,7 @@ type NutanixMachineStatus struct {
 	VmUUID string `json:"vmUUID,omitempty"`
 
 	// NodeRef is a reference to the corresponding workload cluster Node if it exists.
+	// Deprecated: Do not use. Will be removed in a future release.
 	// +optional
 	NodeRef *corev1.ObjectReference `json:"nodeRef,omitempty"`
 
@@ -130,7 +131,6 @@ type NutanixMachineStatus struct {
 //+kubebuilder:printcolumn:name="Address",type="string",JSONPath=".status.addresses[0].address",description="The VM address"
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.ready",description="NutanixMachine ready status"
 // +kubebuilder:printcolumn:name="ProviderID",type="string",JSONPath=".spec.providerID",description="NutanixMachine instance ID"
-// +kubebuilder:printcolumn:name="NodeRef",type="string",JSONPath=".status.nodeRef.name",description="Corresponding workload cluster node"
 
 // NutanixMachine is the Schema for the nutanixmachines API
 type NutanixMachine struct {

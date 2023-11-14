@@ -393,4 +393,172 @@ func TestNutanixClusterReconciler(t *testing.T) {
 			})
 		})
 	})
+
+	_ = Describe("NutanixCluster reconcileCredentialRefDelete", func() {
+		Context("Delete credentials ref reconcile succeed", func() {
+			It("Should not return error", func() {
+				ctx := context.Background()
+				reconciler := &NutanixClusterReconciler{
+					Client: k8sClient,
+					Scheme: runtime.NewScheme(),
+				}
+
+				ntnxCluster := &infrav1.NutanixCluster{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+					},
+					Spec: infrav1.NutanixClusterSpec{
+						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+							// Adding port info to override default value (0)
+							Port: 9440,
+							CredentialRef: &credentialTypes.NutanixCredentialReference{
+								Name:      "test",
+								Namespace: "default",
+								Kind:      "Secret",
+							},
+						},
+					},
+				}
+
+				ntnxSecret := &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+					},
+					StringData: map[string]string{
+						"credentials": "[{\"type\": \"basic_auth\", \"data\": { \"prismCentral\":{\"username\": \"nutanix_user\", \"password\": \"nutanix_pass\"}}}]",
+					},
+				}
+
+				// Create the NutanixSecret object
+				g.Expect(k8sClient.Create(ctx, ntnxSecret)).To(Succeed())
+
+				// Create the NutanixCluster object
+				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
+				defer func() {
+					err := k8sClient.Delete(ctx, ntnxCluster)
+					Expect(err).NotTo(HaveOccurred())
+				}()
+
+				// Add finalizer to Nutanix Secret
+				g.Expect(ctrlutil.AddFinalizer(ntnxSecret, infrav1.NutanixClusterCredentialFinalizer)).To(BeTrue())
+				g.Expect(k8sClient.Update(ctx, ntnxSecret)).To(Succeed())
+
+				// Reconile Delete credential ref
+				err := reconciler.reconcileCredentialRefDelete(ctx, ntnxCluster)
+				g.Expect(err).NotTo(HaveOccurred())
+
+				// Check that Nutanix Secret is deleted
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: ntnxSecret.Namespace,
+					Name:      ntnxSecret.Name,
+				}, ntnxSecret)).ToNot(Succeed())
+			})
+		})
+
+		Context("Delete credentials ref reconcile failed: no credential ref", func() {
+			It("Should return error", func() {
+				ctx := context.Background()
+				reconciler := &NutanixClusterReconciler{
+					Client: k8sClient,
+					Scheme: runtime.NewScheme(),
+				}
+
+				ntnxCluster := &infrav1.NutanixCluster{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+					},
+					Spec: infrav1.NutanixClusterSpec{
+						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+							// Adding port info to override default value (0)
+							Port: 9440,
+						},
+					},
+				}
+
+				// Create the NutanixCluster object
+				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
+				defer func() {
+					err := k8sClient.Delete(ctx, ntnxCluster)
+					Expect(err).NotTo(HaveOccurred())
+				}()
+
+				// Reconile Delete credential ref
+				err := reconciler.reconcileCredentialRefDelete(ctx, ntnxCluster)
+				g.Expect(err).To(HaveOccurred())
+			})
+		})
+
+		Context("Delete credentials ref reconcile failed: there is no secret", func() {
+			It("Should not return error", func() {
+				ctx := context.Background()
+				reconciler := &NutanixClusterReconciler{
+					Client: k8sClient,
+					Scheme: runtime.NewScheme(),
+				}
+
+				ntnxCluster := &infrav1.NutanixCluster{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+					},
+					Spec: infrav1.NutanixClusterSpec{
+						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+							// Adding port info to override default value (0)
+							Port: 9440,
+							CredentialRef: &credentialTypes.NutanixCredentialReference{
+								Name:      "test",
+								Namespace: "default",
+								Kind:      "Secret",
+							},
+						},
+					},
+				}
+
+				// Create the NutanixCluster object
+				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
+				defer func() {
+					err := k8sClient.Delete(ctx, ntnxCluster)
+					Expect(err).NotTo(HaveOccurred())
+				}()
+
+				// Reconile Delete credential ref
+				err := reconciler.reconcileCredentialRefDelete(ctx, ntnxCluster)
+				g.Expect(err).NotTo(HaveOccurred())
+			})
+		})
+
+		Context("Delete credentials ref reconcile failed: PrismCentral Info is null", func() {
+			It("Should not return error", func() {
+				ctx := context.Background()
+				reconciler := &NutanixClusterReconciler{
+					Client: k8sClient,
+					Scheme: runtime.NewScheme(),
+				}
+
+				ntnxCluster := &infrav1.NutanixCluster{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+					},
+					Spec: infrav1.NutanixClusterSpec{
+						PrismCentral: nil,
+					},
+				}
+
+				// Create the NutanixCluster object
+				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
+				defer func() {
+					err := k8sClient.Delete(ctx, ntnxCluster)
+					Expect(err).NotTo(HaveOccurred())
+				}()
+
+				// Reconile Delete credential ref
+				err := reconciler.reconcileCredentialRefDelete(ctx, ntnxCluster)
+				g.Expect(err).NotTo(HaveOccurred())
+			})
+		})
+	})
 }
