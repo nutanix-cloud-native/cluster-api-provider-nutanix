@@ -1,0 +1,45 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixClusterTemplate
+metadata:
+  name: ${CLUSTER_CLASS_NAME}
+  namespace: ${NAMESPACE}
+spec:
+  template:
+    spec: {}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: ClusterClass
+metadata:
+  name: "${CLUSTER_CLASS_NAME}"
+  namespace: ${NAMESPACE}
+spec:
+  controlPlane:
+    ref:
+      apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+      kind: KubeadmControlPlaneTemplate
+      name: ${CLUSTER_CLASS_NAME}-kcp
+    machineInfrastructure:
+      ref:
+        kind: NutanixMachineTemplate
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        name: ${CLUSTER_CLASS_NAME}-mt-0
+  infrastructure:
+    ref:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+      kind: NutanixClusterTemplate
+      name: ${CLUSTER_CLASS_NAME}
+  workers:
+    machineDeployments:
+    - class: default-worker
+      template:
+        bootstrap:
+          ref:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+            kind: KubeadmConfigTemplate
+            name: ${CLUSTER_CLASS_NAME}-kcfg-0
+        infrastructure:
+          ref:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: NutanixMachineTemplate
+            name: ${CLUSTER_CLASS_NAME}-mt-0
+---
