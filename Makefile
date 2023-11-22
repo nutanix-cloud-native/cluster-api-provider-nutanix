@@ -66,9 +66,9 @@ KO := $(abspath $(TOOLS_BIN_DIR)/$(KO_BIN)-$(KO_VER))
 KO_PKG := github.com/google/ko
 
 KUSTOMIZE_BIN := kustomize
-KUSTOMIZE_VER := v4.5.4
+KUSTOMIZE_VER := v5.2.1
 KUSTOMIZE := $(abspath $(TOOLS_BIN_DIR)/$(KUSTOMIZE_BIN)-$(KUSTOMIZE_VER))
-KUSTOMIZE_PKG := sigs.k8s.io/kustomize/kustomize/v4
+KUSTOMIZE_PKG := sigs.k8s.io/kustomize/kustomize/v5
 
 GINGKO_VER := v2.1.4
 GINKGO_BIN := ginkgo
@@ -515,7 +515,11 @@ $(KO): # Build ko from tools folder.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(KO_PKG) $(KO_BIN) $(KO_VER)
 
 $(KUSTOMIZE): # Build kustomize from tools folder.
-	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(KUSTOMIZE_PKG) $(KUSTOMIZE_BIN) $(KUSTOMIZE_VER)
+	@if test -x $(KUSTOMIZE) && ! $(KUSTOMIZE) version | grep -q $(KUSTOMIZE_VERSION); then \
+        echo "$(KUSTOMIZE) version is not expected $(KUSTOMIZE_VERSION). Removing it before installing."; \
+        rm -rf $(KUSTOMIZE); \
+    fi
+	test -s $(KUSTOMIZE) || GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(KUSTOMIZE_PKG) $(KUSTOMIZE_BIN) $(KUSTOMIZE_VER)
 
 .PHONY: $(KO_BIN)
 $(KO_BIN): $(KO) ## Build a local copy of ko
