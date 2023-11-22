@@ -249,11 +249,11 @@ docker-build: $(KO) ## Build docker image with the manager.
 
 .PHONY: docker-push
 docker-push: $(KO) ## Push docker image with the manager.
-	KO_DOCKER_REPO=${IMG_REPO} $(KO) build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
+	KO_DOCKER_REPO=${IMG_REPO} $(KO) build --bare --platform=${PLATFORMS} -t ${IMG_TAG} ./cmd
 
 .PHONY: docker-push-kind
 docker-push-kind: $(KO) ## Make docker image available to kind cluster.
-	GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local ${KO} build -B -t ${IMG_TAG} -L .
+	GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local ${KO} build -B -t ${IMG_TAG} -L ./cmd
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG}
 	kind load docker-image --name ${KIND_CLUSTER_NAME} ${IMG}
 
