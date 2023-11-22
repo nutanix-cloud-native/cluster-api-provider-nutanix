@@ -1,7 +1,8 @@
 resources:
-- infrastructure_v1alpha4_nutanixcluster.yaml
-- infrastructure_v1alpha4_nutanixmachine.yaml
-- infrastructure_v1alpha4_nutanixmachinetemplate.yaml
-- infrastructure_v1beta1_nutanixcluster.yaml
-- infrastructure_v1beta1_nutanixmachine.yaml
-- infrastructure_v1beta1_nutanixmachinetemplate.yaml
+  - infrastructure_v1alpha4_nutanixcluster.yaml
+  - infrastructure_v1alpha4_nutanixmachine.yaml
+  - infrastructure_v1alpha4_nutanixmachinetemplate.yaml
+  - infrastructure_v1beta1_nutanixcluster.yaml
+  - infrastructure_v1beta1_nutanixmachine.yaml
+  - infrastructure_v1beta1_nutanixmachinetemplate.yaml
+  - infrastructure_v1beta1_nutanixclustertemplate.yaml

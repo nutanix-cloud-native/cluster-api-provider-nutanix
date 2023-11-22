@@ -44,9 +44,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	infrastructurev1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1"
 	infrav1alpha4 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1alpha4"
 	infrav1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/internal/controller"
+	controllers "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/internal/controller"
+	infrastructurecontroller "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/internal/controller/infrastructure"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -68,6 +70,7 @@ func init() {
 	utilruntime.Must(infrav1alpha4.AddToScheme(scheme))
 	utilruntime.Must(infrav1beta1.AddToScheme(scheme))
 
+	utilruntime.Must(infrastructurev1beta1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -166,6 +169,13 @@ func main() {
 	}
 	if err = machineCtrl.SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NutanixMachine")
+		os.Exit(1)
+	}
+	if err = (&infrastructurecontroller.NutanixClusterTemplateReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "NutanixClusterTemplate")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
