@@ -27,7 +27,7 @@ PLATFORMS_E2E ?= linux/amd64
 KIND_CLUSTER_NAME ?= capi-test
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.23
+ENVTEST_K8S_VERSION = 1.28.0
 
 #
 # Directories.
@@ -234,12 +234,12 @@ kind-delete: ## Delete the kind cluster
 ##@ Build
 
 .PHONY: build
-build: generate fmt ## Build manager binary.
-	go build -o bin/manager main.go
+build: generate fmt vet ## Build manager binary.
+	go build -o bin/manager cmd/main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./main.go
+	go run cmd/main.go
 
 .PHONY: docker-build
 docker-build: $(KO) ## Build docker image with the manager.

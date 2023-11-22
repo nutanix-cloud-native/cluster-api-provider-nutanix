@@ -3,11 +3,11 @@
     "config": {
         "image": "ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller",
         "live_reload_deps": [
-            "main.go",
+            "cmd",
             "go.mod",
             "go.sum",
             "api",
-            "controllers",
+            "internal",
             "pkg",
             "config"
         ],

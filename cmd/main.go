@@ -46,7 +46,7 @@ import (
 
 	infrav1alpha4 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1alpha4"
 	infrav1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
 
