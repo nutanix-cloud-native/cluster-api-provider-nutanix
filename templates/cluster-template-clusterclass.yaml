@@ -36,6 +36,14 @@ kind: Cluster
 metadata:
   name: ${CLUSTER_NAME}
 spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+      - 172.20.0.0/16
+    serviceDomain: cluster.local
+    services:
+      cidrBlocks:
+      - 172.19.0.0/16
   topology:
     class: ${CLUSTER_CLASS_NAME}
     controlPlane:
@@ -45,7 +53,6 @@ spec:
     workers:
       machineDeployments:
       - class: default-worker
-        failureDomain: region
         metadata: {}
         name: md-0
         replicas: 4
