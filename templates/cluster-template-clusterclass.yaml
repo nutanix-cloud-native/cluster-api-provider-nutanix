@@ -10,7 +10,7 @@ stringData:
 apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
 kind: KubeadmConfigTemplate
 metadata:
-  name: ${CLUSTER_NAME}-kcfg-0
+  name: ${CLUSTER_CLASS_NAME}-kcfg-0
   namespace: ${NAMESPACE}
 spec:
   template:
@@ -48,14 +48,14 @@ spec:
     class: ${CLUSTER_CLASS_NAME}
     controlPlane:
       metadata: {}
-      replicas: 3
-    version: v1.28.7
+      replicas: ${CONTROL_PLANE_MACHINE_COUNT}
+    version: ${KUBERNETES_VERSION}
     workers:
       machineDeployments:
       - class: default-worker
         metadata: {}
         name: md-0
-        replicas: 4
+        replicas: ${WORKER_MACHINE_COUNT}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: ClusterClass
@@ -64,6 +64,28 @@ metadata:
   namespace: ${NAMESPACE}
 spec:
   controlPlane:
+    machineHealthCheck:
+      maxUnhealthy: 40%
+      nodeStartupTimeout: 10m
+      unhealthyConditions:
+      - status: "False"
+        timeout: 300s
+        type: Ready
+      - status: Unknown
+        timeout: 300s
+        type: Ready
+      - status: "True"
+        timeout: 300s
+        type: MemoryPressure
+      - status: "True"
+        timeout: 300s
+        type: DiskPressure
+      - status: "True"
+        timeout: 300s
+        type: PIDPressure
+      - status: "True"
+        timeout: 300s
+        type: NetworkUnavailable
     machineInfrastructure:
       ref:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
@@ -81,6 +103,28 @@ spec:
   workers:
     machineDeployments:
     - class: default-worker
+      machineHealthCheck:
+        maxUnhealthy: 40%
+        nodeStartupTimeout: 10m
+        unhealthyConditions:
+        - status: "False"
+          timeout: 300s
+          type: Ready
+        - status: Unknown
+          timeout: 300s
+          type: Ready
+        - status: "True"
+          timeout: 300s
+          type: MemoryPressure
+        - status: "True"
+          timeout: 300s
+          type: DiskPressure
+        - status: "True"
+          timeout: 300s
+          type: PIDPressure
+        - status: "True"
+          timeout: 300s
+          type: NetworkUnavailable
       template:
         bootstrap:
           ref:
@@ -92,35 +136,6 @@ spec:
             apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
             kind: NutanixMachineTemplate
             name: ${CLUSTER_CLASS_NAME}-mt-0
----
-apiVersion: cluster.x-k8s.io/v1beta1
-kind: MachineDeployment
-metadata:
-  labels:
-    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
-  name: ${CLUSTER_NAME}-wmd
-  namespace: ${NAMESPACE}
-spec:
-  clusterName: ${CLUSTER_NAME}
-  replicas: ${WORKER_MACHINE_COUNT}
-  selector:
-    matchLabels: {}
-  template:
-    metadata:
-      labels:
-        cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
-    spec:
-      bootstrap:
-        configRef:
-          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
-          kind: KubeadmConfigTemplate
-          name: ${CLUSTER_NAME}-kcfg-0
-      clusterName: ${CLUSTER_NAME}
-      infrastructureRef:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-        kind: NutanixMachineTemplate
-        name: ${CLUSTER_NAME}-mt-0
-      version: ${KUBERNETES_VERSION}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineHealthCheck
@@ -155,108 +170,110 @@ spec:
     type: NetworkUnavailable
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
-kind: KubeadmControlPlane
+kind: KubeadmControlPlaneTemplate
 metadata:
-  name: ${CLUSTER_NAME}-kcp
+  name: ${CLUSTER_CLASS_NAME}-kcp
   namespace: ${NAMESPACE}
 spec:
-  kubeadmConfigSpec:
-    clusterConfiguration:
-      apiServer:
-        certSANs:
-        - localhost
-        - 127.0.0.1
-        - 0.0.0.0
-      controllerManager:
-        extraArgs:
-          enable-hostpath-provisioner: "true"
-    files:
-    - content: |
-        apiVersion: v1
-        kind: Pod
-        metadata:
-          name: kube-vip
-          namespace: kube-system
-        spec:
-          containers:
-            - name: kube-vip
-              image: ghcr.io/kube-vip/kube-vip:v0.5.0
-              imagePullPolicy: IfNotPresent
-              args:
-                - manager
-              env:
-                - name: vip_arp
-                  value: "true"
-                - name: address
-                  value: "${CONTROL_PLANE_ENDPOINT_IP}"
-                - name: port
-                  value: "${CONTROL_PLANE_ENDPOINT_PORT=6443}"
-                - name: vip_cidr
-                  value: "32"
-                - name: cp_enable
-                  value: "true"
-                - name: cp_namespace
-                  value: kube-system
-                - name: vip_ddns
-                  value: "false"
-                - name: vip_leaderelection
-                  value: "true"
-                - name: vip_leaseduration
-                  value: "15"
-                - name: vip_renewdeadline
-                  value: "10"
-                - name: vip_retryperiod
-                  value: "2"
-                - name: svc_enable
-                  value: "${KUBEVIP_SVC_ENABLE=false}"
-                - name: lb_enable
-                  value: "${KUBEVIP_LB_ENABLE=false}"
-              securityContext:
-                capabilities:
-                  add:
-                    - NET_ADMIN
-                    - SYS_TIME
-                    - NET_RAW
-              volumeMounts:
-                - mountPath: /etc/kubernetes/admin.conf
-                  name: kubeconfig
-              resources: {}
-          hostNetwork: true
-          hostAliases:
-            - hostnames:
-                - kubernetes
-              ip: 127.0.0.1
-          volumes:
-            - name: kubeconfig
-              hostPath:
-                type: FileOrCreate
-                path: /etc/kubernetes/admin.conf
-        status: {}
-      owner: root:root
-      path: /etc/kubernetes/manifests/kube-vip.yaml
-    initConfiguration:
-      nodeRegistration:
-        kubeletExtraArgs:
-          eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
-    postKubeadmCommands:
-    - echo export KUBECONFIG=/etc/kubernetes/admin.conf >> /root/.bashrc
-    - echo "after kubeadm call" > /var/log/postkubeadm.log
-    preKubeadmCommands:
-    - echo "before kubeadm call" > /var/log/prekubeadm.log
-    useExperimentalRetryJoin: true
-    users:
-    - lockPassword: false
-      name: capiuser
-      sshAuthorizedKeys:
-      - ${NUTANIX_SSH_AUTHORIZED_KEY}
-      sudo: ALL=(ALL) NOPASSWD:ALL
-    verbosity: 10
-  machineTemplate:
-    infrastructureRef:
-      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-      kind: NutanixMachineTemplate
-      name: ${CLUSTER_NAME}-mt-0
   replicas: ${CONTROL_PLANE_MACHINE_COUNT=1}
+  template:
+    spec:
+      kubeadmConfigSpec:
+        clusterConfiguration:
+          apiServer:
+            certSANs:
+            - localhost
+            - 127.0.0.1
+            - 0.0.0.0
+          controllerManager:
+            extraArgs:
+              enable-hostpath-provisioner: "true"
+        files:
+        - content: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: kube-vip
+              namespace: kube-system
+            spec:
+              containers:
+                - name: kube-vip
+                  image: ghcr.io/kube-vip/kube-vip:v0.5.0
+                  imagePullPolicy: IfNotPresent
+                  args:
+                    - manager
+                  env:
+                    - name: vip_arp
+                      value: "true"
+                    - name: address
+                      value: "${CONTROL_PLANE_ENDPOINT_IP}"
+                    - name: port
+                      value: "${CONTROL_PLANE_ENDPOINT_PORT=6443}"
+                    - name: vip_cidr
+                      value: "32"
+                    - name: cp_enable
+                      value: "true"
+                    - name: cp_namespace
+                      value: kube-system
+                    - name: vip_ddns
+                      value: "false"
+                    - name: vip_leaderelection
+                      value: "true"
+                    - name: vip_leaseduration
+                      value: "15"
+                    - name: vip_renewdeadline
+                      value: "10"
+                    - name: vip_retryperiod
+                      value: "2"
+                    - name: svc_enable
+                      value: "${KUBEVIP_SVC_ENABLE=false}"
+                    - name: lb_enable
+                      value: "${KUBEVIP_LB_ENABLE=false}"
+                  securityContext:
+                    capabilities:
+                      add:
+                        - NET_ADMIN
+                        - SYS_TIME
+                        - NET_RAW
+                  volumeMounts:
+                    - mountPath: /etc/kubernetes/admin.conf
+                      name: kubeconfig
+                  resources: {}
+              hostNetwork: true
+              hostAliases:
+                - hostnames:
+                    - kubernetes
+                  ip: 127.0.0.1
+              volumes:
+                - name: kubeconfig
+                  hostPath:
+                    type: FileOrCreate
+                    path: /etc/kubernetes/admin.conf
+            status: {}
+          owner: root:root
+          path: /etc/kubernetes/manifests/kube-vip.yaml
+        initConfiguration:
+          nodeRegistration:
+            kubeletExtraArgs:
+              eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+        postKubeadmCommands:
+        - echo export KUBECONFIG=/etc/kubernetes/admin.conf >> /root/.bashrc
+        - echo "after kubeadm call" > /var/log/postkubeadm.log
+        preKubeadmCommands:
+        - echo "before kubeadm call" > /var/log/prekubeadm.log
+        useExperimentalRetryJoin: true
+        users:
+        - lockPassword: false
+          name: capiuser
+          sshAuthorizedKeys:
+          - ${NUTANIX_SSH_AUTHORIZED_KEY}
+          sudo: ALL=(ALL) NOPASSWD:ALL
+        verbosity: 10
+      machineTemplate:
+        infrastructureRef:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+          kind: NutanixMachineTemplate
+          name: ${CLUSTER_CLASS_NAME}-mt-0
   version: ${KUBERNETES_VERSION}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
@@ -288,7 +305,7 @@ spec:
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate
 metadata:
-  name: ${CLUSTER_NAME}-mt-0
+  name: ${CLUSTER_CLASS_NAME}-mt-0
   namespace: ${NAMESPACE}
 spec:
   template:

@@ -36,14 +36,114 @@ spec:
           spec:
             description: NutanixClusterTemplateSpec defines the desired state of NutanixClusterTemplate
             properties:
-              foo:
-                description: Foo is an example field of NutanixClusterTemplate. Edit
-                  nutanixclustertemplate_types.go to remove/update
-                type: string
-            type: object
-          status:
-            description: NutanixClusterTemplateStatus defines the observed state of
-              NutanixClusterTemplate
+              template:
+                description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                  Important: Run "make" to regenerate code after modifying this file'
+                properties:
+                  metadata:
+                    description: 'Standard object''s metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata'
+                    type: object
+                  spec:
+                    description: NutanixClusterSpec defines the desired state of NutanixCluster
+                    properties:
+                      controlPlaneEndpoint:
+                        description: ControlPlaneEndpoint represents the endpoint
+                          used to communicate with the control plane. host can be
+                          either DNS name or ip address
+                        properties:
+                          host:
+                            description: The hostname on which the API server is serving.
+                            type: string
+                          port:
+                            description: The port on which the API server is serving.
+                            format: int32
+                            type: integer
+                        required:
+                        - host
+                        - port
+                        type: object
+                      prismCentral:
+                        description: prismCentral holds the endpoint address and port
+                          to access the Nutanix Prism Central. When a cluster-wide
+                          proxy is installed, by default, this endpoint will be accessed
+                          via the proxy. Should you wish for communication with this
+                          endpoint not to be proxied, please add the endpoint to the
+                          proxy spec.noProxy list.
+                        properties:
+                          additionalTrustBundle:
+                            description: AdditionalTrustBundle is a PEM encoded x509
+                              cert for the RootCA that was used to create the certificate
+                              for a Prism Central that uses certificates that were
+                              issued by a non-publicly trusted RootCA. The trust bundle
+                              is added to the cert pool used to authenticate the TLS
+                              connection to the Prism Central.
+                            properties:
+                              data:
+                                description: Data of the trust bundle if Kind is String.
+                                type: string
+                              kind:
+                                description: Kind of the Nutanix trust bundle
+                                enum:
+                                - String
+                                - ConfigMap
+                                type: string
+                              name:
+                                description: Name of the credential.
+                                type: string
+                              namespace:
+                                description: namespace of the credential.
+                                type: string
+                            required:
+                            - kind
+                            type: object
+                          address:
+                            description: address is the endpoint address (DNS name
+                              or IP address) of the Nutanix Prism Central or Element
+                              (cluster)
+                            maxLength: 256
+                            type: string
+                          credentialRef:
+                            description: Pass credential information for the target
+                              Prism instance
+                            properties:
+                              kind:
+                                description: Kind of the Nutanix credential
+                                enum:
+                                - Secret
+                                type: string
+                              name:
+                                description: Name of the credential.
+                                minLength: 1
+                                type: string
+                              namespace:
+                                description: namespace of the credential.
+                                type: string
+                            required:
+                            - kind
+                            - name
+                            type: object
+                          insecure:
+                            default: false
+                            description: use insecure connection to Prism endpoint
+                            type: boolean
+                          port:
+                            default: 9440
+                            description: port is the port number to access the Nutanix
+                              Prism Central or Element (cluster)
+                            format: int32
+                            maximum: 65535
+                            minimum: 1
+                            type: integer
+                        required:
+                        - address
+                        - port
+                        type: object
+                    type: object
+                required:
+                - spec
+                type: object
+            required:
+            - template
             type: object
         type: object
     served: true

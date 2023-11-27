@@ -1,4 +1,4 @@
-package controllers
+package infrastructure
 
 import (
 	"testing"

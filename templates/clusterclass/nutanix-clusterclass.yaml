@@ -23,6 +23,28 @@ spec:
         kind: NutanixMachineTemplate
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         name: ${CLUSTER_CLASS_NAME}-mt-0
+    machineHealthCheck:
+      maxUnhealthy: 40%
+      nodeStartupTimeout: 10m
+      unhealthyConditions:
+        - type: Ready
+          status: "False"
+          timeout: 300s
+        - type: Ready
+          status: Unknown
+          timeout: 300s
+        - type: MemoryPressure
+          status: "True"
+          timeout: 300s
+        - type: DiskPressure
+          status: "True"
+          timeout: 300s
+        - type: PIDPressure
+          status: "True"
+          timeout: 300s
+        - type: NetworkUnavailable
+          status: "True"
+          timeout: 300s
   infrastructure:
     ref:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
@@ -42,4 +64,233 @@ spec:
             apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
             kind: NutanixMachineTemplate
             name: ${CLUSTER_CLASS_NAME}-mt-0
+      machineHealthCheck:
+        maxUnhealthy: 40%
+        nodeStartupTimeout: 10m
+        unhealthyConditions:
+          - type: Ready
+            status: "False"
+            timeout: 300s
+          - type: Ready
+            status: Unknown
+            timeout: 300s
+          - type: MemoryPressure
+            status: "True"
+            timeout: 300s
+          - type: DiskPressure
+            status: "True"
+            timeout: 300s
+          - type: PIDPressure
+            status: "True"
+            timeout: 300s
+          - type: NetworkUnavailable
+            status: "True"
+            timeout: 300s
 ---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixMachineTemplate
+metadata:
+  name: "${CLUSTER_CLASS_NAME}-mt-0"
+  namespace: "${NAMESPACE}"
+spec:
+  template:
+    spec:
+      providerID: "nutanix://${CLUSTER_NAME}-m1"
+      # Supported options for boot type: legacy and uefi
+      # Defaults to legacy if not set
+      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+      vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+      vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
+      memorySize: "${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}"
+      systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
+      image:
+        type: name
+        name: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}"
+      cluster:
+        type: name
+        name: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
+      subnet:
+        - type: name
+          name: "${NUTANIX_SUBNET_NAME}"
+      # Adds additional categories to the virtual machines.
+      # Note: Categories must already be present in Prism Central
+      # additionalCategories:
+      #   - key: AppType
+      #     value: Kubernetes
+      # Adds the cluster virtual machines to a project defined in Prism Central.
+      # Replace NUTANIX_PROJECT_NAME with the correct project defined in Prism Central
+      # Note: Project must already be present in Prism Central.
+      # project:
+      #   type: name
+      #   name: "NUTANIX_PROJECT_NAME"
+
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: KubeadmControlPlaneTemplate
+metadata:
+  name: "${CLUSTER_CLASS_NAME}-kcp"
+  namespace: "${NAMESPACE}"
+spec:
+  replicas: ${CONTROL_PLANE_MACHINE_COUNT=1}
+  version: ${KUBERNETES_VERSION}
+  template:
+    spec:
+      machineTemplate:
+        infrastructureRef:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+          kind: NutanixMachineTemplate
+          name: "${CLUSTER_CLASS_NAME}-mt-0"
+      kubeadmConfigSpec:
+        clusterConfiguration:
+          apiServer:
+            certSANs:
+              - localhost
+              - 127.0.0.1
+              - 0.0.0.0
+          controllerManager:
+            extraArgs:
+              enable-hostpath-provisioner: "true"
+        files:
+          - content: |
+              apiVersion: v1
+              kind: Pod
+              metadata:
+                name: kube-vip
+                namespace: kube-system
+              spec:
+                containers:
+                  - name: kube-vip
+                    image: ghcr.io/kube-vip/kube-vip:v0.5.0
+                    imagePullPolicy: IfNotPresent
+                    args:
+                      - manager
+                    env:
+                      - name: vip_arp
+                        value: "true"
+                      - name: address
+                        value: "${CONTROL_PLANE_ENDPOINT_IP}"
+                      - name: port
+                        value: "${CONTROL_PLANE_ENDPOINT_PORT=6443}"
+                      - name: vip_cidr
+                        value: "32"
+                      - name: cp_enable
+                        value: "true"
+                      - name: cp_namespace
+                        value: kube-system
+                      - name: vip_ddns
+                        value: "false"
+                      - name: vip_leaderelection
+                        value: "true"
+                      - name: vip_leaseduration
+                        value: "15"
+                      - name: vip_renewdeadline
+                        value: "10"
+                      - name: vip_retryperiod
+                        value: "2"
+                      - name: svc_enable
+                        value: "${KUBEVIP_SVC_ENABLE=false}"
+                      - name: lb_enable
+                        value: "${KUBEVIP_LB_ENABLE=false}"
+                    securityContext:
+                      capabilities:
+                        add:
+                          - NET_ADMIN
+                          - SYS_TIME
+                          - NET_RAW
+                    volumeMounts:
+                      - mountPath: /etc/kubernetes/admin.conf
+                        name: kubeconfig
+                    resources: {}
+                hostNetwork: true
+                hostAliases:
+                  - hostnames:
+                      - kubernetes
+                    ip: 127.0.0.1
+                volumes:
+                  - name: kubeconfig
+                    hostPath:
+                      type: FileOrCreate
+                      path: /etc/kubernetes/admin.conf
+              status: {}
+            owner: root:root
+            path: /etc/kubernetes/manifests/kube-vip.yaml
+        initConfiguration:
+          nodeRegistration:
+            kubeletExtraArgs:
+              # We have to pin the cgroupDriver to cgroupfs as kubeadm >=1.21 defaults to systemd
+              # kind will implement systemd support in: https://github.com/kubernetes-sigs/kind/issues/1726
+              #cgroup-driver: cgroupfs
+              eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+        users:
+          - name: capiuser
+            lockPassword: false
+            sudo: ALL=(ALL) NOPASSWD:ALL
+            sshAuthorizedKeys:
+              - ${NUTANIX_SSH_AUTHORIZED_KEY}
+        preKubeadmCommands:
+          - echo "before kubeadm call" > /var/log/prekubeadm.log
+        postKubeadmCommands:
+          - echo export KUBECONFIG=/etc/kubernetes/admin.conf >> /root/.bashrc
+          - echo "after kubeadm call" > /var/log/postkubeadm.log
+        useExperimentalRetryJoin: true
+        verbosity: 10
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: "${CLUSTER_CLASS_NAME}-kcfg-0"
+  namespace: "${NAMESPACE}"
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs:
+            # We have to pin the cgroupDriver to cgroupfs as kubeadm >=1.21 defaults to systemd
+            # kind will implement systemd support in: https://github.com/kubernetes-sigs/kind/issues/1726
+            #cgroup-driver: cgroupfs
+            eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+      users:
+        - name: capiuser
+          lockPassword: false
+          sudo: ALL=(ALL) NOPASSWD:ALL
+          sshAuthorizedKeys:
+            - ${NUTANIX_SSH_AUTHORIZED_KEY}
+      preKubeadmCommands:
+        - echo "before kubeadm call" > /var/log/prekubeadm.log
+      postKubeadmCommands:
+        - echo "after kubeadm call" > /var/log/postkubeadm.log
+      verbosity: 10
+      #useExperimentalRetryJoin: true
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineHealthCheck
+metadata:
+  name: "${CLUSTER_NAME}-mhc"
+  namespace: "${NAMESPACE}"
+spec:
+  clusterName: "${CLUSTER_NAME}"
+  maxUnhealthy: 40%
+  nodeStartupTimeout: 10m
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+  unhealthyConditions:
+    - type: Ready
+      status: "False"
+      timeout: 300s
+    - type: Ready
+      status: Unknown
+      timeout: 300s
+    - type: MemoryPressure
+      status: "True"
+      timeout: 300s
+    - type: DiskPressure
+      status: "True"
+      timeout: 300s
+    - type: PIDPressure
+      status: "True"
+      timeout: 300s
+    - type: NetworkUnavailable
+      status: "True"
+      timeout: 300s

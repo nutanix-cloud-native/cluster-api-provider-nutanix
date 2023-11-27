@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllers
+package infrastructure
 
 import (
 	"context"
@@ -42,7 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1"
 	nutanixClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )

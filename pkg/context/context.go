@@ -26,7 +26,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1"
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	capierrors "sigs.k8s.io/cluster-api/errors"

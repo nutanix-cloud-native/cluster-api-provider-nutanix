@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllers
+package infrastructure
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1"
 	nutanixClientHelper "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"

@@ -44,10 +44,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	infrastructurev1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1"
-	infrav1alpha4 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1alpha4"
-	infrav1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	controllers "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/internal/controller"
+	infrav1alpha4 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1alpha4"
+	infrav1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1"
 	infrastructurecontroller "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/internal/controller/infrastructure"
 	//+kubebuilder:scaffold:imports
 )
@@ -70,7 +68,7 @@ func init() {
 	utilruntime.Must(infrav1alpha4.AddToScheme(scheme))
 	utilruntime.Must(infrav1beta1.AddToScheme(scheme))
 
-	utilruntime.Must(infrastructurev1beta1.AddToScheme(scheme))
+	utilruntime.Must(infrav1beta1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -120,7 +118,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Set up the context that's going to be used in controllers and for the manager.
+	// Setup the context that's going to be used in infrastructurecontroller and for the manager.
 	ctx := ctrl.SetupSignalHandler()
 
 	// Create a secret informer for the Nutanix client
@@ -141,11 +139,11 @@ func main() {
 	go cmInformer.Run(ctx.Done())
 	cache.WaitForCacheSync(ctx.Done(), cmInformer.HasSynced)
 
-	clusterCtrl, err := controllers.NewNutanixClusterReconciler(mgr.GetClient(),
+	clusterCtrl, err := infrastructurecontroller.NewNutanixClusterReconciler(mgr.GetClient(),
 		secretInformer,
 		configMapInformer,
 		mgr.GetScheme(),
-		controllers.WithMaxConcurrentReconciles(maxConcurrentReconciles),
+		infrastructurecontroller.WithMaxConcurrentReconciles(maxConcurrentReconciles),
 	)
 	if err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NutanixCluster")
@@ -156,12 +154,12 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "NutanixCluster")
 		os.Exit(1)
 	}
-	machineCtrl, err := controllers.NewNutanixMachineReconciler(
+	machineCtrl, err := infrastructurecontroller.NewNutanixMachineReconciler(
 		mgr.GetClient(),
 		secretInformer,
 		configMapInformer,
 		mgr.GetScheme(),
-		controllers.WithMaxConcurrentReconciles(maxConcurrentReconciles),
+		infrastructurecontroller.WithMaxConcurrentReconciles(maxConcurrentReconciles),
 	)
 	if err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NutanixMachine")

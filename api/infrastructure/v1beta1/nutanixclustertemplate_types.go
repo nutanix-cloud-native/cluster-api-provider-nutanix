@@ -27,7 +27,7 @@ import (
 type NutanixClusterTemplateSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
+	Template NutanixClusterTemplateResource `json:"template"`
 }
 
 // NutanixClusterTemplateStatus defines the observed state of NutanixClusterTemplate
@@ -44,8 +44,7 @@ type NutanixClusterTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   NutanixClusterTemplateSpec   `json:"spec,omitempty"`
-	Status NutanixClusterTemplateStatus `json:"status,omitempty"`
+	Spec NutanixClusterTemplateSpec `json:"spec,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -59,4 +58,13 @@ type NutanixClusterTemplateList struct {
 
 func init() {
 	SchemeBuilder.Register(&NutanixClusterTemplate{}, &NutanixClusterTemplateList{})
+}
+
+// NutanixClusterTemplateResource describes the data needed to create a NutanixCluster from a template.
+type NutanixClusterTemplateResource struct {
+	// Standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+	// +optional
+	ObjectMeta metav1.ObjectMeta  `json:"metadata,omitempty"`
+	Spec       NutanixClusterSpec `json:"spec"`
 }

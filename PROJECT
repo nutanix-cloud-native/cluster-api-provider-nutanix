@@ -16,7 +16,7 @@ resources:
   domain: cluster.x-k8s.io
   group: infrastructure
   kind: NutanixCluster
-  path: github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1alpha4
+  path: github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1alpha4
   version: v1alpha4
 - api:
     crdVersion: v1
@@ -25,7 +25,7 @@ resources:
   domain: cluster.x-k8s.io
   group: infrastructure
   kind: NutanixCluster
-  path: github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1
+  path: github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1
   version: v1beta1
 - api:
     crdVersion: v1
@@ -34,7 +34,7 @@ resources:
   domain: cluster.x-k8s.io
   group: infrastructure
   kind: NutanixMachine
-  path: github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1alpha4
+  path: github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1alpha4
   version: v1alpha4
 - api:
     crdVersion: v1
@@ -43,7 +43,7 @@ resources:
   domain: cluster.x-k8s.io
   group: infrastructure
   kind: NutanixMachine
-  path: github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1
+  path: github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1
   version: v1beta1
 - api:
     crdVersion: v1
@@ -51,7 +51,7 @@ resources:
   domain: cluster.x-k8s.io
   group: infrastructure
   kind: NutanixMachineTemplate
-  path: github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1alpha4
+  path: github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1alpha4
   version: v1alpha4
 - api:
     crdVersion: v1
@@ -59,7 +59,7 @@ resources:
   domain: cluster.x-k8s.io
   group: infrastructure
   kind: NutanixMachineTemplate
-  path: github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1
+  path: github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1
   version: v1beta1
 - api:
     crdVersion: v1

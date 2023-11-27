@@ -17,7 +17,7 @@ limitations under the License.
 package v1alpha4
 
 import (
-	infrav1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	infrav1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1"
 	apiconversion "k8s.io/apimachinery/pkg/conversion"
 	capiv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"

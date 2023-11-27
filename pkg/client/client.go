@@ -32,7 +32,7 @@ import (
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1"
 )
 
 const (

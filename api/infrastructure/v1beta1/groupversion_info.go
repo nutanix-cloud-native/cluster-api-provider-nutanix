@@ -24,9 +24,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
+const (
+	// Version is the API version.
+	Version = "v1beta1"
+
+	// GroupName is the name of the API group.
+	GroupName = "infrastructure.cluster.x-k8s.io"
+)
+
 var (
 	// GroupVersion is group version used to register these objects
-	GroupVersion = schema.GroupVersion{Group: "infrastructure.cluster.x-k8s.io", Version: "v1beta1"}
+	GroupVersion = schema.GroupVersion{Group: GroupName, Version: Version}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
