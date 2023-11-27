@@ -13,7 +13,7 @@ resources:
 #- patches/webhook_in_nutanixclusters.yaml
 #- patches/webhook_in_nutanixmachines.yaml
 #- patches/webhook_in_nutanixmachinetemplates.yaml
-#- path: patches/webhook_in_infrastructure_nutanixclustertemplates.yaml
+- path: patches/webhook_in_infrastructure_nutanixclustertemplates.yaml
 #+kubebuilder:scaffold:crdkustomizewebhookpatch
 
 # [CERTMANAGER] To enable webhook, uncomment all the sections with [CERTMANAGER] prefix.

@@ -28,7 +28,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1"
 )
 
 const (

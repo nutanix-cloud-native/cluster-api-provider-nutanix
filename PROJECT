@@ -70,4 +70,8 @@ resources:
   kind: NutanixClusterTemplate
   path: github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1
   version: v1beta1
+  webhooks:
+    defaulting: true
+    validation: true
+    webhookVersion: v1
 version: "3"

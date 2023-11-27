@@ -48,8 +48,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/internal/controller"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1"
+	infrastructurecontroller "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/internal/controller/infrastructure"
 )
 
 const (
@@ -233,13 +233,13 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
 	subnetVarValue := t.getVariableFromE2eConfig(subnetVarKey)
 
-	clusterUUID, err := controllers.GetPEUUID(ctx, t.nutanixClient, &clusterVarValue, nil)
+	clusterUUID, err := infrastructurecontroller.GetPEUUID(ctx, t.nutanixClient, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
-	imageUUID, err := controllers.GetImageUUID(ctx, t.nutanixClient, &imageVarValue, nil)
+	imageUUID, err := infrastructurecontroller.GetImageUUID(ctx, t.nutanixClient, &imageVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
-	subnetUUID, err := controllers.GetSubnetUUID(ctx, t.nutanixClient, clusterUUID, &subnetVarValue, nil)
+	subnetUUID, err := infrastructurecontroller.GetSubnetUUID(ctx, t.nutanixClient, clusterUUID, &subnetVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
 	return &infrav1.NutanixMachineTemplate{
@@ -278,7 +278,7 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 
 func (t testHelper) createUUIDProjectNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate {
 	projectVarValue := t.getVariableFromE2eConfig(nutanixProjectNameEnv)
-	projectUUID, err := controllers.GetProjectUUID(ctx, t.nutanixClient, &projectVarValue, nil)
+	projectUUID, err := infrastructurecontroller.GetProjectUUID(ctx, t.nutanixClient, &projectVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
 	nmt := t.createUUIDNMT(ctx, clusterName, namespace)
@@ -311,10 +311,10 @@ func (t testHelper) createNameGPUNMT(ctx context.Context, clusterName, namespace
 func (t testHelper) findGPU(ctx context.Context, gpuName string) *prismGoClientV3.GPU {
 	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
 
-	clusterUUID, err := controllers.GetPEUUID(ctx, t.nutanixClient, &clusterVarValue, nil)
+	clusterUUID, err := infrastructurecontroller.GetPEUUID(ctx, t.nutanixClient, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(clusterUUID).ToNot(BeNil())
-	allGpus, err := controllers.GetGPUsForPE(ctx, t.nutanixClient, clusterUUID)
+	allGpus, err := infrastructurecontroller.GetGPUsForPE(ctx, t.nutanixClient, clusterUUID)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(allGpus).ToNot(HaveLen(0))
 
