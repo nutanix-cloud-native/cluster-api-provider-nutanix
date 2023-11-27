@@ -744,3 +744,18 @@ func GetGPUsForPE(ctx context.Context, client *nutanixClientV3.Client, peUUID st
 	}
 	return gpus, nil
 }
+
+func GetFailureDomain(failureDomainName string, nutanixCluster *infrav1.NutanixCluster) (*infrav1.NutanixFailureDomain, error) {
+	if failureDomainName == "" {
+		return nil, fmt.Errorf("failure domain name must be set when searching for failure domains on a Nutanix cluster object")
+	}
+	if nutanixCluster == nil {
+		return nil, fmt.Errorf("nutanixCluster cannot be nil when searching for failure domains")
+	}
+	for _, fd := range nutanixCluster.Spec.FailureDomains {
+		if fd.Name == failureDomainName {
+			return &fd, nil
+		}
+	}
+	return nil, fmt.Errorf("failed to find failure domain %s on nutanix cluster object", failureDomainName)
+}
