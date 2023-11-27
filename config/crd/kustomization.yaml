@@ -8,7 +8,6 @@ resources:
 - bases/infrastructure.cluster.x-k8s.io_nutanixclustertemplates.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
-patchesStrategicMerge:
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.
 # patches here are for enabling the conversion webhook for each CRD
 #- patches/webhook_in_nutanixclusters.yaml
@@ -29,5 +28,9 @@ patchesStrategicMerge:
 configurations:
 - kustomizeconfig.yaml
 
-commonLabels:
-  cluster.x-k8s.io/v1beta1: v1beta1
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+labels:
+- includeSelectors: true
+  pairs:
+    cluster.x-k8s.io/v1beta1: v1beta1

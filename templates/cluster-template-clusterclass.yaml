@@ -175,7 +175,6 @@ metadata:
   name: ${CLUSTER_CLASS_NAME}-kcp
   namespace: ${NAMESPACE}
 spec:
-  replicas: ${CONTROL_PLANE_MACHINE_COUNT=1}
   template:
     spec:
       kubeadmConfigSpec:
@@ -269,12 +268,6 @@ spec:
           - ${NUTANIX_SSH_AUTHORIZED_KEY}
           sudo: ALL=(ALL) NOPASSWD:ALL
         verbosity: 10
-      machineTemplate:
-        infrastructureRef:
-          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-          kind: NutanixMachineTemplate
-          name: ${CLUSTER_CLASS_NAME}-mt-0
-  version: ${KUBERNETES_VERSION}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixCluster
@@ -300,7 +293,17 @@ metadata:
   namespace: ${NAMESPACE}
 spec:
   template:
-    spec: {}
+    spec:
+      controlPlaneEndpoint:
+        host: ${CONTROL_PLANE_ENDPOINT_IP}
+        port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
+      prismCentral:
+        address: ${NUTANIX_ENDPOINT}
+        credentialRef:
+          kind: Secret
+          name: ${CLUSTER_NAME}
+        insecure: ${NUTANIX_INSECURE=false}
+        port: ${NUTANIX_PORT=9440}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate
