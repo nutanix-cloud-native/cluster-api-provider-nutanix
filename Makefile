@@ -235,7 +235,8 @@ kind-delete: ## Delete the kind cluster
 
 .PHONY: build
 build: generate fmt ## Build manager binary.
-	go build -o bin/manager main.go
+	GIT_COMMIT_HASH=`git rev-parse HEAD` && \
+	go build -ldflags "-X main.gitCommitHash=$${GIT_COMMIT_HASH}" -o bin/manager main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
@@ -243,7 +244,8 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: docker-build
 docker-build: $(KO) ## Build docker image with the manager.
-	KO_DOCKER_REPO=ko.local $(KO) build -B --platform=${PLATFORMS} -t ${IMG_TAG} -L .
+	GIT_COMMIT_HASH=`git rev-parse HEAD` && \
+	KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=$${GIT_COMMIT_HASH}" $(KO) build -B --platform=${PLATFORMS} -t ${IMG_TAG} -L .
 
 .PHONY: docker-push
 docker-push: $(KO) ## Push docker image with the manager.
@@ -330,7 +332,8 @@ cluster-templates: $(KUSTOMIZE) ## Generate cluster templates for all flavors
 
 .PHONY: docker-build-e2e
 docker-build-e2e: $(KO) ## Build docker image with the manager with e2e tag.
-	KO_DOCKER_REPO=ko.local $(KO) build -B --platform=${PLATFORMS_E2E} -t e2e -L .
+	GIT_COMMIT_HASH=`git rev-parse HEAD` && \
+	KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=$${GIT_COMMIT_HASH}" $(KO) build -B --platform=${PLATFORMS_E2E} -t e2e -L .
 	docker tag ko.local/cluster-api-provider-nutanix:e2e ${IMG_REPO}:e2e
 
 .PHONY: prepare-local-clusterctl
