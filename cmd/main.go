@@ -177,8 +177,14 @@ func main() {
 		os.Exit(1)
 	}
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
-		if err = (&infrastructurev1beta1.NutanixClusterTemplate{}).SetupWebhookWithManager(mgr); err != nil {
+		if err = (&infrav1beta1.NutanixClusterTemplate{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "NutanixClusterTemplate")
+			os.Exit(1)
+		}
+	}
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = (&infrav1beta1.NutanixCluster{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "NutanixCluster")
 			os.Exit(1)
 		}
 	}

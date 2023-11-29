@@ -10,7 +10,7 @@ stringData:
 apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
 kind: KubeadmConfigTemplate
 metadata:
-  name: ${CLUSTER_CLASS_NAME}-kcfg-0
+  name: ${CLUSTER_CLASS_NAME}-md-kcfgt
   namespace: ${NAMESPACE}
 spec:
   template:
@@ -34,6 +34,8 @@ spec:
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
 metadata:
+  labels:
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
   name: ${CLUSTER_NAME}
 spec:
   clusterNetwork:
@@ -90,16 +92,19 @@ spec:
       ref:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         kind: NutanixMachineTemplate
-        name: ${CLUSTER_CLASS_NAME}-mt-0
+        name: ${CLUSTER_CLASS_NAME}-cp-nmt
+        namespace: ${NAMESPACE}
     ref:
       apiVersion: controlplane.cluster.x-k8s.io/v1beta1
       kind: KubeadmControlPlaneTemplate
-      name: ${CLUSTER_CLASS_NAME}-kcp
+      name: ${CLUSTER_CLASS_NAME}-kcpt
+      namespace: ${NAMESPACE}
   infrastructure:
     ref:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
       kind: NutanixClusterTemplate
-      name: ${CLUSTER_CLASS_NAME}
+      name: ${CLUSTER_CLASS_NAME}-nct
+      namespace: ${NAMESPACE}
   workers:
     machineDeployments:
     - class: default-worker
@@ -130,49 +135,19 @@ spec:
           ref:
             apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
             kind: KubeadmConfigTemplate
-            name: ${CLUSTER_CLASS_NAME}-kcfg-0
+            name: ${CLUSTER_CLASS_NAME}-md-kcfgt
+            namespace: ${NAMESPACE}
         infrastructure:
           ref:
             apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
             kind: NutanixMachineTemplate
-            name: ${CLUSTER_CLASS_NAME}-mt-0
----
-apiVersion: cluster.x-k8s.io/v1beta1
-kind: MachineHealthCheck
-metadata:
-  name: ${CLUSTER_NAME}-mhc
-  namespace: ${NAMESPACE}
-spec:
-  clusterName: ${CLUSTER_NAME}
-  maxUnhealthy: 40%
-  nodeStartupTimeout: 10m
-  selector:
-    matchLabels:
-      cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
-  unhealthyConditions:
-  - status: "False"
-    timeout: 300s
-    type: Ready
-  - status: Unknown
-    timeout: 300s
-    type: Ready
-  - status: "True"
-    timeout: 300s
-    type: MemoryPressure
-  - status: "True"
-    timeout: 300s
-    type: DiskPressure
-  - status: "True"
-    timeout: 300s
-    type: PIDPressure
-  - status: "True"
-    timeout: 300s
-    type: NetworkUnavailable
+            name: ${CLUSTER_CLASS_NAME}-md-nmt
+            namespace: ${NAMESPACE}
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
 kind: KubeadmControlPlaneTemplate
 metadata:
-  name: ${CLUSTER_CLASS_NAME}-kcp
+  name: ${CLUSTER_CLASS_NAME}-kcpt
   namespace: ${NAMESPACE}
 spec:
   template:
@@ -289,26 +264,40 @@ spec:
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixClusterTemplate
 metadata:
-  name: ${CLUSTER_CLASS_NAME}
+  name: ${CLUSTER_CLASS_NAME}-nct
   namespace: ${NAMESPACE}
 spec:
   template:
-    spec:
-      controlPlaneEndpoint:
-        host: ${CONTROL_PLANE_ENDPOINT_IP}
-        port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
-      prismCentral:
-        address: ${NUTANIX_ENDPOINT}
-        credentialRef:
-          kind: Secret
-          name: ${CLUSTER_NAME}
-        insecure: ${NUTANIX_INSECURE=false}
-        port: ${NUTANIX_PORT=9440}
+    spec: {}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate
 metadata:
-  name: ${CLUSTER_CLASS_NAME}-mt-0
+  name: ${CLUSTER_CLASS_NAME}-cp-nmt
+  namespace: ${NAMESPACE}
+spec:
+  template:
+    spec:
+      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+      cluster:
+        name: ${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}
+        type: name
+      image:
+        name: ${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}
+        type: name
+      memorySize: ${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}
+      providerID: nutanix://${CLUSTER_NAME}-m1
+      subnet:
+      - name: ${NUTANIX_SUBNET_NAME}
+        type: name
+      systemDiskSize: ${NUTANIX_SYSTEMDISK_SIZE=40Gi}
+      vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
+      vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixMachineTemplate
+metadata:
+  name: ${CLUSTER_CLASS_NAME}-md-nmt
   namespace: ${NAMESPACE}
 spec:
   template:

@@ -393,6 +393,25 @@ test-kubectl-workload: ## Run kubectl queries to get all capx workload related o
 	kubectl -n ${TEST_NAMESPACE} get secret ${TEST_CLUSTER_NAME}-kubeconfig -o json | jq -r .data.value | base64 --decode > ${TEST_CLUSTER_NAME}.workload.kubeconfig
 	kubectl --kubeconfig ./${TEST_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
 
+.PHONY: test-clusterclass-create
+test-clusterclass-create: cluster-templates
+	clusterctl generate cluster ccls-test1 --from ./templates/cluster-template-clusterclass.yaml -n workloads > ccls-test1.yaml
+	kubectl apply -f ./ccls-test1.yaml
+
+.PHONY: test-clusterclass-delete
+test-clusterclass-delete:
+	kubectl -n workloads delete cluster ccls-test1 || true
+	kubectl -n workloads delete nutanixcluster ccls-test1 || true
+	kubectl -n workloads delete clusterclass my-test-cluster-template || true
+	kubectl -n workloads delete KubeadmConfigTemplate my-test-cluster-template-kcfgt || true
+	rm ccls-test1.yaml || true
+
+
+.PHONY: test-kubectl-clusterclass
+test-kubectl-clusterclass:
+	kubectl get cluster,NutanixCluster,Machine,NutanixMachine,MachineDeployment -A
+	kubectl get NutanixClusterTemplate,clusterclass,KubeadmConfigTemplate,KubeadmControlPlaneTemplate,NutanixMachineTemplate -A
+
 .PHONY: ginkgo-help
 ginkgo-help:
 	$(GINKGO) help run

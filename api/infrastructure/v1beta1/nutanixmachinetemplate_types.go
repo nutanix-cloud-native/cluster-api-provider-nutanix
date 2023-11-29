@@ -35,6 +35,7 @@ type NutanixMachineTemplateSpec struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:resource:path=nutanixmachinetemplates,shortName=nmtmpl,scope=Namespaced,categories=cluster-api
+//+kubebuilder:subresource:status
 //+kubebuilder:storageversion
 
 // NutanixMachineTemplate is the Schema for the nutanixmachinetemplates API

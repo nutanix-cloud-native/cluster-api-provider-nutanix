@@ -1,21 +1,11 @@
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixClusterTemplate
 metadata:
-  name: ${CLUSTER_CLASS_NAME}
+  name: ${CLUSTER_CLASS_NAME}-nct
   namespace: ${NAMESPACE}
 spec:
-  template:
-    spec: 
-      prismCentral:
-        address: "${NUTANIX_ENDPOINT}"
-        port: ${NUTANIX_PORT=9440}
-        insecure: ${NUTANIX_INSECURE=false}
-        credentialRef:
-          name: "${CLUSTER_NAME}"
-          kind: Secret
-      controlPlaneEndpoint:
-        host: "${CONTROL_PLANE_ENDPOINT_IP}"
-        port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
+  template: 
+    spec: {}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: ClusterClass
@@ -27,12 +17,14 @@ spec:
     ref:
       apiVersion: controlplane.cluster.x-k8s.io/v1beta1
       kind: KubeadmControlPlaneTemplate
-      name: ${CLUSTER_CLASS_NAME}-kcp
+      name: ${CLUSTER_CLASS_NAME}-kcpt
+      namespace: ${NAMESPACE}
     machineInfrastructure:
       ref:
         kind: NutanixMachineTemplate
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-        name: ${CLUSTER_CLASS_NAME}-mt-0
+        name: ${CLUSTER_CLASS_NAME}-cp-nmt
+        namespace: ${NAMESPACE}
     machineHealthCheck:
       maxUnhealthy: 40%
       nodeStartupTimeout: 10m
@@ -55,11 +47,6 @@ spec:
         - type: NetworkUnavailable
           status: "True"
           timeout: 300s
-  infrastructure:
-    ref:
-      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-      kind: NutanixClusterTemplate
-      name: ${CLUSTER_CLASS_NAME}
   workers:
     machineDeployments:
     - class: default-worker
@@ -68,12 +55,14 @@ spec:
           ref:
             apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
             kind: KubeadmConfigTemplate
-            name: ${CLUSTER_CLASS_NAME}-kcfg-0
+            name: ${CLUSTER_CLASS_NAME}-md-kcfgt
+            namespace: ${NAMESPACE}
         infrastructure:
           ref:
             apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
             kind: NutanixMachineTemplate
-            name: ${CLUSTER_CLASS_NAME}-mt-0
+            name: ${CLUSTER_CLASS_NAME}-md-nmt
+            namespace: ${NAMESPACE}
       machineHealthCheck:
         maxUnhealthy: 40%
         nodeStartupTimeout: 10m
@@ -96,11 +85,17 @@ spec:
           - type: NetworkUnavailable
             status: "True"
             timeout: 300s
+  infrastructure:
+    ref:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+      kind: NutanixClusterTemplate
+      name: ${CLUSTER_CLASS_NAME}-nct
+      namespace: ${NAMESPACE}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate
 metadata:
-  name: "${CLUSTER_CLASS_NAME}-mt-0"
+  name: "${CLUSTER_CLASS_NAME}-cp-nmt"
   namespace: "${NAMESPACE}"
 spec:
   template:
@@ -133,12 +128,48 @@ spec:
       # project:
       #   type: name
       #   name: "NUTANIX_PROJECT_NAME"
-
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixMachineTemplate
+metadata:
+  name: "${CLUSTER_CLASS_NAME}-md-nmt"
+  namespace: "${NAMESPACE}"
+spec:
+  template:
+    spec:
+      providerID: "nutanix://${CLUSTER_NAME}-m1"
+      # Supported options for boot type: legacy and uefi
+      # Defaults to legacy if not set
+      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+      vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+      vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
+      memorySize: "${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}"
+      systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
+      image:
+        type: name
+        name: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}"
+      cluster:
+        type: name
+        name: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
+      subnet:
+        - type: name
+          name: "${NUTANIX_SUBNET_NAME}"
+      # Adds additional categories to the virtual machines.
+      # Note: Categories must already be present in Prism Central
+      # additionalCategories:
+      #   - key: AppType
+      #     value: Kubernetes
+      # Adds the cluster virtual machines to a project defined in Prism Central.
+      # Replace NUTANIX_PROJECT_NAME with the correct project defined in Prism Central
+      # Note: Project must already be present in Prism Central.
+      # project:
+      #   type: name
+      #   name: "NUTANIX_PROJECT_NAME"
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
 kind: KubeadmControlPlaneTemplate
 metadata:
-  name: "${CLUSTER_CLASS_NAME}-kcp"
+  name: "${CLUSTER_CLASS_NAME}-kcpt"
   namespace: "${NAMESPACE}"
 spec:
   template:
@@ -241,7 +272,7 @@ spec:
 apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
 kind: KubeadmConfigTemplate
 metadata:
-  name: "${CLUSTER_CLASS_NAME}-kcfg-0"
+  name: "${CLUSTER_CLASS_NAME}-md-kcfgt"
   namespace: "${NAMESPACE}"
 spec:
   template:
@@ -265,35 +296,3 @@ spec:
         - echo "after kubeadm call" > /var/log/postkubeadm.log
       verbosity: 10
       #useExperimentalRetryJoin: true
----
-apiVersion: cluster.x-k8s.io/v1beta1
-kind: MachineHealthCheck
-metadata:
-  name: "${CLUSTER_NAME}-mhc"
-  namespace: "${NAMESPACE}"
-spec:
-  clusterName: "${CLUSTER_NAME}"
-  maxUnhealthy: 40%
-  nodeStartupTimeout: 10m
-  selector:
-    matchLabels:
-      cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
-  unhealthyConditions:
-    - type: Ready
-      status: "False"
-      timeout: 300s
-    - type: Ready
-      status: Unknown
-      timeout: 300s
-    - type: MemoryPressure
-      status: "True"
-      timeout: 300s
-    - type: DiskPressure
-      status: "True"
-      timeout: 300s
-    - type: PIDPressure
-      status: "True"
-      timeout: 300s
-    - type: NetworkUnavailable
-      status: "True"
-      timeout: 300s
