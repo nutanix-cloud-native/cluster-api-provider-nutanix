@@ -40,9 +40,6 @@ spec:
                 description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
                   Important: Run "make" to regenerate code after modifying this file'
                 properties:
-                  metadata:
-                    description: 'Standard object''s metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata'
-                    type: object
                   spec:
                     description: NutanixClusterSpec defines the desired state of NutanixCluster
                     properties:

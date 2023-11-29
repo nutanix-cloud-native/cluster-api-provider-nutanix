@@ -235,7 +235,7 @@ kind-delete: ## Delete the kind cluster
 .PHONY: build
 build: generate fmt ## Build manager binary.
 	GIT_COMMIT_HASH=`git rev-parse HEAD` && \
-	go build -ldflags "-X main.gitCommitHash=$${GIT_COMMIT_HASH}" -o bin/manager main.go
+	go build -ldflags "-X main.gitCommitHash=$${GIT_COMMIT_HASH}" -o bin/manager cmd/main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
@@ -244,7 +244,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 .PHONY: docker-build
 docker-build: $(KO) ## Build docker image with the manager.
 	GIT_COMMIT_HASH=`git rev-parse HEAD` && \
-	KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=$${GIT_COMMIT_HASH}" $(KO) build -B --platform=${PLATFORMS} -t ${IMG_TAG} -L .
+	KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=$${GIT_COMMIT_HASH}" $(KO) build -B --platform=${PLATFORMS} -t ${IMG_TAG} -L ./cmd
 
 .PHONY: docker-push
 docker-push: $(KO) ## Push docker image with the manager.
