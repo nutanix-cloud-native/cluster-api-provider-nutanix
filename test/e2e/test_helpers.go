@@ -1,5 +1,4 @@
 //go:build e2e
-// +build e2e
 
 /*
 Copyright 2022 Nutanix
@@ -22,11 +21,15 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
 
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
@@ -39,12 +42,11 @@ import (
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/test/framework"
+	"sigs.k8s.io/cluster-api/test/framework/bootstrap"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/cluster-api/util"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
 )
 
 const (
@@ -65,10 +67,54 @@ const (
 	clusterVarKey       = "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME"
 	subnetVarKey        = "NUTANIX_SUBNET_NAME"
 
-	envVarControlPlaneEndpointIP   = "CONTROL_PLANE_ENDPOINT_IP"
-	envVarControlPlaneEndpointPort = "CONTROL_PLANE_ENDPOINT_PORT"
-
 	nameType = "name"
+
+	nutanixProjectNameEnv = "NUTANIX_PROJECT_NAME"
+)
+
+// Test suite global vars.
+var (
+	ctx = ctrl.SetupSignalHandler()
+
+	// e2eConfig to be used for this test, read from configPath.
+	e2eConfig *clusterctl.E2EConfig
+
+	// clusterctlConfigPath to be used for this test, created by generating a clusterctl local repository
+	// with the providers specified in the configPath.
+	clusterctlConfigPath string
+
+	// bootstrapClusterProvider manages provisioning of the the bootstrap cluster to be used for the e2e tests.
+	// Please note that provisioning will be skipped if e2e.use-existing-cluster is provided.
+	bootstrapClusterProvider bootstrap.ClusterProvider
+
+	// bootstrapClusterProxy allows to interact with the bootstrap cluster to be used for the e2e tests.
+	bootstrapClusterProxy framework.ClusterProxy
+)
+
+// Test suite flags.
+var (
+	// configPath is the path to the e2e config file.
+	configPath string
+
+	// useExistingCluster instructs the test to use the current cluster instead of creating a new one (default discovery rules apply).
+	useExistingCluster bool
+
+	// artifactFolder is the folder to store e2e test artifacts.
+	artifactFolder string
+
+	// clusterctlConfig is the file which tests will use as a clusterctl config.
+	// If it is not set, a local clusterctl repository (including a clusterctl config) will be created automatically.
+	clusterctlConfig string
+
+	// alsoLogToFile enables additional logging to the 'ginkgo-log.txt' file in the artifact folder.
+	// These logs also contain timestamps.
+	alsoLogToFile bool
+
+	// skipCleanup prevents cleanup of test resources e.g. for debug purposes.
+	skipCleanup bool
+
+	// flavor is used to add clusterResourceSet for CNI usage in e2e tests
+	flavor string
 )
 
 type testHelperInterface interface {
@@ -246,6 +292,7 @@ type createGPUNMTParams struct {
 
 func (t testHelper) createNameGPUNMT(ctx context.Context, clusterName, namespace string, params createGPUNMTParams) *infrav1.NutanixMachineTemplate {
 	gpuName := t.getVariableFromE2eConfig(params.gpuNameEnvKey)
+	_ = t.getVariableFromE2eConfig(params.gpuVendorEnvKey)
 
 	nmt := t.createDefaultNMT(clusterName, namespace)
 	nmt.Spec.Template.Spec.GPUs = []infrav1.NutanixGPU{
@@ -690,4 +737,13 @@ func (t testHelper) deleteSecret(params deleteSecretParams) {
 	Eventually(func() error {
 		return bootstrapClusterProxy.GetClient().Delete(ctx, secret)
 	}, time.Second*5, defaultInterval).Should(Succeed())
+}
+
+func init() {
+	flag.StringVar(&configPath, "e2e.config", "", "path to the e2e config file")
+	flag.StringVar(&artifactFolder, "e2e.artifacts-folder", "", "folder where e2e test artifact should be stored")
+	flag.BoolVar(&alsoLogToFile, "e2e.also-log-to-file", true, "if true, ginkgo logs are additionally written to the `ginkgo-log.txt` file in the artifacts folder (including timestamps)")
+	flag.BoolVar(&skipCleanup, "e2e.skip-resource-cleanup", false, "if true, the resource cleanup after tests will be skipped")
+	flag.StringVar(&clusterctlConfig, "e2e.clusterctl-config", "", "file which tests will use as a clusterctl config. If it is not set, a local clusterctl repository (including a clusterctl config) will be created automatically.")
+	flag.BoolVar(&useExistingCluster, "e2e.use-existing-cluster", false, "if true, the test uses the current cluster instead of creating a new one (default discovery rules apply)")
 }
