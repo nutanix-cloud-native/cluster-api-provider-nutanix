@@ -50,7 +50,7 @@ var _ = Describe("When testing MachineDeployment scale out/in", Label("md-scale-
 // Label `only-for-validation` is used to run this test only for validation and not as part of the regular test suite.
 var _ = Describe("When testing MachineDeployment scale up/down from 10 replicas to 20 replicas to 10 again", Label("md-scale-up-down", "slow", "network", "only-for-validation"), func() {
 	// MachineDeploymentScaleSpec implements a test that verifies that MachineDeployment scale operations are successful.
-	var inputGetter = func() capi_e2e.MachineDeploymentScaleSpecInput {
+	inputGetter := func() capi_e2e.MachineDeploymentScaleSpecInput {
 		return capi_e2e.MachineDeploymentScaleSpecInput{
 			E2EConfig:             e2eConfig,
 			ClusterctlConfigPath:  clusterctlConfigPath,
@@ -74,7 +74,7 @@ var _ = Describe("When testing MachineDeployment scale up/down from 10 replicas 
 		Expect(input.E2EConfig).ToNot(BeNil(), "Invalid argument. input.E2EConfig can't be nil when calling %s spec", specName)
 		Expect(input.ClusterctlConfigPath).To(BeAnExistingFile(), "Invalid argument. input.ClusterctlConfigPath must be an existing file when calling %s spec", specName)
 		Expect(input.BootstrapClusterProxy).ToNot(BeNil(), "Invalid argument. input.BootstrapClusterProxy can't be nil when calling %s spec", specName)
-		Expect(os.MkdirAll(input.ArtifactFolder, 0750)).To(Succeed(), "Invalid argument. input.ArtifactFolder can't be created for %s spec", specName)
+		Expect(os.MkdirAll(input.ArtifactFolder, 0o750)).To(Succeed(), "Invalid argument. input.ArtifactFolder can't be created for %s spec", specName)
 		Expect(input.E2EConfig.Variables).To(HaveKey(KubernetesVersion))
 		Expect(input.E2EConfig.Variables).To(HaveValidVersion(input.E2EConfig.GetVariable(KubernetesVersion)))
 

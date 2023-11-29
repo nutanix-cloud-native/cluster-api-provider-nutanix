@@ -570,7 +570,7 @@ lint: $(GOLANGCI_LINT) ## Lint the codebase
 
 .PHONY: lint-fix
 lint-fix: $(GOLANGCI_LINT) ## Lint the codebase and run auto-fixers if supported by the linter
-	GOLANGCI_LINT_EXTRA_ARGS=--fix $(MAKE) lint
+	GOLANGCI_LINT_EXTRA_ARGS="$(GOLANGCI_LINT_EXTRA_ARGS) --fix" $(MAKE) lint
 
 ## --------------------------------------
 ## Clean

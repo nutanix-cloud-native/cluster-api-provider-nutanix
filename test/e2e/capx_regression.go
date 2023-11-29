@@ -188,7 +188,7 @@ var _ = Describe("Nutanix regression tests", Label("capx-regression-test", "regr
 			}, e2eConfig.GetIntervals(specName, "wait-delete-cluster")...)
 		})
 
-		//Check if secret is deleted
+		// Check if secret is deleted
 		By("Checking if secret is deleted", func() {
 			err := bootstrapClusterProxy.GetClient().Get(ctx,
 				client.ObjectKey{
@@ -199,7 +199,7 @@ var _ = Describe("Nutanix regression tests", Label("capx-regression-test", "regr
 			Expect(apierrors.IsNotFound(err)).To(BeTrue())
 		})
 
-		//Check if cluster is deleted
+		// Check if cluster is deleted
 		By("Checking if cluster is deleted", func() {
 			err := bootstrapClusterProxy.GetClient().Get(ctx,
 				client.ObjectKey{
