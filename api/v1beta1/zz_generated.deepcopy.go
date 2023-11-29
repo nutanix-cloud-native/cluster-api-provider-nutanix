@@ -24,7 +24,7 @@ package v1beta1
 import (
 	"github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	"k8s.io/api/core/v1"
-	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime"
 	apiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/errors"
 )
