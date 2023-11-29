@@ -62,9 +62,5 @@ func init() {
 
 // NutanixClusterTemplateResource describes the data needed to create a NutanixCluster from a template.
 type NutanixClusterTemplateResource struct {
-	// Standard object's metadata.
-	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
-	// +optional
-	ObjectMeta metav1.ObjectMeta  `json:"metadata,omitempty"`
-	Spec       NutanixClusterSpec `json:"spec"`
+	Spec NutanixClusterSpec `json:"spec"`
 }
