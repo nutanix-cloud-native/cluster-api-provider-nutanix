@@ -1,5 +1,4 @@
 //go:build e2e
-// +build e2e
 
 /*
 Copyright 2022 Nutanix
@@ -32,13 +31,11 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
-const (
-	nutanixProjectNameEnv  = "NUTANIX_PROJECT_NAME"
-	nonExistingProjectName = "nonExistingProjectNameCAPX"
-)
-
 var _ = Describe("Nutanix projects", Label("capx-feature-test", "projects", "slow", "network"), func() {
-	const specName = "cluster-projects"
+	const (
+		specName               = "cluster-projects"
+		nonExistingProjectName = "nonExistingProjectNameCAPX"
+	)
 
 	var (
 		namespace          *corev1.Namespace

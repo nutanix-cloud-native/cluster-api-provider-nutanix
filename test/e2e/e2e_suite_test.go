@@ -1,5 +1,4 @@
 //go:build e2e
-// +build e2e
 
 /*
 Copyright 2020 The Kubernetes Authors.
@@ -20,82 +19,25 @@ limitations under the License.
 package e2e
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
-
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/test/framework/bootstrap"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/cluster-api/test/framework/ginkgoextensions"
-
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
-
-// Test suite flags.
-var (
-	// configPath is the path to the e2e config file.
-	configPath string
-
-	// useExistingCluster instructs the test to use the current cluster instead of creating a new one (default discovery rules apply).
-	useExistingCluster bool
-
-	// artifactFolder is the folder to store e2e test artifacts.
-	artifactFolder string
-
-	// clusterctlConfig is the file which tests will use as a clusterctl config.
-	// If it is not set, a local clusterctl repository (including a clusterctl config) will be created automatically.
-	clusterctlConfig string
-
-	// alsoLogToFile enables additional logging to the 'ginkgo-log.txt' file in the artifact folder.
-	// These logs also contain timestamps.
-	alsoLogToFile bool
-
-	// skipCleanup prevents cleanup of test resources e.g. for debug purposes.
-	skipCleanup bool
-
-	// flavor is used to add clusterResourceSet for CNI usage in e2e tests
-	flavor string
-)
-
-// Test suite global vars.
-var (
-	ctx = ctrl.SetupSignalHandler()
-
-	// e2eConfig to be used for this test, read from configPath.
-	e2eConfig *clusterctl.E2EConfig
-
-	// clusterctlConfigPath to be used for this test, created by generating a clusterctl local repository
-	// with the providers specified in the configPath.
-	clusterctlConfigPath string
-
-	// bootstrapClusterProvider manages provisioning of the the bootstrap cluster to be used for the e2e tests.
-	// Please note that provisioning will be skipped if e2e.use-existing-cluster is provided.
-	bootstrapClusterProvider bootstrap.ClusterProvider
-
-	// bootstrapClusterProxy allows to interact with the bootstrap cluster to be used for the e2e tests.
-	bootstrapClusterProxy framework.ClusterProxy
-)
-
-func init() {
-	flag.StringVar(&configPath, "e2e.config", "", "path to the e2e config file")
-	flag.StringVar(&artifactFolder, "e2e.artifacts-folder", "", "folder where e2e test artifact should be stored")
-	flag.BoolVar(&alsoLogToFile, "e2e.also-log-to-file", true, "if true, ginkgo logs are additionally written to the `ginkgo-log.txt` file in the artifacts folder (including timestamps)")
-	flag.BoolVar(&skipCleanup, "e2e.skip-resource-cleanup", false, "if true, the resource cleanup after tests will be skipped")
-	flag.StringVar(&clusterctlConfig, "e2e.clusterctl-config", "", "file which tests will use as a clusterctl config. If it is not set, a local clusterctl repository (including a clusterctl config) will be created automatically.")
-	flag.BoolVar(&useExistingCluster, "e2e.use-existing-cluster", false, "if true, the test uses the current cluster instead of creating a new one (default discovery rules apply)")
-}
 
 func TestE2E(t *testing.T) {
 	// If running in prow, make sure to use the artifacts folder that will be reported in test grid (ignoring the value provided by flag).
@@ -120,7 +62,7 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 	// Before all ParallelNodes.
 
 	Expect(configPath).To(BeAnExistingFile(), "Invalid test suite argument. e2e.config should be an existing file.")
-	Expect(os.MkdirAll(artifactFolder, 0755)).To(Succeed(), "Invalid test suite argument. Can't create e2e.artifacts-folder %q", artifactFolder) //nolint:gosec
+	Expect(os.MkdirAll(artifactFolder, 0o755)).To(Succeed(), "Invalid test suite argument. Can't create e2e.artifacts-folder %q", artifactFolder) //nolint:gosec
 
 	By("Initializing a runtime.Scheme with all the GVK relevant for this test")
 	scheme := initScheme()

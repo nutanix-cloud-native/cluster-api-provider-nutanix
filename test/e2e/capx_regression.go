@@ -1,5 +1,4 @@
 //go:build e2e
-// +build e2e
 
 /*
 Copyright 2022 Nutanix
@@ -22,9 +21,10 @@ package e2e
 import (
 	"context"
 
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,18 +32,10 @@ import (
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
 var _ = Describe("Nutanix regression tests", Label("capx-regression-test", "regression", "slow", "network"), func() {
-	const (
-		specName = "capx-regression"
-
-		controlplaneEndpointIPKey       = envVarControlPlaneEndpointIP
-		controlplaneEndpointPortKey     = envVarControlPlaneEndpointPort
-		defaultControlPlaneEndpointPort = 6443
-	)
+	const specName = "capx-regression"
 
 	var (
 		namespace        *corev1.Namespace
@@ -188,7 +180,7 @@ var _ = Describe("Nutanix regression tests", Label("capx-regression-test", "regr
 			}, e2eConfig.GetIntervals(specName, "wait-delete-cluster")...)
 		})
 
-		//Check if secret is deleted
+		// Check if secret is deleted
 		By("Checking if secret is deleted", func() {
 			err := bootstrapClusterProxy.GetClient().Get(ctx,
 				client.ObjectKey{
@@ -199,7 +191,7 @@ var _ = Describe("Nutanix regression tests", Label("capx-regression-test", "regr
 			Expect(apierrors.IsNotFound(err)).To(BeTrue())
 		})
 
-		//Check if cluster is deleted
+		// Check if cluster is deleted
 		By("Checking if cluster is deleted", func() {
 			err := bootstrapClusterProxy.GetClient().Get(ctx,
 				client.ObjectKey{
