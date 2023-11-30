@@ -185,8 +185,11 @@ func FindVMByName(ctx context.Context, client *nutanixClientV3.Client, vmName st
 
 // GetPEUUID returns the UUID of the Prism Element cluster with the given name
 func GetPEUUID(ctx context.Context, client *nutanixClientV3.Client, peName, peUUID *string) (string, error) {
+	if client == nil {
+		return "", fmt.Errorf("cannot retrieve Prism Element UUID if nutanix client is nil")
+	}
 	if peUUID == nil && peName == nil {
-		return "", fmt.Errorf("cluster name or uuid must be passed in order to retrieve the pe")
+		return "", fmt.Errorf("cluster name or uuid must be passed in order to retrieve the Prism Element UUID")
 	}
 	if peUUID != nil && *peUUID != "" {
 		peIntentResponse, err := client.V3.GetCluster(ctx, *peUUID)
