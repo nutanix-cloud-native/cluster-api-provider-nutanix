@@ -80,7 +80,7 @@ SETUP_ENVTEST_BIN := setup-envtest
 SETUP_ENVTEST := $(abspath $(TOOLS_BIN_DIR)/$(SETUP_ENVTEST_BIN)-$(SETUP_ENVTEST_VER))
 SETUP_ENVTEST_PKG := sigs.k8s.io/controller-runtime/tools/setup-envtest
 
-CONTROLLER_GEN_VER := v0.8.0
+CONTROLLER_GEN_VER := v0.13.0
 CONTROLLER_GEN_BIN := controller-gen
 CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/$(CONTROLLER_GEN_BIN)-$(CONTROLLER_GEN_VER))
 CONTROLLER_GEN_PKG := sigs.k8s.io/controller-tools/cmd/controller-gen
@@ -253,7 +253,7 @@ docker-push: $(KO) ## Push docker image with the manager.
 .PHONY: docker-push-kind
 docker-push-kind: $(KO) ## Make docker image available to kind cluster.
 	GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local ${KO} build -B -t ${IMG_TAG} -L ./cmd
-	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG}
+	docker tag ko.local/cmd:${IMG_TAG} ${IMG}
 	kind load docker-image --name ${KIND_CLUSTER_NAME} ${IMG}
 
 ##@ Deployment
@@ -272,7 +272,7 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
-deploy: manifests kustomize docker-push-kind ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploy: manifests kustomize docker-push-kind prepare-local-clusterctl ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	clusterctl delete --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} --include-crd || true
 	clusterctl init --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} -v 9
 	# cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
@@ -396,21 +396,27 @@ test-kubectl-workload: ## Run kubectl queries to get all capx workload related o
 .PHONY: test-clusterclass-create
 test-clusterclass-create: cluster-templates
 	clusterctl generate cluster ccls-test1 --from ./templates/cluster-template-clusterclass.yaml -n workloads > ccls-test1.yaml
+	kubectl create ns $(TEST_NAMESPACE) || true
 	kubectl apply -f ./ccls-test1.yaml
 
 .PHONY: test-clusterclass-delete
 test-clusterclass-delete:
-	kubectl -n workloads delete cluster ccls-test1 || true
-	kubectl -n workloads delete nutanixcluster ccls-test1 || true
-	kubectl -n workloads delete clusterclass my-test-cluster-template || true
-	kubectl -n workloads delete KubeadmConfigTemplate my-test-cluster-template-kcfgt || true
+	kubectl -n $(TEST_NAMESPACE) delete cluster ccls-test1 || true
+	kubectl -n $(TEST_NAMESPACE) delete nutanixcluster ccls-test1 || true
+	kubectl -n $(TEST_NAMESPACE) delete clusterclass my-test-cluster-template || true
+	kubectl -n $(TEST_NAMESPACE) delete nutanixmachinetemplate my-test-cluster-template-cp-nmt || true
+	kubectl -n $(TEST_NAMESPACE) delete nutanixmachinetemplate my-test-cluster-template-md-nmt || true
+	kubectl -n $(TEST_NAMESPACE) delete KubeadmConfigTemplate my-test-cluster-template-md-kcfgt || true
+	kubectl -n $(TEST_NAMESPACE) delete kubeadmcontrolplanetemplate my-test-cluster-template-kcpt || true
+	kubectl -n $(TEST_NAMESPACE) delete NutanixClustertemplate my-test-cluster-template-nct || true
+	## kubectl -n $(TEST_NAMESPACE) delete secret ccls-test1 || true
 	rm ccls-test1.yaml || true
 
 
 .PHONY: test-kubectl-clusterclass
 test-kubectl-clusterclass:
-	kubectl get cluster,NutanixCluster,Machine,NutanixMachine,MachineDeployment -A
-	kubectl get NutanixClusterTemplate,clusterclass,KubeadmConfigTemplate,KubeadmControlPlaneTemplate,NutanixMachineTemplate -A
+	kubectl get cluster,NutanixCluster,Machine,NutanixMachine,MachineDeployment -n $(TEST_NAMESPACE)
+	kubectl get NutanixClusterTemplate,clusterclass,KubeadmConfigTemplate,KubeadmControlPlaneTemplate,NutanixMachineTemplate,secret,configmap -n $(TEST_NAMESPACE)
 
 .PHONY: ginkgo-help
 ginkgo-help:

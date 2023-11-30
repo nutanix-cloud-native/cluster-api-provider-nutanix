@@ -1,11 +1,20 @@
 apiVersion: v1
+binaryData:
+  ca.crt: ${NUTANIX_ADDITIONAL_TRUST_BUNDLE=""}
+kind: ConfigMap
+metadata:
+  name: user-ca-bundle
+  namespace: ${NAMESPACE}
+---
+apiVersion: v1
 kind: Secret
 metadata:
   name: ${CLUSTER_NAME}
   namespace: ${NAMESPACE}
 stringData:
-  NUTANIX_PASSWORD: ${NUTANIX_PASSWORD}
-  NUTANIX_USER: ${NUTANIX_USER}
+  credentials: "[\n  {\n    \"type\": \"basic_auth\", \n    \"data\": { \n      \"prismCentral\":{\n
+    \       \"username\": \"${NUTANIX_USER}\", \n        \"password\": \"${NUTANIX_PASSWORD}\"\n
+    \     }\n    }\n  }\n]\n"
 ---
 apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
 kind: KubeadmConfigTemplate
@@ -245,30 +254,26 @@ spec:
         verbosity: 10
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-kind: NutanixCluster
-metadata:
-  name: ${CLUSTER_NAME}
-  namespace: ${NAMESPACE}
-spec:
-  controlPlaneEndpoint:
-    host: ${CONTROL_PLANE_ENDPOINT_IP}
-    port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
-  prismCentral:
-    address: ${NUTANIX_ENDPOINT}
-    credentialRef:
-      kind: Secret
-      name: ${CLUSTER_NAME}
-    insecure: ${NUTANIX_INSECURE=false}
-    port: ${NUTANIX_PORT=9440}
----
-apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixClusterTemplate
 metadata:
   name: ${CLUSTER_CLASS_NAME}-nct
   namespace: ${NAMESPACE}
 spec:
   template:
-    spec: {}
+    spec:
+      controlPlaneEndpoint:
+        host: ${CONTROL_PLANE_ENDPOINT_IP}
+        port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
+      prismCentral:
+        additionalTrustBundle:
+          kind: ConfigMap
+          name: user-ca-bundle
+        address: ${NUTANIX_ENDPOINT}
+        credentialRef:
+          kind: Secret
+          name: ${CLUSTER_NAME}
+        insecure: ${NUTANIX_INSECURE=false}
+        port: ${NUTANIX_PORT=9440}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate
