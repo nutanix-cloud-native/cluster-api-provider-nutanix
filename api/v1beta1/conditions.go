@@ -29,6 +29,7 @@ const (
 	// NoFailureDomainsReconciled indicates no failure domains have been defined
 	NoFailureDomainsReconciled capiv1.ConditionType = "NoFailureDomainsReconciled"
 
+	// FailureDomainsReconciliationFailed indicates the failure domain reconciliation failed
 	FailureDomainsReconciliationFailed = "FailureDomainsReconciliationFailed"
 )
 

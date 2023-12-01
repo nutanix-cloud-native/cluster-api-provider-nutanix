@@ -929,14 +929,14 @@ func (r *NutanixMachineReconciler) GetSubnetAndPEUUIDs(rctx *nctx.MachineContext
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to find failure domain %s", failureDomainName)
 	}
-	cUUID, err := GetPEUUID(rctx.Context, rctx.NutanixClient, failureDomain.Cluster.Name, failureDomain.Cluster.UUID)
+	peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixClient, failureDomain.Cluster.Name, failureDomain.Cluster.UUID)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to find prism element uuid for failure domain %s", failureDomainName)
 	}
-	subnetUUIDs, err := GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, failureDomain.Subnets, cUUID)
+	subnetUUIDs, err := GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, failureDomain.Subnets, peUUID)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to find subnet uuids for failure domain %s", failureDomainName)
 	}
 
-	return cUUID, subnetUUIDs, nil
+	return peUUID, subnetUUIDs, nil
 }

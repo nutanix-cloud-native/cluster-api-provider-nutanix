@@ -748,6 +748,7 @@ func GetGPUsForPE(ctx context.Context, client *nutanixClientV3.Client, peUUID st
 	return gpus, nil
 }
 
+// GetFailureDomain gets the failure domain with a given name from a NutanixCluster object.
 func GetFailureDomain(failureDomainName string, nutanixCluster *infrav1.NutanixCluster) (*infrav1.NutanixFailureDomain, error) {
 	if failureDomainName == "" {
 		return nil, fmt.Errorf("failure domain name must be set when searching for failure domains on a Nutanix cluster object")
