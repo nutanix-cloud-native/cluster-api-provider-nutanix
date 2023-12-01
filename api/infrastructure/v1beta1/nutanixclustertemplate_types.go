@@ -37,7 +37,6 @@ type NutanixClusterTemplateStatus struct {
 }
 
 //+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
 
 // NutanixClusterTemplate is the Schema for the nutanixclustertemplates API
 type NutanixClusterTemplate struct {
@@ -47,7 +46,9 @@ type NutanixClusterTemplate struct {
 	Spec NutanixClusterTemplateSpec `json:"spec,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:path=nutanixclustertemplates,shortName=nctl,scope=Namespaced,categories=cluster-api
+// +kubebuilder:storageversion
 
 // NutanixClusterTemplateList contains a list of NutanixClusterTemplate
 type NutanixClusterTemplateList struct {

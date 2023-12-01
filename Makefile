@@ -409,7 +409,7 @@ test-clusterclass-delete:
 	kubectl -n $(TEST_NAMESPACE) delete KubeadmConfigTemplate my-test-cluster-template-md-kcfgt || true
 	kubectl -n $(TEST_NAMESPACE) delete kubeadmcontrolplanetemplate my-test-cluster-template-kcpt || true
 	kubectl -n $(TEST_NAMESPACE) delete NutanixClustertemplate my-test-cluster-template-nct || true
-	kubectl -n $(TEST_NAMESPACE) delete secret ccls-test1
+	# kubectl -n $(TEST_NAMESPACE) delete secret ccls-test1
 	kubectl -n $(TEST_NAMESPACE) delete cm user-ca-bundle
 	rm ccls-test1.yaml || true
 
