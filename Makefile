@@ -395,7 +395,7 @@ test-kubectl-workload: ## Run kubectl queries to get all capx workload related o
 
 .PHONY: test-clusterclass-create
 test-clusterclass-create: cluster-templates
-	clusterctl generate cluster ccls-test1 --from ./templates/cluster-template-clusterclass.yaml -n workloads > ccls-test1.yaml
+	clusterctl generate cluster ccls-test1 --from ./templates/cluster-template-clusterclass.yaml -n $(TEST_NAMESPACE) > ccls-test1.yaml
 	kubectl create ns $(TEST_NAMESPACE) || true
 	kubectl apply -f ./ccls-test1.yaml
 
@@ -409,14 +409,18 @@ test-clusterclass-delete:
 	kubectl -n $(TEST_NAMESPACE) delete KubeadmConfigTemplate my-test-cluster-template-md-kcfgt || true
 	kubectl -n $(TEST_NAMESPACE) delete kubeadmcontrolplanetemplate my-test-cluster-template-kcpt || true
 	kubectl -n $(TEST_NAMESPACE) delete NutanixClustertemplate my-test-cluster-template-nct || true
-	## kubectl -n $(TEST_NAMESPACE) delete secret ccls-test1 || true
+	kubectl -n $(TEST_NAMESPACE) delete secret ccls-test1
+	kubectl -n $(TEST_NAMESPACE) delete cm user-ca-bundle
 	rm ccls-test1.yaml || true
 
 
 .PHONY: test-kubectl-clusterclass
 test-kubectl-clusterclass:
-	kubectl get cluster,NutanixCluster,Machine,NutanixMachine,MachineDeployment -n $(TEST_NAMESPACE)
-	kubectl get NutanixClusterTemplate,clusterclass,KubeadmConfigTemplate,KubeadmControlPlaneTemplate,NutanixMachineTemplate,secret,configmap -n $(TEST_NAMESPACE)
+	kubectl -n capx-system get endpoints
+	kubectl -n $(TEST_NAMESPACE) get cluster,machine,MachineDeployment
+	kubectl -n $(TEST_NAMESPACE) get NutanixCluster,NutanixMachine -n $(TEST_NAMESPACE)
+	kubectl -n $(TEST_NAMESPACE) get NutanixClusterTemplate,clusterclass,KubeadmConfigTemplate,KubeadmControlPlaneTemplate,NutanixMachineTemplate,secret,configmap -n $(TEST_NAMESPACE)
+	kubectl -n $(TEST_NAMESPACE) get ValidatingWebhookConfiguration,MutatingWebhookConfiguration
 
 .PHONY: ginkgo-help
 ginkgo-help:

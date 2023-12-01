@@ -45,7 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	infrav1alpha4 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1alpha4"
-	infrav1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1"
+	infrastructurev1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1"
 	infrastructurecontroller "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/internal/controller/infrastructure"
 	//+kubebuilder:scaffold:imports
 )
@@ -66,9 +66,9 @@ func init() {
 	utilruntime.Must(bootstrapv1.AddToScheme(scheme))
 
 	utilruntime.Must(infrav1alpha4.AddToScheme(scheme))
-	utilruntime.Must(infrav1beta1.AddToScheme(scheme))
+	utilruntime.Must(infrastructurev1beta1.AddToScheme(scheme))
 
-	utilruntime.Must(infrav1beta1.AddToScheme(scheme))
+	utilruntime.Must(infrastructurev1beta1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -177,14 +177,20 @@ func main() {
 		os.Exit(1)
 	}
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
-		if err = (&infrav1beta1.NutanixClusterTemplate{}).SetupWebhookWithManager(mgr); err != nil {
+		if err = (&infrastructurev1beta1.NutanixClusterTemplate{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "NutanixClusterTemplate")
 			os.Exit(1)
 		}
 	}
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
-		if err = (&infrav1beta1.NutanixCluster{}).SetupWebhookWithManager(mgr); err != nil {
+		if err = (&infrastructurev1beta1.NutanixCluster{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "NutanixCluster")
+			os.Exit(1)
+		}
+	}
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = (&infrastructurev1beta1.NutanixMachineTemplate{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "NutanixMachineTemplate")
 			os.Exit(1)
 		}
 	}
