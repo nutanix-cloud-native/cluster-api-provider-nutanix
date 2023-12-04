@@ -1,0 +1,22 @@
+{
+  "packages": [
+    "bash@latest",
+    "clusterctl@latest",
+    "envsubst@latest",
+    "ginkgo@latest",
+    "gnumake@latest",
+    "go@latest",
+    "goreleaser@latest",
+    "gotestsum@latest",
+    "jq@latest",
+    "kind@latest",
+    "ko@latest",
+    "kubernetes-code-generator@latest",
+    "kubernetes-controller-tools@latest",
+    "kustomize@latest",
+    "path:./hack/flakes#go-apidiff",
+    "path:./hack/flakes#go-mod-upgrade",
+    "path:./hack/flakes#golangci-lint",
+    "path:./hack/flakes#setup-envtest"
+  ]
+}

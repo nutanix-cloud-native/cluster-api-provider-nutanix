@@ -25,7 +25,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: "^1.19"
+          go-version-file: go.mod
 
       - name: Install tools
         uses: redhat-actions/openshift-tools-installer@v1

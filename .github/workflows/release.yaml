@@ -8,22 +8,20 @@ on:
 jobs:
   build_release:
     name: Build Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-
-    - name: Setup Go
-      uses: actions/setup-go@v4
       with:
-        go-version: "^1.19"
-
-    - name: Install tools
-      uses: redhat-actions/openshift-tools-installer@v1
+        fetch-depth: 0
+        
+    - name: Install devbox
+      uses: jetpack-io/devbox-install-action@v0.7.0
       with:
-        source: "github"
-        kustomize: "latest"
-        ko: "latest"
+        enable-cache: true
 
     - name: Login to GHCR
       uses: docker/login-action@v3
@@ -32,68 +30,12 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Docker meta
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: capi-nutanix
-        sep-tags: ","
-        sep-labels: ","
-        tags: |
-          type=semver,pattern=v{{version}}
-          type=semver,pattern=v{{major}}.{{minor}}
-          type=semver,pattern=v{{major}}
-          type=sha
-
-    - name: Prepare build
-      run: make manifests generate
-
-    - name: Build container
+    - name: Release
+      run: |
+        devbox run -- bash -ec "cd config/manager && kustomize edit set image controller=${KO_DOCKER_REPO}:${{ github.ref_name }}"
+        devbox run -- make release-manifests
+        git checkout config/manager/kustomization.yaml
+        devbox run -- make release
       env:
         KO_DOCKER_REPO: ghcr.io/${{ github.repository }}/controller
-        TAGS: ${{ steps.meta.outputs.tags }}
-        LABELS: ${{ steps.meta.outputs.labels }}
-        PLATFORMS: linux/amd64,linux/arm64,linux/arm
-      run: |
-        PTAGS=`echo $TAGS | sed 's/capi-nutanix://g'`
-        export SOURCE_DATE_EPOCH=$(date +%s)
-        ko build --bare --image-label "$LABELS" -t "$PTAGS" --platform=$PLATFORMS .
-
-    - name: parse semver
-      id: semver
-      env:
-        SEMVER: ${{ steps.meta.outputs.version }}
-      run: |
-        n=${SEMVER//[!0-9]/ }
-        a=(${n//\./ })
-        echo "::set-output name=major::${a[0]}"
-        echo "::set-output name=minor::${a[1]}"
-
-    - name: build template
-      env:
-        NEW_IMG: ghcr.io/${{ github.repository }}/controller:${{ steps.meta.outputs.version }}
-      run: |
-        (cd config/manager && kustomize edit set image controller=$NEW_IMG)
-        make release-manifests
-
-    - name: generate image info
-      env:
-        NEW_IMG: ghcr.io/${{ github.repository }}/controller:${{ steps.meta.outputs.version }}
-      run: |
-        echo "## Images" >> ${{ github.workspace }}-CHANGELOG.txt
-        echo "|Name|Link|" >> ${{ github.workspace }}-CHANGELOG.txt
-        echo "|-|-|" >> ${{ github.workspace }}-CHANGELOG.txt
-        echo "|CAPX|[$NEW_IMG](https://$NEW_IMG)|" >> ${{ github.workspace }}-CHANGELOG.txt
-
-    - name: create release
-      uses: softprops/action-gh-release@v1
-      with:
-        draft: false
-        prerelease: false
-        body_path: ${{ github.workspace }}-CHANGELOG.txt
-        generate_release_notes: true
-        append_body: true
-        files: |
-          out/infrastructure-components.yaml
-          out/metadata.yaml
-          out/cluster-template*.yaml
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

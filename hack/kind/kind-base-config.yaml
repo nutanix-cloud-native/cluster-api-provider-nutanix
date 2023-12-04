@@ -1,0 +1,21 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.configs."registry-1.docker.io".auth]
+      username = "${DOCKER_USERNAME:-}"
+      password = "${DOCKER_PASSWORD:-}"
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
+      endpoint = ["${DOCKER_MIRROR:-https://registry-1.docker.io}"]
+kubeadmConfigPatches:
+  - |
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    nodeStatusMaxImages: -1
+nodes:
+  - role: control-plane
+    image: "${KINDEST_IMAGE}"
+    extraMounts:
+      - containerPath: "/var/run/docker.sock"
+        hostPath: "/var/run/docker.sock"

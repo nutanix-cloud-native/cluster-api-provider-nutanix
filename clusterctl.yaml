@@ -19,5 +19,5 @@ KUBEVIP_SVC_ENABLE: "false"
 providers:
   # add a custom provider
   - name: "nutanix"
-    url: "file:///$HOME/.cluster-api/overrides/infrastructure-nutanix/v0.0.0/infrastructure-components.yaml"
+    url: "file://${HOME}/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/infrastructure-components.yaml"
     type: "InfrastructureProvider"

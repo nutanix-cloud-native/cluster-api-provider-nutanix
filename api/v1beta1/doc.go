@@ -15,4 +15,6 @@ limitations under the License.
 */
 
 // Package v1beta1 contains the v1beta1 API implementation.
+// +kubebuilder:object:generate=true
+// +groupName=infrastructure.cluster.x-k8s.io
 package v1beta1

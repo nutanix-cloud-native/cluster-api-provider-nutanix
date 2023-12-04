@@ -108,4 +108,14 @@ out
 github.com
 profile.cov
 coverage.xml
+coverage.html
 
+junit-report.xml
+kubeconfig
+test.json
+/.local/
+/.devbox/
+/dist/
+cluster-generate-templates.yaml
+mycluster.workload.kubeconfig
+cluster.yaml

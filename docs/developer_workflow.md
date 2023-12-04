@@ -8,36 +8,26 @@ cd cluster-api-provider-nutanix
 
 ## Build source code
 <pre>
-make docker-build
-</pre>
-
-## Create test management cluster
-<pre>
-make kind-create
-</pre>
-
-## Prepare local clusterctl
-<pre>
-make prepare-local-clusterctl
+make build-snapshot
 </pre>
 
 ## Deploy cluster-api-provider-nutanix CRDs on test management cluster
 <pre>
-make deploy
+make dev.run-on-kind
 </pre>
 
 ## Deploy test workload cluster
 Note: Update ./clusterctl.yaml with appropriate configuration before running following commands
 <pre>
-make test-clusterctl-create
+make test.clusterctl-create
 </pre>
 
 ## Get test workload cluster kubeconfig
 <pre>
-make test-kubectl-workload
+make test.kubectl-workload
 </pre>
 
 ## Delete test workload cluster
 <pre>
-make test-clusterctl-delete
+make test.clusterctl-delete
 </pre>

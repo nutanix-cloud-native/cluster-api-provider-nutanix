@@ -1,0 +1,91 @@
+project_name: cluster-api-provider-nutanix
+
+changelog:
+  use: github
+  groups:
+    - title: Features
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: 'Bug fixes'
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+  filters:
+    exclude:
+      - '^docs:'
+      - '^chore:'
+      - '^build:'
+
+release:
+  extra_files:
+    - glob: out/*.yaml
+  footer: |
+    ## Images
+    |Name|Link|
+    |-|-|
+    |CAPX|[ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:v{{ trimprefix .Version "v" }}](https://ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller)|
+
+    ### Summary
+    **Full Changelog**: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+builds:
+  - id: cluster-api-provider-nutanix
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -v
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+      - arm
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    hooks:
+      post: |
+        sh -ec 'if [ {{ .IsSnapshot }} == true ] && [ {{ .Runtime.Goarch }} == {{ .Arch }} ]; then
+          env GOOS=linux GOARCH={{ .Arch }} \
+              SOURCE_DATE_EPOCH=$(date +%s) \
+              ko build \
+                --local \
+                --base-import-paths \
+                -t {{ .Version }} \
+                -t e2e \
+                .
+        fi'
+
+archives:
+  - name_template: '{{ .ProjectName }}_v{{ trimprefix .Version "v" }}_{{ .Os }}_{{ .Arch }}'
+    builds:
+      - cluster-api-provider-nutanix
+    rlcp: true
+
+kos:
+  - id: cluster-api-provider-nutanix
+    build: cluster-api-provider-nutanix
+    labels:
+      org.opencontainers.image.created: "{{ .CommitDate }}"
+      org.opencontainers.image.title: cluster-api-provider-nutanix
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.version: v{{ trimprefix .Version "v" }}
+      org.opencontainers.image.source: "{{ .GitURL }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+      - linux/arm
+    repository: '{{ envOrDefault "KO_DOCKER_REPO" "ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller" }}'
+    tags:
+      - v{{ trimprefix .Version "v" }}
+      - v{{ .Major }}.{{ .Minor }}
+      - v{{ .Major }}
+      - sha-{{ .ShortCommit }}
+    creation_time: '{{ .CommitTimestamp }}'
+    ko_data_creation_time: '{{ .CommitTimestamp }}'
+
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: v0.0.0

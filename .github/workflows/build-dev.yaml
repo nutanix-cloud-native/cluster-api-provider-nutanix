@@ -1,14 +1,19 @@
 name: Test Build
-env:
-  EXPORT_RESULT: true
 on:
   push:
     branches: [ "main" ]
   pull_request:
+    types: ["opened", "synchronize", "reopened"]
     branches: [ "main" ]
 jobs:
   build-container:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    permissions:
+      checks: write
+      pull-requests: write
     steps:
       - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
       - run: echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
@@ -16,25 +21,41 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v4
+      - uses: actions/cache@v3
         with:
-          go-version: "^1.21"
+          path: |
+            ~/.cache/golangci-lint
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-      - name: Test build
-        run: make manifests generate fmt vet build
+      - name: Install devbox
+        uses: jetpack-io/devbox-install-action@v0.7.0
+        with:
+          enable-cache: true
+
+      - name: Run build
+        run: devbox run -- make build-snapshot
 
       - name: Run unit tests
-        run: make unit-test
+        run: devbox run -- make test
 
-      - name: Run coverage report
-        run: make coverage
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          check_name: "Unit test results"
+          files: |
+            junit-report.xml
 
       - name: Codecov
-        uses: codecov/codecov-action@v3.1.4
+        uses: codecov/codecov-action@v3
+        if: ${{ github.owner == 'nutanix-cloud-native' }}
         with:
-          file: ./coverage.xml  # Replace with the path to your coverage report
           fail_ci_if_error: true
+          file: coverage.out
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.15.0
@@ -45,3 +66,34 @@ jobs:
           exit-code: "1"
           vuln-type: "os,library"
           severity: "CRITICAL,HIGH"
+
+  lint:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+      - run: echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
+
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Install devbox
+        uses: jetpack-io/devbox-install-action@v0.7.0
+        with:
+          enable-cache: true
+
+      - name: Export golang and golangci-lint versions
+        run: |
+          echo "GOLANGCI_LINT_VERSION=v$(devbox run -- golangci-lint version --format short)" >>$GITHUB_ENV
+          echo "GO_VERSION=$(devbox run -- go version | grep -o "[[:digit:]]\+.[[:digit:]]\+\(.[[:digit:]]\+\)\?")" >>$GITHUB_ENV
+
+      - name: golangci-lint
+        uses: reviewdog/action-golangci-lint@v2
+        with:
+          fail_on_error: true
+          reporter: github-pr-review
+          golangci_lint_version: ${{ env.GOLANGCI_LINT_VERSION }}
+          go_version: ${{ env.GO_VERSION }}
+          golangci_lint_flags: --timeout=10m
