@@ -8,22 +8,21 @@ on:
 jobs:
   build_release:
     name: Build Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-
-    - name: Setup Go
-      uses: actions/setup-go@v5
       with:
-        go-version: "^1.19"
+        fetch-depth: 0
 
-    - name: Install tools
-      uses: redhat-actions/openshift-tools-installer@v1
-      with:
-        source: "github"
-        kustomize: "latest"
-        ko: "latest"
+    - name: Install devbox
+      run: curl -fsSL https://get.jetpack.io/devbox | bash -s -- -f
+
+    - name: Install devbox deps
+      run: devbox install
 
     - name: Login to GHCR
       uses: docker/login-action@v3
@@ -46,7 +45,7 @@ jobs:
           type=sha
 
     - name: Prepare build
-      run: make manifests generate
+      run: devbox run -- make manifests generate
 
     - name: Build container
       env:
@@ -74,7 +73,7 @@ jobs:
         NEW_IMG: ghcr.io/${{ github.repository }}/controller:${{ steps.meta.outputs.version }}
       run: |
         (cd config/manager && kustomize edit set image controller=$NEW_IMG)
-        make release-manifests
+        devbox run -- make release-manifests
 
     - name: generate image info
       env:

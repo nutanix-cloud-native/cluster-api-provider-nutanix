@@ -1,8 +1,15 @@
 # Developer workflow
 
-This document outlines how to
+## Prerequisites
 
-## Build the source code
+This project requires the following to be installed on the developer's workstation.
+
+1. [devbox](https://www.jetpack.io/devbox/docs/installing_devbox/)
+1. [direnv](https://direnv.net/docs/installation.html)
+
+To install the required packages, please follow the directions provided for your system.
+
+NOTE: The first time you `cd` into the directory, the required dependencies for the project will start to download and will take some time depending on your connection.
 
 1. Download source code:
 

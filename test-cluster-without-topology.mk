@@ -2,11 +2,11 @@ TEST_NAMESPACE=ns-without-topology
 TEST_CLUSTER_NAME=mycluster-without-topology
 
 .PHONY: test-cluster-create
-test-cluster-create: $(CLUSTERCTL) ## Create a workload cluster without topology
-	$(CLUSTERCTL) version
-	$(CLUSTERCTL) config repositories | grep nutanix
-	$(CLUSTERCTL) generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --list-variables -v 10
-	$(CLUSTERCTL) generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./${TEST_CLUSTER_NAME}.yaml
+test-cluster-create: ## Create a workload cluster without topology
+	clusterctl version
+	clusterctl config repositories | grep nutanix
+	clusterctl generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --list-variables -v 10
+	clusterctl generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./${TEST_CLUSTER_NAME}.yaml
 	kubectl create ns $(TEST_NAMESPACE) --dry-run=client -oyaml | kubectl apply --server-side -f -
 	kubectl apply --server-side -f ./${TEST_CLUSTER_NAME}.yaml
 

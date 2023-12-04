@@ -11,21 +11,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+
       - run: echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
 
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: actions/cache@v3
         with:
-          go-version: "^1.21"
+          path: |
+            ~/.cache/golangci-lint
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install devbox
+        run: curl -fsSL https://get.jetpack.io/devbox | bash -s -- -f
+
+      - name: Install devbox deps
+        run: devbox install
 
       - name: Verify that generated manifests committed to the repository are up to date
-        run: make verify-manifests
+        run: devbox run -- make verify-manifests
 
       - name: Build
-        run: make generate fmt vet build
+        run: devbox run -- make generate fmt vet build
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v3.7.0
@@ -36,10 +48,17 @@ jobs:
         run: make lint-yaml
 
       - name: Run unit tests
-        run: make unit-test
+        run: devbox run -- make unit-test
+
+      # go cov expects things to be properly placed under go path.
+      # GHA clones into /home/runner/work/repository so we create
+      # the directory under the right path and link it
+      - run: mkdir -p /home/runner/go/src/github.com/nutanix-cloud-native/ && ln -s /home/runner/work/cluster-api-provider-nutanix/cluster-api-provider-nutanix /home/runner/go/src/github.com/nutanix-cloud-native
+
+      - run: ls /home/runner/go/src/github.com/nutanix-cloud-native/cluster-api-provider-nutanix/
 
       - name: Run coverage report
-        run: make coverage
+        run: devbox run -- "make coverage"
 
       - name: Codecov
         uses: codecov/codecov-action@v3.1.4

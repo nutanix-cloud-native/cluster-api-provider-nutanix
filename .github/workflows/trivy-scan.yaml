@@ -21,21 +21,13 @@ jobs:
 
       - name: Get repository name
         run: echo "REPOSITORY_NAME=${GITHUB_REPOSITORY#*/}" >> $GITHUB_ENV
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "^1.19"
-
-      - name: Install tools
-        uses: redhat-actions/openshift-tools-installer@v1
-        with:
-          source: "github"
-          kustomize: "latest"
-          ko: "latest"
+      - name: Install devbox
+        run: curl -fsSL https://get.jetpack.io/devbox | bash -s -- -f
+      - name: Install devbox deps
+        run: devbox install
 
       - name: Prepare build
-        run: make manifests generate
+        run: devbox run -- make manifests generate
 
       - name: Build container
         env:

@@ -8,24 +8,11 @@ set -o pipefail
 REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 cd "${REPO_ROOT}" || exit 1
 
-# Expects ubuntu container
+# Install devbox
+curl -fsSL https://get.jetpack.io/devbox | bash -s -- -f
 
-# Install prerequisites
-apt update
-apt install -y make wget
-
-make --version
-docker --version
-
-# shellcheck source=./hack/install-go.sh
-source "${REPO_ROOT}/hack/install-go.sh"
-
-# shellcheck source=./hack/ensure-go.sh
-source "${REPO_ROOT}/hack/ensure-go.sh"
-
-# Make sure the tools binaries are on the path.
-export PATH="${REPO_ROOT}/hack/tools/bin:${PATH}"
-
+# Install tools
+devbox install
 
 # Override e2e conf values with CI specific environment variables
 MAKE_TARGET=${MAKE_TARGET}
@@ -43,4 +30,4 @@ NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME=${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}
 NUTANIX_SUBNET_NAME=${NUTANIX_SUBNET_NAME}
 
 # Run e2e tests
-make ${MAKE_TARGET} LABEL_FILTERS=${LABEL_FILTERS}
+devbox run -- make ${MAKE_TARGET} LABEL_FILTERS=${LABEL_FILTERS}

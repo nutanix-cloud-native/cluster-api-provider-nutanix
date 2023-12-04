@@ -13,13 +13,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "^1.19"
+      - name: Install devbox
+        run: curl -fsSL https://get.jetpack.io/devbox | bash -s -- -f
+      - name: Install devbox deps
+        run: devbox install
 
       - name: Build Project
-        run: make build
+        run: devbox run -- make build
 
       - name: Run Synopsys Detect
         uses: synopsys-sig/detect-action@v0.3.4
