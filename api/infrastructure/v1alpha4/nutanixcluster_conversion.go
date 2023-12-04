@@ -54,7 +54,7 @@ func (dst *NutanixClusterList) ConvertFrom(srcRaw conversion.Hub) error { //noli
 func Convert_v1alpha4_NutanixClusterSpec_To_v1beta1_NutanixClusterSpec(in *NutanixClusterSpec, out *infrav1beta1.NutanixClusterSpec, s apiconversion.Scope) error {
 	// Wrapping the conversion function to avoid compilation errors due to compileErrorOnMissingConversion()
 	// Ref: https://github.com/kubernetes/kubernetes/issues/98380
-	return Convert_v1alpha4_NutanixClusterSpec_To_v1beta1_NutanixClusterSpec(in, out, s)
+	return autoConvert_v1alpha4_NutanixClusterSpec_To_v1beta1_NutanixClusterSpec(in, out, s)
 }
 
 // Convert_v1alpha4_APIEndpoint_To_v1beta1_APIEndpoint converts APIEndpoint in NutanixClusterResource from v1alpha4 to v1beta1 version.
@@ -63,7 +63,7 @@ func Convert_v1alpha4_NutanixClusterSpec_To_v1beta1_NutanixClusterSpec(in *Nutan
 func Convert_v1alpha4_APIEndpoint_To_v1beta1_APIEndpoint(in *capiv1alpha4.APIEndpoint, out *capiv1beta1.APIEndpoint, s apiconversion.Scope) error {
 	// Wrapping the conversion function to avoid compilation errors due to compileErrorOnMissingConversion()
 	// Ref: https://github.com/kubernetes/kubernetes/issues/98380
-	return Convert_v1alpha4_APIEndpoint_To_v1beta1_APIEndpoint(in, out, s)
+	return capiv1alpha4.Convert_v1alpha4_APIEndpoint_To_v1beta1_APIEndpoint(in, out, s)
 }
 
 // Convert_v1beta1_APIEndpoint_To_v1alpha4_APIEndpoint converts APIEndpoint in NutanixClusterResource from v1alpha4 to v1beta1 version.
@@ -72,7 +72,7 @@ func Convert_v1alpha4_APIEndpoint_To_v1beta1_APIEndpoint(in *capiv1alpha4.APIEnd
 func Convert_v1beta1_APIEndpoint_To_v1alpha4_APIEndpoint(in *capiv1beta1.APIEndpoint, out *capiv1alpha4.APIEndpoint, s apiconversion.Scope) error {
 	// Wrapping the conversion function to avoid compilation errors due to compileErrorOnMissingConversion()
 	// Ref: https://github.com/kubernetes/kubernetes/issues/98380
-	return Convert_v1beta1_APIEndpoint_To_v1alpha4_APIEndpoint(in, out, s)
+	return capiv1alpha4.Convert_v1beta1_APIEndpoint_To_v1alpha4_APIEndpoint(in, out, s)
 }
 
 // Convert_v1beta1_NutanixClusterSpec_To_v1alpha4_NutanixClusterSpec converts NutanixClusterSpec in NutanixClusterResource from v1beta1 to v1alpha4 version.
@@ -81,7 +81,7 @@ func Convert_v1beta1_APIEndpoint_To_v1alpha4_APIEndpoint(in *capiv1beta1.APIEndp
 func Convert_v1beta1_NutanixClusterSpec_To_v1alpha4_NutanixClusterSpec(in *infrav1beta1.NutanixClusterSpec, out *NutanixClusterSpec, s apiconversion.Scope) error {
 	// Wrapping the conversion function to avoid compilation errors due to compileErrorOnMissingConversion()
 	// Ref: https://github.com/kubernetes/kubernetes/issues/98380
-	return Convert_v1beta1_NutanixClusterSpec_To_v1alpha4_NutanixClusterSpec(in, out, s)
+	return autoConvert_v1beta1_NutanixClusterSpec_To_v1alpha4_NutanixClusterSpec(in, out, s)
 }
 
 // Convert_v1alpha4_NutanixClusterStatus_To_v1beta1_NutanixClusterStatus converts NutanixClusterStatus in NutanixClusterResource from v1alpha4 to v1beta1 version.
@@ -90,5 +90,5 @@ func Convert_v1beta1_NutanixClusterSpec_To_v1alpha4_NutanixClusterSpec(in *infra
 func Convert_v1alpha4_NutanixClusterStatus_To_v1beta1_NutanixClusterStatus(in *NutanixClusterStatus, out *infrav1beta1.NutanixClusterStatus, s apiconversion.Scope) error {
 	// Wrapping the conversion function to avoid compilation errors due to compileErrorOnMissingConversion()
 	// Ref: https://github.com/kubernetes/kubernetes/issues/98380
-	return Convert_v1alpha4_NutanixClusterStatus_To_v1beta1_NutanixClusterStatus(in, out, s)
+	return autoConvert_v1alpha4_NutanixClusterStatus_To_v1beta1_NutanixClusterStatus(in, out, s)
 }

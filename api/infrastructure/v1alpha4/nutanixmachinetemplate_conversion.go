@@ -82,7 +82,7 @@ func Convert_v1beta1_ObjectMeta_To_v1alpha4_ObjectMeta(in *capiv1beta1.ObjectMet
 func Convert_v1alpha4_NutanixMachineTemplateResource_To_v1beta1_NutanixMachineTemplateResource(in *NutanixMachineTemplateResource, out *infrav1beta1.NutanixMachineTemplateResource, s apiconversion.Scope) error {
 	// Wrapping the conversion function to avoid compilation errors due to compileErrorOnMissingConversion()
 	// Ref: https://github.com/kubernetes/kubernetes/issues/98380
-	return Convert_v1alpha4_NutanixMachineTemplateResource_To_v1beta1_NutanixMachineTemplateResource(in, out, s)
+	return autoConvert_v1alpha4_NutanixMachineTemplateResource_To_v1beta1_NutanixMachineTemplateResource(in, out, s)
 }
 
 // Convert_v1beta1_NutanixMachineTemplateResource_To_v1alpha4_NutanixMachineTemplateResource converts NutanixMachineTemplateResource in NutanixMachineTemplateResource from v1beta1 to v1alpha4 version.
@@ -91,5 +91,5 @@ func Convert_v1alpha4_NutanixMachineTemplateResource_To_v1beta1_NutanixMachineTe
 func Convert_v1beta1_NutanixMachineTemplateResource_To_v1alpha4_NutanixMachineTemplateResource(in *infrav1beta1.NutanixMachineTemplateResource, out *NutanixMachineTemplateResource, s apiconversion.Scope) error {
 	// Wrapping the conversion function to avoid compilation errors due to compileErrorOnMissingConversion()
 	// Ref: https://github.com/kubernetes/kubernetes/issues/98380
-	return Convert_v1beta1_NutanixMachineTemplateResource_To_v1alpha4_NutanixMachineTemplateResource(in, out, s)
+	return autoConvert_v1beta1_NutanixMachineTemplateResource_To_v1alpha4_NutanixMachineTemplateResource(in, out, s)
 }

@@ -10,6 +10,11 @@ spec:
     spec:
       containers:
       - name: kube-rbac-proxy
+        securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - "ALL"
         image: gcr.io/kubebuilder/kube-rbac-proxy:v0.8.0
         args:
         - "--secure-listen-address=0.0.0.0:8443"
@@ -20,6 +25,9 @@ spec:
         - containerPort: 8443
           name: https
         resources:
+          limits:
+            cpu: 20m
+            memory: 40Mi
           requests:
             cpu: 10m
             memory: 20Mi
