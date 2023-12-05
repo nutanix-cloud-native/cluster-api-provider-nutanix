@@ -513,8 +513,14 @@ func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) (rec
 }
 
 func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineContext) error {
-	if rctx.Machine.Spec.FailureDomain == nil && len(rctx.NutanixMachine.Spec.Subnets) == 0 {
-		return fmt.Errorf("atleast one subnet is needed to create the VM %s if no failure domain is set", rctx.NutanixMachine.Name)
+	if rctx.Machine.Spec.FailureDomain == nil {
+		if len(rctx.NutanixMachine.Spec.Subnets) == 0 {
+			return fmt.Errorf("atleast one subnet is needed to create the VM %s if no failure domain is set", rctx.NutanixMachine.Name)
+		}
+		if (rctx.NutanixMachine.Spec.Cluster.Name == nil || *rctx.NutanixMachine.Spec.Cluster.Name == "") &&
+			(rctx.NutanixMachine.Spec.Cluster.UUID == nil || *rctx.NutanixMachine.Spec.Cluster.UUID == "") {
+			return fmt.Errorf("cluster name or uuid are required to create the VM %s if no failure domain is set", rctx.NutanixMachine.Name)
+		}
 	}
 
 	diskSize := rctx.NutanixMachine.Spec.SystemDiskSize

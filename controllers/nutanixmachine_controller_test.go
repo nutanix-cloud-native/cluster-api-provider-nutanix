@@ -55,10 +55,18 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				Scheme: runtime.NewScheme(),
 			}
 
-			ntnxMachine = &infrav1.NutanixMachine{ObjectMeta: metav1.ObjectMeta{
-				Name:      "test",
-				Namespace: "default",
-			}}
+			ntnxMachine = &infrav1.NutanixMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: infrav1.NutanixMachineSpec{
+					VCPUsPerSocket: int32(minVCPUsPerSocket),
+					MemorySize:     minMachineMemorySize,
+					SystemDiskSize: minMachineSystemDiskSize,
+					VCPUSockets:    int32(minVCPUSockets),
+				},
+			}
 			machine = &capiv1.Machine{ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
 				Namespace: "default",
@@ -100,6 +108,47 @@ func TestNutanixMachineReconciler(t *testing.T) {
 					Machine:        machine,
 				})
 				g.Expect(err).To(HaveOccurred())
+			})
+			It("should error if no failure domain is present on machine and no cluster name is passed", func() {
+				ntnxMachine.Spec.Subnets = []infrav1.NutanixResourceIdentifier{
+					{
+						Type: infrav1.NutanixIdentifierName,
+						Name: &r,
+					},
+				}
+				err := reconciler.validateMachineConfig(&nctx.MachineContext{
+					Context:        ctx,
+					NutanixMachine: ntnxMachine,
+					Machine:        machine,
+				})
+				g.Expect(err).To(HaveOccurred())
+			})
+			It("returns no error if valid machine config is passed without failure domain", func() {
+				ntnxMachine.Spec.Subnets = []infrav1.NutanixResourceIdentifier{
+					{
+						Type: infrav1.NutanixIdentifierName,
+						Name: &r,
+					},
+				}
+				ntnxMachine.Spec.Cluster = infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierName,
+					Name: &r,
+				}
+				err := reconciler.validateMachineConfig(&nctx.MachineContext{
+					Context:        ctx,
+					NutanixMachine: ntnxMachine,
+					Machine:        machine,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
+			})
+			It("returns no error if valid machine config is passed with failure domain", func() {
+				machine.Spec.FailureDomain = &r
+				err := reconciler.validateMachineConfig(&nctx.MachineContext{
+					Context:        ctx,
+					NutanixMachine: ntnxMachine,
+					Machine:        machine,
+				})
+				g.Expect(err).ToNot(HaveOccurred())
 			})
 		})
 
