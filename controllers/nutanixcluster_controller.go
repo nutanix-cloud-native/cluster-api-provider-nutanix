@@ -389,16 +389,21 @@ func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, n
 		log.Error(errorMsg, "error occurred fetching cluster")
 		return errorMsg
 	}
+	// Check if ownerRef is already set on nutanixCluster object
 	if !capiutil.IsOwnedByObject(secret, nutanixCluster) {
-		if len(secret.GetOwnerReferences()) > 0 {
-			return fmt.Errorf("secret for cluster %s already has other owners set", nutanixCluster.Name)
+		// Check if another nutanixCluster already has set ownerRef. Secret can only be owned by one nutanixCluster object
+		if capiutil.HasOwner(secret.OwnerReferences, infrav1.GroupVersion.String(), []string{
+			nutanixCluster.Kind,
+		}) {
+			return fmt.Errorf("secret %s already owned by another nutanixCluster object", secret.Name)
 		}
-		secret.SetOwnerReferences([]metav1.OwnerReference{{
+		// Set nutanixCluster ownerRef on the secret
+		secret.OwnerReferences = capiutil.EnsureOwnerRef(secret.OwnerReferences, metav1.OwnerReference{
 			APIVersion: infrav1.GroupVersion.String(),
 			Kind:       nutanixCluster.Kind,
 			UID:        nutanixCluster.UID,
 			Name:       nutanixCluster.Name,
-		}})
+		})
 	}
 	if !ctrlutil.ContainsFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer) {
 		ctrlutil.AddFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer)
