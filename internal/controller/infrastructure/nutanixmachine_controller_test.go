@@ -27,13 +27,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-<<<<<<< HEAD:internal/controller/nutanixmachine_controller_test.go
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
-=======
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/infrastructure/v1beta1"
->>>>>>> aa3dc86 (reorg of existing controllers to new gov4 format):internal/controller/infrastructure/nutanixmachine_controller_test.go
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
