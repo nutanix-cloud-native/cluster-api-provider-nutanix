@@ -23,6 +23,17 @@ const (
 )
 
 const (
+	// FailureDomainsReconciled indicates the status of the failure domain reconciliation
+	FailureDomainsReconciled capiv1.ConditionType = "FailureDomainsReconciled"
+
+	// NoFailureDomainsReconciled indicates no failure domains have been defined
+	NoFailureDomainsReconciled capiv1.ConditionType = "NoFailureDomainsReconciled"
+
+	// FailureDomainsReconciliationFailed indicates the failure domain reconciliation failed
+	FailureDomainsReconciliationFailed = "FailureDomainsReconciliationFailed"
+)
+
+const (
 	// ClusterCategoryCreatedCondition indicates the status of the category linked to the NutanixCluster
 	ClusterCategoryCreatedCondition capiv1.ConditionType = "ClusterCategoryCreated"
 

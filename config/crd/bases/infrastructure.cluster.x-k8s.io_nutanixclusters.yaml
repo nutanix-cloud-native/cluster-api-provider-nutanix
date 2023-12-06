@@ -64,6 +64,93 @@ spec:
                 - host
                 - port
                 type: object
+              failureDomains:
+                description: failureDomains configures failure domains information
+                  for the Nutanix platform. When set, the failure domains defined
+                  here may be used to spread Machines across prism element clusters
+                  to improve fault tolerance of the cluster.
+                items:
+                  description: NutanixFailureDomain configures failure domain information
+                    for Nutanix.
+                  properties:
+                    cluster:
+                      description: cluster is to identify the cluster (the Prism Element
+                        under management of the Prism Central), in which the Machine's
+                        VM will be created. The cluster identifier (uuid or name)
+                        can be obtained from the Prism Central console or using the
+                        prism_central API.
+                      properties:
+                        name:
+                          description: name is the resource name in the PC
+                          type: string
+                        type:
+                          description: Type is the identifier type to use for this
+                            resource.
+                          enum:
+                          - uuid
+                          - name
+                          type: string
+                        uuid:
+                          description: uuid is the UUID of the resource in the PC.
+                          type: string
+                      required:
+                      - type
+                      type: object
+                    controlPlane:
+                      description: indicates if a failure domain is suited for control
+                        plane nodes
+                      type: boolean
+                    name:
+                      description: name defines the unique name of a failure domain.
+                        Name is required and must be at most 64 characters in length.
+                        It must consist of only lower case alphanumeric characters
+                        and hyphens (-). It must start and end with an alphanumeric
+                        character. This value is arbitrary and is used to identify
+                        the failure domain within the platform.
+                      maxLength: 64
+                      minLength: 1
+                      pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                      type: string
+                    subnets:
+                      description: subnets holds a list of identifiers (one or more)
+                        of the cluster's network subnets for the Machine's VM to connect
+                        to. The subnet identifiers (uuid or name) can be obtained
+                        from the Prism Central console or using the prism_central
+                        API.
+                      items:
+                        description: NutanixResourceIdentifier holds the identity
+                          of a Nutanix PC resource (cluster, image, subnet, etc.)
+                        properties:
+                          name:
+                            description: name is the resource name in the PC
+                            type: string
+                          type:
+                            description: Type is the identifier type to use for this
+                              resource.
+                            enum:
+                            - uuid
+                            - name
+                            type: string
+                          uuid:
+                            description: uuid is the UUID of the resource in the PC.
+                            type: string
+                        required:
+                        - type
+                        type: object
+                      minItems: 1
+                      type: array
+                      x-kubernetes-list-map-keys:
+                      - type
+                      x-kubernetes-list-type: map
+                  required:
+                  - cluster
+                  - name
+                  - subnets
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
               prismCentral:
                 description: prismCentral holds the endpoint address and port to access
                   the Nutanix Prism Central. When a cluster-wide proxy is installed,
@@ -263,6 +350,93 @@ spec:
                 - host
                 - port
                 type: object
+              failureDomains:
+                description: failureDomains configures failure domains information
+                  for the Nutanix platform. When set, the failure domains defined
+                  here may be used to spread Machines across prism element clusters
+                  to improve fault tolerance of the cluster.
+                items:
+                  description: NutanixFailureDomain configures failure domain information
+                    for Nutanix.
+                  properties:
+                    cluster:
+                      description: cluster is to identify the cluster (the Prism Element
+                        under management of the Prism Central), in which the Machine's
+                        VM will be created. The cluster identifier (uuid or name)
+                        can be obtained from the Prism Central console or using the
+                        prism_central API.
+                      properties:
+                        name:
+                          description: name is the resource name in the PC
+                          type: string
+                        type:
+                          description: Type is the identifier type to use for this
+                            resource.
+                          enum:
+                          - uuid
+                          - name
+                          type: string
+                        uuid:
+                          description: uuid is the UUID of the resource in the PC.
+                          type: string
+                      required:
+                      - type
+                      type: object
+                    controlPlane:
+                      description: indicates if a failure domain is suited for control
+                        plane nodes
+                      type: boolean
+                    name:
+                      description: name defines the unique name of a failure domain.
+                        Name is required and must be at most 64 characters in length.
+                        It must consist of only lower case alphanumeric characters
+                        and hyphens (-). It must start and end with an alphanumeric
+                        character. This value is arbitrary and is used to identify
+                        the failure domain within the platform.
+                      maxLength: 64
+                      minLength: 1
+                      pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                      type: string
+                    subnets:
+                      description: subnets holds a list of identifiers (one or more)
+                        of the cluster's network subnets for the Machine's VM to connect
+                        to. The subnet identifiers (uuid or name) can be obtained
+                        from the Prism Central console or using the prism_central
+                        API.
+                      items:
+                        description: NutanixResourceIdentifier holds the identity
+                          of a Nutanix PC resource (cluster, image, subnet, etc.)
+                        properties:
+                          name:
+                            description: name is the resource name in the PC
+                            type: string
+                          type:
+                            description: Type is the identifier type to use for this
+                              resource.
+                            enum:
+                            - uuid
+                            - name
+                            type: string
+                          uuid:
+                            description: uuid is the UUID of the resource in the PC.
+                            type: string
+                        required:
+                        - type
+                        type: object
+                      minItems: 1
+                      type: array
+                      x-kubernetes-list-map-keys:
+                      - type
+                      x-kubernetes-list-type: map
+                  required:
+                  - cluster
+                  - name
+                  - subnets
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
               prismCentral:
                 description: prismCentral holds the endpoint address and port to access
                   the Nutanix Prism Central. When a cluster-wide proxy is installed,

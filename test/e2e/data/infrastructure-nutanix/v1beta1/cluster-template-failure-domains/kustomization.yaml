@@ -1,0 +1,12 @@
+bases:
+  - ../../../../../../templates/base/cluster-with-kcp.yaml
+  - ../../../../../../templates/base/secret.yaml
+  - ../../../../../../templates/base/cm.yaml
+  - ../../../../../../templates/base/md.yaml
+  - ../../../../../../templates/base/mhc.yaml
+  - ../base/crs.yaml
+  - failure-domain-nmt.yaml
+
+patchesStrategicMerge:
+  - ../base/cni-patch.yaml
+  - failure-domain-patch.yaml

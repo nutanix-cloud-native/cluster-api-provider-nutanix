@@ -513,8 +513,14 @@ func (r *NutanixMachineReconciler) reconcileNode(rctx *nctx.MachineContext) (rec
 }
 
 func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineContext) error {
-	if len(rctx.NutanixMachine.Spec.Subnets) == 0 {
-		return fmt.Errorf("atleast one subnet is needed to create the VM %s", rctx.NutanixMachine.Name)
+	if rctx.Machine.Spec.FailureDomain == nil {
+		if len(rctx.NutanixMachine.Spec.Subnets) == 0 {
+			return fmt.Errorf("atleast one subnet is needed to create the VM %s if no failure domain is set", rctx.NutanixMachine.Name)
+		}
+		if (rctx.NutanixMachine.Spec.Cluster.Name == nil || *rctx.NutanixMachine.Spec.Cluster.Name == "") &&
+			(rctx.NutanixMachine.Spec.Cluster.UUID == nil || *rctx.NutanixMachine.Spec.Cluster.UUID == "") {
+			return fmt.Errorf("cluster name or uuid are required to create the VM %s if no failure domain is set", rctx.NutanixMachine.Name)
+		}
 	}
 
 	diskSize := rctx.NutanixMachine.Spec.SystemDiskSize
@@ -576,19 +582,10 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		return nil, err
 	}
 
-	// Get PE UUID
-	peUUID, err := GetPEUUID(ctx, nc, rctx.NutanixMachine.Spec.Cluster.Name, rctx.NutanixMachine.Spec.Cluster.UUID)
+	peUUID, subnetUUIDs, err := r.GetSubnetAndPEUUIDs(rctx)
 	if err != nil {
-		errorMsg := fmt.Errorf("failed to get the Prism Element Cluster UUID to create the VM %s. %v", vmName, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
-		return nil, err
-	}
-
-	// Get Subnet UUIDs
-	subnetUUIDs, err := GetSubnetUUIDList(ctx, nc, rctx.NutanixMachine.Spec.Subnets, peUUID)
-	if err != nil {
-		errorMsg := fmt.Errorf("failed to get the subnet UUIDs to create the VM %s. %v", vmName, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		log.Error(err, fmt.Sprintf("failed to get the config for VM %s.", vmName))
+		rctx.SetFailureStatus(capierrors.CreateMachineError, err)
 		return nil, err
 	}
 
@@ -905,4 +902,47 @@ func (r *NutanixMachineReconciler) isGetRemoteClientConnectionError(err error) b
 	// Check if error contains connection refused message. This can occur during provisioning when Kubernetes API is not available yet.
 	const expectedErrString = "connect: connection refused"
 	return strings.Contains(err.Error(), expectedErrString)
+}
+
+func (r *NutanixMachineReconciler) GetSubnetAndPEUUIDs(rctx *nctx.MachineContext) (string, []string, error) {
+	if rctx == nil {
+		return "", nil, fmt.Errorf("cannot create machine config if machine context is nil")
+	}
+	log := ctrl.LoggerFrom(rctx.Context)
+	if rctx.Machine.Spec.FailureDomain == nil || *rctx.Machine.Spec.FailureDomain == "" {
+		log.V(1).Info("no failure domain found on machine. Directly searching for Prism Element cluster")
+		if rctx.NutanixMachine.Spec.Cluster.Name == nil && rctx.NutanixMachine.Spec.Cluster.UUID == nil {
+			return "", nil, fmt.Errorf("cluster name or uuid must be passed if failure domain is not configured")
+		}
+		if len(rctx.NutanixMachine.Spec.Subnets) == 0 {
+			return "", nil, fmt.Errorf("subnets must be passed if failure domain is not configured")
+		}
+		peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixClient, rctx.NutanixMachine.Spec.Cluster.Name, rctx.NutanixMachine.Spec.Cluster.UUID)
+		if err != nil {
+			return "", nil, err
+		}
+		subnetUUIDs, err := GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, rctx.NutanixMachine.Spec.Subnets, peUUID)
+		if err != nil {
+			return "", nil, err
+		}
+		return peUUID, subnetUUIDs, nil
+	}
+
+	log.V(1).Info("failure domain config found. Ignoring cluster config on machine object (if any)")
+
+	failureDomainName := *rctx.Machine.Spec.FailureDomain
+	failureDomain, err := GetFailureDomain(failureDomainName, rctx.NutanixCluster)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to find failure domain %s", failureDomainName)
+	}
+	peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixClient, failureDomain.Cluster.Name, failureDomain.Cluster.UUID)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to find prism element uuid for failure domain %s", failureDomainName)
+	}
+	subnetUUIDs, err := GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, failureDomain.Subnets, peUUID)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to find subnet uuids for failure domain %s", failureDomainName)
+	}
+
+	return peUUID, subnetUUIDs, nil
 }

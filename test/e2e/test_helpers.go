@@ -147,6 +147,7 @@ type testHelperInterface interface {
 	verifyCategoriesNutanixMachines(ctx context.Context, clusterName, namespace string, expectedCategories map[string]string)
 	verifyConditionOnNutanixCluster(params verifyConditionParams)
 	verifyConditionOnNutanixMachines(params verifyConditionParams)
+	verifyFailureDomainsOnClusterMachines(ctx context.Context, params verifyFailureDomainsOnClusterMachinesParams)
 	verifyFailureMessageOnClusterMachines(ctx context.Context, params verifyFailureMessageOnClusterMachinesParams)
 	verifyGPUNutanixMachines(ctx context.Context, params verifyGPUNutanixMachinesParams)
 	verifyProjectNutanixMachines(ctx context.Context, params verifyProjectNutanixMachinesParams)
@@ -646,6 +647,52 @@ func (t testHelper) verifyConditionOnNutanixMachines(params verifyConditionParam
 			),
 		),
 	)
+}
+
+type verifyFailureDomainsOnClusterMachinesParams struct {
+	clusterName           string
+	namespace             *corev1.Namespace
+	failureDomainNames    []string
+	bootstrapClusterProxy framework.ClusterProxy
+}
+
+func (t testHelper) verifyFailureDomainsOnClusterMachines(ctx context.Context, params verifyFailureDomainsOnClusterMachinesParams) {
+	Eventually(func() bool {
+		nutanixCluster := t.getNutanixClusterByName(ctx, getNutanixClusterByNameInput{
+			Getter:    params.bootstrapClusterProxy.GetClient(),
+			Name:      params.clusterName,
+			Namespace: params.namespace.Name,
+		})
+		Expect(nutanixCluster).ToNot(BeNil())
+		var match bool
+		for _, fdName := range params.failureDomainNames {
+			nutanixMachines := t.getMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
+			for _, m := range nutanixMachines.Items {
+				machineSpec := m.Spec
+				if *machineSpec.FailureDomain == fdName {
+					// failure domain had a match
+					match = true
+					// Search for failure domain
+					fd, err := controllers.GetFailureDomain(fdName, nutanixCluster)
+					Expect(err).ShouldNot(HaveOccurred())
+					Expect(fd).ToNot(BeNil())
+					// Search for VM
+					machineVmUUID := t.stripNutanixIDFromProviderID(*machineSpec.ProviderID)
+					vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
+					Expect(err).ShouldNot(HaveOccurred())
+					Expect(vm).ToNot(BeNil())
+					// Check if correct PE and subnet are used
+					Expect(*vm.Spec.ClusterReference.Name).To(Equal(*fd.Cluster.Name))
+					Expect(*vm.Spec.Resources.NicList[0].SubnetReference.Name).To(Equal(*fd.Subnets[0].Name))
+					break
+				}
+			}
+			if !match {
+				return false
+			}
+		}
+		return true
+	}, defaultTimeout, defaultInterval).Should(BeTrue())
 }
 
 type verifyFailureMessageOnClusterMachinesParams struct {

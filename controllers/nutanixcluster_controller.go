@@ -256,6 +256,12 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 		ctrlutil.AddFinalizer(rctx.NutanixCluster, infrav1.NutanixClusterFinalizer)
 	}
 
+	// Reconciling failure domains before Ready check to allow failure domains to be modified
+	if err := r.reconcileFailureDomains(rctx); err != nil {
+		log.Error(err, "failed to reconcile failure domains for cluster")
+		return reconcile.Result{}, err
+	}
+
 	if rctx.NutanixCluster.Status.Ready {
 		log.Info("NutanixCluster is already in ready status.")
 		return reconcile.Result{}, nil
@@ -270,6 +276,25 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 
 	rctx.NutanixCluster.Status.Ready = true
 	return reconcile.Result{}, nil
+}
+
+func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterContext) error {
+	log := ctrl.LoggerFrom(rctx.Context)
+	if len(rctx.NutanixCluster.Spec.FailureDomains) == 0 {
+		log.V(1).Info("no failure domains defined on cluster")
+		conditions.MarkTrue(rctx.NutanixCluster, infrav1.NoFailureDomainsReconciled)
+		return nil
+	}
+	log.V(1).Info("Reconciling failure domains for cluster")
+	// If failure domains is nil on status object, first create empty slice
+	if rctx.NutanixCluster.Status.FailureDomains == nil {
+		rctx.NutanixCluster.Status.FailureDomains = make(capiv1.FailureDomains, 0)
+	}
+	for _, fd := range rctx.NutanixCluster.Spec.FailureDomains {
+		rctx.NutanixCluster.Status.FailureDomains[fd.Name] = capiv1.FailureDomainSpec{ControlPlane: fd.ControlPlane}
+	}
+	conditions.MarkTrue(rctx.NutanixCluster, infrav1.FailureDomainsReconciled)
+	return nil
 }
 
 func (r *NutanixClusterReconciler) reconcileCategories(rctx *nctx.ClusterContext) error {

@@ -210,6 +210,7 @@ providers:
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-kcp-remediation.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-kcp-scale-in.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-csi.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-failure-domains.yaml"
 
 variables:
   # Default variables for the e2e test; those values could be overridden via env variables, thus
@@ -260,6 +261,16 @@ variables:
   NUTANIX_PRISM_ELEMENT_CLUSTER_IP: ""
   NUTANIX_PRISM_ELEMENT_CLUSTER_USERNAME: ""
   NUTANIX_PRISM_ELEMENT_CLUSTER_PASSWORD: ""
+  # Note: Following parameters are required for failure domain testing
+  NUTANIX_FAILURE_DOMAIN_1_NAME: "failuredomain-1"
+  NUTANIX_FAILURE_DOMAIN_1_PRISM_ELEMENT_NAME: ""
+  NUTANIX_FAILURE_DOMAIN_1_SUBNET_NAME: ""
+  NUTANIX_FAILURE_DOMAIN_2_NAME: "failuredomain-2"
+  NUTANIX_FAILURE_DOMAIN_2_PRISM_ELEMENT_NAME: ""
+  NUTANIX_FAILURE_DOMAIN_2_SUBNET_NAME: ""
+  NUTANIX_FAILURE_DOMAIN_3_NAME: "failuredomain-3"
+  NUTANIX_FAILURE_DOMAIN_3_PRISM_ELEMENT_NAME: ""
+  NUTANIX_FAILURE_DOMAIN_3_SUBNET_NAME: ""
   # NOTE: INIT_WITH_BINARY and INIT_WITH_KUBERNETES_VERSION are only used by the clusterctl upgrade test to initialize
   # the management cluster to be upgraded.
   # NOTE: We test the latest release with a previous contract.
