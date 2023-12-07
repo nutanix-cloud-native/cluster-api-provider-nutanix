@@ -4,6 +4,7 @@ metadata:
   name: "${CLUSTER_NAME}"
   namespace: "${NAMESPACE}"
 spec:
+  failureDomains: []
   prismCentral:
     address: "${NUTANIX_ENDPOINT}"
     port: ${NUTANIX_PORT=9440}

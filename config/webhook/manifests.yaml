@@ -5,7 +5,7 @@ metadata:
   name: mutating-webhook-configuration
 webhooks:
 - admissionReviewVersions:
-  - v1
+  - v1beta1
   clientConfig:
     service:
       name: webhook-service
@@ -25,7 +25,7 @@ webhooks:
     - nutanixclusters
   sideEffects: None
 - admissionReviewVersions:
-  - v1
+  - v1beta1
   clientConfig:
     service:
       name: webhook-service
@@ -45,7 +45,7 @@ webhooks:
     - nutanixclustertemplates
   sideEffects: None
 - admissionReviewVersions:
-  - v1
+  - v1beta1
   clientConfig:
     service:
       name: webhook-service
@@ -71,7 +71,7 @@ metadata:
   name: validating-webhook-configuration
 webhooks:
 - admissionReviewVersions:
-  - v1
+  - v1beta1
   clientConfig:
     service:
       name: webhook-service
@@ -91,7 +91,7 @@ webhooks:
     - nutanixclusters
   sideEffects: None
 - admissionReviewVersions:
-  - v1
+  - v1beta1
   clientConfig:
     service:
       name: webhook-service
@@ -111,7 +111,7 @@ webhooks:
     - nutanixclustertemplates
   sideEffects: None
 - admissionReviewVersions:
-  - v1
+  - v1beta1
   clientConfig:
     service:
       name: webhook-service
