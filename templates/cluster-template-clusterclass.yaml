@@ -264,6 +264,7 @@ spec:
       controlPlaneEndpoint:
         host: ${CONTROL_PLANE_ENDPOINT_IP}
         port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
+      failureDomains: []
       prismCentral:
         additionalTrustBundle:
           kind: ConfigMap
