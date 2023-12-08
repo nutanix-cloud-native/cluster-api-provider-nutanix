@@ -29,7 +29,7 @@ import (
 
 const (
 	// NutanixMachineKind represents the Kind of NutanixMachine
-	NutanixMachineKind = "NutanixMachineKind"
+	NutanixMachineKind = "NutanixMachine"
 
 	// NutanixMachineFinalizer allows NutanixMachineReconciler to clean up AHV
 	// resources associated with NutanixMachine before removing it from the

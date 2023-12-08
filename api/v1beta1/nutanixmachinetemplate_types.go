@@ -25,7 +25,7 @@ import (
 
 const (
 	// NutanixMachineTemplateKind represents the Kind of NutanixMachineTemplate
-	NutanixMachineTemplateKind = "NutanixMachineTemplateKind"
+	NutanixMachineTemplateKind = "NutanixMachineTemplate"
 )
 
 // NutanixMachineTemplateSpec defines the desired state of NutanixMachineTemplate
