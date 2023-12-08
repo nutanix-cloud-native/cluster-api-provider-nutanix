@@ -24,9 +24,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/uuid"
+	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
+	capiutil "sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
@@ -43,6 +47,8 @@ func TestNutanixClusterReconciler(t *testing.T) {
 		const (
 			fd1Name = "fd-1"
 			fd2Name = "fd-2"
+			// To be replaced with capiv1.ClusterKind
+			clusterKind = "Cluster"
 		)
 
 		var (
@@ -50,16 +56,31 @@ func TestNutanixClusterReconciler(t *testing.T) {
 			ctx         context.Context
 			fd1         infrav1.NutanixFailureDomain
 			reconciler  *NutanixClusterReconciler
+			ntnxSecret  *corev1.Secret
 			r           string
 		)
 
 		BeforeEach(func() {
 			ctx = context.Background()
-			r := util.RandomString(10)
+			r = util.RandomString(10)
+			ntnxSecret = &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      r,
+					Namespace: corev1.NamespaceDefault,
+				},
+				StringData: map[string]string{
+					r: r,
+				},
+			}
 			ntnxCluster = &infrav1.NutanixCluster{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       infrav1.NutanixClusterKind,
+					APIVersion: infrav1.GroupVersion.String(),
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
-					Namespace: "default",
+					Namespace: corev1.NamespaceDefault,
+					UID:       utilruntime.NewUUID(),
 				},
 				Spec: infrav1.NutanixClusterSpec{
 					PrismCentral: &credentialTypes.NutanixPrismEndpoint{
@@ -88,8 +109,8 @@ func TestNutanixClusterReconciler(t *testing.T) {
 		})
 
 		AfterEach(func() {
-			err := k8sClient.Delete(ctx, ntnxCluster)
-			Expect(err).NotTo(HaveOccurred())
+			// Delete ntnxCluster if exists.
+			k8sClient.Delete(ctx, ntnxCluster)
 		})
 
 		Context("Reconcile an NutanixCluster", func() {
@@ -110,7 +131,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 		})
 
 		Context("ReconcileNormal for a NutanixCluster", func() {
-			It("should not requeue if failure message is set on nutanixCluster", func() {
+			It("should not requeue if failure message is set on NutanixCluster", func() {
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
 				ntnxCluster.Status.FailureMessage = &r
 				result, err := reconciler.reconcileNormal(&nctx.ClusterContext{
@@ -213,6 +234,162 @@ func TestNutanixClusterReconciler(t *testing.T) {
 					),
 				))
 				g.Expect(appliedNtnxCluster.Status.FailureDomains).To(BeEmpty())
+			})
+		})
+		Context("Reconcile credentialRef for a NutanixCluster", func() {
+			It("should return error if already owned by another NutanixCluster", func() {
+				// Create an additional NutanixCluster object
+				additionalNtnxCluster := &infrav1.NutanixCluster{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      r,
+						Namespace: corev1.NamespaceDefault,
+					},
+					Spec: infrav1.NutanixClusterSpec{
+						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+							// Adding port info to override default value (0)
+							Port: 9440,
+						},
+					},
+				}
+				g.Expect(k8sClient.Create(ctx, additionalNtnxCluster)).To(Succeed())
+
+				// Add credential ref to the ntnxCluster resource
+				ntnxCluster.Spec.PrismCentral.CredentialRef = &credentialTypes.NutanixCredentialReference{
+					Kind:      credentialTypes.SecretKind,
+					Name:      ntnxSecret.Name,
+					Namespace: ntnxSecret.Namespace,
+				}
+
+				// Add an ownerReference for the additional NutanixCluster object
+				ntnxSecret.OwnerReferences = []metav1.OwnerReference{
+					{
+						APIVersion: infrav1.GroupVersion.String(),
+						Kind:       infrav1.NutanixClusterKind,
+						UID:        additionalNtnxCluster.UID,
+						Name:       additionalNtnxCluster.Name,
+					},
+				}
+				g.Expect(k8sClient.Create(ctx, ntnxSecret)).To(Succeed())
+
+				// Reconcile credentialRef
+				err := reconciler.reconcileCredentialRef(ctx, ntnxCluster)
+				g.Expect(err).To(HaveOccurred())
+			})
+			It("should add credentialRef and finalizer if not owned by other cluster", func() {
+				// Add credential ref to the ntnxCluster resource
+				ntnxCluster.Spec.PrismCentral.CredentialRef = &credentialTypes.NutanixCredentialReference{
+					Kind:      credentialTypes.SecretKind,
+					Name:      ntnxSecret.Name,
+					Namespace: ntnxSecret.Namespace,
+				}
+
+				// Create secret
+				g.Expect(k8sClient.Create(ctx, ntnxSecret)).To(Succeed())
+
+				// Reconcile credentialRef
+				err := reconciler.reconcileCredentialRef(ctx, ntnxCluster)
+				g.Expect(err).ToNot(HaveOccurred())
+
+				// Get latest secret status
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: ntnxSecret.Namespace,
+					Name:      ntnxSecret.Name,
+				}, ntnxSecret)).To(Succeed())
+
+				// Check if secret is owned by the NutanixCluster
+				g.Expect(capiutil.IsOwnedByObject(ntnxSecret, ntnxCluster)).To(BeTrue())
+
+				// check finalizer
+				g.Expect(ctrlutil.ContainsFinalizer(ntnxSecret, infrav1.NutanixClusterCredentialFinalizer))
+			})
+			It("does not add another credentialRef if it is already set", func() {
+				// Add credential ref to the ntnxCluster resource
+				ntnxCluster.Spec.PrismCentral.CredentialRef = &credentialTypes.NutanixCredentialReference{
+					Kind:      credentialTypes.SecretKind,
+					Name:      ntnxSecret.Name,
+					Namespace: ntnxSecret.Namespace,
+				}
+
+				// Add an ownerReference for the  NutanixCluster object
+				ntnxSecret.OwnerReferences = []metav1.OwnerReference{
+					{
+						APIVersion: infrav1.GroupVersion.String(),
+						Kind:       infrav1.NutanixClusterKind,
+						UID:        ntnxCluster.UID,
+						Name:       ntnxCluster.Name,
+					},
+				}
+
+				g.Expect(k8sClient.Create(ctx, ntnxSecret)).To(Succeed())
+
+				// Reconcile credentialRef
+				err := reconciler.reconcileCredentialRef(ctx, ntnxCluster)
+				g.Expect(err).ToNot(HaveOccurred())
+
+				// Get latest secret status
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: ntnxSecret.Namespace,
+					Name:      ntnxSecret.Name,
+				}, ntnxSecret)).To(Succeed())
+
+				// Check if secret is owned by the NutanixCluster
+				g.Expect(capiutil.IsOwnedByObject(ntnxSecret, ntnxCluster)).To(BeTrue())
+
+				// check if only one ownerReference has been added
+				g.Expect(len(ntnxSecret.OwnerReferences)).To(Equal(1))
+			})
+
+			It("allows multiple ownerReferences with different kinds", func() {
+				// Add credential ref to the ntnxCluster resource
+				ntnxCluster.Spec.PrismCentral.CredentialRef = &credentialTypes.NutanixCredentialReference{
+					Kind:      credentialTypes.SecretKind,
+					Name:      ntnxSecret.Name,
+					Namespace: ntnxSecret.Namespace,
+				}
+
+				// Add an ownerReference for a fake object
+				ntnxSecret.OwnerReferences = []metav1.OwnerReference{
+					{
+						APIVersion: capiv1.GroupVersion.String(),
+						Kind:       clusterKind,
+						UID:        ntnxCluster.UID,
+						Name:       r,
+					},
+				}
+
+				g.Expect(k8sClient.Create(ctx, ntnxSecret)).To(Succeed())
+
+				// Reconcile credentialRef
+				err := reconciler.reconcileCredentialRef(ctx, ntnxCluster)
+				g.Expect(err).ToNot(HaveOccurred())
+
+				// Get latest secret status
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: ntnxSecret.Namespace,
+					Name:      ntnxSecret.Name,
+				}, ntnxSecret)).To(Succeed())
+
+				// Check if secret is owned by the NutanixCluster
+				g.Expect(capiutil.IsOwnedByObject(ntnxSecret, ntnxCluster)).To(BeTrue())
+
+				g.Expect(len(ntnxSecret.OwnerReferences)).To(Equal(2))
+			})
+			It("should error if secret does not exist", func() {
+				// Add credential ref to the ntnxCluster resource
+				ntnxCluster.Spec.PrismCentral.CredentialRef = &credentialTypes.NutanixCredentialReference{
+					Kind:      credentialTypes.SecretKind,
+					Name:      ntnxSecret.Name,
+					Namespace: ntnxSecret.Namespace,
+				}
+
+				// Reconcile credentialRef
+				err := reconciler.reconcileCredentialRef(ctx, ntnxCluster)
+				g.Expect(err).To(HaveOccurred())
+			})
+			It("should error if NutanixCluster is nil", func() {
+				// Reconcile credentialRef
+				err := reconciler.reconcileCredentialRef(ctx, nil)
+				g.Expect(err).To(HaveOccurred())
 			})
 		})
 	})
