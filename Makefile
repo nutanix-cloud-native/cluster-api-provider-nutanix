@@ -335,8 +335,8 @@ cluster-templates: $(KUSTOMIZE) ## Generate cluster templates for all flavors
 .PHONY: docker-build-e2e
 docker-build-e2e: $(KO) ## Build docker image with the manager with e2e tag.
 	GIT_COMMIT_HASH=`git rev-parse HEAD` && \
-	KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=$${GIT_COMMIT_HASH}" $(KO) build -B --platform=${PLATFORMS_E2E} -t e2e -L .
-	docker tag ko.local/cluster-api-provider-nutanix:e2e ${IMG_REPO}:e2e
+	KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=$${GIT_COMMIT_HASH}" $(KO) build -B --platform=${PLATFORMS_E2E} -t e2e -L ./cmd
+	docker tag ko.local/cmd:e2e ${IMG_REPO}:e2e
 
 .PHONY: prepare-local-clusterctl
 prepare-local-clusterctl: manifests kustomize cluster-templates ## Prepare overide file for local clusterctl.
