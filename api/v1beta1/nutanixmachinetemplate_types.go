@@ -23,6 +23,11 @@ import (
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+const (
+	// NutanixMachineTemplateKind represents the Kind of NutanixMachineTemplate
+	NutanixMachineTemplateKind = "NutanixMachineTemplateKind"
+)
+
 // NutanixMachineTemplateSpec defines the desired state of NutanixMachineTemplate
 type NutanixMachineTemplateSpec struct {
 	Template NutanixMachineTemplateResource `json:"template"`

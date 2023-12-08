@@ -45,10 +45,10 @@ func TestNutanixClusterReconciler(t *testing.T) {
 
 	_ = Describe("NutanixClusterReconciler", func() {
 		const (
-			fd1Name            = "fd-1"
-			fd2Name            = "fd-2"
-			nutanixClusterKind = "NutanixCluster"
-			clusterKind        = "Cluster"
+			fd1Name = "fd-1"
+			fd2Name = "fd-2"
+			// To be replaced with capiv1.ClusterKind
+			clusterKind = "Cluster"
 		)
 
 		var (
@@ -74,7 +74,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 			}
 			ntnxCluster = &infrav1.NutanixCluster{
 				TypeMeta: metav1.TypeMeta{
-					Kind:       nutanixClusterKind,
+					Kind:       infrav1.NutanixClusterKind,
 					APIVersion: infrav1.GroupVersion.String(),
 				},
 				ObjectMeta: metav1.ObjectMeta{
@@ -264,7 +264,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				ntnxSecret.OwnerReferences = []metav1.OwnerReference{
 					{
 						APIVersion: infrav1.GroupVersion.String(),
-						Kind:       nutanixClusterKind,
+						Kind:       infrav1.NutanixClusterKind,
 						UID:        additionalNtnxCluster.UID,
 						Name:       additionalNtnxCluster.Name,
 					},
@@ -314,7 +314,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				ntnxSecret.OwnerReferences = []metav1.OwnerReference{
 					{
 						APIVersion: infrav1.GroupVersion.String(),
-						Kind:       nutanixClusterKind,
+						Kind:       infrav1.NutanixClusterKind,
 						UID:        ntnxCluster.UID,
 						Name:       ntnxCluster.Name,
 					},
