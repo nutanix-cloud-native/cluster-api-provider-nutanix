@@ -25,7 +25,7 @@ import (
 
 const (
 	// NutanixClusterKind represents the Kind of NutanixCluster
-	NutanixClusterKind = "NutanixClusterKind"
+	NutanixClusterKind = "NutanixCluster"
 
 	// NutanixClusterFinalizer allows NutanixClusterReconciler to clean up AHV
 	// resources associated with NutanixCluster before removing it from the
