@@ -350,7 +350,7 @@ cluster-e2e-templates-no-kubeproxy: $(KUSTOMIZE) ##Generate cluster templates wi
 cluster-templates: $(KUSTOMIZE) ## Generate cluster templates for all flavors
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/base > $(TEMPLATES_DIR)/cluster-template.yaml
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/csi > $(TEMPLATES_DIR)/cluster-template-csi.yaml
-
+	$(KUSTOMIZE) build $(TEMPLATES_DIR)/clusterclass > $(TEMPLATES_DIR)/cluster-template-clusterclass.yaml
 ##@ Testing
 
 .PHONY: docker-build-e2e
@@ -413,6 +413,35 @@ test-kubectl-workload: ## Run kubectl queries to get all capx workload related o
 	kubectl -n $(TEST_NAMESPACE) get secret
 	kubectl -n ${TEST_NAMESPACE} get secret ${TEST_CLUSTER_NAME}-kubeconfig -o json | jq -r .data.value | base64 --decode > ${TEST_CLUSTER_NAME}.workload.kubeconfig
 	kubectl --kubeconfig ./${TEST_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
+
+.PHONY: test-clusterclass-create
+test-clusterclass-create: cluster-templates
+	clusterctl generate cluster ccls-test1 --from ./templates/cluster-template-clusterclass.yaml -n $(TEST_NAMESPACE) > ccls-test1.yaml
+	kubectl create ns $(TEST_NAMESPACE) || true
+	kubectl apply -f ./ccls-test1.yaml
+
+.PHONY: test-clusterclass-delete
+test-clusterclass-delete:
+	kubectl -n $(TEST_NAMESPACE) delete cluster ccls-test1 || true
+	kubectl -n $(TEST_NAMESPACE) delete nutanixcluster ccls-test1 || true
+	kubectl -n $(TEST_NAMESPACE) delete clusterclass my-test-cluster-template || true
+	kubectl -n $(TEST_NAMESPACE) delete nutanixmachinetemplate my-test-cluster-template-cp-nmt || true
+	kubectl -n $(TEST_NAMESPACE) delete nutanixmachinetemplate my-test-cluster-template-md-nmt || true
+	kubectl -n $(TEST_NAMESPACE) delete KubeadmConfigTemplate my-test-cluster-template-md-kcfgt || true
+	kubectl -n $(TEST_NAMESPACE) delete kubeadmcontrolplanetemplate my-test-cluster-template-kcpt || true
+	kubectl -n $(TEST_NAMESPACE) delete NutanixClustertemplate my-test-cluster-template-nct || true
+	# kubectl -n $(TEST_NAMESPACE) delete secret ccls-test1
+	kubectl -n $(TEST_NAMESPACE) delete cm user-ca-bundle
+	rm ccls-test1.yaml || true
+
+
+.PHONY: test-kubectl-clusterclass
+test-kubectl-clusterclass:
+	kubectl -n capx-system get endpoints
+	kubectl -n $(TEST_NAMESPACE) get cluster,machine,MachineDeployment
+	kubectl -n $(TEST_NAMESPACE) get NutanixCluster,NutanixMachine -n $(TEST_NAMESPACE)
+	kubectl -n $(TEST_NAMESPACE) get NutanixClusterTemplate,clusterclass,KubeadmConfigTemplate,KubeadmControlPlaneTemplate,NutanixMachineTemplate,secret,configmap -n $(TEST_NAMESPACE)
+	kubectl -n $(TEST_NAMESPACE) get ValidatingWebhookConfiguration,MutatingWebhookConfiguration
 
 .PHONY: ginkgo-help
 ginkgo-help:

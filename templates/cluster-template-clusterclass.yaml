@@ -1,0 +1,325 @@
+apiVersion: v1
+binaryData:
+  ca.crt: ${NUTANIX_ADDITIONAL_TRUST_BUNDLE=""}
+kind: ConfigMap
+metadata:
+  name: user-ca-bundle
+  namespace: ${NAMESPACE}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${CLUSTER_NAME}
+  namespace: ${NAMESPACE}
+stringData:
+  credentials: "[\n  {\n    \"type\": \"basic_auth\", \n    \"data\": { \n      \"prismCentral\":{\n
+    \       \"username\": \"${NUTANIX_USER}\", \n        \"password\": \"${NUTANIX_PASSWORD}\"\n
+    \     }\n    }\n  }\n]"
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: ${CLUSTER_CLASS_NAME}-md-kcfgt
+  namespace: ${NAMESPACE}
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs:
+            eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+      postKubeadmCommands:
+      - echo "after kubeadm call" > /var/log/postkubeadm.log
+      preKubeadmCommands:
+      - echo "before kubeadm call" > /var/log/prekubeadm.log
+      users:
+      - lockPassword: false
+        name: capiuser
+        sshAuthorizedKeys:
+        - ${NUTANIX_SSH_AUTHORIZED_KEY}
+        sudo: ALL=(ALL) NOPASSWD:ALL
+      verbosity: 10
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  labels:
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+  name: ${CLUSTER_NAME}
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+      - 172.20.0.0/16
+    serviceDomain: cluster.local
+    services:
+      cidrBlocks:
+      - 172.19.0.0/16
+  topology:
+    class: ${CLUSTER_CLASS_NAME}
+    controlPlane:
+      metadata: {}
+      replicas: ${CONTROL_PLANE_MACHINE_COUNT}
+    version: ${KUBERNETES_VERSION}
+    workers:
+      machineDeployments:
+      - class: default-worker
+        metadata: {}
+        name: md-0
+        replicas: ${WORKER_MACHINE_COUNT}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: ClusterClass
+metadata:
+  name: ${CLUSTER_CLASS_NAME}
+  namespace: ${NAMESPACE}
+spec:
+  controlPlane:
+    machineHealthCheck:
+      maxUnhealthy: 40%
+      nodeStartupTimeout: 10m
+      unhealthyConditions:
+      - status: "False"
+        timeout: 300s
+        type: Ready
+      - status: Unknown
+        timeout: 300s
+        type: Ready
+      - status: "True"
+        timeout: 300s
+        type: MemoryPressure
+      - status: "True"
+        timeout: 300s
+        type: DiskPressure
+      - status: "True"
+        timeout: 300s
+        type: PIDPressure
+      - status: "True"
+        timeout: 300s
+        type: NetworkUnavailable
+    machineInfrastructure:
+      ref:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        name: ${CLUSTER_CLASS_NAME}-cp-nmt
+        namespace: ${NAMESPACE}
+    ref:
+      apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+      kind: KubeadmControlPlaneTemplate
+      name: ${CLUSTER_CLASS_NAME}-kcpt
+      namespace: ${NAMESPACE}
+  infrastructure:
+    ref:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+      kind: NutanixClusterTemplate
+      name: ${CLUSTER_CLASS_NAME}-nct
+      namespace: ${NAMESPACE}
+  workers:
+    machineDeployments:
+    - class: default-worker
+      machineHealthCheck:
+        maxUnhealthy: 40%
+        nodeStartupTimeout: 10m
+        unhealthyConditions:
+        - status: "False"
+          timeout: 300s
+          type: Ready
+        - status: Unknown
+          timeout: 300s
+          type: Ready
+        - status: "True"
+          timeout: 300s
+          type: MemoryPressure
+        - status: "True"
+          timeout: 300s
+          type: DiskPressure
+        - status: "True"
+          timeout: 300s
+          type: PIDPressure
+        - status: "True"
+          timeout: 300s
+          type: NetworkUnavailable
+      template:
+        bootstrap:
+          ref:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+            kind: KubeadmConfigTemplate
+            name: ${CLUSTER_CLASS_NAME}-md-kcfgt
+            namespace: ${NAMESPACE}
+        infrastructure:
+          ref:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: NutanixMachineTemplate
+            name: ${CLUSTER_CLASS_NAME}-md-nmt
+            namespace: ${NAMESPACE}
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: KubeadmControlPlaneTemplate
+metadata:
+  name: ${CLUSTER_CLASS_NAME}-kcpt
+  namespace: ${NAMESPACE}
+spec:
+  template:
+    spec:
+      kubeadmConfigSpec:
+        clusterConfiguration:
+          apiServer:
+            certSANs:
+            - localhost
+            - 127.0.0.1
+            - 0.0.0.0
+          controllerManager:
+            extraArgs:
+              enable-hostpath-provisioner: "true"
+        files:
+        - content: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: kube-vip
+              namespace: kube-system
+            spec:
+              containers:
+                - name: kube-vip
+                  image: ghcr.io/kube-vip/kube-vip:v0.5.0
+                  imagePullPolicy: IfNotPresent
+                  args:
+                    - manager
+                  env:
+                    - name: vip_arp
+                      value: "true"
+                    - name: address
+                      value: "${CONTROL_PLANE_ENDPOINT_IP}"
+                    - name: port
+                      value: "${CONTROL_PLANE_ENDPOINT_PORT=6443}"
+                    - name: vip_cidr
+                      value: "32"
+                    - name: cp_enable
+                      value: "true"
+                    - name: cp_namespace
+                      value: kube-system
+                    - name: vip_ddns
+                      value: "false"
+                    - name: vip_leaderelection
+                      value: "true"
+                    - name: vip_leaseduration
+                      value: "15"
+                    - name: vip_renewdeadline
+                      value: "10"
+                    - name: vip_retryperiod
+                      value: "2"
+                    - name: svc_enable
+                      value: "${KUBEVIP_SVC_ENABLE=false}"
+                    - name: lb_enable
+                      value: "${KUBEVIP_LB_ENABLE=false}"
+                  securityContext:
+                    capabilities:
+                      add:
+                        - NET_ADMIN
+                        - SYS_TIME
+                        - NET_RAW
+                  volumeMounts:
+                    - mountPath: /etc/kubernetes/admin.conf
+                      name: kubeconfig
+                  resources: {}
+              hostNetwork: true
+              hostAliases:
+                - hostnames:
+                    - kubernetes
+                  ip: 127.0.0.1
+              volumes:
+                - name: kubeconfig
+                  hostPath:
+                    type: FileOrCreate
+                    path: /etc/kubernetes/admin.conf
+            status: {}
+          owner: root:root
+          path: /etc/kubernetes/manifests/kube-vip.yaml
+        initConfiguration:
+          nodeRegistration:
+            kubeletExtraArgs:
+              eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+        postKubeadmCommands:
+        - echo export KUBECONFIG=/etc/kubernetes/admin.conf >> /root/.bashrc
+        - echo "after kubeadm call" > /var/log/postkubeadm.log
+        preKubeadmCommands:
+        - echo "before kubeadm call" > /var/log/prekubeadm.log
+        useExperimentalRetryJoin: true
+        users:
+        - lockPassword: false
+          name: capiuser
+          sshAuthorizedKeys:
+          - ${NUTANIX_SSH_AUTHORIZED_KEY}
+          sudo: ALL=(ALL) NOPASSWD:ALL
+        verbosity: 10
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixClusterTemplate
+metadata:
+  name: ${CLUSTER_CLASS_NAME}-nct
+  namespace: ${NAMESPACE}
+spec:
+  template:
+    spec:
+      controlPlaneEndpoint:
+        host: ${CONTROL_PLANE_ENDPOINT_IP}
+        port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
+      failureDomains: []
+      prismCentral:
+        additionalTrustBundle:
+          kind: ConfigMap
+          name: user-ca-bundle
+        address: ${NUTANIX_ENDPOINT}
+        credentialRef:
+          kind: Secret
+          name: ${CLUSTER_NAME}
+        insecure: ${NUTANIX_INSECURE=false}
+        port: ${NUTANIX_PORT=9440}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixMachineTemplate
+metadata:
+  name: ${CLUSTER_CLASS_NAME}-cp-nmt
+  namespace: ${NAMESPACE}
+spec:
+  template:
+    spec:
+      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+      cluster:
+        name: ${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}
+        type: name
+      image:
+        name: ${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}
+        type: name
+      memorySize: ${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}
+      providerID: nutanix://${CLUSTER_NAME}-m1
+      subnet:
+      - name: ${NUTANIX_SUBNET_NAME}
+        type: name
+      systemDiskSize: ${NUTANIX_SYSTEMDISK_SIZE=40Gi}
+      vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
+      vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixMachineTemplate
+metadata:
+  name: ${CLUSTER_CLASS_NAME}-md-nmt
+  namespace: ${NAMESPACE}
+spec:
+  template:
+    spec:
+      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+      cluster:
+        name: ${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}
+        type: name
+      image:
+        name: ${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}
+        type: name
+      memorySize: ${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}
+      providerID: nutanix://${CLUSTER_NAME}-m1
+      subnet:
+      - name: ${NUTANIX_SUBNET_NAME}
+        type: name
+      systemDiskSize: ${NUTANIX_SYSTEMDISK_SIZE=40Gi}
+      vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
+      vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}

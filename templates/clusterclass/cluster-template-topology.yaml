@@ -1,0 +1,25 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: "${CLUSTER_NAME}"
+  labels:
+      cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks: ["172.19.0.0/16"]
+    pods:
+      cidrBlocks: ["172.20.0.0/16"]
+    serviceDomain: "cluster.local"
+  topology:
+    class: "${CLUSTER_CLASS_NAME}"
+    version: ${KUBERNETES_VERSION}
+    controlPlane:
+      replicas: ${CONTROL_PLANE_MACHINE_COUNT}
+      metadata: {}
+    workers:
+      machineDeployments:
+      - class: default-worker
+        name: md-0
+        replicas: ${WORKER_MACHINE_COUNT}
+        metadata: {}
