@@ -159,8 +159,8 @@ USE_EXISTING_CLUSTER ?= false
 GINKGO_NOCOLOR ?= false
 FLAVOR ?= e2e
 
-TEST_NAMESPACE=capx-test-ns
-TEST_CLUSTER_NAME=mycluster
+TEST_NAMESPACE ?= capx-test-ns
+TEST_CLUSTER_NAME ?= capx-cl-${USER}
 
 # set ginkgo focus flags, if any
 ifneq ($(strip $(GINKGO_FOCUS)),)
@@ -468,6 +468,9 @@ test-e2e-cilium-no-kubeproxy:
 .PHONY: test-e2e-all-cni
 test-e2e-all-cni: test-e2e test-e2e-calico test-e2e-flannel test-e2e-cilium test-e2e-cilium-no-kubeproxy
 
+.PHONY: print-capx-controller-logs
+print-capx-controller-logs: ## logs the controller pod output with -f mode
+	kubectl -n capx-system logs -f $(shell kubectl -n capx-system get pods | grep capx-controller | awk '{print $$1}') manager
 
 ## --------------------------------------
 ## Hack / Tools
