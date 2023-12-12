@@ -18,6 +18,11 @@ make kind-create
 
 ## Prepare local clusterctl
 <pre>
+cp -n clusterctl.yaml.tmpl clusterctl.yaml
+</pre>
+**Note**: Update `./clusterctl.yaml` with appropriate configuration
+
+<pre>
 make prepare-local-clusterctl
 </pre>
 
@@ -27,17 +32,28 @@ make deploy
 </pre>
 
 ## Deploy test workload cluster
-Note: Update ./clusterctl.yaml with appropriate configuration before running following commands
 <pre>
 make test-clusterctl-create
+</pre>
+**Note**: Optionally, use a unique cluster name
+<pre>
+make test-clusterctl-create TEST_CLUSTER_NAME=<>
 </pre>
 
 ## Get test workload cluster kubeconfig
 <pre>
-make test-kubectl-workload
+make test-kubectl-workload 
+</pre>
+**Note**: Optionally, use the same unique cluster name
+<pre>
+make test-kubectl-workload TEST_CLUSTER_NAME=<>
 </pre>
 
 ## Delete test workload cluster
 <pre>
 make test-clusterctl-delete
+</pre>
+**Note**: Optionally, use the same unique cluster name
+<pre>
+make test-clusterctl-delete TEST_CLUSTER_NAME=<>
 </pre>
