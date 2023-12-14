@@ -1,0 +1,5 @@
+bases:
+  - ../../cluster-template-failure-domains/
+
+patchesStrategicMerge:
+  - ../no-kubeproxy.yaml

@@ -2,7 +2,6 @@ apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineHealthCheck
 metadata:
   name: "${CLUSTER_NAME}-mhc"
-  namespace: "${NAMESPACE}"
 spec:
   clusterName: "${CLUSTER_NAME}"
   maxUnhealthy: 40%

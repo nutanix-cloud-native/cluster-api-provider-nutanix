@@ -1,13 +1,14 @@
----
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
-kind: KubeadmControlPlane
+kind: KubeadmControlPlaneTemplate
 metadata:
-  name: "${CLUSTER_NAME}-kcp"
+  name: "${CLUSTER_CLASS_NAME}-kcpt"
 spec:
-  kubeadmConfigSpec:
-    initConfiguration:
-      skipPhases:
-      - addon/kube-proxy
+  template:
+    spec:
+      kubeadmConfigSpec:
+        initConfiguration:
+          skipPhases:
+          - addon/kube-proxy
 ---
 apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
 kind: KubeadmConfigTemplate

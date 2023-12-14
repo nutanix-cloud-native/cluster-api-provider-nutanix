@@ -1,0 +1,5 @@
+bases:
+  - ../../../../../../templates/clusterclass/
+
+patchesStrategicMerge:
+  - ../base/cni-patch.yaml

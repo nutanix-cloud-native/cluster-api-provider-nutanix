@@ -1,0 +1,83 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: ClusterClass
+metadata:
+  name: "${CLUSTER_CLASS_NAME}"
+spec:
+  controlPlane:
+    ref:
+      apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+      kind: KubeadmControlPlaneTemplate
+      name: ${CLUSTER_CLASS_NAME}-kcpt
+      namespace: ${NAMESPACE}
+    machineInfrastructure:
+      ref:
+        kind: NutanixMachineTemplate
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        name: ${CLUSTER_CLASS_NAME}-cp-nmt
+        namespace: ${NAMESPACE}
+    machineHealthCheck:
+      maxUnhealthy: 40%
+      nodeStartupTimeout: 10m
+      unhealthyConditions:
+        - type: Ready
+          status: "False"
+          timeout: 300s
+        - type: Ready
+          status: Unknown
+          timeout: 300s
+        - type: MemoryPressure
+          status: "True"
+          timeout: 300s
+        - type: DiskPressure
+          status: "True"
+          timeout: 300s
+        - type: PIDPressure
+          status: "True"
+          timeout: 300s
+        - type: NetworkUnavailable
+          status: "True"
+          timeout: 300s
+  workers:
+    machineDeployments:
+    - class: default-worker
+      template:
+        bootstrap:
+          ref:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+            kind: KubeadmConfigTemplate
+            name: "${CLUSTER_NAME}-kcfg-0"
+            namespace: ${NAMESPACE}
+        infrastructure:
+          ref:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: NutanixMachineTemplate
+            name: ${CLUSTER_CLASS_NAME}-md-nmt
+            namespace: ${NAMESPACE}
+      machineHealthCheck:
+        maxUnhealthy: 40%
+        nodeStartupTimeout: 10m
+        unhealthyConditions:
+          - type: Ready
+            status: "False"
+            timeout: 300s
+          - type: Ready
+            status: Unknown
+            timeout: 300s
+          - type: MemoryPressure
+            status: "True"
+            timeout: 300s
+          - type: DiskPressure
+            status: "True"
+            timeout: 300s
+          - type: PIDPressure
+            status: "True"
+            timeout: 300s
+          - type: NetworkUnavailable
+            status: "True"
+            timeout: 300s
+  infrastructure:
+    ref:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+      kind: NutanixClusterTemplate
+      name: ${CLUSTER_CLASS_NAME}-nct
+      namespace: ${NAMESPACE}

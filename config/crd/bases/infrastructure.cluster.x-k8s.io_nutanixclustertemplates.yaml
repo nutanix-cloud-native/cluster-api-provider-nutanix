@@ -9,6 +9,8 @@ metadata:
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
+    categories:
+    - cluster-api
     kind: NutanixClusterTemplate
     listKind: NutanixClusterTemplateList
     plural: nutanixclustertemplates
@@ -237,8 +239,6 @@ spec:
         type: object
     served: true
     storage: true
-    subresources:
-      status: {}
 status:
   acceptedNames:
     kind: ""

@@ -1,8 +1,7 @@
----
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate
 metadata:
-  name: "${CLUSTER_NAME}-mt-0"
+  name: "${CLUSTER_CLASS_NAME}-md-nmt"
 spec:
   template:
     spec:
@@ -34,6 +33,3 @@ spec:
       # project:
       #   type: name
       #   name: "NUTANIX_PROJECT_NAME"
-      # gpus:
-      #  - type: name
-      #    name: "GPU NAME"

@@ -7,10 +7,13 @@ configMapGenerator:
   files:
   - nutanix-ccm.yaml
 
+namespace: "${NAMESPACE}"
+
 bases:
-  - ./cluster-with-kcp.yaml
-  - ./secret.yaml
-  - ./cm.yaml
+  - ../base-root
+  - ./nutanix-cluster.yaml
+  - ./cluster-without-topology.yaml
+  - ./kcp.yaml
   - ./nmt.yaml
   - ./md.yaml
   - ./mhc.yaml

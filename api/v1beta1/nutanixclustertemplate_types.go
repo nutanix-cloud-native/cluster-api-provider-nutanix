@@ -20,32 +20,20 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // NutanixClusterTemplateSpec defines the desired state of NutanixClusterTemplate
 type NutanixClusterTemplateSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
 	Template NutanixClusterTemplateResource `json:"template"`
 }
 
-// NutanixClusterTemplateStatus defines the observed state of NutanixClusterTemplate
-type NutanixClusterTemplateStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-}
-
 //+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+//+kubebuilder:resource:categories=cluster-api
 
 // NutanixClusterTemplate is the Schema for the nutanixclustertemplates API
 type NutanixClusterTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   NutanixClusterTemplateSpec   `json:"spec,omitempty"`
+	Spec NutanixClusterTemplateSpec `json:"spec,omitempty"`
 }
 
 //+kubebuilder:object:root=true

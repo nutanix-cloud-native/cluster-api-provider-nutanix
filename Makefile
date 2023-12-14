@@ -328,6 +328,7 @@ cluster-e2e-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-failure-domains --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-failure-domains.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass.yaml
 
 cluster-e2e-templates-no-kubeproxy: $(KUSTOMIZE) ##Generate cluster templates without kubeproxy
 	# v1alpha4
@@ -346,6 +347,7 @@ cluster-e2e-templates-no-kubeproxy: $(KUSTOMIZE) ##Generate cluster templates wi
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-kcp-scale-in --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-csi --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-failure-domains --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-failure-domains.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass.yaml
 
 cluster-templates: $(KUSTOMIZE) ## Generate cluster templates for all flavors
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/base > $(TEMPLATES_DIR)/cluster-template.yaml
@@ -400,7 +402,7 @@ test-clusterctl-create: $(CLUSTERCTL) ## Run the tests using clusterctl
 test-clusterctl-delete: ## Delete clusterctl created cluster
 	kubectl -n ${TEST_NAMESPACE} delete cluster ${TEST_CLUSTER_NAME}
 
-.PHONY: test-kubectl-bootstrap
+.PHONY: list-bootstrap-resources
 test-kubectl-bootstrap: ## Run kubectl queries to get all capx management/bootstrap related objects
 	kubectl get ns
 	kubectl get all --all-namespaces
@@ -408,7 +410,7 @@ test-kubectl-bootstrap: ## Run kubectl queries to get all capx management/bootst
 	kubectl -n $(TEST_NAMESPACE) get Cluster,NutanixCluster,Machine,NutanixMachine,KubeAdmControlPlane,MachineHealthCheck,nodes
 	kubectl -n capx-system get pod
 
-.PHONY: test-kubectl-workload
+.PHONY: list-workload-resources
 test-kubectl-workload: ## Run kubectl queries to get all capx workload related objects
 	kubectl -n $(TEST_NAMESPACE) get secret
 	kubectl -n ${TEST_NAMESPACE} get secret ${TEST_CLUSTER_NAME}-kubeconfig -o json | jq -r .data.value | base64 --decode > ${TEST_CLUSTER_NAME}.workload.kubeconfig
@@ -417,30 +419,29 @@ test-kubectl-workload: ## Run kubectl queries to get all capx workload related o
 .PHONY: test-clusterclass-create
 test-clusterclass-create: cluster-templates
 	clusterctl generate cluster ccls-test1 --from ./templates/cluster-template-clusterclass.yaml -n $(TEST_NAMESPACE) > ccls-test1.yaml
-	kubectl create ns $(TEST_NAMESPACE) || true
-	kubectl apply -f ./ccls-test1.yaml
+	kubectl create ns $(TEST_NAMESPACE) --dry-run=client -oyaml | kubectl apply --server-side -f -
+	kubectl apply --server-side -f ./ccls-test1.yaml
 
 .PHONY: test-clusterclass-delete
 test-clusterclass-delete:
-	kubectl -n $(TEST_NAMESPACE) delete cluster ccls-test1 || true
-	kubectl -n $(TEST_NAMESPACE) delete nutanixcluster ccls-test1 || true
-	kubectl -n $(TEST_NAMESPACE) delete clusterclass my-test-cluster-template || true
-	kubectl -n $(TEST_NAMESPACE) delete nutanixmachinetemplate my-test-cluster-template-cp-nmt || true
-	kubectl -n $(TEST_NAMESPACE) delete nutanixmachinetemplate my-test-cluster-template-md-nmt || true
-	kubectl -n $(TEST_NAMESPACE) delete KubeadmConfigTemplate my-test-cluster-template-md-kcfgt || true
-	kubectl -n $(TEST_NAMESPACE) delete kubeadmcontrolplanetemplate my-test-cluster-template-kcpt || true
-	kubectl -n $(TEST_NAMESPACE) delete NutanixClustertemplate my-test-cluster-template-nct || true
-	# kubectl -n $(TEST_NAMESPACE) delete secret ccls-test1
-	kubectl -n $(TEST_NAMESPACE) delete cm user-ca-bundle
+	kubectl -n $(TEST_NAMESPACE) delete cluster ccls-test1 --ignore-not-found
+	kubectl -n $(TEST_NAMESPACE) delete nutanixcluster ccls-test1 --ignore-not-found
+	kubectl -n $(TEST_NAMESPACE) delete clusterclass my-test-cluster-template --ignore-not-found
+	kubectl -n $(TEST_NAMESPACE) delete nutanixmachinetemplate my-test-cluster-template-cp-nmt --ignore-not-found
+	kubectl -n $(TEST_NAMESPACE) delete nutanixmachinetemplate my-test-cluster-template-md-nmt --ignore-not-found
+	kubectl -n $(TEST_NAMESPACE) delete KubeadmConfigTemplate my-test-cluster-template-md-kcfgt, ccls-test1-kcfg-0 --ignore-not-found
+	kubectl -n $(TEST_NAMESPACE) delete kubeadmcontrolplanetemplate my-test-cluster-template-kcpt --ignore-not-found
+	kubectl -n $(TEST_NAMESPACE) delete NutanixClustertemplate my-test-cluster-template-nct --ignore-not-found
+	# kubectl -n $(TEST_NAMESPACE) delete secret ccls-test1 --ignore-not-found
+	kubectl -n $(TEST_NAMESPACE) delete cm user-ca-bundle --ignore-not-found
 	rm ccls-test1.yaml || true
 
 
-.PHONY: test-kubectl-clusterclass
-test-kubectl-clusterclass:
+.PHONY: list-clusterclass-resources
+list-clusterclass-resources:
 	kubectl -n capx-system get endpoints
-	kubectl -n $(TEST_NAMESPACE) get cluster,machine,MachineDeployment
-	kubectl -n $(TEST_NAMESPACE) get NutanixCluster,NutanixMachine -n $(TEST_NAMESPACE)
-	kubectl -n $(TEST_NAMESPACE) get NutanixClusterTemplate,clusterclass,KubeadmConfigTemplate,KubeadmControlPlaneTemplate,NutanixMachineTemplate,secret,configmap -n $(TEST_NAMESPACE)
+	kubectl get crd | grep nutanix
+	kubectl get cluster-api -A
 	kubectl -n $(TEST_NAMESPACE) get ValidatingWebhookConfiguration,MutatingWebhookConfiguration
 
 .PHONY: ginkgo-help

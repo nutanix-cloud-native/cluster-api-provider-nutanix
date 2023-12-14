@@ -1,7 +1,10 @@
 bases:
-  - ../../../../../../templates/base/cluster-with-kcp.yaml
+  - ../../../../../../templates/base/nutanix-cluster.yaml
+  - ../../../../../../templates/base/cluster-without-topology.yaml
+  - ../../../../../../templates/base/kcp.yaml
+  - ../../../../../../templates/base-root/kct.yaml
   - ../../../../../../templates/base/nmt.yaml
-  - ../../../../../../templates/base/cm.yaml
+  - ../../../../../../templates/base-root/cm.yaml
   - ../../../../../../templates/base/md.yaml
   - ../../../../../../templates/base/mhc.yaml
   - ../../../../../../templates/base/nutanix-ccm-crs.yaml

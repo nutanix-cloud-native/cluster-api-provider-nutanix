@@ -19,9 +19,3 @@ rules:
   - get
   - list
   - watch
-- apiGroups:
-  - infrastructure.cluster.x-k8s.io
-  resources:
-  - nutanixclustertemplates/status
-  verbs:
-  - get
