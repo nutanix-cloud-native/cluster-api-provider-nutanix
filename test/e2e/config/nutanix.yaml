@@ -13,12 +13,31 @@ images:
     loadBehavior: mustLoad
   # ## PLEASE KEEP THESE UP TO DATE WITH THE COMPONENTS
   # Cluster API v1beta1 Preloads
-  - name: registry.k8s.io/cluster-api/cluster-api-controller:v1.4.1
+  - name: registry.k8s.io/cluster-api/cluster-api-controller:v1.3.10
     loadBehavior: tryLoad
-  - name: registry.k8s.io/cluster-api/kubeadm-bootstrap-controller:v1.4.1
+  - name: registry.k8s.io/cluster-api/kubeadm-bootstrap-controller:v1.3.10
     loadBehavior: tryLoad
-  - name: registry.k8s.io/cluster-api/kubeadm-control-plane-controller:v1.4.1
+  - name: registry.k8s.io/cluster-api/kubeadm-control-plane-controller:v1.3.10
     loadBehavior: tryLoad
+  - name: registry.k8s.io/cluster-api/cluster-api-controller:v1.4.9
+    loadBehavior: tryLoad
+  - name: registry.k8s.io/cluster-api/kubeadm-bootstrap-controller:v1.4.9
+    loadBehavior: tryLoad
+  - name: registry.k8s.io/cluster-api/kubeadm-control-plane-controller:v1.4.9
+    loadBehavior: tryLoad
+  - name: registry.k8s.io/cluster-api/cluster-api-controller:v1.5.4
+    loadBehavior: tryLoad
+  - name: registry.k8s.io/cluster-api/kubeadm-bootstrap-controller:v1.5.4
+    loadBehavior: tryLoad
+  - name: registry.k8s.io/cluster-api/kubeadm-control-plane-controller:v1.5.4
+    loadBehavior: tryLoad
+  - name: registry.k8s.io/cluster-api/cluster-api-controller:v1.6.0
+    loadBehavior: tryLoad
+  - name: registry.k8s.io/cluster-api/kubeadm-bootstrap-controller:v1.6.0
+    loadBehavior: tryLoad
+  - name: registry.k8s.io/cluster-api/kubeadm-control-plane-controller:v1.6.0
+    loadBehavior: tryLoad
+
 
 providers:
   - name: cluster-api
@@ -42,9 +61,9 @@ providers:
         replacements:
           - old: "imagePullPolicy: Always"
             new: "imagePullPolicy: IfNotPresent"
-      - name: v1.4.1
+      - name: v1.3.10
         # Use manifest from source files
-        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.4.1/core-components.yaml"
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.3.10/core-components.yaml"
         type: "url"
         contract: v1beta1
         files:
@@ -52,6 +71,16 @@ providers:
         replacements:
           - old: "imagePullPolicy: Always"
             new: "imagePullPolicy: IfNotPresent"
+      - name: v1.4.9
+        # Use manifest from source files
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.4.9/core-components.yaml"
+        type: "url"
+        contract: v1beta1
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"      
   - name: kubeadm
     type: BootstrapProvider
     versions:
@@ -73,9 +102,19 @@ providers:
         replacements:
           - old: "imagePullPolicy: Always"
             new: "imagePullPolicy: IfNotPresent"
-      - name: v1.4.1
+      - name: v1.3.10
         # Use manifest from source files
-        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.4.1/bootstrap-components.yaml"
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.3.10/bootstrap-components.yaml"
+        type: "url"
+        contract: "v1beta1"
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+      - name: v1.4.9
+        # Use manifest from source files
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.4.9/bootstrap-components.yaml"
         type: "url"
         contract: "v1beta1"
         files:
@@ -104,9 +143,19 @@ providers:
         replacements:
           - old: "imagePullPolicy: Always"
             new: "imagePullPolicy: IfNotPresent"
-      - name: v1.4.1
+      - name: v1.3.10
         # Use manifest from source files
-        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.4.1/control-plane-components.yaml"
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.3.10/control-plane-components.yaml"
+        type: "url"
+        contract: v1beta1
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+      - name: v1.4.9
+        # Use manifest from source files
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.4.9/control-plane-components.yaml"
         type: "url"
         contract: v1beta1
         files:
@@ -187,7 +236,15 @@ providers:
         files:
           - sourcePath: "../../../metadata.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"
-      - name: v1.2.0 # next; use manifest from source files
+      - name: v1.2.4
+        type: url
+        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.2.4/infrastructure-components.yaml
+        contract: v1beta1
+        files:
+          - sourcePath: "../../../metadata.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1.2.4/cluster-template.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/ccm-update.yaml"
+      - name: v1.3.99 # next; use manifest from source files
         type: kustomize
         value: "../../../config/default"
         contract: v1beta1
@@ -204,13 +261,13 @@ providers:
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-additional-categories.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-nmt.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-project.yaml"
-          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-ccm.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-upgrades.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-md-remediation.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-kcp-remediation.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-kcp-scale-in.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-csi.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-failure-domains.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/ccm-update.yaml"
 
 variables:
   # Default variables for the e2e test; those values could be overridden via env variables, thus
@@ -230,6 +287,7 @@ variables:
   KUBERNETES_VERSION: "v1.23.6"
   NUTANIX_SSH_AUTHORIZED_KEY: ""
   CONTROL_PLANE_ENDPOINT_IP: ""
+  CONTROL_PLANE_ENDPOINT_IP_V124: ""
   CONTROL_PLANE_MACHINE_COUNT: 3
   WORKER_MACHINE_COUNT: 3
   NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ""

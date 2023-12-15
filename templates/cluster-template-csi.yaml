@@ -8,6 +8,224 @@ metadata:
 ---
 apiVersion: v1
 data:
+  nutanix-ccm.yaml: |
+    ---
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: user-ca-bundle
+      namespace: kube-system
+    binaryData:
+      ca.crt: ${NUTANIX_ADDITIONAL_TRUST_BUNDLE=""}
+    ---
+    # Source: nutanix-cloud-provider/templates/rbac.yaml
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: cloud-controller-manager
+      namespace: kube-system
+    ---
+    # Source: nutanix-cloud-provider/templates/cm.yaml
+    kind: ConfigMap
+    apiVersion: v1
+    metadata:
+      name: nutanix-config
+      namespace: kube-system
+    data:
+      nutanix_config.json: |-
+        {
+          "prismCentral": {
+            "address": "${NUTANIX_ENDPOINT}",
+            "port": ${NUTANIX_PORT=9440},
+            "insecure": ${NUTANIX_INSECURE=false},
+            "credentialRef": {
+              "kind": "secret",
+              "name": "nutanix-creds",
+              "namespace": "kube-system"
+            },
+            "additionalTrustBundle": {
+              "kind": "ConfigMap",
+              "name": "user-ca-bundle",
+              "namespace": "kube-system"
+            }
+          },
+          "enableCustomLabeling": ${CCM_CUSTOM_LABEL=false},
+          "topologyDiscovery": {
+            "type": "Prism"
+          }
+        }
+    ---
+    # Source: nutanix-cloud-provider/templates/rbac.yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      annotations:
+        rbac.authorization.kubernetes.io/autoupdate: "true"
+      name: system:cloud-controller-manager
+    rules:
+      - apiGroups:
+          - ""
+        resources:
+          - secrets
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ""
+        resources:
+          - configmaps
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - ""
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+          - update
+      - apiGroups:
+          - ""
+        resources:
+          - nodes
+        verbs:
+          - "*"
+      - apiGroups:
+          - ""
+        resources:
+          - nodes/status
+        verbs:
+          - patch
+      - apiGroups:
+          - ""
+        resources:
+          - serviceaccounts
+        verbs:
+          - create
+      - apiGroups:
+          - ""
+        resources:
+          - endpoints
+        verbs:
+          - create
+          - get
+          - list
+          - watch
+          - update
+      - apiGroups:
+          - coordination.k8s.io
+        resources:
+          - leases
+        verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+    ---
+    # Source: nutanix-cloud-provider/templates/rbac.yaml
+    kind: ClusterRoleBinding
+    apiVersion: rbac.authorization.k8s.io/v1
+    metadata:
+      name: system:cloud-controller-manager
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: system:cloud-controller-manager
+    subjects:
+      - kind: ServiceAccount
+        name: cloud-controller-manager
+        namespace: kube-system
+    ---
+    # Source: nutanix-cloud-provider/templates/cloud-provider-nutanix-deployment.yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        k8s-app: nutanix-cloud-controller-manager
+      name: nutanix-cloud-controller-manager
+      namespace: kube-system
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          k8s-app: nutanix-cloud-controller-manager
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            k8s-app: nutanix-cloud-controller-manager
+        spec:
+          hostNetwork: true
+          priorityClassName: system-cluster-critical
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          serviceAccountName: cloud-controller-manager
+          affinity:
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    k8s-app: nutanix-cloud-controller-manager
+                topologyKey: kubernetes.io/hostname
+          dnsPolicy: Default
+          tolerations:
+            - effect: NoSchedule
+              key: node-role.kubernetes.io/master
+              operator: Exists
+            - effect: NoSchedule
+              key: node-role.kubernetes.io/control-plane
+              operator: Exists
+            - effect: NoExecute
+              key: node.kubernetes.io/unreachable
+              operator: Exists
+              tolerationSeconds: 120
+            - effect: NoExecute
+              key: node.kubernetes.io/not-ready
+              operator: Exists
+              tolerationSeconds: 120
+            - effect: NoSchedule
+              key: node.cloudprovider.kubernetes.io/uninitialized
+              operator: Exists
+            - effect: NoSchedule
+              key: node.kubernetes.io/not-ready
+              operator: Exists
+          containers:
+            - image: "${CCM_REPO=ghcr.io/nutanix-cloud-native/cloud-provider-nutanix/controller}:${CCM_TAG=v0.3.1}"
+              imagePullPolicy: IfNotPresent
+              name: nutanix-cloud-controller-manager
+              env:
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+              args:
+                - "--leader-elect=true"
+                - "--cloud-config=/etc/cloud/nutanix_config.json"
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 50Mi
+              volumeMounts:
+                - mountPath: /etc/cloud
+                  name: nutanix-config-volume
+                  readOnly: true
+          volumes:
+            - name: nutanix-config-volume
+              configMap:
+                name: nutanix-config
+kind: ConfigMap
+metadata:
+  name: nutanix-ccm
+---
+apiVersion: v1
+data:
   ns.yaml: |-
     apiVersion: v1
     kind: Namespace
@@ -1335,6 +1553,35 @@ stringData:
     \       \"username\": \"${NUTANIX_USER}\", \n        \"password\": \"${NUTANIX_PASSWORD}\"\n
     \     }\n    }\n  }\n]\n"
 ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nutanix-ccm-secret
+stringData:
+  nutanix-ccm-secret.yaml: "apiVersion: v1\nkind: Secret\nmetadata:\n  name: nutanix-creds\n
+    \ namespace: kube-system\nstringData:\n  credentials: |\n    [\n      {\n        \"type\":
+    \"basic_auth\", \n        \"data\": { \n          \"prismCentral\":{\n            \"username\":
+    \"${NUTANIX_USER}\",\n            \"password\": \"${NUTANIX_PASSWORD}\"\n          },\n
+    \         \"prismElements\": null\n        }\n      }\n    ]\n"
+type: addons.cluster.x-k8s.io/resource-set
+---
+apiVersion: addons.cluster.x-k8s.io/v1beta1
+kind: ClusterResourceSet
+metadata:
+  name: nutanix-ccm-crs
+spec:
+  clusterSelector:
+    matchLabels:
+      ccm: nutanix
+  resources:
+  - kind: ConfigMap
+    name: nutanix-ccm
+  - kind: Secret
+    name: nutanix-ccm-secret
+  - kind: ConfigMap
+    name: user-ca-bundle
+  strategy: ApplyOnce
+---
 apiVersion: addons.cluster.x-k8s.io/v1beta1
 kind: ClusterResourceSet
 metadata:
@@ -1359,6 +1606,7 @@ spec:
       joinConfiguration:
         nodeRegistration:
           kubeletExtraArgs:
+            cloud-provider: external
             eviction-hard: nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,memory.available<100Mi,imagefs.inodesFree<10%
             tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
       postKubeadmCommands:
@@ -1378,6 +1626,7 @@ apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
 metadata:
   labels:
+    ccm: nutanix
     cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
     csi: nutanix
   name: ${CLUSTER_NAME}
@@ -1475,9 +1724,11 @@ spec:
         - 127.0.0.1
         - 0.0.0.0
         extraArgs:
+          cloud-provider: external
           tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
       controllerManager:
         extraArgs:
+          cloud-provider: external
           enable-hostpath-provisioner: "true"
           tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
       scheduler:
@@ -1552,11 +1803,13 @@ spec:
     initConfiguration:
       nodeRegistration:
         kubeletExtraArgs:
+          cloud-provider: external
           eviction-hard: nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,memory.available<100Mi,imagefs.inodesFree<10%
           tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
     joinConfiguration:
       nodeRegistration:
         kubeletExtraArgs:
+          cloud-provider: external
           eviction-hard: nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,memory.available<100Mi,imagefs.inodesFree<10%
           tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
     postKubeadmCommands:

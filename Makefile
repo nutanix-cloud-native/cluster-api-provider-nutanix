@@ -16,7 +16,8 @@ IMG_TAG := latest
 endif
 
 ifeq (${LOCAL_PROVIDER_VERSION},latest)
-LOCAL_PROVIDER_VERSION := v0.0.0
+# Change this versions after release when required here and in e2e config (test/e2e/config/nutanix.yaml)
+LOCAL_PROVIDER_VERSION := v1.3.99
 endif
 
 # PLATFORMS is a list of platforms to build for.
@@ -132,6 +133,21 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+# Get latest git hash
+GIT_COMMIT_HASH=$(shell git rev-parse HEAD)
+
+# Get the local image registry required for clusterctl upgrade tests
+LOCAL_IMAGE_REGISTRY ?= localhost:5000
+
+ifeq (${MAKECMDGOALS},test-e2e-clusterctl-upgrade)
+	IMG_TAG=e2e-${GIT_COMMIT_HASH}
+	IMG_REPO=${LOCAL_IMAGE_REGISTRY}/controller
+endif
+
+ifeq (${MAKECMDGOALS},docker-build-e2e)
+	IMG_TAG=e2e-${GIT_COMMIT_HASH}
+endif
+
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -234,8 +250,8 @@ kind-delete: ## Delete the kind cluster
 
 .PHONY: build
 build: generate fmt ## Build manager binary.
-	GIT_COMMIT_HASH=`git rev-parse HEAD` && \
-	go build -ldflags "-X main.gitCommitHash=$${GIT_COMMIT_HASH}" -o bin/manager main.go
+	echo "Git commit hash: ${GIT_COMMIT_HASH}"
+	go build -ldflags "-X main.gitCommitHash=${GIT_COMMIT_HASH}" -o bin/manager main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
@@ -243,8 +259,8 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: docker-build
 docker-build: $(KO) ## Build docker image with the manager.
-	GIT_COMMIT_HASH=`git rev-parse HEAD` && \
-	KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=$${GIT_COMMIT_HASH}" $(KO) build -B --platform=${PLATFORMS} -t ${IMG_TAG} -L .
+	echo "Git commit hash: ${GIT_COMMIT_HASH}"
+	KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" $(KO) build -B --platform=${PLATFORMS} -t ${IMG_TAG} -L .
 
 .PHONY: docker-push
 docker-push: $(KO) ## Push docker image with the manager.
@@ -285,7 +301,10 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 ##@ Templates
 
 .PHONY: cluster-e2e-templates
-cluster-e2e-templates: $(KUSTOMIZE) cluster-e2e-templates-v1beta1 cluster-e2e-templates-v1alpha4 ## Generate cluster templates for all versions
+cluster-e2e-templates: $(KUSTOMIZE) cluster-e2e-templates-v1beta1 cluster-e2e-templates-v1alpha4 cluster-e2e-templates-v124 ## Generate cluster templates for all versions
+
+cluster-e2e-templates-v124: $(KUSTOMIZE) ## Generate cluster templates for CAPX v1.2.4
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1.2.4/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1.2.4/cluster-template.yaml
 
 cluster-e2e-templates-v1alpha4: $(KUSTOMIZE) ## Generate cluster templates for v1alpha4
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1alpha4/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1alpha4/cluster-template.yaml
@@ -297,7 +316,6 @@ cluster-e2e-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project.yaml
-	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-ccm --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-ccm.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-upgrades --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-upgrades.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-remediation --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-remediation.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-remediation --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-remediation.yaml
@@ -316,7 +334,6 @@ cluster-e2e-templates-no-kubeproxy: $(KUSTOMIZE) ##Generate cluster templates wi
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-additional-categories --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-no-nmt --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-project --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project.yaml
-	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-ccm --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-ccm.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-upgrades --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-upgrades.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-md-remediation --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-remediation.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-kcp-remediation --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-remediation.yaml
@@ -327,15 +344,14 @@ cluster-e2e-templates-no-kubeproxy: $(KUSTOMIZE) ##Generate cluster templates wi
 cluster-templates: $(KUSTOMIZE) ## Generate cluster templates for all flavors
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/base > $(TEMPLATES_DIR)/cluster-template.yaml
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/csi > $(TEMPLATES_DIR)/cluster-template-csi.yaml
-	$(KUSTOMIZE) build $(TEMPLATES_DIR)/ccm > $(TEMPLATES_DIR)/cluster-template-ccm.yaml
 
 ##@ Testing
 
 .PHONY: docker-build-e2e
 docker-build-e2e: $(KO) ## Build docker image with the manager with e2e tag.
-	GIT_COMMIT_HASH=`git rev-parse HEAD` && \
-	KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=$${GIT_COMMIT_HASH}" $(KO) build -B --platform=${PLATFORMS_E2E} -t e2e -L .
-	docker tag ko.local/cluster-api-provider-nutanix:e2e ${IMG_REPO}:e2e
+	echo "Git commit hash: ${GIT_COMMIT_HASH}"
+	KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" $(KO) build -B --platform=${PLATFORMS_E2E} -t ${IMG_TAG} -L .
+	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:e2e
 
 .PHONY: prepare-local-clusterctl
 prepare-local-clusterctl: manifests kustomize cluster-templates ## Prepare overide file for local clusterctl.
@@ -468,6 +484,12 @@ test-e2e-cilium-no-kubeproxy:
 .PHONY: test-e2e-all-cni
 test-e2e-all-cni: test-e2e test-e2e-calico test-e2e-flannel test-e2e-cilium test-e2e-cilium-no-kubeproxy
 
+.PHONY: test-e2e-clusterctl-upgrade
+test-e2e-clusterctl-upgrade: docker-build-e2e $(GINKGO_BIN) cluster-e2e-templates cluster-templates ## Run the end-to-end tests
+	echo "Image tag for E2E test is ${IMG_TAG}"
+	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:${IMG_TAG}
+	docker push ${IMG_REPO}:${IMG_TAG}
+	GINKGO_SKIP="" GIT_COMMIT="${GIT_COMMIT_HASH}" $(MAKE) test-e2e-calico
 
 ## --------------------------------------
 ## Hack / Tools

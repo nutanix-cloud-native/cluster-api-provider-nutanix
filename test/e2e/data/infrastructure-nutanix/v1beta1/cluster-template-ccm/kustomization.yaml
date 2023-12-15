@@ -1,6 +1,0 @@
-bases:
-  - ../../../../../../templates/ccm/
-  - ../base/crs.yaml
-
-patchesStrategicMerge:
-  - ../base/cni-patch.yaml
