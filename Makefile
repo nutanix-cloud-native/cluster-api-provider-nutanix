@@ -354,13 +354,14 @@ docker-build-e2e: $(KO) ## Build docker image with the manager with e2e tag.
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:e2e
 
 .PHONY: prepare-local-clusterctl
-prepare-local-clusterctl: manifests kustomize cluster-templates ## Prepare overide file for local clusterctl.
+prepare-local-clusterctl: manifests kustomize cluster-templates envsubst ## Prepare overide file for local clusterctl.
 	mkdir -p ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/infrastructure-components.yaml
 	cp ./metadata.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/
 	cp ./templates/cluster-template*.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/
-	cp ./clusterctl.yaml ~/.cluster-api/clusterctl.yaml
+	env LOCAL_PROVIDER_VERSION=$(LOCAL_PROVIDER_VERSION) \
+		$(ENVSUBST) -no-unset -no-empty -no-digit < ./clusterctl.yaml > ~/.cluster-api/clusterctl.yaml
 
 .PHONY: unit-test
 unit-test: setup-envtest ## Run unit tests.
