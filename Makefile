@@ -391,21 +391,21 @@ ifeq ($(EXPORT_RESULT), true)
 	gocov convert profile.cov | gocov-xml > coverage.xml
 endif
 
-.PHONY: test-clusterctl-create
-test-clusterctl-create: $(CLUSTERCTL) ## Run the tests using clusterctl
+.PHONY: test-cluster-create
+test-cluster-create: $(CLUSTERCTL) ## Run the tests using clusterctl
 	$(CLUSTERCTL) version
 	$(CLUSTERCTL) config repositories | grep nutanix
 	$(CLUSTERCTL) generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --list-variables -v 10
 	$(CLUSTERCTL) generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./cluster.yaml
-	kubectl create ns $(TEST_NAMESPACE) || true
-	kubectl apply -f ./cluster.yaml -n $(TEST_NAMESPACE)
+	kubectl create ns $(TEST_NAMESPACE) --dry-run=client -oyaml | kubectl apply --server-side -f -
+	kubectl apply --server-side -f ./cluster.yaml
 
-.PHONY: test-clusterctl-delete
-test-clusterctl-delete: ## Delete clusterctl created cluster
-	kubectl -n ${TEST_NAMESPACE} delete cluster ${TEST_CLUSTER_NAME}
+.PHONY: test-cluster-delete
+test-cluster-delete: ## Delete clusterctl created cluster
+	kubectl -n ${TEST_NAMESPACE} delete cluster ${TEST_CLUSTER_NAME} --ignore-not-found
 
 .PHONY: list-bootstrap-resources
-test-kubectl-bootstrap: ## Run kubectl queries to get all capx management/bootstrap related objects
+list-bootstrap-resources: ## Run kubectl queries to get all capx management/bootstrap related objects
 	kubectl get ns
 	kubectl get all --all-namespaces
 	kubectl -n capx-system get all
@@ -413,7 +413,7 @@ test-kubectl-bootstrap: ## Run kubectl queries to get all capx management/bootst
 	kubectl -n capx-system get pod
 
 .PHONY: list-workload-resources
-test-kubectl-workload: ## Run kubectl queries to get all capx workload related objects
+list-workload-resources: ## Run kubectl queries to get all capx workload related objects
 	kubectl -n $(TEST_NAMESPACE) get secret
 	kubectl -n ${TEST_NAMESPACE} get secret ${TEST_CLUSTER_NAME}-kubeconfig -o json | jq -r .data.value | base64 --decode > ${TEST_CLUSTER_NAME}.workload.kubeconfig
 	kubectl --kubeconfig ./${TEST_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
