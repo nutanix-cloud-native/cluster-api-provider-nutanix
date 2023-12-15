@@ -4,6 +4,4 @@ kind: Kustomization
 namespace: "${NAMESPACE}"
 
 bases:
-  - ./secret.yaml
-  - ./cm.yaml
-  - ./kct.yaml
+  - ./cluster-with-topology.yaml

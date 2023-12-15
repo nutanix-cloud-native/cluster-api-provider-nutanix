@@ -353,6 +353,8 @@ cluster-templates: $(KUSTOMIZE) ## Generate cluster templates for all flavors
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/base > $(TEMPLATES_DIR)/cluster-template.yaml
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/csi > $(TEMPLATES_DIR)/cluster-template-csi.yaml
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/clusterclass > $(TEMPLATES_DIR)/cluster-template-clusterclass.yaml
+	$(KUSTOMIZE) build $(TEMPLATES_DIR)/topology > $(TEMPLATES_DIR)/cluster-template-topology.yaml
+
 ##@ Testing
 
 .PHONY: docker-build-e2e
@@ -416,29 +418,25 @@ test-kubectl-workload: ## Run kubectl queries to get all capx workload related o
 	kubectl -n ${TEST_NAMESPACE} get secret ${TEST_CLUSTER_NAME}-kubeconfig -o json | jq -r .data.value | base64 --decode > ${TEST_CLUSTER_NAME}.workload.kubeconfig
 	kubectl --kubeconfig ./${TEST_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
 
-.PHONY: test-clusterclass-create
-test-clusterclass-create: cluster-templates
-	clusterctl generate cluster ccls-test1 --from ./templates/cluster-template-clusterclass.yaml -n $(TEST_NAMESPACE) > ccls-test1.yaml
+.PHONY: test-cc-cluster-create
+test-cc-cluster-create: cluster-templates
+	clusterctl generate cluster cc-test --from ./templates/cluster-template-clusterclass.yaml -n $(TEST_NAMESPACE) > cc-test.yaml
+	clusterctl generate cluster cluster-topology --from ./templates/cluster-template-topology.yaml -n $(TEST_NAMESPACE) > cluster-topology.yaml
 	kubectl create ns $(TEST_NAMESPACE) --dry-run=client -oyaml | kubectl apply --server-side -f -
-	kubectl apply --server-side -f ./ccls-test1.yaml
+	kubectl apply --server-side -f ./cc-test.yaml
+	kubectl apply --server-side -f ./cluster-topology.yaml
 
-.PHONY: test-clusterclass-delete
-test-clusterclass-delete:
-	kubectl -n $(TEST_NAMESPACE) delete cluster ccls-test1 --ignore-not-found
-	kubectl -n $(TEST_NAMESPACE) delete nutanixcluster ccls-test1 --ignore-not-found
-	kubectl -n $(TEST_NAMESPACE) delete clusterclass my-test-cluster-template --ignore-not-found
-	kubectl -n $(TEST_NAMESPACE) delete nutanixmachinetemplate my-test-cluster-template-cp-nmt --ignore-not-found
-	kubectl -n $(TEST_NAMESPACE) delete nutanixmachinetemplate my-test-cluster-template-md-nmt --ignore-not-found
-	kubectl -n $(TEST_NAMESPACE) delete KubeadmConfigTemplate my-test-cluster-template-md-kcfgt, ccls-test1-kcfg-0 --ignore-not-found
-	kubectl -n $(TEST_NAMESPACE) delete kubeadmcontrolplanetemplate my-test-cluster-template-kcpt --ignore-not-found
-	kubectl -n $(TEST_NAMESPACE) delete NutanixClustertemplate my-test-cluster-template-nct --ignore-not-found
-	# kubectl -n $(TEST_NAMESPACE) delete secret ccls-test1 --ignore-not-found
+.PHONY: test-cc-cluster-delete
+test-cc-cluster-delete:
+	kubectl -n $(TEST_NAMESPACE) delete cluster cluster-topology --ignore-not-found
+	kubectl -n $(TEST_NAMESPACE) delete secret cluster-topology --ignore-not-found
 	kubectl -n $(TEST_NAMESPACE) delete cm user-ca-bundle --ignore-not-found
-	rm ccls-test1.yaml || true
+	rm cluster-topology.yaml || true
+	rm cc-test.yaml || true
 
 
-.PHONY: list-clusterclass-resources
-list-clusterclass-resources:
+.PHONY: list-cc-cluster-resources
+list-cc-cluster-resources:
 	kubectl -n capx-system get endpoints
 	kubectl get crd | grep nutanix
 	kubectl get cluster-api -A

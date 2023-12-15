@@ -5,7 +5,6 @@ namespace: "${NAMESPACE}"
 
 bases:
   - ../base-root
-  - ./cluster-with-topology.yaml
   - ./nct.yaml
   - ./clusterclass.yaml
   - ./nmt-cp.yaml

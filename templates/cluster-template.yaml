@@ -3,7 +3,7 @@ binaryData:
   ca.crt: ${NUTANIX_ADDITIONAL_TRUST_BUNDLE=""}
 kind: ConfigMap
 metadata:
-  name: user-ca-bundle
+  name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
   namespace: ${NAMESPACE}
 ---
 apiVersion: v1
