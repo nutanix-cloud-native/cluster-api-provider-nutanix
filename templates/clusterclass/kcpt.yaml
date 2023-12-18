@@ -85,7 +85,8 @@ spec:
               # We have to pin the cgroupDriver to cgroupfs as kubeadm >=1.21 defaults to systemd
               # kind will implement systemd support in: https://github.com/kubernetes-sigs/kind/issues/1726
               #cgroup-driver: cgroupfs
-              eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+              eviction-hard: nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,memory.available<100Mi,imagefs.inodesFree<10%
+              tls-cipher-suites: "${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}"
         users:
           - name: capiuser
             lockPassword: false
