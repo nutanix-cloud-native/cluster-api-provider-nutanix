@@ -596,6 +596,18 @@ lint: $(GOLANGCI_LINT) ## Lint the codebase
 lint-fix: $(GOLANGCI_LINT) ## Lint the codebase and run auto-fixers if supported by the linter
 	GOLANGCI_LINT_EXTRA_ARGS="$(GOLANGCI_LINT_EXTRA_ARGS) --fix" $(MAKE) lint
 
+# Make any new verify task a dependency of this target
+.PHONY: verify ## Run all verify targets
+verify: verify-manifests
+
+# Adapted from https://github.com/kubernetes-sigs/cluster-api/blob/f15e8769a2135429911ce6d8f7124b853c0444a1/Makefile#L651-L656
+.PHONY: verify-manifests
+verify-manifests: manifests  ## Verify generated manifests are up to date
+	@if !(git diff --quiet HEAD); then \
+		git diff; \
+		echo "generated manifests are out of date in the repository, run make manifests, and commit"; exit 1; \
+	fi
+
 ## --------------------------------------
 ## Clean
 ## --------------------------------------
