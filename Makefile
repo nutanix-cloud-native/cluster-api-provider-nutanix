@@ -294,9 +294,9 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
-deploy: manifests kustomize docker-push-kind ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	clusterctl delete --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} --include-crd || true
-	clusterctl init --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} -v 9
+deploy: manifests kustomize docker-push-kind $(CLUSTERCTL) ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	$(CLUSTERCTL) delete --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} --include-crd || true
+	$(CLUSTERCTL) init --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} -v 9
 	# cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	# $(KUSTOMIZE) build config/default | kubectl apply -f -
 
@@ -388,12 +388,11 @@ ifeq ($(EXPORT_RESULT), true)
 endif
 
 .PHONY: test-clusterctl-create
-test-clusterctl-create: ## Run the tests using clusterctl
-	which clusterctl
-	clusterctl version
-	clusterctl config repositories | grep nutanix
-	clusterctl generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --list-variables -v 10
-	clusterctl generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./cluster.yaml
+test-clusterctl-create: $(CLUSTERCTL) ## Run the tests using clusterctl
+	$(CLUSTERCTL) version
+	$(CLUSTERCTL) config repositories | grep nutanix
+	$(CLUSTERCTL) generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --list-variables -v 10
+	$(CLUSTERCTL) generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./cluster.yaml
 	kubectl create ns $(TEST_NAMESPACE) || true
 	kubectl apply -f ./cluster.yaml -n $(TEST_NAMESPACE)
 
