@@ -5,3 +5,6 @@ namespace: "${NAMESPACE}"
 
 bases:
   - ./cluster-with-topology.yaml
+
+patchesStrategicMerge:
+- ./ccm-patch.yaml

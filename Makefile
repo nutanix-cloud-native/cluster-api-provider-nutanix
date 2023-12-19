@@ -440,7 +440,12 @@ list-cc-cluster-resources:
 	kubectl -n capx-system get endpoints
 	kubectl get crd | grep nutanix
 	kubectl get cluster-api -A
-	kubectl -n $(TEST_NAMESPACE) get ValidatingWebhookConfiguration,MutatingWebhookConfiguration
+	kubectl -n $(TEST_NAMESPACE) get Cluster,NutanixCluster,Machine,NutanixMachine,KubeAdmControlPlane,MachineHealthCheck,nodes
+	kubectl get ValidatingWebhookConfiguration,MutatingWebhookConfiguration -A
+	kubectl -n ${TEST_NAMESPACE} get secret cluster-topology-kubeconfig -o json | jq -r .data.value | base64 --decode > cluster-topology.workload.kubeconfig
+	kubectl --kubeconfig ./cluster-topology.workload.kubeconfig get nodes,ns
+	kubectl --kubeconfig ./cluster-topology.workload.kubeconfig get nodes,ns
+	kubectl --kubeconfig ./cluster-topology.workload.kubeconfig get pods -A
 
 .PHONY: ginkgo-help
 ginkgo-help:

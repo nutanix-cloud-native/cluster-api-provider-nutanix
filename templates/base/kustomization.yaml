@@ -1,12 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-configMapGenerator:
-- name: nutanix-ccm
-  behavior: merge
-  files:
-  - nutanix-ccm.yaml
-
 namespace: "${NAMESPACE}"
 
 bases:
@@ -17,9 +11,6 @@ bases:
   - ./nmt.yaml
   - ./md.yaml
   - ./mhc.yaml
-  - ./nutanix-ccm-crs.yaml
-  - ./nutanix-ccm-secret.yaml
 
 patchesStrategicMerge:
-- ccm-patch.yaml
-
+- ./ccm-patch.yaml

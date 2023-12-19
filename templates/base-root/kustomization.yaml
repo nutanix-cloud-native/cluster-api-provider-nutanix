@@ -3,7 +3,18 @@ kind: Kustomization
 
 namespace: "${NAMESPACE}"
 
+configMapGenerator:
+- name: nutanix-ccm
+  behavior: merge
+  files:
+  - nutanix-ccm.yaml
+
 bases:
   - ./secret.yaml
   - ./cm.yaml
   - ./kct.yaml
+  - ./nutanix-ccm-crs.yaml
+  - ./nutanix-ccm-secret.yaml
+
+patchesStrategicMerge:
+- ./ccm-patch.yaml
