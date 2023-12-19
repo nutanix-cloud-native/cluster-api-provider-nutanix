@@ -10,3 +10,4 @@ bases:
   - ./nmt-cp.yaml
   - ./nmt-md.yaml
   - ./kcpt.yaml
+  - ./kct.yaml

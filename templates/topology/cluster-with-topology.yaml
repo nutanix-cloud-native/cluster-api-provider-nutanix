@@ -19,7 +19,10 @@ spec:
       metadata: {}
     workers:
       machineDeployments:
-      - class: default-worker
+      - class: ${CLUSTER_CLASS_NAME}-worker
         name: md-0
         replicas: ${WORKER_MACHINE_COUNT}
         metadata: {}
+    variables:
+    - name: sshKey
+      value: '${NUTANIX_SSH_AUTHORIZED_KEY}'

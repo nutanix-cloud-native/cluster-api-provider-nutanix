@@ -279,6 +279,40 @@ spec:
       verbosity: 10
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  labels:
+    ccm: nutanix
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+    cni: ${CLUSTER_NAME}-crs-cni
+  name: ${CLUSTER_NAME}
+  namespace: ${NAMESPACE}
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+      - 172.20.0.0/16
+    serviceDomain: cluster.local
+    services:
+      cidrBlocks:
+      - 172.19.0.0/16
+  topology:
+    class: ${CLUSTER_CLASS_NAME}
+    controlPlane:
+      metadata: {}
+      replicas: ${CONTROL_PLANE_MACHINE_COUNT}
+    variables:
+    - name: sshKey
+      value: ${NUTANIX_SSH_AUTHORIZED_KEY}
+    version: ${KUBERNETES_VERSION}
+    workers:
+      machineDeployments:
+      - class: ${CLUSTER_CLASS_NAME}-worker
+        metadata: {}
+        name: md-0
+        replicas: ${WORKER_MACHINE_COUNT}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
 kind: ClusterClass
 metadata:
   name: ${CLUSTER_CLASS_NAME}

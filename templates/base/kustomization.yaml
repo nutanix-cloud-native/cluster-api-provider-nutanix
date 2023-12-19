@@ -8,6 +8,7 @@ bases:
   - ./nutanix-cluster.yaml
   - ./cluster-without-topology.yaml
   - ./kcp.yaml
+  - ./kct.yaml
   - ./nmt.yaml
   - ./md.yaml
   - ./mhc.yaml

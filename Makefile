@@ -183,6 +183,8 @@ FLAVOR ?= e2e
 
 TEST_NAMESPACE=capx-test-ns
 TEST_CLUSTER_NAME=mycluster
+TEST_CLUSTER_CLASS_NAME=my-clusterclass
+TEST_TOPOLOGY_CLUSTER_NAME=my-cc-cluster
 
 # set ginkgo focus flags, if any
 ifneq ($(strip $(GINKGO_FOCUS)),)
@@ -329,6 +331,7 @@ cluster-e2e-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-failure-domains --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-failure-domains.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/clusterclass-e2e.yaml
 
 cluster-e2e-templates-no-kubeproxy: $(KUSTOMIZE) ##Generate cluster templates without kubeproxy
 	# v1alpha4
@@ -348,6 +351,7 @@ cluster-e2e-templates-no-kubeproxy: $(KUSTOMIZE) ##Generate cluster templates wi
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-csi --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-failure-domains --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-failure-domains.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/clusterclass-e2e.yaml
 
 cluster-templates: $(KUSTOMIZE) ## Generate cluster templates for all flavors
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/base > $(TEMPLATES_DIR)/cluster-template.yaml
@@ -420,32 +424,37 @@ list-workload-resources: ## Run kubectl queries to get all capx workload related
 
 .PHONY: test-cc-cluster-create
 test-cc-cluster-create: cluster-templates
-	clusterctl generate cluster cc-test --from ./templates/cluster-template-clusterclass.yaml -n $(TEST_NAMESPACE) > cc-test.yaml
-	clusterctl generate cluster cluster-topology --from ./templates/cluster-template-topology.yaml -n $(TEST_NAMESPACE) > cluster-topology.yaml
+	clusterctl generate cluster ${TEST_CLUSTER_CLASS_NAME} --from ./templates/cluster-template-clusterclass.yaml -n $(TEST_NAMESPACE) > ${TEST_CLUSTER_CLASS_NAME}.yaml
+	clusterctl generate cluster ${TEST_TOPOLOGY_CLUSTER_NAME} --from ./templates/cluster-template-topology.yaml -n $(TEST_NAMESPACE) > ${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
 	kubectl create ns $(TEST_NAMESPACE) --dry-run=client -oyaml | kubectl apply --server-side -f -
-	kubectl apply --server-side -f ./cc-test.yaml
-	kubectl apply --server-side -f ./cluster-topology.yaml
+	kubectl apply --server-side -f ./${TEST_CLUSTER_CLASS_NAME}.yaml
+	kubectl apply --server-side -f ./${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
 
 .PHONY: test-cc-cluster-delete
 test-cc-cluster-delete:
-	kubectl -n $(TEST_NAMESPACE) delete cluster cluster-topology --ignore-not-found
-	kubectl -n $(TEST_NAMESPACE) delete secret cluster-topology --ignore-not-found
-	kubectl -n $(TEST_NAMESPACE) delete cm user-ca-bundle --ignore-not-found
-	rm cluster-topology.yaml || true
-	rm cc-test.yaml || true
+	kubectl -n $(TEST_NAMESPACE) delete cluster ${TEST_TOPOLOGY_CLUSTER_NAME} --ignore-not-found
+	kubectl -n $(TEST_NAMESPACE) delete secret ${TEST_TOPOLOGY_CLUSTER_NAME} --ignore-not-found
+	kubectl -n $(TEST_NAMESPACE) delete cm ${TEST_TOPOLOGY_CLUSTER_NAME}-pc-trusted-ca-bundle --ignore-not-found
+	rm ${TEST_TOPOLOGY_CLUSTER_NAME}.yaml || true
+	rm ${TEST_CLUSTER_CLASS_NAME}.yaml || true
 
+.PHONY: generate-cc-cluster-kubeconfig
+generate-cc-cluster-kubeconfig:
+	kubectl -n ${TEST_NAMESPACE} get secret ${TEST_TOPOLOGY_CLUSTER_NAME}-kubeconfig -o json | jq -r .data.value | base64 --decode > ${TEST_TOPOLOGY_CLUSTER_NAME}.workload.kubeconfig
+
+.PHONY: test-cc-cluster-install-cni
+test-cc-cluster-install-cni: generate-cc-cluster-kubeconfig
+	kubectl --kubeconfig ./${TEST_TOPOLOGY_CLUSTER_NAME}.workload.kubeconfig apply -f https://raw.githubusercontent.com/nutanix-cloud-native/cluster-api-provider-nutanix/main/test/e2e/data/cni/calico/calico.yaml
 
 .PHONY: list-cc-cluster-resources
-list-cc-cluster-resources:
+list-cc-cluster-resources: generate-cc-cluster-kubeconfig
 	kubectl -n capx-system get endpoints
 	kubectl get crd | grep nutanix
 	kubectl get cluster-api -A
 	kubectl -n $(TEST_NAMESPACE) get Cluster,NutanixCluster,Machine,NutanixMachine,KubeAdmControlPlane,MachineHealthCheck,nodes
 	kubectl get ValidatingWebhookConfiguration,MutatingWebhookConfiguration -A
-	kubectl -n ${TEST_NAMESPACE} get secret cluster-topology-kubeconfig -o json | jq -r .data.value | base64 --decode > cluster-topology.workload.kubeconfig
-	kubectl --kubeconfig ./cluster-topology.workload.kubeconfig get nodes,ns
-	kubectl --kubeconfig ./cluster-topology.workload.kubeconfig get nodes,ns
-	kubectl --kubeconfig ./cluster-topology.workload.kubeconfig get pods -A
+	kubectl --kubeconfig ./${TEST_TOPOLOGY_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
+	kubectl --kubeconfig ./${TEST_TOPOLOGY_CLUSTER_NAME}.workload.kubeconfig get pods -A
 
 .PHONY: ginkgo-help
 ginkgo-help:

@@ -12,9 +12,5 @@ configMapGenerator:
 bases:
   - ./secret.yaml
   - ./cm.yaml
-  - ./kct.yaml
   - ./nutanix-ccm-crs.yaml
   - ./nutanix-ccm-secret.yaml
-
-patchesStrategicMerge:
-- ./ccm-patch.yaml
