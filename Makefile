@@ -54,8 +54,8 @@ export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 # CNI paths for e2e tests
 CNI_PATH_CALICO ?= "${E2E_DIR}/data/cni/calico/calico.yaml"
 CNI_PATH_FLANNEL ?= "${E2E_DIR}/data/cni/flannel/flannel.yaml" # From https://github.com/flannel-io/flannel/blob/master/Documentation/kube-flannel.yml
-CNI_PATH_CILIUM ?= "${E2E_DIR}/data/cni/cilium/cilium.yaml" # helm template cilium cilium/cilium --version 1.13.0 -n kube-system --set hubble.enabled=false | sed 's/${BIN_PATH}/$BIN_PATH/g'
-CNI_PATH_CILIUM_NO_KUBEPROXY ?= "${E2E_DIR}/data/cni/cilium/cilium-no-kubeproxy.yaml" # helm template cilium cilium/cilium --version 1.13.0 -n kube-system --set hubble.enabled=false --set kubeProxyReplacement=strict | sed 's/${BIN_PATH}/$BIN_PATH/g'
+CNI_PATH_CILIUM ?= "${E2E_DIR}/data/cni/cilium/cilium.yaml" # helm template cilium cilium/cilium --version 1.13.0 -n kube-system --set hubble.enabled=false --set cni.chainingMode=portmap  --set sessionAffinity=true | sed 's/${BIN_PATH}/$BIN_PATH/g'
+CNI_PATH_CILIUM_NO_KUBEPROXY ?= "${E2E_DIR}/data/cni/cilium/cilium-no-kubeproxy.yaml" # helm template cilium cilium/cilium --version 1.13.0 -n kube-system --set hubble.enabled=false --set cni.chainingMode=portmap  --set sessionAffinity=true --set kubeProxyReplacement=strict | sed 's/${BIN_PATH}/$BIN_PATH/g'
 
 #
 # Binaries.

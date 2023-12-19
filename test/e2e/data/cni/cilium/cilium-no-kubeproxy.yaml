@@ -78,6 +78,9 @@ data:
   # Specifies the ratio (0.0-1.0] of total system memory to use for dynamic
   # sizing of the TCP CT, non-TCP CT, NAT and policy BPF maps.
   bpf-map-dynamic-size-ratio: "0.0025"
+  # In cni chaining mode, the other chained plugin is responsible for underlying connectivity,
+  # so cilium eBPF host routing shoud not work, and let it fall back to the legacy routing mode
+  enable-host-legacy-routing: "true"
   # bpf-policy-map-max specifies the maximum number of entries in endpoint
   # policy map (per endpoint)
   bpf-policy-map-max: "16384"
@@ -123,6 +126,15 @@ data:
 
   # Enables L7 proxy for L7 policy enforcement and visibility
   enable-l7-proxy: "true"
+  # Enable chaining with another CNI plugin
+  #
+  # Supported modes:
+  #  - none
+  #  - aws-cni
+  #  - flannel
+  #  - generic-veth
+  #  - portmap (Enables HostPort support for Cilium)
+  cni-chaining-mode: portmap
 
   enable-ipv4-masquerade: "true"
   enable-ipv6-big-tcp: "false"
@@ -135,11 +147,13 @@ data:
   auto-direct-node-routes: "false"
   enable-local-redirect-policy: "false"
 
-  kube-proxy-replacement: "true"
+  kube-proxy-replacement: "strict"
+  kube-proxy-replacement-healthz-bind-address: ""
   bpf-lb-sock: "false"
   enable-health-check-nodeport: "true"
   node-port-bind-protection: "true"
   enable-auto-protect-node-port-range: "true"
+  enable-session-affinity: "true"
   enable-svc-source-range-check: "true"
   enable-l2-neigh-discovery: "true"
   arping-refresh-period: "30s"
