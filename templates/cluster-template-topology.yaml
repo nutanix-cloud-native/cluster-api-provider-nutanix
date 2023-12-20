@@ -26,7 +26,12 @@ spec:
     - name: controlPlaneEndpoint
       value:
         IP: ${CONTROL_PLANE_ENDPOINT_IP}
-        Port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
+        port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
+    - name: prismCentralEndpoint
+      value:
+        address: ${NUTANIX_ENDPOINT}
+        insecure: ${NUTANIX_INSECURE=false}
+        port: ${NUTANIX_PORT=9440}
     version: ${KUBERNETES_VERSION}
     workers:
       machineDeployments:
