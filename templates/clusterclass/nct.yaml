@@ -16,6 +16,3 @@ spec:
         additionalTrustBundle:
           name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
           kind: ConfigMap
-      controlPlaneEndpoint:
-        host: "${CONTROL_PLANE_ENDPOINT_IP}"
-        port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}

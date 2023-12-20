@@ -83,43 +83,67 @@ spec:
       namespace: ${NAMESPACE}
   patches:
   - definitions:
-      - jsonPatches:
-        - op: add
-          path: /spec/template/spec/kubeadmConfigSpec/users
-          valueFrom:
-            template: |
-              - name: capxuser
-                lockPassword: false
-                sudo: ALL=(ALL) NOPASSWD:ALL
-                sshAuthorizedKeys:
-                  - '{{ .sshKey }}'
-        selector:
-          apiVersion: controlplane.cluster.x-k8s.io/v1beta1
-          kind: KubeadmControlPlaneTemplate
-          matchResources:
-            controlPlane: true
-      - jsonPatches:
-        - op: add
-          path: /spec/template/spec/users
-          valueFrom:
-            template: |
-              - name: capxuser
-                lockPassword: false
-                sudo: ALL=(ALL) NOPASSWD:ALL
-                sshAuthorizedKeys:
-                  - '{{ .sshKey }}'
-        selector:
-          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
-          kind: KubeadmConfigTemplate
-          matchResources:
-            machineDeploymentClass:
-              names:
-              - ${CLUSTER_CLASS_NAME}-worker
+    - jsonPatches:
+      - op: add
+        path: /spec/template/spec/kubeadmConfigSpec/users
+        valueFrom:
+          template: |
+            - name: capxuser
+              lockPassword: false
+              sudo: ALL=(ALL) NOPASSWD:ALL
+              sshAuthorizedKeys:
+                - '{{ .sshKey }}'
+      selector:
+        apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+        kind: KubeadmControlPlaneTemplate
+        matchResources:
+          controlPlane: true
+    - jsonPatches:
+      - op: add
+        path: /spec/template/spec/users
+        valueFrom:
+          template: |
+            - name: capxuser
+              lockPassword: false
+              sudo: ALL=(ALL) NOPASSWD:ALL
+              sshAuthorizedKeys:
+                - '{{ .sshKey }}'
+      selector:
+        apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+        kind: KubeadmConfigTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - ${CLUSTER_CLASS_NAME}-worker
     name: add-ssh-user
+  - definitions:
+    - jsonPatches:
+          - op: add
+            path: /spec/template/spec/controlPlaneEndpoint
+            valueFrom:
+              template: |
+                host: '{{ .controlPlaneEndpoint.IP }}'
+                port: {{ .controlPlaneEndpoint.Port }}
+      selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixClusterTemplate
+        matchResources:
+          infrastructureCluster: true
+    name: add-control-plane-endpoint
   variables:
   - name: sshKey
-    required: false
+    required: true
     schema:
       openAPIV3Schema:
         description: Public key to SSH onto the cluster nodes.
         type: string
+  - name: controlPlaneEndpoint
+    required: true
+    schema:
+      openAPIV3Schema:
+        properties:
+          IP:
+            type: string
+          Port:
+            type: integer
+        type: object
