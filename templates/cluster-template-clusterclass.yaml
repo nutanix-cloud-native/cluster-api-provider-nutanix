@@ -584,16 +584,6 @@ spec:
   template:
     spec:
       failureDomains: []
-      prismCentral:
-        additionalTrustBundle:
-          kind: ConfigMap
-          name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
-        address: ${NUTANIX_ENDPOINT}
-        credentialRef:
-          kind: Secret
-          name: ${CLUSTER_NAME}
-        insecure: ${NUTANIX_INSECURE=false}
-        port: ${NUTANIX_PORT=9440}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate
