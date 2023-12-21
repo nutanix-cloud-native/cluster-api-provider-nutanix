@@ -35,3 +35,23 @@ spec:
         address: "${NUTANIX_ENDPOINT}"
         port: ${NUTANIX_PORT=9440}
         insecure: ${NUTANIX_INSECURE=false}
+    - name: controlPlaneMachineDetails
+      value:
+        bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+        vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+        vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
+        memorySize: "${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}"
+        systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
+        imageName: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}"
+        clusterName: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
+        subnetName: "${NUTANIX_SUBNET_NAME}"
+    - name: workerMachineDetails
+      value:
+        bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+        vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+        vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
+        memorySize: "${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}"
+        systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
+        imageName: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}"
+        clusterName: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
+        subnetName: "${NUTANIX_SUBNET_NAME}"

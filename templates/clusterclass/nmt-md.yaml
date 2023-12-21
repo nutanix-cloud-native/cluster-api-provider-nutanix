@@ -33,3 +33,6 @@ spec:
       # project:
       #   type: name
       #   name: "NUTANIX_PROJECT_NAME"
+      # gpus:
+      #  - type: name
+      #    name: "GPU NAME"

@@ -304,6 +304,15 @@ spec:
     variables:
     - name: sshKey
       value: ${NUTANIX_SSH_AUTHORIZED_KEY}
+    - name: controlPlaneEndpoint
+      value:
+        IP: ${CONTROL_PLANE_ENDPOINT_IP}
+        port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
+    - name: prismCentralEndpoint
+      value:
+        address: ${NUTANIX_ENDPOINT}
+        insecure: ${NUTANIX_INSECURE=false}
+        port: ${NUTANIX_PORT=9440}
     version: ${KUBERNETES_VERSION}
     workers:
       machineDeployments:
@@ -393,13 +402,70 @@ spec:
             names:
             - ${CLUSTER_CLASS_NAME}-worker
     name: add-ssh-user
+  - definitions:
+    - jsonPatches:
+      - op: add
+        path: /spec/template/spec/controlPlaneEndpoint
+        valueFrom:
+          template: |
+            host: '{{ .controlPlaneEndpoint.IP }}'
+            port: {{ .controlPlaneEndpoint.port }}
+      selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixClusterTemplate
+        matchResources:
+          infrastructureCluster: true
+    name: add-control-plane-endpoint
+  - definitions:
+    - jsonPatches:
+      - op: add
+        path: /spec/template/spec/prismCentral
+        valueFrom:
+          template: |
+            address: '{{ .prismCentralEndpoint.address }}'
+            port: {{ .prismCentralEndpoint.port }}
+            insecure: {{ .prismCentralEndpoint.insecure }}
+            credentialRef:
+              name: "${CLUSTER_NAME}"
+              kind: Secret
+            additionalTrustBundle:
+              name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
+              kind: ConfigMap
+      selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixClusterTemplate
+        matchResources:
+          infrastructureCluster: true
+    name: add-pc-endpoint-and-creds
   variables:
   - name: sshKey
-    required: false
+    required: true
     schema:
       openAPIV3Schema:
         description: Public key to SSH onto the cluster nodes.
         type: string
+  - name: controlPlaneEndpoint
+    required: true
+    schema:
+      openAPIV3Schema:
+        properties:
+          IP:
+            type: string
+          port:
+            type: integer
+        type: object
+  - name: prismCentralEndpoint
+    required: true
+    schema:
+      openAPIV3Schema:
+        properties:
+          address:
+            type: string
+          insecure:
+            type: boolean
+          port:
+            type: integer
+        type: object
   workers:
     machineDeployments:
     - class: ${CLUSTER_CLASS_NAME}-worker
@@ -560,20 +626,7 @@ metadata:
 spec:
   template:
     spec:
-      controlPlaneEndpoint:
-        host: ${CONTROL_PLANE_ENDPOINT_IP}
-        port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
       failureDomains: []
-      prismCentral:
-        additionalTrustBundle:
-          kind: ConfigMap
-          name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
-        address: ${NUTANIX_ENDPOINT}
-        credentialRef:
-          kind: Secret
-          name: ${CLUSTER_NAME}
-        insecure: ${NUTANIX_INSECURE=false}
-        port: ${NUTANIX_PORT=9440}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate
