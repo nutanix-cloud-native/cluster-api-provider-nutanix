@@ -21,8 +21,11 @@ jobs:
         with:
           go-version: "^1.21"
 
-      - name: Test build
-        run: make manifests generate fmt vet build
+      - name: Verify that generated manifests committed to the repository are up to date
+        run: make verify-manifests
+
+      - name: Build
+        run: make generate fmt vet build
 
       - name: Run unit tests
         run: make unit-test
