@@ -451,7 +451,8 @@ list-cc-cluster-resources: generate-cc-cluster-kubeconfig
 	kubectl -n capx-system get endpoints
 	kubectl get crd | grep nutanix
 	kubectl get cluster-api -A
-	kubectl -n $(TEST_NAMESPACE) get Cluster,NutanixCluster,Machine,NutanixMachine,KubeAdmControlPlane,MachineHealthCheck,nodes
+	clusterctl describe cluster ${TEST_TOPOLOGY_CLUSTER_NAME} -n ${TEST_NAMESPACE}
+	kubectl -n $(TEST_NAMESPACE) get Cluster,NutanixCluster,Machine,NutanixMachine,KubeAdmControlPlane,machinedeployments,MachineHealthCheck,nodes
 	kubectl get ValidatingWebhookConfiguration,MutatingWebhookConfiguration -A
 	kubectl --kubeconfig ./${TEST_TOPOLOGY_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
 	kubectl --kubeconfig ./${TEST_TOPOLOGY_CLUSTER_NAME}.workload.kubeconfig get pods -A
