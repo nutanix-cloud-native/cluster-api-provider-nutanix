@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -43,6 +44,8 @@ const (
 	capxNamespaceKey    = "POD_NAMESPACE"
 )
 
+var ErrPrismAddressNotSet = fmt.Errorf("cannot get credentials if Prism Address is not set")
+
 type NutanixClientHelper struct {
 	secretInformer    coreinformers.SecretInformer
 	configMapInformer coreinformers.ConfigMapInformer
@@ -63,9 +66,11 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(ctx context.Context, nuta
 	// If PrismCentral is set, add the required env provider
 	prismCentralInfo := nutanixCluster.Spec.PrismCentral
 	if prismCentralInfo != nil {
-		if prismCentralInfo.Address == "" {
-			return nil, fmt.Errorf("cannot get credentials if Prism Address is not set")
+		address, err := validateAndSanitizePrismCentralInfoAddress(prismCentralInfo.Address)
+		if err != nil {
+			return nil, err
 		}
+		prismCentralInfo.Address = address
 		if prismCentralInfo.Port == 0 {
 			return nil, fmt.Errorf("cannot get credentials if Prism Port is not set")
 		}
@@ -116,7 +121,6 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(ctx context.Context, nuta
 		*npe,
 		n.secretInformer,
 		n.configMapInformer))
-
 	// init env with providers
 	env := environment.NewEnvironment(
 		providers...,
@@ -208,4 +212,18 @@ func GetCredentialRefForCluster(nutanixCluster *infrav1.NutanixCluster) (*creden
 	}
 
 	return prismCentralInfo.CredentialRef, nil
+}
+
+func validateAndSanitizePrismCentralInfoAddress(address string) (string, error) {
+	if address == "" {
+		return "", ErrPrismAddressNotSet
+	}
+	u, err := url.Parse(address)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse url from given address %w", err)
+	}
+	if u.Scheme != "" || u.Port() != "" {
+		return u.Hostname(), nil
+	}
+	return address, nil
 }
