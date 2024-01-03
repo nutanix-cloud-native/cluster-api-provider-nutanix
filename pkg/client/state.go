@@ -19,45 +19,26 @@ package client
 import (
 	"context"
 	"fmt"
-	"math"
 	"time"
-
-	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+	"k8s.io/apimachinery/pkg/util/wait"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-type stateRefreshFunc func() (string, error)
+const (
+	pollingInterval = time.Second * 2
+	stateSucceeded  = "SUCCEEDED"
+)
 
+// WaitForTaskCompletion will poll indefinitely every 2 seconds for the task with uuid to have status of "SUCCEEDED".
+// Returns an error from GetTaskState or a timeout error if the context is cancelled.
 func WaitForTaskCompletion(ctx context.Context, conn *nutanixClientV3.Client, uuid string) error {
-	errCh := make(chan error, 1)
-	go waitForState(
-		errCh,
-		"SUCCEEDED",
-		waitUntilTaskStateFunc(ctx, conn, uuid))
-
-	err := <-errCh
-	return err
-}
-
-func waitForState(errCh chan<- error, target string, refresh stateRefreshFunc) {
-	err := Retry(2, 2, 0, func(_ uint) (bool, error) {
-		state, err := refresh()
-		if err != nil {
-			return false, err
-		} else if state == target {
-			return true, nil
-		}
-		return false, nil
+	return wait.PollImmediateInfiniteWithContext(ctx, pollingInterval, func(ctx context.Context) (done bool, err error) {
+		state, getErr := GetTaskState(ctx, conn, uuid)
+		return state == stateSucceeded, getErr
 	})
-	errCh <- err
-}
-
-func waitUntilTaskStateFunc(ctx context.Context, conn *nutanixClientV3.Client, uuid string) stateRefreshFunc {
-	return func() (string, error) {
-		return GetTaskState(ctx, conn, uuid)
-	}
 }
 
 func GetTaskState(ctx context.Context, client *nutanixClientV3.Client, taskUUID string) (string, error) {
@@ -76,49 +57,4 @@ func GetTaskState(ctx context.Context, client *nutanixClientV3.Client, taskUUID 
 	taskStatus := *v.Status
 	log.V(1).Info(fmt.Sprintf("Status for task with UUID %s: %s", taskUUID, taskStatus))
 	return taskStatus, nil
-}
-
-// RetryableFunc performs an action and returns a bool indicating whether the
-// function is done, or if it should keep retrying, and an error which will
-// abort the retry and be returned by the Retry function. The 0-indexed attempt
-// is passed with each call.
-type RetryableFunc func(uint) (bool, error)
-
-/*
-Retry retries a function up to numTries times with exponential backoff.
-If numTries == 0, retry indefinitely.
-If interval == 0, Retry will not delay retrying and there will be no
-exponential backoff.
-If maxInterval == 0, maxInterval is set to +Infinity.
-Intervals are in seconds.
-Returns an error if initial > max intervals, if retries are exhausted, or if the passed function returns
-an error.
-*/
-func Retry(initialInterval float64, maxInterval float64, numTries uint, function RetryableFunc) error {
-	if maxInterval == 0 {
-		maxInterval = math.Inf(1)
-	} else if initialInterval < 0 || initialInterval > maxInterval {
-		return fmt.Errorf("invalid retry intervals (negative or initial < max). Initial: %f, Max: %f", initialInterval, maxInterval)
-	}
-
-	var err error
-	done := false
-	interval := initialInterval
-	for i := uint(0); !done && (numTries == 0 || i < numTries); i++ {
-		done, err = function(i)
-		if err != nil {
-			return err
-		}
-
-		if !done {
-			// Retry after delay. Calculate next delay.
-			time.Sleep(time.Duration(interval) * time.Second)
-			interval = math.Min(interval*2, maxInterval)
-		}
-	}
-
-	if !done {
-		return fmt.Errorf("function never succeeded in Retry")
-	}
-	return nil
 }

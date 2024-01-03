@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	nutanixTestClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/test/helpers/prism-go-client/v3"
 )
@@ -126,7 +127,7 @@ func Test_WaitForTaskCompletion(t *testing.T) {
 				fmt.Fprint(w, `{"status": "PENDING"}`)
 			},
 			ctx:         ctx,
-			expectedErr: context.DeadlineExceeded,
+			expectedErr: wait.ErrWaitTimeout,
 		},
 	}
 	for _, tt := range tests {
