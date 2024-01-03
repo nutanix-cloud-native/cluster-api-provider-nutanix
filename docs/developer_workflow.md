@@ -62,18 +62,18 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
     kubectl get pods -n capx-system
     ```
 
-## Create a test workload cluster
+## Create a test workload cluster without topology
 
 1. Create a workload cluster:
 
     ```shell
-    make test-clusterctl-create
+    make test-cluster-create
     ```
 
    Optionally, to use a unique cluster name:
 
     ```shell
-    make test-clusterctl-create TEST_CLUSTER_NAME=<>
+    make test-cluster-create TEST_CLUSTER_NAME=<>
     ```
 
 1. Get the workload cluster kubeconfig. This will write out the kubeconfig file in the local directory as `<cluster-name>.workload.kubeconfig`:
@@ -86,6 +86,20 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
 
     ```shell
     make test-kubectl-workload TEST_CLUSTER_NAME=<>
+    ```
+
+## Create a test workload cluster with topology
+
+1. Create a workload cluster:
+
+    ```shell
+    make test-cc-cluster-create
+    ```
+
+   Optionally, to use a unique cluster name:
+
+    ```shell
+    make test-cc-cluster-create TEST_CLUSTER_NAME=<>
     ```
 
 ## Debugging failures
@@ -123,16 +137,27 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
 
 ## Cleanup
 
-1. Delete the test workload cluster:
+1. Delete the test workload cluster without topology:
 
     ```shell
-    make test-clusterctl-delete
+    make test-cluster-delete
     ```
 
    When using a unique cluster name set `TEST_CLUSTER_NAME` variable:
 
     ```shell
-    make test-clusterctl-delete TEST_CLUSTER_NAME=<>
+    make test-cluster-delete TEST_CLUSTER_NAME=<>
+
+1. Delete the test workload cluster with topology:
+
+    ```shell
+    make test-cc-cluster-delete
+    ```
+
+   When using a unique cluster name set `TEST_CLUSTER_NAME` variable:
+
+    ```shell
+    make test-cluster-delete TEST_CLUSTER_NAME=<>
 
 1. Delete the management KIND cluster:
 

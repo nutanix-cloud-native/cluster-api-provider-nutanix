@@ -430,13 +430,18 @@ test-cc-cluster-create: cluster-templates
 	kubectl apply --server-side -f ./${TEST_CLUSTER_CLASS_NAME}.yaml
 	kubectl apply --server-side -f ./${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
 
+# .PHONY: test-cc-cluster-upgrade
+# test-cc-cluster-upgrade:
+# 	clusterctl generate cluster ${TEST_TOPOLOGY_CLUSTER_NAME} --from ./templates/cluster-template-topology.yaml -n $(TEST_NAMESPACE) > ${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
+# 	kubectl apply --server-side -f ./${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
+
 .PHONY: test-cc-cluster-delete
 test-cc-cluster-delete:
 	kubectl -n $(TEST_NAMESPACE) delete cluster ${TEST_TOPOLOGY_CLUSTER_NAME} --ignore-not-found
 	kubectl -n $(TEST_NAMESPACE) delete secret ${TEST_TOPOLOGY_CLUSTER_NAME} --ignore-not-found
 	kubectl -n $(TEST_NAMESPACE) delete cm ${TEST_TOPOLOGY_CLUSTER_NAME}-pc-trusted-ca-bundle --ignore-not-found
-	rm ${TEST_TOPOLOGY_CLUSTER_NAME}.yaml || true
-	rm ${TEST_CLUSTER_CLASS_NAME}.yaml || true
+	rm -f ${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
+	rm -f ${TEST_CLUSTER_CLASS_NAME}.yaml
 
 .PHONY: generate-cc-cluster-kubeconfig
 generate-cc-cluster-kubeconfig:
