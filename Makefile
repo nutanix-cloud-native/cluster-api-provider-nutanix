@@ -430,10 +430,10 @@ test-cc-cluster-create: cluster-templates
 	kubectl apply --server-side -f ./${TEST_CLUSTER_CLASS_NAME}.yaml
 	kubectl apply --server-side -f ./${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
 
-# .PHONY: test-cc-cluster-upgrade
-# test-cc-cluster-upgrade:
-# 	clusterctl generate cluster ${TEST_TOPOLOGY_CLUSTER_NAME} --from ./templates/cluster-template-topology.yaml -n $(TEST_NAMESPACE) > ${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
-# 	kubectl apply --server-side -f ./${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
+.PHONY: test-cc-cluster-upgrade
+test-cc-cluster-upgrade:
+	clusterctl generate cluster ${TEST_TOPOLOGY_CLUSTER_NAME} --from ./templates/cluster-template-topology.yaml -n $(TEST_NAMESPACE) --kubernetes-version=${UPGRADE_K8S_VERSION_TO} > ${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
+	kubectl apply --server-side -f ./${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
 
 .PHONY: test-cc-cluster-delete
 test-cc-cluster-delete:

@@ -99,8 +99,17 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
    Optionally, to use a unique cluster name:
 
     ```shell
-    make test-cc-cluster-create TEST_CLUSTER_NAME=<>
+    make test-cc-cluster-create TEST_TOPOLOGY_CLUSTER_NAME=<>
     ```
+
+## Upgrade test workload cluster's k8s version
+
+1. Upgrade workload cluster's k8s version
+
+    ```shell
+    make test-cc-cluster-upgrade TEST_TOPOLOGY_CLUSTER_NAME=<> UPGRADE_K8S_VERSION_TO=<vx.x.x>
+    ```
+
 
 ## Debugging failures
 
