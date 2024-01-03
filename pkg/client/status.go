@@ -29,24 +29,24 @@ import (
 
 const (
 	pollingInterval = time.Second * 2
-	stateSucceeded  = "SUCCEEDED"
+	statusSucceeded = "SUCCEEDED"
 )
 
-// WaitForTaskCompletion will poll indefinitely every 2 seconds for the task with uuid to have status of "SUCCEEDED".
-// Returns an error from GetTaskState or a timeout error if the context is cancelled.
-func WaitForTaskCompletion(ctx context.Context, conn *nutanixClientV3.Client, uuid string) error {
+// WaitForTaskToSucceed will poll indefinitely every 2 seconds for the task with uuid to have status of "SUCCEEDED".
+// Returns an error from GetTaskStatus or a timeout error if the context is cancelled.
+func WaitForTaskToSucceed(ctx context.Context, conn *nutanixClientV3.Client, uuid string) error {
 	return wait.PollImmediateInfiniteWithContext(ctx, pollingInterval, func(ctx context.Context) (done bool, err error) {
-		state, getErr := GetTaskState(ctx, conn, uuid)
-		return state == stateSucceeded, getErr
+		status, getErr := GetTaskStatus(ctx, conn, uuid)
+		return status == statusSucceeded, getErr
 	})
 }
 
-func GetTaskState(ctx context.Context, client *nutanixClientV3.Client, taskUUID string) (string, error) {
+func GetTaskStatus(ctx context.Context, client *nutanixClientV3.Client, uuid string) (string, error) {
 	log := ctrl.LoggerFrom(ctx)
-	log.V(1).Info(fmt.Sprintf("Getting task with UUID %s", taskUUID))
-	v, err := client.V3.GetTask(ctx, taskUUID)
+	log.V(1).Info(fmt.Sprintf("Getting task with UUID %s", uuid))
+	v, err := client.V3.GetTask(ctx, uuid)
 	if err != nil {
-		log.Error(err, fmt.Sprintf("error occurred while waiting for task with UUID %s", taskUUID))
+		log.Error(err, fmt.Sprintf("error occurred while waiting for task with UUID %s", uuid))
 		return "", err
 	}
 
@@ -55,6 +55,6 @@ func GetTaskState(ctx context.Context, client *nutanixClientV3.Client, taskUUID 
 			fmt.Errorf("error_detail: %s, progress_message: %s", utils.StringValue(v.ErrorDetail), utils.StringValue(v.ProgressMessage))
 	}
 	taskStatus := *v.Status
-	log.V(1).Info(fmt.Sprintf("Status for task with UUID %s: %s", taskUUID, taskStatus))
+	log.V(1).Info(fmt.Sprintf("Status for task with UUID %s: %s", uuid, taskStatus))
 	return taskStatus, nil
 }

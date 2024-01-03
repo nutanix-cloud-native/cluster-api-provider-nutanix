@@ -13,7 +13,7 @@ import (
 	nutanixTestClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/test/helpers/prism-go-client/v3"
 )
 
-func Test_GetTaskState(t *testing.T) {
+func Test_GetTaskStatus(t *testing.T) {
 	client, err := nutanixTestClient.NewTestClient()
 	assert.NoError(t, err)
 	// use cleanup over defer as the connection gets closed before the tests run with t.Parallel()
@@ -23,12 +23,12 @@ func Test_GetTaskState(t *testing.T) {
 
 	t.Parallel()
 	tests := []struct {
-		name          string
-		taskUUID      string
-		handler       func(w http.ResponseWriter, r *http.Request)
-		ctx           context.Context
-		expectedState string
-		expectedErr   error
+		name           string
+		taskUUID       string
+		handler        func(w http.ResponseWriter, r *http.Request)
+		ctx            context.Context
+		expectedStatus string
+		expectedErr    error
 	}{
 		{
 			name:     "succeeded",
@@ -36,8 +36,8 @@ func Test_GetTaskState(t *testing.T) {
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprint(w, `{"status": "SUCCEEDED"}`)
 			},
-			ctx:           context.Background(),
-			expectedState: "SUCCEEDED",
+			ctx:            context.Background(),
+			expectedStatus: "SUCCEEDED",
 		},
 		{
 			name:     "unauthorized",
@@ -54,9 +54,9 @@ func Test_GetTaskState(t *testing.T) {
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprint(w, `{"status": "INVALID_UUID", "error_detail": "invalid UUID", "progress_message": "invalid UUID"}`)
 			},
-			ctx:           context.Background(),
-			expectedState: "INVALID_UUID",
-			expectedErr:   fmt.Errorf("error_detail: invalid UUID, progress_message: invalid UUID"),
+			ctx:            context.Background(),
+			expectedStatus: "INVALID_UUID",
+			expectedErr:    fmt.Errorf("error_detail: invalid UUID, progress_message: invalid UUID"),
 		},
 		{
 			name:     "failed",
@@ -64,9 +64,9 @@ func Test_GetTaskState(t *testing.T) {
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprint(w, `{"status": "FAILED", "error_detail": "task failed", "progress_message": "will never succeed"}`)
 			},
-			ctx:           context.Background(),
-			expectedState: "FAILED",
-			expectedErr:   fmt.Errorf("error_detail: task failed, progress_message: will never succeed"),
+			ctx:            context.Background(),
+			expectedStatus: "FAILED",
+			expectedErr:    fmt.Errorf("error_detail: task failed, progress_message: will never succeed"),
 		},
 	}
 	for _, tt := range tests {
@@ -75,9 +75,9 @@ func Test_GetTaskState(t *testing.T) {
 			t.Parallel()
 			client.AddHandler(nutanixTestClient.GetTaskURLPath(tt.taskUUID), tt.handler)
 
-			state, err := GetTaskState(tt.ctx, client.Client, tt.taskUUID)
+			status, err := GetTaskStatus(tt.ctx, client.Client, tt.taskUUID)
 			assert.Equal(t, tt.expectedErr, err)
-			assert.Equal(t, tt.expectedState, state)
+			assert.Equal(t, tt.expectedStatus, status)
 		})
 	}
 }
@@ -136,7 +136,7 @@ func Test_WaitForTaskCompletion(t *testing.T) {
 			t.Parallel()
 			client.AddHandler(nutanixTestClient.GetTaskURLPath(tt.taskUUID), tt.handler)
 
-			err := WaitForTaskCompletion(tt.ctx, client.Client, tt.taskUUID)
+			err := WaitForTaskToSucceed(tt.ctx, client.Client, tt.taskUUID)
 			if tt.expectedErr != nil {
 				assert.ErrorContains(t, err, tt.expectedErr.Error())
 			} else {
