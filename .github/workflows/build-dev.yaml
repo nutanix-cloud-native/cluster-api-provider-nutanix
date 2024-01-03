@@ -40,7 +40,7 @@ jobs:
           fail_ci_if_error: true
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.16.0
+        uses: aquasecurity/trivy-action@0.16.1
         with:
           scan-type: "fs"
           ignore-unfixed: true
