@@ -45,7 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	infrav1alpha4 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1alpha4"
-	infrastructurev1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
 	//+kubebuilder:scaffold:imports
 )
@@ -66,7 +66,7 @@ func init() {
 	utilruntime.Must(bootstrapv1.AddToScheme(scheme))
 
 	utilruntime.Must(infrav1alpha4.AddToScheme(scheme))
-	utilruntime.Must(infrastructurev1beta1.AddToScheme(scheme))
+	utilruntime.Must(infrav1.AddToScheme(scheme))
 
 	//+kubebuilder:scaffold:scheme
 }
