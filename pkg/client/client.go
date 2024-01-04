@@ -235,15 +235,13 @@ func validateAndSanitizePrismCentralInfoAddress(address string) (string, error) 
 }
 
 func parseIP(s string) (string, error) {
-	ip, _, err := net.SplitHostPort(s)
+	ipStr, _, err := net.SplitHostPort(s)
 	if err == nil {
-		return ip, nil
+		return ipStr, nil
 	}
-
-	ip2 := net.ParseIP(s)
-	if ip2 == nil {
-		return "", fmt.Errorf("invalid IP %s", ip2)
+	ip := net.ParseIP(s)
+	if ip == nil {
+		return "", fmt.Errorf("invalid IP %s", ip)
 	}
-
-	return ip2.String(), nil
+	return ip.String(), nil
 }
