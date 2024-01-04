@@ -332,6 +332,7 @@ cluster-e2e-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-failure-domains --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-failure-domains.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/clusterclass-e2e.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-topology --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-topology.yaml
 
 cluster-e2e-templates-no-kubeproxy: $(KUSTOMIZE) ##Generate cluster templates without kubeproxy
 	# v1alpha4
@@ -352,6 +353,7 @@ cluster-e2e-templates-no-kubeproxy: $(KUSTOMIZE) ##Generate cluster templates wi
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-failure-domains --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-failure-domains.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/clusterclass-e2e.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-topology --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-topology.yaml
 
 cluster-templates: $(KUSTOMIZE) ## Generate cluster templates for all flavors
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/base > $(TEMPLATES_DIR)/cluster-template.yaml

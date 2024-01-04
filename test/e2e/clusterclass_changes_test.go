@@ -33,7 +33,7 @@ var _ = Describe("When testing ClusterClass changes [ClusterClass]", Label("clus
 			BootstrapClusterProxy: bootstrapClusterProxy,
 			ArtifactFolder:        artifactFolder,
 			SkipCleanup:           skipCleanup,
-			Flavor:                "clusterclass",
+			Flavor:                "topology",
 			// ModifyControlPlaneFields are the ControlPlane fields which will be set on the
 			// ControlPlaneTemplate of the ClusterClass after the initial Cluster creation.
 			// The test verifies that these fields are rolled out to the ControlPlane.

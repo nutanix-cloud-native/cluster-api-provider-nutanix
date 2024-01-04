@@ -9,6 +9,15 @@ metadata:
 apiVersion: v1
 data:
   nutanix-ccm.yaml: |
+    ---
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
+      namespace: kube-system
+    binaryData:
+      ca.crt: ${NUTANIX_ADDITIONAL_TRUST_BUNDLE=""}
+    ---
     # Source: nutanix-cloud-provider/templates/rbac.yaml
     apiVersion: v1
     kind: ServiceAccount
@@ -279,49 +288,6 @@ spec:
       verbosity: 10
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
-kind: Cluster
-metadata:
-  labels:
-    ccm: nutanix
-    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
-    cni: ${CLUSTER_NAME}-crs-cni
-  name: ${CLUSTER_NAME}
-  namespace: ${NAMESPACE}
-spec:
-  clusterNetwork:
-    pods:
-      cidrBlocks:
-      - 172.20.0.0/16
-    serviceDomain: cluster.local
-    services:
-      cidrBlocks:
-      - 172.19.0.0/16
-  topology:
-    class: ${CLUSTER_CLASS_NAME}
-    controlPlane:
-      metadata: {}
-      replicas: ${CONTROL_PLANE_MACHINE_COUNT}
-    variables:
-    - name: sshKey
-      value: ${NUTANIX_SSH_AUTHORIZED_KEY}
-    - name: controlPlaneEndpoint
-      value:
-        IP: ${CONTROL_PLANE_ENDPOINT_IP}
-        port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
-    - name: prismCentralEndpoint
-      value:
-        address: ${NUTANIX_ENDPOINT}
-        insecure: ${NUTANIX_INSECURE=false}
-        port: ${NUTANIX_PORT=9440}
-    version: ${KUBERNETES_VERSION}
-    workers:
-      machineDeployments:
-      - class: ${CLUSTER_CLASS_NAME}-worker
-        metadata: {}
-        name: md-0
-        replicas: ${WORKER_MACHINE_COUNT}
----
-apiVersion: cluster.x-k8s.io/v1beta1
 kind: ClusterClass
 metadata:
   name: ${CLUSTER_CLASS_NAME}
@@ -415,7 +381,7 @@ spec:
         kind: NutanixClusterTemplate
         matchResources:
           infrastructureCluster: true
-    name: add-control-plane-endpoint
+    name: update-control-plane-endpoint
   - definitions:
     - jsonPatches:
       - op: add
@@ -437,6 +403,84 @@ spec:
         matchResources:
           infrastructureCluster: true
     name: add-pc-endpoint-and-creds
+  - definitions:
+    - jsonPatches:
+      - op: replace
+        path: /spec/template/spec/bootType
+        valueFrom:
+          variable: controlPlaneMachineDetails.bootType
+      - op: replace
+        path: /spec/template/spec/vcpusPerSocket
+        valueFrom:
+          variable: controlPlaneMachineDetails.vcpusPerSocket
+      - op: replace
+        path: /spec/template/spec/memorySize
+        valueFrom:
+          variable: controlPlaneMachineDetails.memorySize
+      - op: replace
+        path: /spec/template/spec/systemDiskSize
+        valueFrom:
+          variable: controlPlaneMachineDetails.systemDiskSize
+      - op: replace
+        path: /spec/template/spec/image/name
+        valueFrom:
+          variable: controlPlaneMachineDetails.imageName
+      - op: replace
+        path: /spec/template/spec/cluster/name
+        valueFrom:
+          variable: controlPlaneMachineDetails.clusterName
+      - op: replace
+        path: /spec/template/spec/subnet
+        valueFrom:
+          template: |
+            - type: name
+              name: {{ .controlPlaneMachineDetails.subnetName }}
+      selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        matchResources:
+          controlPlane: true
+    name: update-control-plane-machine-template
+  - definitions:
+    - jsonPatches:
+      - op: replace
+        path: /spec/template/spec/bootType
+        valueFrom:
+          variable: workerMachineDetails.bootType
+      - op: replace
+        path: /spec/template/spec/vcpusPerSocket
+        valueFrom:
+          variable: workerMachineDetails.vcpusPerSocket
+      - op: replace
+        path: /spec/template/spec/memorySize
+        valueFrom:
+          variable: workerMachineDetails.memorySize
+      - op: replace
+        path: /spec/template/spec/systemDiskSize
+        valueFrom:
+          variable: workerMachineDetails.systemDiskSize
+      - op: replace
+        path: /spec/template/spec/image/name
+        valueFrom:
+          variable: workerMachineDetails.imageName
+      - op: replace
+        path: /spec/template/spec/cluster/name
+        valueFrom:
+          variable: workerMachineDetails.clusterName
+      - op: replace
+        path: /spec/template/spec/subnet
+        valueFrom:
+          template: |
+            - type: name
+              name: {{ .controlPlaneMachineDetails.subnetName }}
+      selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - ${CLUSTER_CLASS_NAME}-worker
+    name: update-worker-machine-template
   variables:
   - name: sshKey
     required: true
@@ -464,6 +508,50 @@ spec:
           insecure:
             type: boolean
           port:
+            type: integer
+        type: object
+  - name: controlPlaneMachineDetails
+    required: true
+    schema:
+      openAPIV3Schema:
+        properties:
+          bootType:
+            type: string
+          clusterName:
+            type: string
+          imageName:
+            type: string
+          memorySize:
+            type: string
+          subnetName:
+            type: string
+          systemDiskSize:
+            type: string
+          vcpuSockets:
+            type: integer
+          vcpusPerSocket:
+            type: integer
+        type: object
+  - name: workerMachineDetails
+    required: true
+    schema:
+      openAPIV3Schema:
+        properties:
+          bootType:
+            type: string
+          clusterName:
+            type: string
+          imageName:
+            type: string
+          memorySize:
+            type: string
+          subnetName:
+            type: string
+          systemDiskSize:
+            type: string
+          vcpuSockets:
+            type: integer
+          vcpusPerSocket:
             type: integer
         type: object
   workers:

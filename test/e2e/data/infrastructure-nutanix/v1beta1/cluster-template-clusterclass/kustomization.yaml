@@ -1,6 +1,2 @@
 bases:
   - ../../../../../../templates/clusterclass/
-  - ../../../../../../templates/topology/
-
-patchesStrategicMerge:
-  - ../base/cni-patch.yaml
