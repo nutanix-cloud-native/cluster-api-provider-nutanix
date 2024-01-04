@@ -123,6 +123,12 @@ GOLANGCI_LINT_VER := v1.55.2
 GOLANGCI_LINT_BIN := golangci-lint
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN))
 
+# Install clusterctl that corresponds to the cluster-api go mod version
+CLUSTERCTL_VER := $(shell go list -m sigs.k8s.io/cluster-api | cut -d" " -f2)
+CLUSTERCTL_RELEASE_URL := https://github.com/kubernetes-sigs/cluster-api/releases/download/$(CLUSTERCTL_VER)/clusterctl-$(shell go env GOOS)-$(shell go env GOARCH)
+CLUSTERCTL_BIN := clusterctl
+CLUSTERCTL := $(abspath $(TOOLS_BIN_DIR)/$(CLUSTERCTL_BIN))
+
 # CRD_OPTIONS define options to add to the CONTROLLER_GEN
 CRD_OPTIONS ?= "crd:crdVersions=v1"
 
@@ -288,9 +294,9 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
-deploy: manifests kustomize docker-push-kind ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	clusterctl delete --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} --include-crd || true
-	clusterctl init --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} -v 9
+deploy: manifests kustomize docker-push-kind $(CLUSTERCTL) ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	$(CLUSTERCTL) delete --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} --include-crd || true
+	$(CLUSTERCTL) init --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} -v 9
 	# cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	# $(KUSTOMIZE) build config/default | kubectl apply -f -
 
@@ -382,12 +388,11 @@ ifeq ($(EXPORT_RESULT), true)
 endif
 
 .PHONY: test-clusterctl-create
-test-clusterctl-create: ## Run the tests using clusterctl
-	which clusterctl
-	clusterctl version
-	clusterctl config repositories | grep nutanix
-	clusterctl generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --list-variables -v 10
-	clusterctl generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./cluster.yaml
+test-clusterctl-create: $(CLUSTERCTL) ## Run the tests using clusterctl
+	$(CLUSTERCTL) version
+	$(CLUSTERCTL) config repositories | grep nutanix
+	$(CLUSTERCTL) generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --list-variables -v 10
+	$(CLUSTERCTL) generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./cluster.yaml
 	kubectl create ns $(TEST_NAMESPACE) || true
 	kubectl apply -f ./cluster.yaml -n $(TEST_NAMESPACE)
 
@@ -529,6 +534,9 @@ $(TILT_PREPARE_BIN): $(TILT_PREPARE) ## Build a local copy of tilt-prepare.
 .PHONY: $(GOLANGCI_LINT_BIN)
 $(GOLANGCI_LINT_BIN): $(GOLANGCI_LINT) ## Build a local copy of golangci-lint
 
+.PHONY: $(CLUSTERCTL_BIN)
+$(CLUSTERCTL_BIN): $(CLUSTERCTL) ## Build a local copy of clusterctl
+
 $(GINKGO): # Build ginkgo from tools folder.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(GINKGO_PKG) $(GINKGO_BIN) $(GINGKO_VER)
 
@@ -579,6 +587,12 @@ $(KPROMO):
 
 $(GOLANGCI_LINT): # building golanci-lint from source is not recommended, so we are using the install script
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(TOOLS_BIN_DIR) $(GOLANGCI_LINT_VER)
+
+$(CLUSTERCTL):
+# We don't install clusterctl using the go toolchain, because the upstream Makefile
+# is required to build clusterctl correctly. See https://github.com/kubernetes-sigs/cluster-api/issues/3706
+	curl -sSfL -o $(CLUSTERCTL) $(CLUSTERCTL_RELEASE_URL)
+	chmod u+x $(CLUSTERCTL)
 
 ## --------------------------------------
 ## Lint / Verify
