@@ -36,6 +36,30 @@ func Test_validateAndSanitizePrismCentralInfoAddress(t *testing.T) {
 			"",
 			ErrPrismAddressNotSet,
 		},
+		{
+			"using a IP with scheme and port",
+			"https://1.2.3.4:9440",
+			"1.2.3.4",
+			nil,
+		},
+		{
+			"using a IP with scheme",
+			"https://1.2.3.4",
+			"1.2.3.4",
+			nil,
+		},
+		{
+			"using a IP with port",
+			"1.2.3.4:9440",
+			"1.2.3.4",
+			nil,
+		},
+		{
+			"just an IP",
+			"1.2.3.4",
+			"1.2.3.4",
+			nil,
+		},
 	}
 
 	for _, test := range tests {

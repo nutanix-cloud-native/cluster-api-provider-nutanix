@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -218,12 +219,30 @@ func validateAndSanitizePrismCentralInfoAddress(address string) (string, error) 
 	if address == "" {
 		return "", ErrPrismAddressNotSet
 	}
-	u, err := url.Parse(address)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse url from given address %w", err)
+	u, urlParseErr := url.Parse(address)
+	if urlParseErr != nil {
+		ipHost, ipErr := parseIP(address)
+		if ipErr != nil {
+			return "", fmt.Errorf("failed to resolve %s as url or ip addr %w", address, ipErr)
+		}
+		return ipHost, nil
 	}
 	if u.Scheme != "" || u.Port() != "" {
 		return u.Hostname(), nil
 	}
 	return address, nil
+}
+
+func parseIP(s string) (string, error) {
+	ip, _, err := net.SplitHostPort(s)
+	if err == nil {
+		return ip, nil
+	}
+
+	ip2 := net.ParseIP(s)
+	if ip2 == nil {
+		return "", fmt.Errorf("invalid IP %s", ip2)
+	}
+
+	return ip2.String(), nil
 }
