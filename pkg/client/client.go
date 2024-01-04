@@ -46,6 +46,7 @@ const (
 )
 
 var ErrPrismAddressNotSet = fmt.Errorf("cannot get credentials if Prism Address is not set")
+var ErrPrismPortNotSet = fmt.Errorf("cannot get credentials if Prism Port is not set")
 
 type NutanixClientHelper struct {
 	secretInformer    coreinformers.SecretInformer
@@ -73,7 +74,7 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(ctx context.Context, nuta
 		}
 		prismCentralInfo.Address = address
 		if prismCentralInfo.Port == 0 {
-			return nil, fmt.Errorf("cannot get credentials if Prism Port is not set")
+			return nil, ErrPrismPortNotSet
 		}
 		credentialRef, err := GetCredentialRefForCluster(nutanixCluster)
 		if err != nil {
