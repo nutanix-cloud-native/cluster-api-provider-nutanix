@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	nutanixtestclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/test/helpers/prism-go-client/v3"
 )
@@ -90,7 +89,10 @@ func Test_WaitForTaskCompletion(t *testing.T) {
 		client.Close()
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+	const (
+		timeout = time.Second * 1
+	)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	t.Cleanup(func() {
 		cancel()
 	})
@@ -124,10 +126,11 @@ func Test_WaitForTaskCompletion(t *testing.T) {
 			name:     "timeout",
 			taskUUID: "timeout",
 			handler: func(w http.ResponseWriter, r *http.Request) {
-				fmt.Fprint(w, `{"status": "PENDING"}`)
+				// always wait 1 second longer than the timeout to force the context to cancel
+				time.Sleep(timeout + time.Second)
 			},
 			ctx:         ctx,
-			expectedErr: wait.ErrWaitTimeout,
+			expectedErr: context.DeadlineExceeded,
 		},
 	}
 	for _, tt := range tests {
