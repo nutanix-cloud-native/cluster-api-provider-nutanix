@@ -181,11 +181,6 @@ USE_EXISTING_CLUSTER ?= false
 GINKGO_NOCOLOR ?= false
 FLAVOR ?= e2e
 
-TEST_NAMESPACE=capx-test-ns
-TEST_CLUSTER_NAME=mycluster
-TEST_CLUSTER_CLASS_NAME=my-clusterclass
-TEST_TOPOLOGY_CLUSTER_NAME=my-cc-cluster
-
 # set ginkgo focus flags, if any
 ifneq ($(strip $(GINKGO_FOCUS)),)
 _FOCUS_ARGS := $(foreach arg,$(strip $(GINKGO_FOCUS)),--focus="$(arg)")
@@ -396,73 +391,6 @@ ifeq ($(EXPORT_RESULT), true)
 	GO111MODULE=off $(GOGET) -u github.com/axw/gocov/gocov
 	gocov convert profile.cov | gocov-xml > coverage.xml
 endif
-
-.PHONY: test-cluster-create
-test-cluster-create: $(CLUSTERCTL) ## Run the tests using clusterctl
-	$(CLUSTERCTL) version
-	$(CLUSTERCTL) config repositories | grep nutanix
-	$(CLUSTERCTL) generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --list-variables -v 10
-	$(CLUSTERCTL) generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./cluster.yaml
-	kubectl create ns $(TEST_NAMESPACE) --dry-run=client -oyaml | kubectl apply --server-side -f -
-	kubectl apply --server-side -f ./cluster.yaml
-
-.PHONY: test-cluster-delete
-test-cluster-delete: ## Delete clusterctl created cluster
-	kubectl -n ${TEST_NAMESPACE} delete cluster ${TEST_CLUSTER_NAME} --ignore-not-found
-
-.PHONY: list-bootstrap-resources
-list-bootstrap-resources: ## Run kubectl queries to get all capx management/bootstrap related objects
-	kubectl get ns
-	kubectl get all --all-namespaces
-	kubectl -n capx-system get all
-	kubectl -n $(TEST_NAMESPACE) get Cluster,NutanixCluster,Machine,NutanixMachine,KubeAdmControlPlane,MachineHealthCheck,nodes
-	kubectl -n capx-system get pod
-
-.PHONY: list-workload-resources
-list-workload-resources: ## Run kubectl queries to get all capx workload related objects
-	kubectl -n $(TEST_NAMESPACE) get secret
-	kubectl -n ${TEST_NAMESPACE} get secret ${TEST_CLUSTER_NAME}-kubeconfig -o json | jq -r .data.value | base64 --decode > ${TEST_CLUSTER_NAME}.workload.kubeconfig
-	kubectl --kubeconfig ./${TEST_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
-
-.PHONY: test-cc-cluster-create
-test-cc-cluster-create: cluster-templates
-	clusterctl generate cluster ${TEST_CLUSTER_CLASS_NAME} --from ./templates/cluster-template-clusterclass.yaml -n $(TEST_NAMESPACE) > ${TEST_CLUSTER_CLASS_NAME}.yaml
-	clusterctl generate cluster ${TEST_TOPOLOGY_CLUSTER_NAME} --from ./templates/cluster-template-topology.yaml -n $(TEST_NAMESPACE) > ${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
-	kubectl create ns $(TEST_NAMESPACE) --dry-run=client -oyaml | kubectl apply --server-side -f -
-	kubectl apply --server-side -f ./${TEST_CLUSTER_CLASS_NAME}.yaml
-	kubectl apply --server-side -f ./${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
-
-.PHONY: test-cc-cluster-upgrade
-test-cc-cluster-upgrade:
-	clusterctl generate cluster ${TEST_TOPOLOGY_CLUSTER_NAME} --from ./templates/cluster-template-topology.yaml -n $(TEST_NAMESPACE) --kubernetes-version=${UPGRADE_K8S_VERSION_TO} > ${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
-	kubectl apply --server-side -f ./${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
-
-.PHONY: test-cc-cluster-delete
-test-cc-cluster-delete:
-	kubectl -n $(TEST_NAMESPACE) delete cluster ${TEST_TOPOLOGY_CLUSTER_NAME} --ignore-not-found
-	kubectl -n $(TEST_NAMESPACE) delete secret ${TEST_TOPOLOGY_CLUSTER_NAME} --ignore-not-found
-	kubectl -n $(TEST_NAMESPACE) delete cm ${TEST_TOPOLOGY_CLUSTER_NAME}-pc-trusted-ca-bundle --ignore-not-found
-	rm -f ${TEST_TOPOLOGY_CLUSTER_NAME}.yaml
-	rm -f ${TEST_CLUSTER_CLASS_NAME}.yaml
-
-.PHONY: generate-cc-cluster-kubeconfig
-generate-cc-cluster-kubeconfig:
-	kubectl -n ${TEST_NAMESPACE} get secret ${TEST_TOPOLOGY_CLUSTER_NAME}-kubeconfig -o json | jq -r .data.value | base64 --decode > ${TEST_TOPOLOGY_CLUSTER_NAME}.workload.kubeconfig
-
-.PHONY: test-cc-cluster-install-cni
-test-cc-cluster-install-cni: generate-cc-cluster-kubeconfig
-	kubectl --kubeconfig ./${TEST_TOPOLOGY_CLUSTER_NAME}.workload.kubeconfig apply -f https://raw.githubusercontent.com/nutanix-cloud-native/cluster-api-provider-nutanix/main/test/e2e/data/cni/calico/calico.yaml
-
-.PHONY: list-cc-cluster-resources
-list-cc-cluster-resources: generate-cc-cluster-kubeconfig
-	kubectl -n capx-system get endpoints
-	kubectl get crd | grep nutanix
-	kubectl get cluster-api -A
-	clusterctl describe cluster ${TEST_TOPOLOGY_CLUSTER_NAME} -n ${TEST_NAMESPACE}
-	kubectl -n $(TEST_NAMESPACE) get Cluster,NutanixCluster,Machine,NutanixMachine,KubeAdmControlPlane,machinedeployments,MachineHealthCheck,nodes
-	kubectl get ValidatingWebhookConfiguration,MutatingWebhookConfiguration -A
-	kubectl --kubeconfig ./${TEST_TOPOLOGY_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
-	kubectl --kubeconfig ./${TEST_TOPOLOGY_CLUSTER_NAME}.workload.kubeconfig get pods -A
 
 .PHONY: ginkgo-help
 ginkgo-help:
@@ -681,3 +609,10 @@ verify-manifests: manifests  ## Verify generated manifests are up to date
 clean: ## Clean the build and test artifacts
 	rm -rf $(ARTIFACTS) $(BIN_DIR)
 
+## --------------------------------------
+## Developer local tests
+## --------------------------------------
+
+##@ Test Dev Cluster with and without topology
+include test-cluster-without-topology.mk
+include test-cluster-with-topology.mk
