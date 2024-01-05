@@ -88,7 +88,7 @@ func Test_GetTaskStatus(t *testing.T) {
 		tt := tt // Capture range variable.
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			client.AddHandler(nutanixtestclient.GetTaskURLPath(tt.taskUUID), tt.handler)
+			client.AddMockHandler(nutanixtestclient.GetTaskURLPath(tt.taskUUID), tt.handler)
 
 			status, err := GetTaskStatus(tt.ctx, client.Client, tt.taskUUID)
 			assert.Equal(t, tt.expectedErr, err)
@@ -153,7 +153,7 @@ func Test_WaitForTaskCompletion(t *testing.T) {
 		tt := tt // Capture range variable.
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			client.AddHandler(nutanixtestclient.GetTaskURLPath(tt.taskUUID), tt.handler)
+			client.AddMockHandler(nutanixtestclient.GetTaskURLPath(tt.taskUUID), tt.handler)
 
 			err := WaitForTaskToSucceed(tt.ctx, client.Client, tt.taskUUID)
 			if tt.expectedErr != nil {

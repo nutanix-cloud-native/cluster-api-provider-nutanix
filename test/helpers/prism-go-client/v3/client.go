@@ -60,7 +60,7 @@ func (c *TestClient) Close() {
 	c.server.Close()
 }
 
-func (c *TestClient) AddHandler(pattern string, handler func(w http.ResponseWriter, r *http.Request)) {
+func (c *TestClient) AddMockHandler(pattern string, handler func(w http.ResponseWriter, r *http.Request)) {
 	c.mux.HandleFunc(pattern, handler)
 }
 
