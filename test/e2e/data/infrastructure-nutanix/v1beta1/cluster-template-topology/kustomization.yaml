@@ -1,5 +1,6 @@
 bases:
   - ../../../../../../templates/topology/
+  - ../base/crs.yaml
 
 patchesStrategicMerge:
   - ../base/cni-patch.yaml
