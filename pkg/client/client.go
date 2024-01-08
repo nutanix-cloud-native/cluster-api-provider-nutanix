@@ -20,8 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
-	"net/url"
 	"os"
 	"path/filepath"
 
@@ -68,11 +66,9 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(ctx context.Context, nuta
 	// If PrismCentral is set, add the required env provider
 	prismCentralInfo := nutanixCluster.Spec.PrismCentral
 	if prismCentralInfo != nil {
-		address, err := validateAndSanitizePrismCentralInfoAddress(prismCentralInfo.Address)
-		if err != nil {
-			return nil, err
+		if prismCentralInfo.Address == "" {
+			return nil, ErrPrismAddressNotSet
 		}
-		prismCentralInfo.Address = address
 		if prismCentralInfo.Port == 0 {
 			return nil, ErrPrismPortNotSet
 		}
@@ -102,7 +98,7 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(ctx context.Context, nuta
 	// Add env provider for CAPX manager
 	npe, err := n.getManagerNutanixPrismEndpoint()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create prism endpoint %w", err)
+		return nil, fmt.Errorf("failed to create prism endpoint: %w", err)
 	}
 	// If namespaces is not set, set it to the namespace of the CAPX manager
 	if npe.CredentialRef.Namespace == "" {
@@ -130,7 +126,7 @@ func (n *NutanixClientHelper) GetClientFromEnvironment(ctx context.Context, nuta
 	// fetch endpoint details
 	me, err := env.GetManagementEndpoint(envTypes.Topology{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get management endpoint object %w", err)
+		return nil, fmt.Errorf("failed to get management endpoint object: %w", err)
 	}
 	creds := prismgoclient.Credentials{
 		URL:      me.Address.Host,
@@ -162,13 +158,13 @@ func (n *NutanixClientHelper) GetClient(cred prismgoclient.Credentials, addition
 	}
 	cli, err := nutanixClientV3.NewV3Client(cred, clientOpts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create new nutanix client %w", err)
+		return nil, fmt.Errorf("failed to create new nutanix client: %w", err)
 	}
 
 	// Check if the client is working
 	_, err = cli.V3.GetCurrentLoggedInUser(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get current logged in user with client %w", err)
+		return nil, fmt.Errorf("failed to get current logged in user with client: %w", err)
 	}
 	return cli, nil
 }
@@ -177,10 +173,10 @@ func (n *NutanixClientHelper) getManagerNutanixPrismEndpoint() (*credentialTypes
 	npe := &credentialTypes.NutanixPrismEndpoint{}
 	config, err := n.readEndpointConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config %w", err)
+		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 	if err = json.Unmarshal(config, npe); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config %w", err)
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 	if npe.CredentialRef == nil {
 		return nil, fmt.Errorf("credentialRef must be set on CAPX manager")
@@ -214,34 +210,4 @@ func GetCredentialRefForCluster(nutanixCluster *infrav1.NutanixCluster) (*creden
 	}
 
 	return prismCentralInfo.CredentialRef, nil
-}
-
-func validateAndSanitizePrismCentralInfoAddress(address string) (string, error) {
-	if address == "" {
-		return "", ErrPrismAddressNotSet
-	}
-	u, urlParseErr := url.Parse(address)
-	if urlParseErr != nil {
-		ipHost, ipErr := parseIP(address)
-		if ipErr != nil {
-			return "", fmt.Errorf("failed to resolve %s as url or ip addr %w", address, ipErr)
-		}
-		return ipHost, nil
-	}
-	if u.Scheme != "" || u.Port() != "" {
-		return u.Hostname(), nil
-	}
-	return address, nil
-}
-
-func parseIP(s string) (string, error) {
-	ipStr, _, err := net.SplitHostPort(s)
-	if err == nil {
-		return ipStr, nil
-	}
-	ip := net.ParseIP(s)
-	if ip == nil {
-		return "", fmt.Errorf("invalid IP %s", ip)
-	}
-	return ip.String(), nil
 }
