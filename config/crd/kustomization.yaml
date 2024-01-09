@@ -22,6 +22,31 @@ patchesStrategicMerge:
 #- patches/cainjection_in_nutanixmachinetemplates.yaml
 #+kubebuilder:scaffold:crdkustomizecainjectionpatch
 
+patchesJson6902:
+  # controller-gen doesn't allow for complex anyOf declarations in CRD generation code markers so we have to add these
+  # via a JSON patch instead.
+  #
+  # This enforces the Prism Central address to be either a hostname or an IP address without resorting to complex
+  # regular expressions.
+  - target:
+      group: apiextensions.k8s.io
+      version: v1
+      kind: CustomResourceDefinition
+      name: nutanixclusters.infrastructure.cluster.x-k8s.io
+    patch: |-
+      - op: add
+        path: /spec/versions/0/schema/openAPIV3Schema/properties/spec/properties/prismCentral/properties/address/anyOf
+        value:
+          - format: hostname
+          - format: ipv4
+          - format: ipv6
+      - op: add
+        path: /spec/versions/1/schema/openAPIV3Schema/properties/spec/properties/prismCentral/properties/address/anyOf
+        value:
+          - format: hostname
+          - format: ipv4
+          - format: ipv6
+
 # the following config is for teaching kustomize how to do kustomization for CRDs.
 configurations:
 - kustomizeconfig.yaml
