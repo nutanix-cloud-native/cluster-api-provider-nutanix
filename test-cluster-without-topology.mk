@@ -6,9 +6,9 @@ test-cluster-create: $(CLUSTERCTL) ## Create a workload cluster without topology
 	$(CLUSTERCTL) version
 	$(CLUSTERCTL) config repositories | grep nutanix
 	$(CLUSTERCTL) generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --list-variables -v 10
-	$(CLUSTERCTL) generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./cluster.yaml
+	$(CLUSTERCTL) generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./${TEST_CLUSTER_NAME}.yaml
 	kubectl create ns $(TEST_NAMESPACE) --dry-run=client -oyaml | kubectl apply --server-side -f -
-	kubectl apply --server-side -f ./cluster.yaml
+	kubectl apply --server-side -f ./${TEST_CLUSTER_NAME}.yaml
 
 .PHONY: test-cluster-delete
 test-cluster-delete: ## Delete workload cluster without topology
