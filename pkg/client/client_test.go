@@ -624,6 +624,7 @@ func Test_buildProviderFromFile(t *testing.T) {
 }
 
 func Test_readManagerNutanixPrismEndpointFromFile(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		config            []byte
@@ -657,26 +658,24 @@ func Test_readManagerNutanixPrismEndpointFromFile(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt // Capture range variable.
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			f, err := os.CreateTemp(t.TempDir(), "config-*.json")
 			assert.NoError(t, err, "error creating temp file")
 			_, err = f.Write(tt.config)
 			assert.NoError(t, err, "error writing temp file")
 
-			// overwrite the var
-			configPath = f.Name()
-			endpoint, err := readManagerNutanixPrismEndpointFromFile()
+			endpoint, err := readManagerNutanixPrismEndpointFromFile(f.Name())
 			if err != nil {
 				assert.ErrorContains(t, err, tt.expectedErrString)
 			}
 			assert.Equal(t, tt.expectedEndpoint, endpoint)
 		})
 	}
+}
 
-	// NotExist case
-	configPath = "notexist.json"
-	_, err := readManagerNutanixPrismEndpointFromFile()
+func Test_readManagerNutanixPrismEndpointFromFile_IsNotExist(t *testing.T) {
+	_, err := readManagerNutanixPrismEndpointFromFile("filedoesnotexist.json")
 	assert.ErrorIs(t, err, os.ErrNotExist, err)
-	assert.ErrorContains(t, err, "failed to read prism config in manager: open notexist.json: no such file or directory")
 }
 
 func testHelper() *NutanixClientHelper {

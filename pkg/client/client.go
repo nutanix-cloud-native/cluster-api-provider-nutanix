@@ -66,7 +66,7 @@ func NewHelper(secretInformer coreinformers.SecretInformer, cmInformer coreinfor
 	return &NutanixClientHelper{
 		secretInformer:                    secretInformer,
 		configMapInformer:                 cmInformer,
-		managerNutanixPrismEndpointReader: readManagerNutanixPrismEndpointFromFile,
+		managerNutanixPrismEndpointReader: readManagerNutanixPrismEndpointFromDefaultFile,
 	}
 }
 
@@ -231,11 +231,17 @@ func buildClientFromCredentials(creds prismgoclient.Credentials, additionalTrust
 	return cli, nil
 }
 
-// readManagerNutanixPrismEndpointFromFile reads the config file and unmarshalls it into NutanixPrismEndpoint.
+// readManagerNutanixPrismEndpoint reads the default config file and unmarshalls it into NutanixPrismEndpoint.
 // Returns an error if the file does not exist and other read or unmarshalling errors.
-func readManagerNutanixPrismEndpointFromFile() (*credentials.NutanixPrismEndpoint, error) {
+func readManagerNutanixPrismEndpointFromDefaultFile() (*credentials.NutanixPrismEndpoint, error) {
+	return readManagerNutanixPrismEndpointFromFile(configPath)
+}
+
+// this function is primarily here to make writing unit tests simpler
+// readManagerNutanixPrismEndpointFromDefaultFile should be used outside of tests
+func readManagerNutanixPrismEndpointFromFile(configFile string) (*credentials.NutanixPrismEndpoint, error) {
 	// fail on all errors including NotExist error
-	config, err := os.ReadFile(configPath)
+	config, err := os.ReadFile(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read prism config in manager: %w", err)
 	}
