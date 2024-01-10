@@ -186,7 +186,7 @@ spec:
           key: node.kubernetes.io/not-ready
           operator: Exists
       containers:
-        - image: "${CCM_REPO=ghcr.io/nutanix-cloud-native/cloud-provider-nutanix/controller}:${CCM_TAG=v0.3.1}"
+        - image: "${CCM_REPO=ghcr.io/nutanix-cloud-native/cloud-provider-nutanix/controller}:${CCM_TAG=v0.3.2}"
           imagePullPolicy: IfNotPresent
           name: nutanix-cloud-controller-manager
           env:
