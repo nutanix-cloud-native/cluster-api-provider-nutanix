@@ -119,6 +119,49 @@ nNFMFY3h7CI3zJpDC5fcgJCNs2ebb0gIFVbPv/ErfF6adulZkMV8gzURZVE=
 	}`
 )
 
+var (
+	testSecrets = []corev1.Secret{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "creds",
+				Namespace: "test",
+			},
+			Data: map[string][]byte{
+				credentials.KeyName: []byte(validTestCredentials),
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "capx-nutanix-creds",
+				Namespace: "capx-system",
+			},
+			Data: map[string][]byte{
+				credentials.KeyName: []byte(validTestManagerCredentials),
+			},
+		},
+	}
+	testConfigMaps = []corev1.ConfigMap{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cm",
+				Namespace: "test",
+			},
+			BinaryData: map[string][]byte{
+				certBundleKey: []byte(validTestCA),
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cm",
+				Namespace: "capx-system",
+			},
+			BinaryData: map[string][]byte{
+				certBundleKey: []byte(validTestManagerCA),
+			},
+		},
+	}
+)
+
 // setup a single controller context to be shared in unit tests
 // otherwise it gets prematurely closed
 var controllerCtx = ctrl.SetupSignalHandler()
@@ -134,48 +177,7 @@ func Test_buildManagementEndpoint(t *testing.T) {
 	}{
 		{
 			name: "all information set in NutanixCluster",
-			helper: testHelperWithFakedInformers(
-				[]corev1.Secret{
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "creds",
-							Namespace: "test",
-						},
-						Data: map[string][]byte{
-							credentials.KeyName: []byte(validTestCredentials),
-						},
-					},
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "capx-nutanix-creds",
-							Namespace: "capx-system",
-						},
-						Data: map[string][]byte{
-							credentials.KeyName: []byte(validTestManagerCredentials),
-						},
-					},
-				},
-				[]corev1.ConfigMap{
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "cm",
-							Namespace: "test",
-						},
-						BinaryData: map[string][]byte{
-							certBundleKey: []byte(validTestCA),
-						},
-					},
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "cm",
-							Namespace: "capx-system",
-						},
-						BinaryData: map[string][]byte{
-							certBundleKey: []byte(validTestManagerCA),
-						},
-					},
-				},
-			).withCustomNutanixPrismEndpointReader(
+			helper: testHelperWithFakedInformers(testSecrets, testConfigMaps).withCustomNutanixPrismEndpointReader(
 				func() (*credentials.NutanixPrismEndpoint, error) {
 					return &credentials.NutanixPrismEndpoint{
 						Address: "manager-endpoint",
@@ -228,48 +230,7 @@ func Test_buildManagementEndpoint(t *testing.T) {
 		},
 		{
 			name: "information missing in NutanixCluster, fallback to management",
-			helper: testHelperWithFakedInformers(
-				[]corev1.Secret{
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "creds",
-							Namespace: "test",
-						},
-						Data: map[string][]byte{
-							credentials.KeyName: []byte(validTestCredentials),
-						},
-					},
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "capx-nutanix-creds",
-							Namespace: "capx-system",
-						},
-						Data: map[string][]byte{
-							credentials.KeyName: []byte(validTestManagerCredentials),
-						},
-					},
-				},
-				[]corev1.ConfigMap{
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "cm",
-							Namespace: "test",
-						},
-						BinaryData: map[string][]byte{
-							certBundleKey: []byte(validTestCA),
-						},
-					},
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "cm",
-							Namespace: "capx-system",
-						},
-						BinaryData: map[string][]byte{
-							certBundleKey: []byte(validTestManagerCA),
-						},
-					},
-				},
-			).withCustomNutanixPrismEndpointReader(
+			helper: testHelperWithFakedInformers(testSecrets, testConfigMaps).withCustomNutanixPrismEndpointReader(
 				func() (*credentials.NutanixPrismEndpoint, error) {
 					return &credentials.NutanixPrismEndpoint{
 						Address: "manager-endpoint",
@@ -304,6 +265,63 @@ func Test_buildManagementEndpoint(t *testing.T) {
 				},
 				AdditionalTrustBundle: validTestManagerCA,
 			},
+		},
+		{
+			name: "NutanixCluster missing required information, should fail",
+			helper: testHelperWithFakedInformers(testSecrets, testConfigMaps).withCustomNutanixPrismEndpointReader(
+				func() (*credentials.NutanixPrismEndpoint, error) {
+					return &credentials.NutanixPrismEndpoint{
+						Address: "manager-endpoint",
+						Port:    9440,
+						CredentialRef: &credentials.NutanixCredentialReference{
+							Kind:      credentials.SecretKind,
+							Name:      "capx-nutanix-creds",
+							Namespace: "capx-system",
+						},
+						AdditionalTrustBundle: &credentials.NutanixTrustBundleReference{
+							Kind:      credentials.NutanixTrustBundleKindConfigMap,
+							Name:      "cm",
+							Namespace: "capx-system",
+						},
+					}, nil
+				},
+			),
+			nutanixCluster: &infrav1.NutanixCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: corev1.NamespaceDefault,
+				},
+				Spec: infrav1.NutanixClusterSpec{
+					PrismCentral: &credentials.NutanixPrismEndpoint{
+						Port: 9440,
+						CredentialRef: &credentials.NutanixCredentialReference{
+							Kind:      credentials.SecretKind,
+							Name:      "creds",
+							Namespace: "test",
+						},
+						AdditionalTrustBundle: &credentials.NutanixTrustBundleReference{
+							Kind:      credentials.NutanixTrustBundleKindConfigMap,
+							Name:      "cm",
+							Namespace: "test",
+						},
+					},
+				},
+			},
+			expectedErr: fmt.Errorf("error building an environment provider from NutanixCluster: %w", ErrPrismAddressNotSet),
+		},
+		{
+			name: "could not read management configuration, should fail",
+			helper: testHelperWithFakedInformers(testSecrets, testConfigMaps).withCustomNutanixPrismEndpointReader(
+				func() (*credentials.NutanixPrismEndpoint, error) {
+					return nil, fmt.Errorf("could not read config")
+				},
+			),
+			nutanixCluster: &infrav1.NutanixCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: corev1.NamespaceDefault,
+				},
+				Spec: infrav1.NutanixClusterSpec{},
+			},
+			expectedErr: fmt.Errorf("error building an environment provider from file: %w", fmt.Errorf("failed to create prism endpoint: %w", fmt.Errorf("could not read config"))),
 		},
 	}
 	for _, tt := range tests {
@@ -494,6 +512,29 @@ func Test_buildProviderFromNutanixCluster(t *testing.T) {
 			expectProviderToBeNil: true,
 			expectedErr:           ErrPrismPortNotSet,
 		},
+		{
+			name:   "CredentialRef is not set, should fail",
+			helper: testHelper(),
+			nutanixCluster: &infrav1.NutanixCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: corev1.NamespaceDefault,
+				},
+				Spec: infrav1.NutanixClusterSpec{
+					PrismCentral: &credentials.NutanixPrismEndpoint{
+						Address: "cluster-endpoint",
+						Port:    9440,
+						AdditionalTrustBundle: &credentials.NutanixTrustBundleReference{
+							Kind:      credentials.NutanixTrustBundleKindConfigMap,
+							Name:      "cm",
+							Namespace: "test",
+						},
+					},
+				},
+			},
+			expectProviderToBeNil: true,
+			expectedErr:           fmt.Errorf("credentialRef must be set on prismCentral attribute for cluster %s in namespace %s", "test", corev1.NamespaceDefault),
+		},
 	}
 	for _, tt := range tests {
 		tt := tt // Capture range variable.
@@ -604,6 +645,16 @@ func Test_buildProviderFromFile(t *testing.T) {
 			),
 			expectProviderToBeNil: true,
 			expectedErr:           fmt.Errorf("failed to retrieve capx-namespace. Make sure %s env variable is set", capxNamespaceKey),
+		},
+		{
+			name: "reader returns an error, should fail",
+			helper: testHelper().withCustomNutanixPrismEndpointReader(
+				func() (*credentials.NutanixPrismEndpoint, error) {
+					return nil, fmt.Errorf("could not read config")
+				},
+			),
+			expectProviderToBeNil: true,
+			expectedErr:           fmt.Errorf("failed to create prism endpoint: %w", fmt.Errorf("could not read config")),
 		},
 	}
 	for _, tt := range tests {
