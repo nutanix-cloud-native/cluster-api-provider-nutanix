@@ -343,7 +343,7 @@ func GetImageUUID(ctx context.Context, client *nutanixClientV3.Client, imageName
 // HasTaskInProgress returns true if the given task is in progress
 func HasTaskInProgress(ctx context.Context, client *nutanixClientV3.Client, taskUUID string) (bool, error) {
 	log := ctrl.LoggerFrom(ctx)
-	taskStatus, err := nutanixClientHelper.GetTaskState(ctx, client, taskUUID)
+	taskStatus, err := nutanixClientHelper.GetTaskStatus(ctx, client, taskUUID)
 	if err != nil {
 		return false, err
 	}

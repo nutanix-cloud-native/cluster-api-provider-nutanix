@@ -740,7 +740,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		return nil, errorMsg
 	}
 	log.Info(fmt.Sprintf("Waiting for task %s to get completed for VM %s", lastTaskUUID, rctx.NutanixMachine.Name))
-	err = nutanixClient.WaitForTaskCompletion(ctx, nc, lastTaskUUID)
+	err = nutanixClient.WaitForTaskToSucceed(ctx, nc, lastTaskUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while waiting for task %s to start: %v", lastTaskUUID, err)
 		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
