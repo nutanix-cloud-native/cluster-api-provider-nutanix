@@ -1,0 +1,57 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: "${CLUSTER_NAME}"
+  labels:
+      cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks: ["172.19.0.0/16"]
+    pods:
+      cidrBlocks: ["172.20.0.0/16"]
+    serviceDomain: "cluster.local"
+  topology:
+    class: "${CLUSTER_CLASS_NAME}"
+    version: ${KUBERNETES_VERSION}
+    controlPlane:
+      replicas: ${CONTROL_PLANE_MACHINE_COUNT}
+      metadata: {}
+    workers:
+      machineDeployments:
+      - class: ${CLUSTER_CLASS_NAME}-worker
+        name: md-0
+        replicas: ${WORKER_MACHINE_COUNT}
+        metadata: {}
+    variables:
+    - name: sshKey
+      value: '${NUTANIX_SSH_AUTHORIZED_KEY}'
+    - name: controlPlaneEndpoint
+      value:
+        IP: "${CONTROL_PLANE_ENDPOINT_IP}"
+        port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
+    - name: prismCentralEndpoint
+      value:
+        address: "${NUTANIX_ENDPOINT}"
+        port: ${NUTANIX_PORT=9440}
+        insecure: ${NUTANIX_INSECURE=false}
+    - name: controlPlaneMachineDetails
+      value:
+        bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+        vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+        vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
+        memorySize: "${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}"
+        systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
+        imageName: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}"
+        clusterName: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
+        subnetName: "${NUTANIX_SUBNET_NAME}"
+    - name: workerMachineDetails
+      value:
+        bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+        vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+        vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
+        memorySize: "${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}"
+        systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
+        imageName: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}"
+        clusterName: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
+        subnetName: "${NUTANIX_SUBNET_NAME}"

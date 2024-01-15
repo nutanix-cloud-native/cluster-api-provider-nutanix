@@ -1,0 +1,18 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixCluster
+metadata:
+  name: "${CLUSTER_NAME}"
+spec:
+  prismCentral:
+    address: "${NUTANIX_ENDPOINT}"
+    port: ${NUTANIX_PORT=9440}
+    insecure: ${NUTANIX_INSECURE=false}
+    credentialRef:
+      name: "${CLUSTER_NAME}"
+      kind: Secret
+    additionalTrustBundle:
+      name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
+      kind: ConfigMap
+  controlPlaneEndpoint:
+    host: "${CONTROL_PLANE_ENDPOINT_IP}"
+    port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}

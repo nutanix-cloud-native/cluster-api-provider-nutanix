@@ -22,7 +22,7 @@ data:
       },
       "additionalTrustBundle": {
         "kind": "ConfigMap",
-        "name": "capx-user-ca-bundle"
+        "name": "capx-pc-trusted-ca-bundle"
       }
     }
 ---
@@ -50,7 +50,7 @@ stringData:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: user-ca-bundle
+  name: pc-trusted-ca-bundle
   namespace: capi-nutanix-system
 binaryData:
   ca.crt: "${NUTANIX_ADDITIONAL_TRUST_BUNDLE=''}"

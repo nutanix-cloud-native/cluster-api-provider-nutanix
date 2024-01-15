@@ -181,9 +181,6 @@ USE_EXISTING_CLUSTER ?= false
 GINKGO_NOCOLOR ?= false
 FLAVOR ?= e2e
 
-TEST_NAMESPACE=capx-test-ns
-TEST_CLUSTER_NAME=mycluster
-
 # set ginkgo focus flags, if any
 ifneq ($(strip $(GINKGO_FOCUS)),)
 _FOCUS_ARGS := $(foreach arg,$(strip $(GINKGO_FOCUS)),--focus="$(arg)")
@@ -328,6 +325,9 @@ cluster-e2e-templates-v1beta1: $(KUSTOMIZE) ## Generate cluster templates for v1
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-failure-domains --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-failure-domains.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/clusterclass-e2e.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-topology --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-topology.yaml
 
 cluster-e2e-templates-no-kubeproxy: $(KUSTOMIZE) ##Generate cluster templates without kubeproxy
 	# v1alpha4
@@ -346,10 +346,15 @@ cluster-e2e-templates-no-kubeproxy: $(KUSTOMIZE) ##Generate cluster templates wi
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-kcp-scale-in --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-csi --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi.yaml
 	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-failure-domains --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-failure-domains.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/clusterclass-e2e.yaml
+	$(KUSTOMIZE) build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-topology --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-topology.yaml
 
 cluster-templates: $(KUSTOMIZE) ## Generate cluster templates for all flavors
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/base > $(TEMPLATES_DIR)/cluster-template.yaml
 	$(KUSTOMIZE) build $(TEMPLATES_DIR)/csi > $(TEMPLATES_DIR)/cluster-template-csi.yaml
+	$(KUSTOMIZE) build $(TEMPLATES_DIR)/clusterclass > $(TEMPLATES_DIR)/cluster-template-clusterclass.yaml
+	$(KUSTOMIZE) build $(TEMPLATES_DIR)/topology > $(TEMPLATES_DIR)/cluster-template-topology.yaml
 
 ##@ Testing
 
@@ -386,33 +391,6 @@ ifeq ($(EXPORT_RESULT), true)
 	GO111MODULE=off $(GOGET) -u github.com/axw/gocov/gocov
 	gocov convert profile.cov | gocov-xml > coverage.xml
 endif
-
-.PHONY: test-clusterctl-create
-test-clusterctl-create: $(CLUSTERCTL) ## Run the tests using clusterctl
-	$(CLUSTERCTL) version
-	$(CLUSTERCTL) config repositories | grep nutanix
-	$(CLUSTERCTL) generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --list-variables -v 10
-	$(CLUSTERCTL) generate cluster ${TEST_CLUSTER_NAME} -i nutanix:${LOCAL_PROVIDER_VERSION} --target-namespace ${TEST_NAMESPACE}  -v 10 > ./cluster.yaml
-	kubectl create ns $(TEST_NAMESPACE) || true
-	kubectl apply -f ./cluster.yaml -n $(TEST_NAMESPACE)
-
-.PHONY: test-clusterctl-delete
-test-clusterctl-delete: ## Delete clusterctl created cluster
-	kubectl -n ${TEST_NAMESPACE} delete cluster ${TEST_CLUSTER_NAME}
-
-.PHONY: test-kubectl-bootstrap
-test-kubectl-bootstrap: ## Run kubectl queries to get all capx management/bootstrap related objects
-	kubectl get ns
-	kubectl get all --all-namespaces
-	kubectl -n capx-system get all
-	kubectl -n $(TEST_NAMESPACE) get Cluster,NutanixCluster,Machine,NutanixMachine,KubeAdmControlPlane,MachineHealthCheck,nodes
-	kubectl -n capx-system get pod
-
-.PHONY: test-kubectl-workload
-test-kubectl-workload: ## Run kubectl queries to get all capx workload related objects
-	kubectl -n $(TEST_NAMESPACE) get secret
-	kubectl -n ${TEST_NAMESPACE} get secret ${TEST_CLUSTER_NAME}-kubeconfig -o json | jq -r .data.value | base64 --decode > ${TEST_CLUSTER_NAME}.workload.kubeconfig
-	kubectl --kubeconfig ./${TEST_CLUSTER_NAME}.workload.kubeconfig get nodes,ns
 
 .PHONY: ginkgo-help
 ginkgo-help:
@@ -631,3 +609,10 @@ verify-manifests: manifests  ## Verify generated manifests are up to date
 clean: ## Clean the build and test artifacts
 	rm -rf $(ARTIFACTS) $(BIN_DIR)
 
+## --------------------------------------
+## Developer local tests
+## --------------------------------------
+
+##@ Test Dev Cluster with and without topology
+include test-cluster-without-topology.mk
+include test-cluster-with-topology.mk

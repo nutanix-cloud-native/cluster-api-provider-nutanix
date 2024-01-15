@@ -1,0 +1,61 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  labels:
+    ccm: nutanix
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+  name: ${CLUSTER_NAME}
+  namespace: ${NAMESPACE}
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+      - 172.20.0.0/16
+    serviceDomain: cluster.local
+    services:
+      cidrBlocks:
+      - 172.19.0.0/16
+  topology:
+    class: ${CLUSTER_CLASS_NAME}
+    controlPlane:
+      metadata: {}
+      replicas: ${CONTROL_PLANE_MACHINE_COUNT}
+    variables:
+    - name: sshKey
+      value: ${NUTANIX_SSH_AUTHORIZED_KEY}
+    - name: controlPlaneEndpoint
+      value:
+        IP: ${CONTROL_PLANE_ENDPOINT_IP}
+        port: ${CONTROL_PLANE_ENDPOINT_PORT=6443}
+    - name: prismCentralEndpoint
+      value:
+        address: ${NUTANIX_ENDPOINT}
+        insecure: ${NUTANIX_INSECURE=false}
+        port: ${NUTANIX_PORT=9440}
+    - name: controlPlaneMachineDetails
+      value:
+        bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+        clusterName: ${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}
+        imageName: ${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}
+        memorySize: ${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}
+        subnetName: ${NUTANIX_SUBNET_NAME}
+        systemDiskSize: ${NUTANIX_SYSTEMDISK_SIZE=40Gi}
+        vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
+        vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+    - name: workerMachineDetails
+      value:
+        bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+        clusterName: ${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}
+        imageName: ${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}
+        memorySize: ${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}
+        subnetName: ${NUTANIX_SUBNET_NAME}
+        systemDiskSize: ${NUTANIX_SYSTEMDISK_SIZE=40Gi}
+        vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
+        vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+    version: ${KUBERNETES_VERSION}
+    workers:
+      machineDeployments:
+      - class: ${CLUSTER_CLASS_NAME}-worker
+        metadata: {}
+        name: md-0
+        replicas: ${WORKER_MACHINE_COUNT}

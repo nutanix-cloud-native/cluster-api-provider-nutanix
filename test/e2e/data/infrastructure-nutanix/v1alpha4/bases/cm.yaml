@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: user-ca-bundle
+  name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
   namespace: "${NAMESPACE}"
 data:
   ca.crt: "${NUTANIX_ADDITIONAL_TRUST_BUNDLE=''}"

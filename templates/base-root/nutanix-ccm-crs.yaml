@@ -12,7 +12,7 @@ spec:
   - kind: Secret
     name: nutanix-ccm-secret
   - kind: ConfigMap
-    name: user-ca-bundle
+    name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
   strategy: ApplyOnce
 ---
 apiVersion: v1

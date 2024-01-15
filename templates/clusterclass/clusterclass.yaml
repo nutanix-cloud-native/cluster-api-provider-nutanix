@@ -1,0 +1,304 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: ClusterClass
+metadata:
+  name: "${CLUSTER_CLASS_NAME}"
+spec:
+  controlPlane:
+    ref:
+      apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+      kind: KubeadmControlPlaneTemplate
+      name: ${CLUSTER_CLASS_NAME}-kcpt
+      namespace: ${NAMESPACE}
+    machineInfrastructure:
+      ref:
+        kind: NutanixMachineTemplate
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        name: ${CLUSTER_CLASS_NAME}-cp-nmt
+        namespace: ${NAMESPACE}
+    machineHealthCheck:
+      maxUnhealthy: 40%
+      nodeStartupTimeout: 10m
+      unhealthyConditions:
+        - type: Ready
+          status: "False"
+          timeout: 300s
+        - type: Ready
+          status: Unknown
+          timeout: 300s
+        - type: MemoryPressure
+          status: "True"
+          timeout: 300s
+        - type: DiskPressure
+          status: "True"
+          timeout: 300s
+        - type: PIDPressure
+          status: "True"
+          timeout: 300s
+        - type: NetworkUnavailable
+          status: "True"
+          timeout: 300s
+  workers:
+    machineDeployments:
+    - class: ${CLUSTER_CLASS_NAME}-worker
+      template:
+        bootstrap:
+          ref:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+            kind: KubeadmConfigTemplate
+            name: "${CLUSTER_NAME}-kcfg-0"
+            namespace: ${NAMESPACE}
+        infrastructure:
+          ref:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: NutanixMachineTemplate
+            name: ${CLUSTER_CLASS_NAME}-md-nmt
+            namespace: ${NAMESPACE}
+      machineHealthCheck:
+        maxUnhealthy: 40%
+        nodeStartupTimeout: 10m
+        unhealthyConditions:
+          - type: Ready
+            status: "False"
+            timeout: 300s
+          - type: Ready
+            status: Unknown
+            timeout: 300s
+          - type: MemoryPressure
+            status: "True"
+            timeout: 300s
+          - type: DiskPressure
+            status: "True"
+            timeout: 300s
+          - type: PIDPressure
+            status: "True"
+            timeout: 300s
+          - type: NetworkUnavailable
+            status: "True"
+            timeout: 300s
+  infrastructure:
+    ref:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+      kind: NutanixClusterTemplate
+      name: ${CLUSTER_CLASS_NAME}-nct
+      namespace: ${NAMESPACE}
+  patches:
+  - name: add-ssh-user
+    definitions:
+    - selector:
+        apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+        kind: KubeadmControlPlaneTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/kubeadmConfigSpec/users
+        valueFrom:
+          template: |
+            - name: capxuser
+              lockPassword: false
+              sudo: ALL=(ALL) NOPASSWD:ALL
+              sshAuthorizedKeys:
+                - '{{ .sshKey }}'
+    - selector:
+        apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+        kind: KubeadmConfigTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - ${CLUSTER_CLASS_NAME}-worker
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/users
+        valueFrom:
+          template: |
+            - name: capxuser
+              lockPassword: false
+              sudo: ALL=(ALL) NOPASSWD:ALL
+              sshAuthorizedKeys:
+                - '{{ .sshKey }}'
+  - name: update-control-plane-endpoint
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixClusterTemplate
+        matchResources:
+          infrastructureCluster: true
+      jsonPatches:
+          - op: add
+            path: /spec/template/spec/controlPlaneEndpoint
+            valueFrom:
+              template: |
+                host: '{{ .controlPlaneEndpoint.IP }}'
+                port: {{ .controlPlaneEndpoint.port }}
+  - name: add-pc-endpoint-and-creds
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixClusterTemplate
+        matchResources:
+          infrastructureCluster: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/prismCentral
+        valueFrom:
+          template: |
+            address: '{{ .prismCentralEndpoint.address }}'
+            port: {{ .prismCentralEndpoint.port }}
+            insecure: {{ .prismCentralEndpoint.insecure }}
+            credentialRef:
+              name: "${CLUSTER_NAME}"
+              kind: Secret
+            additionalTrustBundle:
+              name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
+              kind: ConfigMap
+  - name: update-control-plane-machine-template
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+          - op: replace
+            path: /spec/template/spec/bootType
+            valueFrom:
+              variable: controlPlaneMachineDetails.bootType
+          - op: replace
+            path: /spec/template/spec/vcpusPerSocket
+            valueFrom:
+              variable: controlPlaneMachineDetails.vcpusPerSocket
+          - op: replace
+            path: /spec/template/spec/memorySize
+            valueFrom:
+              variable: controlPlaneMachineDetails.memorySize
+          - op: replace
+            path: /spec/template/spec/systemDiskSize
+            valueFrom:
+              variable: controlPlaneMachineDetails.systemDiskSize
+          - op: replace
+            path: /spec/template/spec/image/name
+            valueFrom:
+              variable: controlPlaneMachineDetails.imageName
+          - op: replace
+            path: /spec/template/spec/cluster/name
+            valueFrom:
+              variable: controlPlaneMachineDetails.clusterName
+          - op: replace
+            path: /spec/template/spec/subnet
+            valueFrom:
+              template: |
+                - type: name
+                  name: {{ .controlPlaneMachineDetails.subnetName }}
+  - name: update-worker-machine-template
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - ${CLUSTER_CLASS_NAME}-worker
+      jsonPatches:
+          - op: replace
+            path: /spec/template/spec/bootType
+            valueFrom:
+              variable: workerMachineDetails.bootType
+          - op: replace
+            path: /spec/template/spec/vcpusPerSocket
+            valueFrom:
+              variable: workerMachineDetails.vcpusPerSocket
+          - op: replace
+            path: /spec/template/spec/memorySize
+            valueFrom:
+              variable: workerMachineDetails.memorySize
+          - op: replace
+            path: /spec/template/spec/systemDiskSize
+            valueFrom:
+              variable: workerMachineDetails.systemDiskSize
+          - op: replace
+            path: /spec/template/spec/image/name
+            valueFrom:
+              variable: workerMachineDetails.imageName
+          - op: replace
+            path: /spec/template/spec/cluster/name
+            valueFrom:
+              variable: workerMachineDetails.clusterName
+          - op: replace
+            path: /spec/template/spec/subnet
+            valueFrom:
+              template: |
+                - type: name
+                  name: {{ .controlPlaneMachineDetails.subnetName }}
+  variables:
+  - name: sshKey
+    required: true
+    schema:
+      openAPIV3Schema:
+        description: Public key to SSH onto the cluster nodes.
+        type: string
+  - name: controlPlaneEndpoint
+    required: true
+    schema:
+      openAPIV3Schema:
+        properties:
+          IP:
+            type: string
+          port:
+            type: integer
+        type: object
+  - name: prismCentralEndpoint
+    required: true
+    schema:
+      openAPIV3Schema:
+        properties:
+          address:
+            type: string
+          port:
+            type: integer
+          insecure:
+            type: boolean
+        type: object
+  - name: controlPlaneMachineDetails
+    required: true
+    schema:
+      openAPIV3Schema:
+        properties:
+          bootType:
+            type: string
+          vcpusPerSocket:
+            type: integer
+          vcpuSockets:
+            type: integer
+          memorySize:
+            type: string
+          systemDiskSize:
+            type: string
+          imageName:
+            type: string
+          clusterName:
+            type: string
+          subnetName:
+            type: string
+        type: object
+  - name: workerMachineDetails
+    required: true
+    schema:
+      openAPIV3Schema:
+        properties:
+          bootType:
+            type: string
+          vcpusPerSocket:
+            type: integer
+          vcpuSockets:
+            type: integer
+          memorySize:
+            type: string
+          systemDiskSize:
+            type: string
+          imageName:
+            type: string
+          clusterName:
+            type: string
+          subnetName:
+            type: string
+        type: object

@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: "${NAMESPACE}"
+
+bases:
+  - ../base-root
+  - ./nct.yaml
+  - ./clusterclass.yaml
+  - ./nmt-cp.yaml
+  - ./nmt-md.yaml
+  - ./kcpt.yaml
+  - ./kct.yaml

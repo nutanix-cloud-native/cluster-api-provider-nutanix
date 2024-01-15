@@ -4,4 +4,3 @@ metadata:
   labels:
     cni: ${CLUSTER_NAME}-crs-cni
   name: "${CLUSTER_NAME}"
-  namespace: "${NAMESPACE}"

@@ -12,7 +12,7 @@ spec:
       name: "${CLUSTER_NAME}"
       kind: Secret
     additionalTrustBundle:
-      name: user-ca-bundle
+      name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
       kind: ConfigMap
   controlPlaneEndpoint:
     host: "${CONTROL_PLANE_ENDPOINT_IP_V124}"
