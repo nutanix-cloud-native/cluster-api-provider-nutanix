@@ -35,7 +35,7 @@ const (
 	additionalSubnetVarKey = "NUTANIX_ADDITIONAL_SUBNET_NAME"
 )
 
-var _ = Describe("Nutanix Subnets", Label("capx-feature-test", "multi-nic", "slow", "network"), func() {
+var _ = Describe("Nutanix Subnets", Label("capx-feature-test", "multi-nic"), func() {
 	const specName = "cluster-multi-nic"
 
 	var (

@@ -35,7 +35,7 @@ const (
 	defaultNonExistingAdditionalCategoryValue = "nonExistingCategoryValueCAPX"
 )
 
-var _ = Describe("Nutanix categories", Label("capx-feature-test", "categories", "slow", "network"), func() {
+var _ = Describe("Nutanix categories", Label("capx-feature-test", "categories"), func() {
 	const (
 		specName = "cluster-categories"
 	)

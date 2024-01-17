@@ -29,7 +29,7 @@ import (
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 )
 
-var _ = Describe("Nutanix Basic Creation with UUID", Label("capx-feature-test", "uuid", "slow", "network"), func() {
+var _ = Describe("Nutanix Basic Creation with UUID", Label("capx-feature-test", "uuid"), func() {
 	const (
 		specName           = "cluster-uuid"
 		ccmInstanceTypeKey = "node.kubernetes.io/instance-type"

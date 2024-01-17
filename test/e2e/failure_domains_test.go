@@ -42,7 +42,7 @@ const (
 //   - the control plane nodes are spread across the defined failure domains
 //   - the VMs are deployed on the correct Prism Element cluster and subnet
 //   - the correct failure domain conditions are applied to the nutanixCluster object
-var _ = Describe("Nutanix failure domains", Label("capx-feature-test", "failure-domains", "only-for-validation", "slow", "network"), func() {
+var _ = Describe("Nutanix failure domains", Label("capx-feature-test", "failure-domains", "only-for-validation"), func() {
 	const specName = "failure-domains"
 
 	var (

@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("Nutanix regression tests", Label("capx-regression-test", "regression", "slow", "network"), func() {
+var _ = Describe("Nutanix regression tests", Label("capx-feature-test", "regression"), func() {
 	const specName = "capx-regression"
 
 	var (
