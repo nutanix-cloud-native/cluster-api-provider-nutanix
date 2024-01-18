@@ -244,7 +244,15 @@ providers:
           - sourcePath: "../../../metadata.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1.2.4/cluster-template.yaml"
           - sourcePath: "../data/infrastructure-nutanix/ccm-update.yaml"
-      - name: v1.3.99 # next; use manifest from source files
+      - name: v1.3.0
+        type: url
+        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.3.0/infrastructure-components.yaml
+        contract: v1beta1
+        files:
+          - sourcePath: "../../../metadata.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1.3.0/cluster-template.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/ccm-update.yaml"
+      - name: v1.4.99 # # TODO(release-blocker): update this when you make a new release and change the version to higher than the latest release
         type: kustomize
         value: "../../../config/default"
         contract: v1beta1
