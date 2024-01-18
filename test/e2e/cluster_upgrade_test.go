@@ -26,7 +26,7 @@ import (
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 )
 
-var _ = Describe("When upgrading a workload cluster and testing K8S conformance", Label("cluster-upgrade-conformance", "slow", "network"), func() {
+var _ = Describe("When upgrading a workload cluster and testing K8S conformance", Label("cluster-upgrade-conformance"), func() {
 	capi_e2e.ClusterUpgradeConformanceSpec(ctx, func() capi_e2e.ClusterUpgradeConformanceSpecInput {
 		return capi_e2e.ClusterUpgradeConformanceSpecInput{
 			E2EConfig:             e2eConfig,
@@ -54,7 +54,7 @@ var _ = Describe("When upgrading a workload cluster and testing K8S conformance"
 // 	})
 // })
 
-var _ = Describe("When upgrading a workload cluster with a single control plane machine", Label("cluster-upgrade-conformance", "slow", "network"), func() {
+var _ = Describe("When upgrading a workload cluster with a single control plane machine", Label("cluster-upgrade-conformance"), func() {
 	capi_e2e.ClusterUpgradeConformanceSpec(ctx, func() capi_e2e.ClusterUpgradeConformanceSpecInput {
 		return capi_e2e.ClusterUpgradeConformanceSpecInput{
 			E2EConfig:             e2eConfig,
@@ -71,7 +71,7 @@ var _ = Describe("When upgrading a workload cluster with a single control plane 
 	})
 })
 
-var _ = Describe("When upgrading a workload cluster with a HA control plane", Label("cluster-upgrade-conformance", "slow", "network"), func() {
+var _ = Describe("When upgrading a workload cluster with a HA control plane", Label("cluster-upgrade-conformance"), func() {
 	capi_e2e.ClusterUpgradeConformanceSpec(ctx, func() capi_e2e.ClusterUpgradeConformanceSpecInput {
 		return capi_e2e.ClusterUpgradeConformanceSpecInput{
 			E2EConfig:             e2eConfig,
@@ -88,7 +88,7 @@ var _ = Describe("When upgrading a workload cluster with a HA control plane", La
 	})
 })
 
-var _ = Describe("When upgrading a workload cluster with a HA control plane using scale-in rollout", Label("cluster-upgrade-conformance", "slow", "network"), func() {
+var _ = Describe("When upgrading a workload cluster with a HA control plane using scale-in rollout", Label("cluster-upgrade-conformance"), func() {
 	capi_e2e.ClusterUpgradeConformanceSpec(ctx, func() capi_e2e.ClusterUpgradeConformanceSpecInput {
 		return capi_e2e.ClusterUpgradeConformanceSpecInput{
 			E2EConfig:             e2eConfig,

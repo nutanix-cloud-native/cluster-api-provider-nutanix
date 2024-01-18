@@ -22,7 +22,7 @@ import (
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 )
 
-var _ = Describe("When testing K8S conformance", Label("conformance", "slow", "network"), func() {
+var _ = Describe("When testing K8S conformance", Label("conformance"), func() {
 	capi_e2e.K8SConformanceSpec(ctx, func() capi_e2e.K8SConformanceSpecInput {
 		return capi_e2e.K8SConformanceSpecInput{
 			E2EConfig:             e2eConfig,

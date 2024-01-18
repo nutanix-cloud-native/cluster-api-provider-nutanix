@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/cluster-api/util"
 )
 
-var _ = Describe("When testing MachineDeployment scale out/in", Label("md-scale-out-in", "slow", "network"), func() {
+var _ = Describe("When testing MachineDeployment scale out/in", Label("scaling", "md-scale-out-in"), func() {
 	capi_e2e.MachineDeploymentScaleSpec(ctx, func() capi_e2e.MachineDeploymentScaleSpecInput {
 		return capi_e2e.MachineDeploymentScaleSpecInput{
 			E2EConfig:             e2eConfig,
@@ -47,7 +47,7 @@ var _ = Describe("When testing MachineDeployment scale out/in", Label("md-scale-
 })
 
 // Label `only-for-validation` is used to run this test only for validation and not as part of the regular test suite.
-var _ = Describe("When testing MachineDeployment scale up/down from 10 replicas to 20 replicas to 10 again", Label("md-scale-up-down", "slow", "network", "only-for-validation"), func() {
+var _ = Describe("When testing MachineDeployment scale up/down from 10 replicas to 20 replicas to 10 again", Label("scaling", "md-scale-up-down", "only-for-validation"), func() {
 	// MachineDeploymentScaleSpec implements a test that verifies that MachineDeployment scale operations are successful.
 	inputGetter := func() capi_e2e.MachineDeploymentScaleSpecInput {
 		return capi_e2e.MachineDeploymentScaleSpecInput{
