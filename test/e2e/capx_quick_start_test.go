@@ -36,7 +36,7 @@ var _ = Describe("When following the Cluster API quick-start", Label("quickstart
 	})
 })
 
-var _ = Describe("When following the Cluster API quick-start with ClusterClass", Label("quickstart2", "capx-feature-test"), func() {
+var _ = Describe("When following the Cluster API quick-start with ClusterClass", Label("quickstart", "capx-feature-test"), func() {
 	capi_e2e.QuickStartSpec(ctx, func() capi_e2e.QuickStartSpecInput {
 		return capi_e2e.QuickStartSpecInput{
 			E2EConfig:             e2eConfig,
