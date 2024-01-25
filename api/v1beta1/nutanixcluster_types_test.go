@@ -106,7 +106,7 @@ func TestGetCredentialRefForCluster(t *testing.T) {
 		tt := tt // Capture range variable.
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ref, err := tt.nutanixCluster.GetCredentialRefForCluster()
+			ref, err := tt.nutanixCluster.GetPrismCentralCredentialRef()
 			assert.Equal(t, tt.expectedCredentialsRef, ref)
 			assert.Equal(t, tt.expectedErr, err)
 		})

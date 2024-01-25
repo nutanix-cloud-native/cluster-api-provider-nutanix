@@ -147,7 +147,7 @@ func (ncl *NutanixCluster) SetConditions(conditions capiv1.Conditions) {
 	ncl.Status.Conditions = conditions
 }
 
-func (ncl *NutanixCluster) GetCredentialRefForCluster() (*credentialTypes.NutanixCredentialReference, error) {
+func (ncl *NutanixCluster) GetPrismCentralCredentialRef() (*credentialTypes.NutanixCredentialReference, error) {
 	prismCentralInfo := ncl.Spec.PrismCentral
 	if prismCentralInfo == nil {
 		return nil, nil

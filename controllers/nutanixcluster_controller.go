@@ -331,7 +331,7 @@ func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterC
 
 func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Context, nutanixCluster *infrav1.NutanixCluster) error {
 	log := ctrl.LoggerFrom(ctx)
-	credentialRef, err := mustGetCredentialRefForCluster(nutanixCluster)
+	credentialRef, err := getPrismCentralCredentialRefForCluster(nutanixCluster)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting credential ref for cluster %s", nutanixCluster.Name))
 		return err
@@ -372,7 +372,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Cont
 
 func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, nutanixCluster *infrav1.NutanixCluster) error {
 	log := ctrl.LoggerFrom(ctx)
-	credentialRef, err := mustGetCredentialRefForCluster(nutanixCluster)
+	credentialRef, err := getPrismCentralCredentialRefForCluster(nutanixCluster)
 	if err != nil {
 		return err
 	}
@@ -419,9 +419,11 @@ func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, n
 	return nil
 }
 
-func mustGetCredentialRefForCluster(nutanixCluster *infrav1.NutanixCluster) (*credentialTypes.NutanixCredentialReference, error) {
+// getPrismCentralCredentialRefForCluster calls nutanixCluster.GetPrismCentralCredentialRef() function
+// and returns an error if nutanixCluster is nil
+func getPrismCentralCredentialRefForCluster(nutanixCluster *infrav1.NutanixCluster) (*credentialTypes.NutanixCredentialReference, error) {
 	if nutanixCluster == nil {
 		return nil, fmt.Errorf("cannot get credential reference if nutanix cluster object is nil")
 	}
-	return nutanixCluster.GetCredentialRefForCluster()
+	return nutanixCluster.GetPrismCentralCredentialRef()
 }

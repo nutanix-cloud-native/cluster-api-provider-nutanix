@@ -145,7 +145,7 @@ func (n *NutanixClientHelper) buildProviderFromNutanixCluster(nutanixCluster *in
 	if prismCentralInfo.Port == 0 {
 		return nil, ErrPrismPortNotSet
 	}
-	credentialRef, err := nutanixCluster.GetCredentialRefForCluster()
+	credentialRef, err := nutanixCluster.GetPrismCentralCredentialRef()
 	if err != nil {
 		//nolint:wrapcheck // error is already wrapped
 		return nil, err
