@@ -87,7 +87,7 @@ func TestGetCredentialRefForCluster(t *testing.T) {
 			},
 		},
 		{
-			name: "prismCentralInfo isn not nil but CredentialRef is nil, should fail",
+			name: "prismCentralInfo is not nil but CredentialRef is nil, should fail",
 			nutanixCluster: &NutanixCluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",

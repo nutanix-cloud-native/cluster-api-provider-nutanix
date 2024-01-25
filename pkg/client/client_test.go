@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"net/url"
 	"os"
@@ -28,6 +29,7 @@ import (
 	"github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	envTypes "github.com/nutanix-cloud-native/prism-go-client/environment/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,84 +41,22 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
-const (
-	validTestCredentials = `[
-      {
-        "type": "basic_auth",
-        "data": {
-          "prismCentral":{
-            "username": "user",
-            "password": "password"
-          }
-        }
-      }
-    ]`
-	validTestManagerCredentials = `[
-      {
-        "type": "basic_auth",
-        "data": {
-          "prismCentral":{
-            "username": "admin",
-            "password": "adminpassword"
-          }
-        }
-      }
-    ]`
+var (
+	//go:embed testdata/validTestCredentials.json
+	validTestCredentials string
+	//go:embed testdata/validTestManagerCredentials.json
+	validTestManagerCredentials string
 
 	certBundleKey = "ca.crt"
-	validTestCA   = `-----BEGIN CERTIFICATE-----
-MIIDdTCCAl2gAwIBAgILBAAAAAABFUtaw5QwDQYJKoZIhvcNAQEFBQAwVzELMAkGA1UEBhMCQkUx
-GTAXBgNVBAoTEEdsb2JhbFNpZ24gbnYtc2ExEDAOBgNVBAsTB1Jvb3QgQ0ExGzAZBgNVBAMTEkds
-b2JhbFNpZ24gUm9vdCBDQTAeFw05ODA5MDExMjAwMDBaFw0yODAxMjgxMjAwMDBaMFcxCzAJBgNV
-BAYTAkJFMRkwFwYDVQQKExBHbG9iYWxTaWduIG52LXNhMRAwDgYDVQQLEwdSb290IENBMRswGQYD
-VQQDExJHbG9iYWxTaWduIFJvb3QgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDa
-DuaZjc6j40+Kfvvxi4Mla+pIH/EqsLmVEQS98GPR4mdmzxzdzxtIK+6NiY6arymAZavpxy0Sy6sc
-THAHoT0KMM0VjU/43dSMUBUc71DuxC73/OlS8pF94G3VNTCOXkNz8kHp1Wrjsok6Vjk4bwY8iGlb
-Kk3Fp1S4bInMm/k8yuX9ifUSPJJ4ltbcdG6TRGHRjcdGsnUOhugZitVtbNV4FpWi6cgKOOvyJBNP
-c1STE4U6G7weNLWLBYy5d4ux2x8gkasJU26Qzns3dLlwR5EiUWMWea6xrkEmCMgZK9FGqkjWZCrX
-gzT/LCrBbBlDSgeF59N89iFo7+ryUp9/k5DPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNV
-HRMBAf8EBTADAQH/MB0GA1UdDgQWBBRge2YaRQ2XyolQL30EzTSo//z9SzANBgkqhkiG9w0BAQUF
-AAOCAQEA1nPnfE920I2/7LqivjTFKDK1fPxsnCwrvQmeU79rXqoRSLblCKOzyj1hTdNGCbM+w6Dj
-Y1Ub8rrvrTnhQ7k4o+YviiY776BQVvnGCv04zcQLcFGUl5gE38NflNUVyRRBnMRddWQVDf9VMOyG
-j/8N7yy5Y0b2qvzfvGn9LhJIZJrglfCm7ymPAbEVtQwdpf5pLGkkeB6zpxxxYu7KyJesF12KwvhH
-hm4qxFYxldBniYUr+WymXUadDKqC5JlR3XC321Y9YeRq4VzW9v493kHMB65jUr9TU/Qr6cf9tveC
-X4XSQRjbgbMEHMUfpIBvFSDJ3gyICh3WZlXi/EjJKSZp4A==
------END CERTIFICATE-----`
-	validTestManagerCA = `-----BEGIN CERTIFICATE-----
-MIIEKjCCAxKgAwIBAgIEOGPe+DANBgkqhkiG9w0BAQUFADCBtDEUMBIGA1UEChMLRW50cnVzdC5u
-ZXQxQDA+BgNVBAsUN3d3dy5lbnRydXN0Lm5ldC9DUFNfMjA0OCBpbmNvcnAuIGJ5IHJlZi4gKGxp
-bWl0cyBsaWFiLikxJTAjBgNVBAsTHChjKSAxOTk5IEVudHJ1c3QubmV0IExpbWl0ZWQxMzAxBgNV
-BAMTKkVudHJ1c3QubmV0IENlcnRpZmljYXRpb24gQXV0aG9yaXR5ICgyMDQ4KTAeFw05OTEyMjQx
-NzUwNTFaFw0yOTA3MjQxNDE1MTJaMIG0MRQwEgYDVQQKEwtFbnRydXN0Lm5ldDFAMD4GA1UECxQ3
-d3d3LmVudHJ1c3QubmV0L0NQU18yMDQ4IGluY29ycC4gYnkgcmVmLiAobGltaXRzIGxpYWIuKTEl
-MCMGA1UECxMcKGMpIDE5OTkgRW50cnVzdC5uZXQgTGltaXRlZDEzMDEGA1UEAxMqRW50cnVzdC5u
-ZXQgQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkgKDIwNDgpMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A
-MIIBCgKCAQEArU1LqRKGsuqjIAcVFmQqK0vRvwtKTY7tgHalZ7d4QMBzQshowNtTK91euHaYNZOL
-Gp18EzoOH1u3Hs/lJBQesYGpjX24zGtLA/ECDNyrpUAkAH90lKGdCCmziAv1h3edVc3kw37XamSr
-hRSGlVuXMlBvPci6Zgzj/L24ScF2iUkZ/cCovYmjZy/Gn7xxGWC4LeksyZB2ZnuU4q941mVTXTzW
-nLLPKQP5L6RQstRIzgUyVYr9smRMDuSYB3Xbf9+5CFVghTAp+XtIpGmG4zU/HoZdenoVve8AjhUi
-VBcAkCaTvA5JaJG/+EfTnZVCwQ5N328mz8MYIWJmQ3DW1cAH4QIDAQABo0IwQDAOBgNVHQ8BAf8E
-BAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUVeSB0RGAvtiJuQijMfmhJAkWuXAwDQYJ
-KoZIhvcNAQEFBQADggEBADubj1abMOdTmXx6eadNl9cZlZD7Bh/KM3xGY4+WZiT6QBshJ8rmcnPy
-T/4xmf3IDExoU8aAghOY+rat2l098c5u9hURlIIM7j+VrxGrD9cv3h8Dj1csHsm7mhpElesYT6Yf
-zX1XEC+bBAlahLVu2B064dae0Wx5XnkcFMXj0EyTO2U87d89vqbllRrDtRnDvV5bu/8j72gZyxKT
-J1wDLW8w0B62GqzeWvfRqqgnpv55gcR5mTNXuhKwqeBCbJPKVt7+bYQLCIt+jerXmCHG8+c8eS9e
-nNFMFY3h7CI3zJpDC5fcgJCNs2ebb0gIFVbPv/ErfF6adulZkMV8gzURZVE=
------END CERTIFICATE-----`
+	//go:embed testdata/validTestCA.pem
+	validTestCA string
+	//go:embed testdata/validTestManagerCA.pem
+	validTestManagerCA string
 
-	validTestConfig = `{
-      "address": "cluster-endpoint",
-      "port": 9440,
-	  "credentialRef": {
-        "kind": "Secret",
-        "name": "creds",
-        "namespace": "test"
-	  }
-	}`
-	invalidTestConfigMissingCredentialRef = `{
-      "address": "cluster-endpoint",
-      "port": 9440
-	}`
+	//go:embed testdata/validTestConfig.json
+	validTestConfig string
+	//go:embed testdata/invalidTestConfigMissingCredentialRef.json
+	invalidTestConfigMissingCredentialRef string
 )
 
 var (
@@ -711,9 +651,9 @@ func Test_readManagerNutanixPrismEndpointFromFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			f, err := os.CreateTemp(t.TempDir(), "config-*.json")
-			assert.NoError(t, err, "error creating temp file")
+			require.NoError(t, err, "error creating temp file")
 			_, err = f.Write(tt.config)
-			assert.NoError(t, err, "error writing temp file")
+			require.NoError(t, err, "error writing temp file")
 
 			endpoint, err := readManagerNutanixPrismEndpointFromFile(f.Name())
 			if err != nil {
@@ -726,7 +666,7 @@ func Test_readManagerNutanixPrismEndpointFromFile(t *testing.T) {
 
 func Test_readManagerNutanixPrismEndpointFromFile_IsNotExist(t *testing.T) {
 	_, err := readManagerNutanixPrismEndpointFromFile("filedoesnotexist.json")
-	assert.ErrorIs(t, err, os.ErrNotExist, err)
+	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func testHelper() *NutanixClientHelper {
