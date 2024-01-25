@@ -40,8 +40,7 @@ const (
 	capxNamespaceKey = "POD_NAMESPACE"
 )
 
-var (
-	// use a var to override in tests
+const (
 	configPath = "/etc/nutanix/config/prismCentral"
 )
 
