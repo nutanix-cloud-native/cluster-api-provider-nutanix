@@ -103,7 +103,7 @@ spec:
         path: /spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer
         valueFrom:
           template: |
-            certSANs
+            certSANs:
             - localhost
             - 127.0.0.1
             - 0.0.0.0
