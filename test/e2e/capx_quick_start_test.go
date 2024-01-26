@@ -20,6 +20,7 @@ package e2e
 
 import (
 	. "github.com/onsi/ginkgo/v2"
+	"k8s.io/utils/pointer"
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 )
 
@@ -35,18 +36,18 @@ var _ = Describe("When following the Cluster API quick-start", Label("quickstart
 	})
 })
 
-// var _ = Describe("When following the Cluster API quick-start with ClusterClass [PR-Informing]", func() {
-// 	QuickStartSpec(ctx, func() QuickStartSpecInput {
-// 		return QuickStartSpecInput{
-// 			E2EConfig:             e2eConfig,
-// 			ClusterctlConfigPath:  clusterctlConfigPath,
-// 			BootstrapClusterProxy: bootstrapClusterProxy,
-// 			ArtifactFolder:        artifactFolder,
-// 			SkipCleanup:           skipCleanup,
-// 			Flavor:                pointer.String("topology"),
-// 		}
-// 	})
-// })
+var _ = Describe("When following the Cluster API quick-start with ClusterClass", Label("quickstart", "capx-feature-test"), func() {
+	capi_e2e.QuickStartSpec(ctx, func() capi_e2e.QuickStartSpecInput {
+		return capi_e2e.QuickStartSpecInput{
+			E2EConfig:             e2eConfig,
+			ClusterctlConfigPath:  clusterctlConfigPath,
+			BootstrapClusterProxy: bootstrapClusterProxy,
+			ArtifactFolder:        artifactFolder,
+			SkipCleanup:           skipCleanup,
+			Flavor:                pointer.String("topology"),
+		}
+	})
+})
 
 // // NOTE: This test requires an IPv6 management cluster (can be configured via IP_FAMILY=IPv6).
 // var _ = Describe("When following the Cluster API quick-start with IPv6 [IPv6] [PR-Informing]", func() {
