@@ -110,7 +110,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 
 		AfterEach(func() {
 			// Delete ntnxCluster if exists.
-			k8sClient.Delete(ctx, ntnxCluster)
+			_ = k8sClient.Delete(ctx, ntnxCluster)
 		})
 
 		Context("Reconcile an NutanixCluster", func() {
@@ -179,7 +179,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
 				// Retrieve the applied nutanix cluster objects
 				appliedNtnxCluster := &infrav1.NutanixCluster{}
-				k8sClient.Get(ctx, client.ObjectKey{
+				_ = k8sClient.Get(ctx, client.ObjectKey{
 					Namespace: ntnxCluster.Namespace,
 					Name:      ntnxCluster.Name,
 				}, appliedNtnxCluster)
@@ -213,7 +213,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
 				// Retrieve the applied nutanix cluster objects
 				appliedNtnxCluster := &infrav1.NutanixCluster{}
-				k8sClient.Get(ctx, client.ObjectKey{
+				_ = k8sClient.Get(ctx, client.ObjectKey{
 					Namespace: ntnxCluster.Namespace,
 					Name:      ntnxCluster.Name,
 				}, appliedNtnxCluster)

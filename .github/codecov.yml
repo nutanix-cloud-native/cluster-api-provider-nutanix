@@ -1,5 +1,5 @@
 codecov:
-  require_ci_to_pass: yes
+  require_ci_to_pass: true
 
 ignore:
   # ignore all generated controller-gen and conversion-gen code
@@ -13,4 +13,3 @@ coverage:
     patch:
       default:
         target: 75%
-

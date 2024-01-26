@@ -937,7 +937,7 @@ spec:
       # To install cilium cni plugin in the host
       - name: cni-path
         hostPath:
-          path:  /opt/cni/bin
+          path: /opt/cni/bin
           type: DirectoryOrCreate
         # To install cilium cni configuration in the host
       - name: etc-cni-netd

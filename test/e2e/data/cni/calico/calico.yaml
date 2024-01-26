@@ -4233,7 +4233,7 @@ rules:
     resources:
       - endpointslices
     verbs:
-      - watch 
+      - watch
       - list
   - apiGroups: [""]
     resources:
@@ -4314,7 +4314,7 @@ rules:
       - create
       - update
   # Calico must update some CRDs.
-  - apiGroups: [ "crd.projectcalico.org" ]
+  - apiGroups: ["crd.projectcalico.org"]
     resources:
       - caliconodestatuses
     verbs:

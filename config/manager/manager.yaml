@@ -36,8 +36,8 @@ stringData:
   credentials: |
     [
       {
-        "type": "basic_auth", 
-        "data": { 
+        "type": "basic_auth",
+        "data": {
           "prismCentral":{
             "username": "${NUTANIX_USER}",
             "password": "${NUTANIX_PASSWORD}"

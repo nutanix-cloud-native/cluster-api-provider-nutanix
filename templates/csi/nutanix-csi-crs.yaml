@@ -10,4 +10,3 @@ spec:
   - kind: ConfigMap
     name: nutanix-csi
   strategy: ApplyOnce
-

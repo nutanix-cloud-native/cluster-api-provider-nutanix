@@ -3,6 +3,6 @@ kind: NutanixClusterTemplate
 metadata:
   name: ${CLUSTER_CLASS_NAME}-nct
 spec:
-  template: 
+  template:
     spec:
       failureDomains: []

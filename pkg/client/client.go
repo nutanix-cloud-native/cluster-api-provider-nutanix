@@ -43,8 +43,10 @@ const (
 	capxNamespaceKey    = "POD_NAMESPACE"
 )
 
-var ErrPrismAddressNotSet = fmt.Errorf("cannot get credentials if Prism Address is not set")
-var ErrPrismPortNotSet = fmt.Errorf("cannot get credentials if Prism Port is not set")
+var (
+	ErrPrismAddressNotSet = fmt.Errorf("cannot get credentials if Prism Address is not set")
+	ErrPrismPortNotSet    = fmt.Errorf("cannot get credentials if Prism Port is not set")
+)
 
 type NutanixClientHelper struct {
 	secretInformer    coreinformers.SecretInformer
