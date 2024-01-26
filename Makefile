@@ -581,11 +581,18 @@ $(CLUSTERCTL):
 
 ##@ Lint and Verify
 
-GOLANGCI_LINT_EXTRA_ARGS := --enable gofumpt --build-tags e2e
+GOLANGCI_LINT_EXTRA_ARGS := --enable gofmt --enable gofumpt --build-tags e2e
 
 .PHONY: lint
 lint: $(GOLANGCI_LINT) ## Lint the codebase
 	$(GOLANGCI_LINT) run -v $(GOLANGCI_LINT_EXTRA_ARGS)
+
+lint-yaml: ## Use yamllint on the yaml file of your projects
+ifeq ($(EXPORT_RESULT), true)
+	GO111MODULE=off go get -u github.com/thomaspoignant/yamllint-checkstyle
+	$(eval OUTPUT_OPTIONS = | yamllint-checkstyle > yamllint-checkstyle.xml)
+endif
+	docker run --rm -v $(shell pwd):/data cytopia/yamllint -c .yamllint --no-warnings -f parsable $(shell git ls-files '*.yml' '*.yaml') $(OUTPUT_OPTIONS)
 
 .PHONY: lint-fix
 lint-fix: $(GOLANGCI_LINT) ## Lint the codebase and run auto-fixers if supported by the linter

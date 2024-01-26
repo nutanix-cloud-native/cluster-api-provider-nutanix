@@ -80,7 +80,7 @@ providers:
           - sourcePath: "../data/shared/metadata.yaml"
         replacements:
           - old: "imagePullPolicy: Always"
-            new: "imagePullPolicy: IfNotPresent"      
+            new: "imagePullPolicy: IfNotPresent"
   - name: kubeadm
     type: BootstrapProvider
     versions:

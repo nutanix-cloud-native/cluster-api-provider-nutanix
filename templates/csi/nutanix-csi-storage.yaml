@@ -118,7 +118,7 @@ roleRef:
 ---
 # Source: nutanix-csi-storage/templates/service-prometheus-csi.yaml
 # Copyright 2021 Nutanix Inc
-# 
+#
 # example usage: kubectl create -f <this_file>
 #
 
@@ -203,7 +203,7 @@ spec:
             allowPrivilegeEscalation: true
           image: quay.io/karbon/ntnx-csi:v2.5.1
           imagePullPolicy: IfNotPresent
-          args :
+          args:
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--nodeid=$(NODE_ID)"
             - "--drivername=csi.nutanix.com"

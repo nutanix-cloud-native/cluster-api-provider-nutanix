@@ -1,11 +1,11 @@
-name: Test Build
+name: Build, Lint, and Test
 env:
   EXPORT_RESULT: true
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 jobs:
   build-container:
     runs-on: ubuntu-latest
@@ -26,6 +26,14 @@ jobs:
 
       - name: Build
         run: make generate fmt vet build
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v3.7.0
+        with:
+          args: --enable gofmt --enable gofumpt --timeout 5m  --build-tags e2e
+
+      - name: Lint
+        run: make lint-yaml
 
       - name: Run unit tests
         run: make unit-test

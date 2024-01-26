@@ -827,12 +827,6 @@ func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vmM
 	return nil
 }
 
-func (r *NutanixMachineReconciler) isGetRemoteClientConnectionError(err error) bool {
-	// Check if error contains connection refused message. This can occur during provisioning when Kubernetes API is not available yet.
-	const expectedErrString = "connect: connection refused"
-	return strings.Contains(err.Error(), expectedErrString)
-}
-
 func (r *NutanixMachineReconciler) GetSubnetAndPEUUIDs(rctx *nctx.MachineContext) (string, []string, error) {
 	if rctx == nil {
 		return "", nil, fmt.Errorf("cannot create machine config if machine context is nil")
