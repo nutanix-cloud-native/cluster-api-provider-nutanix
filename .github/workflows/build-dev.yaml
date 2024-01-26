@@ -45,17 +45,15 @@ jobs:
           args: --enable gofmt --enable gofumpt --timeout 5m  --build-tags e2e
 
       - name: Lint
-        run: make lint-yaml
+        run: devbox run -- make lint-yaml
 
       - name: Run unit tests
         run: devbox run -- make unit-test
 
-      # go cov expects things to be properly placed under go path.
+      # gocov-xml expects things to be properly placed under go path.
       # GHA clones into /home/runner/work/repository so we create
       # the directory under the right path and link it
       - run: mkdir -p /home/runner/go/src/github.com/nutanix-cloud-native/ && ln -s /home/runner/work/cluster-api-provider-nutanix/cluster-api-provider-nutanix /home/runner/go/src/github.com/nutanix-cloud-native
-
-      - run: ls /home/runner/go/src/github.com/nutanix-cloud-native/cluster-api-provider-nutanix/
 
       - name: Run coverage report
         run: devbox run -- "make coverage"

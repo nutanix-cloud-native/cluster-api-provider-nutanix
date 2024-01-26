@@ -9,15 +9,17 @@
     "gotestsum@1.6.4",
     "kind@0.17.0",
     "ko@0.11.2",
+    "yamllint@1.33.0",
     "kubernetes-code-generator@0.25.4",
     "kubernetes-controller-tools@0.10.0",
     "kustomize@4.5.4",
     "path:./hack/flakes#go-apidiff",
     "path:./hack/flakes#go-mod-upgrade",
     "path:./hack/flakes#go-junit-report",
-   "path:./hack/flakes#gocov",
-   "path:./hack/flakes#gocov-xml",
+    "path:./hack/flakes#gocov",
+    "path:./hack/flakes#gocov-xml",
     "path:./hack/flakes#golangci-lint",
+    "path:./hack/flakes#yamllint-checkstyle",
     "path:./hack/flakes#setup-envtest"
   ]
 }

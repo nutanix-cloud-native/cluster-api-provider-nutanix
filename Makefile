@@ -407,10 +407,9 @@ lint: ## Lint the codebase
 
 lint-yaml: ## Use yamllint on the yaml file of your projects
 ifeq ($(EXPORT_RESULT), true)
-	GO111MODULE=off go get -u github.com/thomaspoignant/yamllint-checkstyle
 	$(eval OUTPUT_OPTIONS = | yamllint-checkstyle > yamllint-checkstyle.xml)
 endif
-	docker run --rm -v $(shell pwd):/data cytopia/yamllint -c .yamllint --no-warnings -f parsable $(shell git ls-files '*.yml' '*.yaml') $(OUTPUT_OPTIONS)
+	yamllint -c .yamllint --no-warnings -f parsable $(shell git ls-files '*.yml' '*.yaml') $(OUTPUT_OPTIONS)
 
 .PHONY: lint-fix
 lint-fix: ## Lint the codebase and run auto-fixers if supported by the linter

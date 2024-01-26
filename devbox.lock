@@ -234,6 +234,26 @@
           "store_path": "/nix/store/c19mdak1wxv58ls6r048yvm8z6h1q4g5-kustomize-4.5.4"
         }
       }
+    },
+    "yamllint@1.33.0": {
+      "last_modified": "2024-01-14T03:55:27Z",
+      "resolved": "github:NixOS/nixpkgs/dd5621df6dcb90122b50da5ec31c411a0de3e538#yamllint",
+      "source": "devbox-search",
+      "version": "1.33.0",
+      "systems": {
+        "aarch64-darwin": {
+          "store_path": "/nix/store/r6gg9y3pv1snnkbgzd6bnwrx6lvjmy5m-python3.11-yamllint-1.33.0"
+        },
+        "aarch64-linux": {
+          "store_path": "/nix/store/cd0sy9qbmrvlgx5zjw1sn28zbhi6rf3h-python3.11-yamllint-1.33.0"
+        },
+        "x86_64-darwin": {
+          "store_path": "/nix/store/94jj8a47d1h6jiak3wqrc2fxxgiabhwx-python3.11-yamllint-1.33.0"
+        },
+        "x86_64-linux": {
+          "store_path": "/nix/store/qn52zxjvinig2gf6q5zp1xgw9plyjadp-python3.11-yamllint-1.33.0"
+        }
+      }
     }
   }
 }

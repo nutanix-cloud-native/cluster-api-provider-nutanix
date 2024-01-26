@@ -89,6 +89,18 @@
             vendorSha256 = "80fPJXEVj7szTFxxxf5MhWE6Zbll7/SDcdisfZdrOlQ=";
           };
 
+          yamllint-checkstyle = buildGo121Module {
+            pname = "yamllint-checkstyle";
+            name = "yamllint-checkstyle";
+            src = fetchFromGitHub {
+              owner = "thomaspoignant";
+              repo = "yamllint-checkstyle";
+              rev = "v1.0.2";
+              sha256 = "jdgzR+q7IiEpZid0/L6rtkKD8d6DvN48rfJZ+EN+xB0=";
+            };
+            vendorHash = "sha256-LHRd8Q/v3ceFOqULsTtphfd4xBsz3XBG4Rkmn3Ty6CE=";
+          };
+
           setup-envtest = buildGo121Module {
             name = "setup-envtest";
             src = fetchFromGitHub {
