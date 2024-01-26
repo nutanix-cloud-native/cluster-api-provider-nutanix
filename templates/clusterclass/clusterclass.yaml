@@ -103,10 +103,7 @@ spec:
         path: /spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer
         valueFrom:
           template: |
-            certSANs:
-            - localhost
-            - 127.0.0.1
-            - 0.0.0.0
+            certSANs: [ {{ .apiServerSigningCertExtraCertSANs }} ]
     - selector:
         apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
         kind: KubeadmConfigTemplate
@@ -254,6 +251,12 @@ spec:
           port:
             type: integer
         type: object
+  - name: apiServerSigningCertExtraCertSANs
+    required: true
+    schema:
+      openAPIV3Schema:
+        description: Set extra Subject Alternative Names (SANs) for the API Server signing certificate.
+        type: string
   - name: prismCentralEndpoint
     required: true
     schema:

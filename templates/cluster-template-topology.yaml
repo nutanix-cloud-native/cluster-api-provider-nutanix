@@ -52,6 +52,8 @@ spec:
         systemDiskSize: ${NUTANIX_SYSTEMDISK_SIZE=40Gi}
         vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
         vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+    - name: apiServerSigningCertExtraCertSANs
+      value: localhost, 127.0.0.1, 0.0.0.0
     version: ${KUBERNETES_VERSION}
     workers:
       machineDeployments:
