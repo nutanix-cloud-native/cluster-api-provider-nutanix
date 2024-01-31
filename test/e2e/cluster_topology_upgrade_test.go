@@ -37,6 +37,7 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 		cluster       *clusterv1.Cluster
 		cancelWatches context.CancelFunc
 		testHelper    testHelperInterface
+		nutanixE2ETest *NutanixE2ETest
 	)
 
 	BeforeEach(func() {
@@ -44,7 +45,7 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 		Expect(bootstrapClusterProxy).NotTo(BeNil(), "BootstrapClusterProxy can't be nil")
 		namespace, cancelWatches = setupSpecNamespace(ctx, specName, bootstrapClusterProxy, artifactFolder)
 		Expect(namespace).NotTo(BeNil())
-		nutanixE2ETest := NewNutanixE2ETest(
+		nutanixE2ETest = NewNutanixE2ETest(
 			WithE2ETestSpecName(specName),
 			WithE2ETestHelper(testHelper),
 			WithE2ETestConfig(e2eConfig),
