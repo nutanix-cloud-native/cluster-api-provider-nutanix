@@ -27,6 +27,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
+	"sigs.k8s.io/cluster-api/test/framework/kubetest"
 )
 
 type NutanixE2ETest struct {
@@ -38,6 +39,7 @@ type NutanixE2ETest struct {
 	flavor                string
 	namespace             *corev1.Namespace
 	testSpecName          string
+	kubetestConfigPath    string
 }
 
 type NutanixE2ETestOption func(*NutanixE2ETest)
@@ -83,6 +85,12 @@ func WithE2ETestArtifactFolder(artifactFolder string) NutanixE2ETestOption {
 func WithE2ETestClusterctlConfigPath(clusterctlConfigPath string) NutanixE2ETestOption {
 	return func(nutanixE2ETest *NutanixE2ETest) {
 		nutanixE2ETest.clusterctlConfigPath = clusterctlConfigPath
+	}
+}
+
+func WithE2ETestKubetestConfigPath(kubetestConfigPath string) NutanixE2ETestOption {
+	return func(nutanixE2ETest *NutanixE2ETest) {
+		nutanixE2ETest.kubetestConfigPath = kubetestConfigPath
 	}
 }
 
@@ -190,6 +198,21 @@ func (e2eTest *NutanixE2ETest) WaitForNodesReady(ctx context.Context, targetKube
 		Count:             int(clusterResources.ExpectedTotalNodes()),
 		WaitForNodesReady: e2eTest.e2eConfig.GetIntervals(e2eTest.testSpecName, "wait-nodes-ready"),
 	})
+}
+
+func (e2eTest *NutanixE2ETest) RunConformanceTest(ctx context.Context, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult) error {
+	workloadProxy := e2eTest.bootstrapClusterProxy.GetWorkloadCluster(ctx, e2eTest.namespace.Name, clusterResources.Cluster.Name)
+	// Start running the conformance test suite.
+	return kubetest.Run(
+		ctx,
+		kubetest.RunInput{
+			ClusterProxy:       workloadProxy,
+			NumberOfNodes:      int(clusterResources.ExpectedWorkerNodes()),
+			ArtifactsDirectory: e2eTest.artifactFolder,
+			ConfigFilePath:     e2eTest.kubetestConfigPath,
+			GinkgoNodes:        int(clusterResources.ExpectedWorkerNodes()),
+		},
+	)
 }
 
 type ClusterTopologyConfig struct {
