@@ -57,6 +57,29 @@ var _ = Describe("When creating a cluster with topology with simple workflow", L
 		)
 	})
 
+	var basicWorkflow = func(targetKubeVer, targetImageName string) {
+		By("Creating a workload cluster with topology")
+		clusterTopologyConfig := NewClusterTopologyConfig(
+			WithName(clusterName),
+			WithKubernetesVersion(targetKubeVer),
+			WithControlPlaneCount(1),
+			WithWorkerNodeCount(1),
+			WithControlPlaneMachineTemplateImage(targetImageName),
+			WithWorkerMachineTemplateImage(targetImageName),
+		)
+
+		clusterResources, err := nutanixE2ETest.CreateCluster(ctx, clusterTopologyConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Set test specific variable so that cluster can be cleaned up after reach test
+		cluster = clusterResources.Cluster
+
+		By("Waiting until nodes are ready")
+		nutanixE2ETest.WaitForNodesReady(ctx, targetKubeVer, clusterResources)
+
+		By("PASSED!")
+	}
+
 	AfterEach(func() {
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
@@ -65,83 +88,27 @@ var _ = Describe("When creating a cluster with topology with simple workflow", L
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
-		targetKubeVer := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
+		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
+		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
+		basicWorkflow(kube127, kube127Image)
 
-		By("Creating a workload cluster with topology")
-		clusterTopologyConfig := NewClusterTopologyConfig(
-			WithName(clusterName),
-			WithKubernetesVersion(targetKubeVer),
-			WithControlPlaneCount(1),
-			WithWorkerNodeCount(1),
-			WithControlPlaneMachineTemplateImage(targetKubeVer),
-			WithWorkerMachineTemplateImage(targetKubeVer),
-		)
-
-		clusterResources, err := nutanixE2ETest.CreateCluster(ctx, clusterTopologyConfig)
-		Expect(err).ToNot(HaveOccurred())
-
-		// Set test specific variable so that cluster can be cleaned up after reach test
-		cluster = clusterResources.Cluster
-
-		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, targetKubeVer, clusterResources)
-
-		By("PASSED!")
 	})
 
 	It("Create a cluster with topology with version Kube128", func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
-		targetKubeVer := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
-
-		By("Creating a workload cluster with topology")
-		clusterTopologyConfig := NewClusterTopologyConfig(
-			WithName(clusterName),
-			WithKubernetesVersion(targetKubeVer),
-			WithControlPlaneCount(1),
-			WithWorkerNodeCount(1),
-			WithControlPlaneMachineTemplateImage(targetKubeVer),
-			WithWorkerMachineTemplateImage(targetKubeVer),
-		)
-
-		clusterResources, err := nutanixE2ETest.CreateCluster(ctx, clusterTopologyConfig)
-		Expect(err).ToNot(HaveOccurred())
-
-		// Set test specific variable so that cluster can be cleaned up after reach test
-		cluster = clusterResources.Cluster
-
-		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, targetKubeVer, clusterResources)
-
-		By("PASSED!")
+		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
+		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
+		basicWorkflow(kube128, kube128Image)
 	})
 
 	It("Create a cluster with topology with version Kube129", func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
-		targetKubeVer := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
-
-		By("Creating a workload cluster with topology")
-		clusterTopologyConfig := NewClusterTopologyConfig(
-			WithName(clusterName),
-			WithKubernetesVersion(targetKubeVer),
-			WithControlPlaneCount(1),
-			WithWorkerNodeCount(1),
-			WithControlPlaneMachineTemplateImage(targetKubeVer),
-			WithWorkerMachineTemplateImage(targetKubeVer),
-		)
-
-		clusterResources, err := nutanixE2ETest.CreateCluster(ctx, clusterTopologyConfig)
-		Expect(err).ToNot(HaveOccurred())
-
-		// Set test specific variable so that cluster can be cleaned up after reach test
-		cluster = clusterResources.Cluster
-
-		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, targetKubeVer, clusterResources)
-
-		By("PASSED!")
+		kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
+		kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
+		basicWorkflow(kube129, kube129Image)
 	})
 })
