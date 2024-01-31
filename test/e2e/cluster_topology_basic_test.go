@@ -27,15 +27,17 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
-var _ = Describe("When creating a cluster with topology with simple workflow", Label("clusterclass"), func() {
+var _ = Describe("When creating a cluster with topology with simple workflow", Label("clusterclass", "cluster-topology"), func() {
 	const specName = "cluster-with-topology-simple-workflow"
+	const flavor = "topology"
 
 	var (
-		namespace     *corev1.Namespace
-		clusterName   string
-		cluster       *clusterv1.Cluster
-		cancelWatches context.CancelFunc
-		testHelper    testHelperInterface
+		namespace      *corev1.Namespace
+		clusterName    string
+		cluster        *clusterv1.Cluster
+		cancelWatches  context.CancelFunc
+		testHelper     testHelperInterface
+		nutanixE2ETest *NutanixE2ETest
 	)
 
 	BeforeEach(func() {
@@ -43,20 +45,7 @@ var _ = Describe("When creating a cluster with topology with simple workflow", L
 		Expect(bootstrapClusterProxy).NotTo(BeNil(), "BootstrapClusterProxy can't be nil")
 		namespace, cancelWatches = setupSpecNamespace(ctx, specName, bootstrapClusterProxy, artifactFolder)
 		Expect(namespace).NotTo(BeNil())
-	})
-
-	AfterEach(func() {
-		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, cluster, e2eConfig.GetIntervals, skipCleanup)
-	})
-
-	It("Create a cluster with topology with version Kube127", func() {
-		const flavor = "topology"
-
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		By("Creating a workload cluster with topology")
-		nutanixE2ETest := NewNutanixE2ETest(
+		nutanixE2ETest = NewNutanixE2ETest(
 			WithE2ETestSpecName(specName),
 			WithE2ETestHelper(testHelper),
 			WithE2ETestConfig(e2eConfig),
@@ -66,7 +55,17 @@ var _ = Describe("When creating a cluster with topology with simple workflow", L
 			WithE2ETestClusterTemplateFlavor(flavor),
 			WithE2ETestNamespace(namespace),
 		)
+	})
 
+	AfterEach(func() {
+		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, cluster, e2eConfig.GetIntervals, skipCleanup)
+	})
+
+	It("Create a cluster with topology with version Kube127", func() {
+		clusterName = testHelper.generateTestClusterName(specName)
+		Expect(clusterName).NotTo(BeNil())
+
+		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
 			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")),
@@ -89,22 +88,10 @@ var _ = Describe("When creating a cluster with topology with simple workflow", L
 	})
 
 	It("Create a cluster with topology with version Kube128", func() {
-		const flavor = "topology"
-
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
 		By("Creating a workload cluster with topology")
-		nutanixE2ETest := NewNutanixE2ETest(
-			WithE2ETestHelper(testHelper),
-			WithE2ETestConfig(e2eConfig),
-			WithE2ETestBootstrapClusterProxy(bootstrapClusterProxy),
-			WithE2ETestArtifactFolder(artifactFolder),
-			WithE2ETestClusterctlConfigPath(clusterctlConfigPath),
-			WithE2ETestClusterTemplateFlavor(flavor),
-			WithE2ETestNamespace(namespace),
-		)
-
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
 			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")),
@@ -127,22 +114,10 @@ var _ = Describe("When creating a cluster with topology with simple workflow", L
 	})
 
 	It("Create a cluster with topology with version Kube129", func() {
-		const flavor = "topology"
-
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
 		By("Creating a workload cluster with topology")
-		nutanixE2ETest := NewNutanixE2ETest(
-			WithE2ETestHelper(testHelper),
-			WithE2ETestConfig(e2eConfig),
-			WithE2ETestBootstrapClusterProxy(bootstrapClusterProxy),
-			WithE2ETestArtifactFolder(artifactFolder),
-			WithE2ETestClusterctlConfigPath(clusterctlConfigPath),
-			WithE2ETestClusterTemplateFlavor(flavor),
-			WithE2ETestNamespace(namespace),
-		)
-
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
 			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")),

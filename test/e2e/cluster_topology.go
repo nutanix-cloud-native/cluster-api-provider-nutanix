@@ -20,12 +20,10 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
