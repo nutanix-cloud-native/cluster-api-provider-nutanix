@@ -65,14 +65,16 @@ var _ = Describe("When creating a cluster with topology with simple workflow", L
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
+		targetKubeVer := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
+
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
-			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")),
+			WithKubernetesVersion(targetKubeVer),
 			WithControlPlaneCount(1),
 			WithWorkerNodeCount(1),
-			WithControlPlaneMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
-			WithWorkerMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
+			WithControlPlaneMachineTemplateImage(targetKubeVer),
+			WithWorkerMachineTemplateImage(targetKubeVer),
 		)
 
 		clusterResources, err := nutanixE2ETest.CreateCluster(ctx, clusterTopologyConfig)
@@ -82,7 +84,7 @@ var _ = Describe("When creating a cluster with topology with simple workflow", L
 		cluster = clusterResources.Cluster
 
 		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27"), clusterResources)
+		nutanixE2ETest.WaitForNodesReady(ctx, targetKubeVer, clusterResources)
 
 		By("PASSED!")
 	})
@@ -91,14 +93,16 @@ var _ = Describe("When creating a cluster with topology with simple workflow", L
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
+		targetKubeVer := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
+
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
-			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")),
+			WithKubernetesVersion(targetKubeVer),
 			WithControlPlaneCount(1),
 			WithWorkerNodeCount(1),
-			WithControlPlaneMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")),
-			WithWorkerMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")),
+			WithControlPlaneMachineTemplateImage(targetKubeVer),
+			WithWorkerMachineTemplateImage(targetKubeVer),
 		)
 
 		clusterResources, err := nutanixE2ETest.CreateCluster(ctx, clusterTopologyConfig)
@@ -108,7 +112,7 @@ var _ = Describe("When creating a cluster with topology with simple workflow", L
 		cluster = clusterResources.Cluster
 
 		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28"), clusterResources)
+		nutanixE2ETest.WaitForNodesReady(ctx, targetKubeVer, clusterResources)
 
 		By("PASSED!")
 	})
@@ -117,14 +121,16 @@ var _ = Describe("When creating a cluster with topology with simple workflow", L
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
+		targetKubeVer := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
+
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
-			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")),
+			WithKubernetesVersion(targetKubeVer),
 			WithControlPlaneCount(1),
 			WithWorkerNodeCount(1),
-			WithControlPlaneMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")),
-			WithWorkerMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")),
+			WithControlPlaneMachineTemplateImage(targetKubeVer),
+			WithWorkerMachineTemplateImage(targetKubeVer),
 		)
 
 		clusterResources, err := nutanixE2ETest.CreateCluster(ctx, clusterTopologyConfig)
@@ -134,7 +140,7 @@ var _ = Describe("When creating a cluster with topology with simple workflow", L
 		cluster = clusterResources.Cluster
 
 		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29"), clusterResources)
+		nutanixE2ETest.WaitForNodesReady(ctx, targetKubeVer, clusterResources)
 
 		By("PASSED!")
 	})

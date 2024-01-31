@@ -32,11 +32,11 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 	const flavor = "topology"
 
 	var (
-		namespace     *corev1.Namespace
-		clusterName   string
-		cluster       *clusterv1.Cluster
-		cancelWatches context.CancelFunc
-		testHelper    testHelperInterface
+		namespace      *corev1.Namespace
+		clusterName    string
+		cluster        *clusterv1.Cluster
+		cancelWatches  context.CancelFunc
+		testHelper     testHelperInterface
 		nutanixE2ETest *NutanixE2ETest
 	)
 
@@ -61,18 +61,20 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	It("Scale out a cluster with topology from 1 CP node to 3 CP nodes", func() {
+	It("Scale out a cluster with topology from 1 CP node to 3 CP nodes with Kube127", func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
+
+		targetKubeVer := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
 
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
-			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")),
+			WithKubernetesVersion(targetKubeVer),
 			WithControlPlaneCount(1),
 			WithWorkerNodeCount(1),
-			WithControlPlaneMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
-			WithWorkerMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
+			WithControlPlaneMachineTemplateImage(targetKubeVer),
+			WithWorkerMachineTemplateImage(targetKubeVer),
 		)
 
 		clusterResources, err := nutanixE2ETest.CreateCluster(ctx, clusterTopologyConfig)
@@ -82,15 +84,15 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		cluster = clusterResources.Cluster
 
 		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27"), clusterResources)
+		nutanixE2ETest.WaitForNodesReady(ctx, targetKubeVer, clusterResources)
 
 		clusterTopologyConfig = NewClusterTopologyConfig(
 			WithName(clusterName),
-			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")),
+			WithKubernetesVersion(targetKubeVer),
 			WithControlPlaneCount(3),
 			WithWorkerNodeCount(1),
-			WithControlPlaneMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
-			WithWorkerMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
+			WithControlPlaneMachineTemplateImage(targetKubeVer),
+			WithWorkerMachineTemplateImage(targetKubeVer),
 		)
 
 		clusterResources, err = nutanixE2ETest.UpgradeCluster(ctx, clusterTopologyConfig)
@@ -103,23 +105,25 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		nutanixE2ETest.WaitForMachineDeploymentMachinesToBeUpgraded(ctx, clusterTopologyConfig, clusterResources)
 
 		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27"), clusterResources)
+		nutanixE2ETest.WaitForNodesReady(ctx, targetKubeVer, clusterResources)
 
 		By("PASSED!")
 	})
 
-	It("Scale out a cluster with topology from 1 Worker node to 3 Worker nodes", func() {
+	It("Scale out a cluster with topology from 1 Worker node to 3 Worker nodes with Kube127", func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
+
+		targetKubeVer := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
 
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
-			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")),
+			WithKubernetesVersion(targetKubeVer),
 			WithControlPlaneCount(1),
 			WithWorkerNodeCount(1),
-			WithControlPlaneMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
-			WithWorkerMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
+			WithControlPlaneMachineTemplateImage(targetKubeVer),
+			WithWorkerMachineTemplateImage(targetKubeVer),
 		)
 
 		clusterResources, err := nutanixE2ETest.CreateCluster(ctx, clusterTopologyConfig)
@@ -129,15 +133,15 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		cluster = clusterResources.Cluster
 
 		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27"), clusterResources)
+		nutanixE2ETest.WaitForNodesReady(ctx, targetKubeVer, clusterResources)
 
 		clusterTopologyConfig = NewClusterTopologyConfig(
 			WithName(clusterName),
-			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")),
+			WithKubernetesVersion(targetKubeVer),
 			WithControlPlaneCount(1),
 			WithWorkerNodeCount(3),
-			WithControlPlaneMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
-			WithWorkerMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
+			WithControlPlaneMachineTemplateImage(targetKubeVer),
+			WithWorkerMachineTemplateImage(targetKubeVer),
 		)
 
 		clusterResources, err = nutanixE2ETest.UpgradeCluster(ctx, clusterTopologyConfig)
@@ -150,23 +154,25 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		nutanixE2ETest.WaitForMachineDeploymentMachinesToBeUpgraded(ctx, clusterTopologyConfig, clusterResources)
 
 		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27"), clusterResources)
+		nutanixE2ETest.WaitForNodesReady(ctx, targetKubeVer, clusterResources)
 
 		By("PASSED!")
 	})
 
-	It("Scale out a cluster with topology from 1 CP and Worker node to 3 CP and Worker nodes", func() {
+	It("Scale out a cluster with topology from 1 CP and Worker node to 3 CP and Worker nodes with Kube127", func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
+
+		targetKubeVer := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
 
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
-			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")),
+			WithKubernetesVersion(targetKubeVer),
 			WithControlPlaneCount(1),
 			WithWorkerNodeCount(1),
-			WithControlPlaneMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
-			WithWorkerMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
+			WithControlPlaneMachineTemplateImage(targetKubeVer),
+			WithWorkerMachineTemplateImage(targetKubeVer),
 		)
 
 		clusterResources, err := nutanixE2ETest.CreateCluster(ctx, clusterTopologyConfig)
@@ -176,15 +182,15 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		cluster = clusterResources.Cluster
 
 		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27"), clusterResources)
+		nutanixE2ETest.WaitForNodesReady(ctx, targetKubeVer, clusterResources)
 
 		clusterTopologyConfig = NewClusterTopologyConfig(
 			WithName(clusterName),
-			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")),
+			WithKubernetesVersion(targetKubeVer),
 			WithControlPlaneCount(3),
 			WithWorkerNodeCount(3),
-			WithControlPlaneMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
-			WithWorkerMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
+			WithControlPlaneMachineTemplateImage(targetKubeVer),
+			WithWorkerMachineTemplateImage(targetKubeVer),
 		)
 
 		clusterResources, err = nutanixE2ETest.UpgradeCluster(ctx, clusterTopologyConfig)
@@ -197,7 +203,7 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		nutanixE2ETest.WaitForMachineDeploymentMachinesToBeUpgraded(ctx, clusterTopologyConfig, clusterResources)
 
 		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27"), clusterResources)
+		nutanixE2ETest.WaitForNodesReady(ctx, targetKubeVer, clusterResources)
 
 		By("PASSED!")
 	})

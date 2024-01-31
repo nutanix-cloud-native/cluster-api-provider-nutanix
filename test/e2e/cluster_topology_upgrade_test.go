@@ -32,11 +32,11 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 	const flavor = "topology"
 
 	var (
-		namespace     *corev1.Namespace
-		clusterName   string
-		cluster       *clusterv1.Cluster
-		cancelWatches context.CancelFunc
-		testHelper    testHelperInterface
+		namespace      *corev1.Namespace
+		clusterName    string
+		cluster        *clusterv1.Cluster
+		cancelWatches  context.CancelFunc
+		testHelper     testHelperInterface
 		nutanixE2ETest *NutanixE2ETest
 	)
 
@@ -65,14 +65,17 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
+		fromKubeVer := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
+		toKubeVer := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
+
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
-			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")),
+			WithKubernetesVersion(fromKubeVer),
 			WithControlPlaneCount(1),
 			WithWorkerNodeCount(1),
-			WithControlPlaneMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
-			WithWorkerMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")),
+			WithControlPlaneMachineTemplateImage(fromKubeVer),
+			WithWorkerMachineTemplateImage(fromKubeVer),
 		)
 
 		clusterResources, err := nutanixE2ETest.CreateCluster(ctx, clusterTopologyConfig)
@@ -82,15 +85,15 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 		cluster = clusterResources.Cluster
 
 		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27"), clusterResources)
+		nutanixE2ETest.WaitForNodesReady(ctx, fromKubeVer, clusterResources)
 
 		clusterTopologyConfig = NewClusterTopologyConfig(
 			WithName(clusterName),
-			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")),
+			WithKubernetesVersion(toKubeVer),
 			WithControlPlaneCount(1),
 			WithWorkerNodeCount(1),
-			WithControlPlaneMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")),
-			WithWorkerMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")),
+			WithControlPlaneMachineTemplateImage(toKubeVer),
+			WithWorkerMachineTemplateImage(toKubeVer),
 		)
 
 		clusterResources, err = nutanixE2ETest.UpgradeCluster(ctx, clusterTopologyConfig)
@@ -103,7 +106,7 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 		nutanixE2ETest.WaitForMachineDeploymentMachinesToBeUpgraded(ctx, clusterTopologyConfig, clusterResources)
 
 		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28"), clusterResources)
+		nutanixE2ETest.WaitForNodesReady(ctx, toKubeVer, clusterResources)
 
 		By("PASSED!")
 	})
@@ -112,14 +115,17 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
+		fromKubeVer := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
+		toKubeVer := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
+
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
-			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")),
+			WithKubernetesVersion(fromKubeVer),
 			WithControlPlaneCount(1),
 			WithWorkerNodeCount(1),
-			WithControlPlaneMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")),
-			WithWorkerMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")),
+			WithControlPlaneMachineTemplateImage(fromKubeVer),
+			WithWorkerMachineTemplateImage(fromKubeVer),
 		)
 
 		clusterResources, err := nutanixE2ETest.CreateCluster(ctx, clusterTopologyConfig)
@@ -129,15 +135,15 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 		cluster = clusterResources.Cluster
 
 		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28"), clusterResources)
+		nutanixE2ETest.WaitForNodesReady(ctx, fromKubeVer, clusterResources)
 
 		clusterTopologyConfig = NewClusterTopologyConfig(
 			WithName(clusterName),
-			WithKubernetesVersion(testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")),
+			WithKubernetesVersion(toKubeVer),
 			WithControlPlaneCount(1),
 			WithWorkerNodeCount(1),
-			WithControlPlaneMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")),
-			WithWorkerMachineTemplateImage(testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")),
+			WithControlPlaneMachineTemplateImage(toKubeVer),
+			WithWorkerMachineTemplateImage(toKubeVer),
 		)
 
 		clusterResources, err = nutanixE2ETest.UpgradeCluster(ctx, clusterTopologyConfig)
@@ -150,7 +156,7 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 		nutanixE2ETest.WaitForMachineDeploymentMachinesToBeUpgraded(ctx, clusterTopologyConfig, clusterResources)
 
 		By("Waiting until nodes are ready")
-		nutanixE2ETest.WaitForNodesReady(ctx, testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29"), clusterResources)
+		nutanixE2ETest.WaitForNodesReady(ctx, toKubeVer, clusterResources)
 
 		By("PASSED!")
 	})
