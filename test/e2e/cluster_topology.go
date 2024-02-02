@@ -121,8 +121,7 @@ func (e2eTest *NutanixE2ETest) CreateCluster(ctx context.Context, clusterTopolog
 		WorkerMachineCount:       pointer.Int64Ptr(int64(clusterTopologyConfig.workerNodeCount)),
 	}
 
-	var clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult
-	clusterResources = new(clusterctl.ApplyClusterTemplateAndWaitResult)
+	clusterResources := new(clusterctl.ApplyClusterTemplateAndWaitResult)
 
 	clusterctl.ApplyClusterTemplateAndWait(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
 		ClusterProxy:                 e2eTest.bootstrapClusterProxy,
@@ -149,8 +148,7 @@ func (e2eTest *NutanixE2ETest) UpgradeCluster(ctx context.Context, clusterTopolo
 		WorkerMachineCount:       pointer.Int64Ptr(int64(clusterTopologyConfig.workerNodeCount)),
 	}
 
-	var clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult
-	clusterResources = new(clusterctl.ApplyClusterTemplateAndWaitResult)
+	clusterResources := new(clusterctl.ApplyClusterTemplateAndWaitResult)
 
 	clusterctl.ApplyClusterTemplateAndWait(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
 		ClusterProxy:                 e2eTest.bootstrapClusterProxy,
@@ -169,7 +167,7 @@ func (e2eTest *NutanixE2ETest) WaitForControlPlaneMachinesToBeUpgraded(ctx conte
 	framework.WaitForControlPlaneMachinesToBeUpgraded(ctx, framework.WaitForControlPlaneMachinesToBeUpgradedInput{
 		Lister:                   mgmtClient,
 		Cluster:                  clusterResources.Cluster,
-		MachineCount:             int(*&clusterTopologyConfig.cpNodeCount),
+		MachineCount:             int(clusterTopologyConfig.cpNodeCount),
 		KubernetesUpgradeVersion: clusterTopologyConfig.k8sVersion,
 	}, waitForMachinesToBeUpgraded...)
 }

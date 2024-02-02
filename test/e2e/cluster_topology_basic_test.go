@@ -57,7 +57,7 @@ var _ = Describe("When creating a cluster with topology with simple workflow", L
 		)
 	})
 
-	var basicWorkflow = func(targetKubeVer, targetImageName string) {
+	basicWorkflow := func(targetKubeVer, targetImageName string) {
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
@@ -91,7 +91,6 @@ var _ = Describe("When creating a cluster with topology with simple workflow", L
 		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
 		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
 		basicWorkflow(kube127, kube127Image)
-
 	})
 
 	It("Create a cluster with topology with version Kube128", func() {

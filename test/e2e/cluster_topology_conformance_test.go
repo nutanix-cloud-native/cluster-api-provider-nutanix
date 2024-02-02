@@ -62,7 +62,7 @@ var _ = Describe("When creating a cluster with topology and running kubetest/con
 		)
 	})
 
-	var conformanceWorkflow = func(targetKubeVer, targetImageName string) {
+	conformanceWorkflow := func(targetKubeVer, targetImageName string) {
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
@@ -100,7 +100,6 @@ var _ = Describe("When creating a cluster with topology and running kubetest/con
 		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
 		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
 		conformanceWorkflow(kube127, kube127Image)
-
 	})
 
 	It("Create a cluster with topology with version Kube128", func() {
