@@ -20,6 +20,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -215,13 +216,21 @@ func (e2eTest *NutanixE2ETest) RunConformanceTest(ctx context.Context, clusterRe
 	)
 }
 
+func (e2eTest *NutanixE2ETest) InstallAddonPackage(ctx context.Context, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult) error {
+	return fmt.Errorf("Not implemented yet.")
+}
+
 type ClusterTopologyConfig struct {
-	name            string
-	k8sVersion      string
-	cpNodeCount     int
-	workerNodeCount int
-	cpImageName     string
-	workerImageName string
+	name                  string
+	k8sVersion            string
+	cpNodeCount           int
+	workerNodeCount       int
+	cpImageName           string
+	workerImageName       string
+	machineMemorySize     string
+	machineSystemDiskSize string
+	machineVCPUSockets    int
+	machineVCPUSPerSocket int
 }
 
 type ClusterTopologyConfigOption func(*ClusterTopologyConfig)
@@ -273,6 +282,34 @@ func WithWorkerMachineTemplateImage(imageName string) ClusterTopologyConfigOptio
 	return func(clusterTopologyConfig *ClusterTopologyConfig) {
 		clusterTopologyConfig.workerImageName = imageName
 		os.Setenv("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME", imageName)
+	}
+}
+
+func WithMachineMemorySize(machineMemorySize string) ClusterTopologyConfigOption {
+	return func(clusterTopologyConfig *ClusterTopologyConfig) {
+		clusterTopologyConfig.machineMemorySize = machineMemorySize
+		os.Setenv("NUTANIX_MACHINE_MEMORY_SIZE", machineMemorySize)
+	}
+}
+
+func WithMachineSystemDiskSize(machineSystemDiskSize string) ClusterTopologyConfigOption {
+	return func(clusterTopologyConfig *ClusterTopologyConfig) {
+		clusterTopologyConfig.machineSystemDiskSize = machineSystemDiskSize
+		os.Setenv("NUTANIX_SYSTEMDISK_SIZE", machineSystemDiskSize)
+	}
+}
+
+func WithMachineVCPUSockets(machineVCPUSockets int) ClusterTopologyConfigOption {
+	return func(clusterTopologyConfig *ClusterTopologyConfig) {
+		clusterTopologyConfig.machineVCPUSockets = machineVCPUSockets
+		os.Setenv("NUTANIX_MACHINE_VCPU_SOCKET", fmt.Sprint(machineVCPUSockets))
+	}
+}
+
+func WithMachineVCPUSPerSocket(machineVCPUSPerSocket int) ClusterTopologyConfigOption {
+	return func(clusterTopologyConfig *ClusterTopologyConfig) {
+		clusterTopologyConfig.machineVCPUSPerSocket = machineVCPUSPerSocket
+		os.Setenv("NUTANIX_MACHINE_VCPU_PER_SOCKET", fmt.Sprint(machineVCPUSPerSocket))
 	}
 }
 

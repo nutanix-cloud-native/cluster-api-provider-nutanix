@@ -151,6 +151,7 @@ type testHelperInterface interface {
 	verifyFailureMessageOnClusterMachines(ctx context.Context, params verifyFailureMessageOnClusterMachinesParams)
 	verifyGPUNutanixMachines(ctx context.Context, params verifyGPUNutanixMachinesParams)
 	verifyProjectNutanixMachines(ctx context.Context, params verifyProjectNutanixMachinesParams)
+	verifyMemorySizeOnNutanixMachines(ctx context.Context, params verifyMemorySizeOnNutanixMachinesParams)
 }
 
 type testHelper struct {
@@ -578,6 +579,35 @@ func (t testHelper) verifyCategoriesNutanixMachines(ctx context.Context, cluster
 			Expect(categoriesMeta).To(HaveKeyWithValue(k, v))
 		}
 	}
+}
+
+type verifyMemorySizeOnNutanixMachinesParams struct {
+	clusterName            string
+	namespace              *corev1.Namespace
+	toMachineMemorySizeGib int64
+	bootstrapClusterProxy  framework.ClusterProxy
+}
+
+func (t testHelper) verifyMemorySizeOnNutanixMachines(ctx context.Context, params verifyMemorySizeOnNutanixMachinesParams) {
+	Eventually(
+		func(g Gomega) {
+			nutanixMachines := t.getMachinesForCluster(ctx,
+				params.clusterName,
+				params.namespace.Name,
+				params.bootstrapClusterProxy)
+			for _, m := range nutanixMachines.Items {
+				machineProviderID := m.Spec.ProviderID
+				g.Expect(machineProviderID).NotTo(BeNil())
+				machineVmUUID := t.stripNutanixIDFromProviderID(*machineProviderID)
+				vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
+				g.Expect(err).ShouldNot(HaveOccurred())
+				vmMemorySizeInMib := *vm.Status.Resources.MemorySizeMib
+				g.Expect(vmMemorySizeInMib).To(Equal(params.toMachineMemorySizeGib*1024), "expected memory size of VMs to be equal to %d but was %d", params.toMachineMemorySizeGib*1024, vmMemorySizeInMib)
+			}
+		},
+		defaultTimeout,
+		defaultInterval,
+	).Should(Succeed())
 }
 
 type verifyConditionParams struct {
