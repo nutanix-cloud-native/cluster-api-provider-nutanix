@@ -75,7 +75,7 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 		clusterResources, err := nutanixE2ETest.CreateCluster(ctx, clusterTopologyConfig)
 		Expect(err).ToNot(HaveOccurred())
 
-		// Set test specific variable so that cluster can be cleaned up after reach test
+		// Set test specific variable so that cluster can be cleaned up after each test
 		cluster = clusterResources.Cluster
 
 		By("Waiting until nodes are ready")
