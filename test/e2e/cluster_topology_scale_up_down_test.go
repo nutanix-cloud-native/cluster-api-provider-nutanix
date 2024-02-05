@@ -166,7 +166,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 
 		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
 		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
-		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 3, 2, 1, 1)
+		scaleDownWorkflow(kube127, kube127Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 2, 1, 1)
 	})
 
 	It("Scale down a cluster with CP and Worker node VCPUSockets from 3 to 2 with Kube128", func() {
@@ -175,7 +175,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 
 		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
 		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
-		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 3, 2, 1, 1)
+		scaleDownWorkflow(kube127, kube127Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 2, 1, 1)
 	})
 
 	It("Scale down a cluster with CP and Worker node machine VCPUSockets from 3 to 2 with Kube129", func() {
@@ -184,7 +184,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 
 		Kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
 		Kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
-		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 3, 2, 1, 1)
+		scaleDownWorkflow(kube127, kube127Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 2, 1, 1)
 	})
 
 	It("Scale down a cluster with CP and Worker node vcpu per socket from 2 to 1 with Kube127", func() {
@@ -193,7 +193,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 
 		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
 		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
-		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 3, 3, 2, 1)
+		scaleDownWorkflow(kube127, kube127Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 3, 2, 1)
 	})
 
 	It("Scale down a cluster with CP and Worker node vcpu per socket from 2 to 1 with Kube128", func() {
@@ -202,7 +202,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 
 		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
 		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
-		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 3, 3, 2, 1)
+		scaleDownWorkflow(kube127, kube127Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 3, 2, 1)
 	})
 
 	It("Scale down a cluster with CP and Worker node machine vcpu per socket from 2 to 1 with Kube129", func() {
@@ -211,7 +211,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 
 		Kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
 		Kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
-		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 3, 3, 2, 1)
+		scaleDownWorkflow(kube127, kube127Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 3, 2, 1)
 	})
 
 	TODO add system disk tests
