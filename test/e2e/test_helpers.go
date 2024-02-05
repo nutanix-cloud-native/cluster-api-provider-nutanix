@@ -151,7 +151,7 @@ type testHelperInterface interface {
 	verifyFailureMessageOnClusterMachines(ctx context.Context, params verifyFailureMessageOnClusterMachinesParams)
 	verifyGPUNutanixMachines(ctx context.Context, params verifyGPUNutanixMachinesParams)
 	verifyProjectNutanixMachines(ctx context.Context, params verifyProjectNutanixMachinesParams)
-	verifyMemorySizeOnNutanixMachines(ctx context.Context, params verifyMemorySizeOnNutanixMachinesParams)
+	verifyResourceConfigOnNutanixMachines(ctx context.Context, params verifyResourceConfigOnNutanixMachinesParams)
 }
 
 type testHelper struct {
@@ -581,14 +581,17 @@ func (t testHelper) verifyCategoriesNutanixMachines(ctx context.Context, cluster
 	}
 }
 
-type verifyMemorySizeOnNutanixMachinesParams struct {
-	clusterName            string
-	namespace              *corev1.Namespace
-	toMachineMemorySizeGib int64
-	bootstrapClusterProxy  framework.ClusterProxy
+type verifyResourceConfigOnNutanixMachinesParams struct {
+	clusterName                string
+	namespace                  *corev1.Namespace
+	toMachineMemorySizeGib     int64
+	toMachineSystemDiskSizeGib int64
+	toMachineVCPUSockets       int64
+	toMachineVCPUsPerSocket    int64
+	bootstrapClusterProxy      framework.ClusterProxy
 }
 
-func (t testHelper) verifyMemorySizeOnNutanixMachines(ctx context.Context, params verifyMemorySizeOnNutanixMachinesParams) {
+func (t testHelper) verifyResourceConfigOnNutanixMachines(ctx context.Context, params verifyResourceConfigOnNutanixMachinesParams) {
 	Eventually(
 		func(g Gomega) {
 			nutanixMachines := t.getMachinesForCluster(ctx,
@@ -603,6 +606,11 @@ func (t testHelper) verifyMemorySizeOnNutanixMachines(ctx context.Context, param
 				g.Expect(err).ShouldNot(HaveOccurred())
 				vmMemorySizeInMib := *vm.Status.Resources.MemorySizeMib
 				g.Expect(vmMemorySizeInMib).To(Equal(params.toMachineMemorySizeGib*1024), "expected memory size of VMs to be equal to %d but was %d", params.toMachineMemorySizeGib*1024, vmMemorySizeInMib)
+				vmNumSockets := *vm.Status.Resources.NumSockets
+				g.Expect(vmNumSockets).To(Equal(params.toMachineVCPUSockets), "expected num sockets of VMs to be equal to %d but was %d", params.toMachineVCPUSockets, vmNumSockets)
+				vmNumVcpusPerSocket := *vm.Status.Resources.NumVcpusPerSocket
+				g.Expect(vmNumVcpusPerSocket).To(Equal(params.toMachineVCPUsPerSocket), "expected vcpu per socket of VMs to be equal to %d but was %d", params.toMachineVCPUsPerSocket, vmNumVcpusPerSocket)
+				// TODO check system disk size as well
 			}
 		},
 		defaultTimeout,

@@ -62,7 +62,17 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	var scaleDownMemorySizeWorkflow = func(targetKubeVer, targetImageName, fromMachineMemorySizeGibStr, toMachineMemorySizeGibStr string) {
+	var scaleDownWorkflow = func(
+		targetKubeVer,
+		targetImageName,
+		fromMachineMemorySizeGibStr,
+		toMachineMemorySizeGibStr,
+		fromMachineSystemDiskSizeGibStr,
+		toMachineSystemDiskSizeGibStr string,
+		fromMachineVCPUSockets,
+		toMachineVCPUSockets,
+		fromMachineVCPUsPerSocket,
+		toMachineVCPUsPerSocket int64) {
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
@@ -107,12 +117,17 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 
 		var toMachineMemorySizeGib int64
 		fmt.Sscan(toMachineMemorySizeGibStr, &toMachineMemorySizeGib)
-		By("Check if all the machines have scaled down memory size")
-		testHelper.verifyMemorySizeOnNutanixMachines(ctx, verifyMemorySizeOnNutanixMachinesParams{
-			clusterName:            clusterName,
-			namespace:              namespace,
-			toMachineMemorySizeGib: toMachineMemorySizeGib,
-			bootstrapClusterProxy:  bootstrapClusterProxy,
+		var toMachineSystemDiskSizeGib int64
+		fmt.Sscan(toMachineSystemDiskSizeGibStr, &toMachineSystemDiskSizeGib)
+		By("Check if all the machines have scaled down resource config (memory size, VCPUSockets, vcpusPerSocket)")
+		testHelper.verifyResourceConfigOnNutanixMachines(ctx, verifyResourceConfigOnNutanixMachinesParams{
+			clusterName:                clusterName,
+			namespace:                  namespace,
+			toMachineMemorySizeGib:     toMachineMemorySizeGib,
+			toMachineSystemDiskSizeGib: toMachineSystemDiskSizeGib,
+			toMachineVCPUSockets:       toMachineVCPUSockets,
+			toMachineVCPUsPerSocket:    toMachineVCPUsPerSocket,
+			bootstrapClusterProxy:      bootstrapClusterProxy,
 		})
 
 		By("PASSED!")
@@ -124,7 +139,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 
 		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
 		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
-		scaleDownMemorySizeWorkflow(kube127, kube127Image, "4Gi", "3Gi")
+		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 2, 2, 1, 1)
 	})
 
 	It("Scale down a cluster with CP and Worker node machine memory size from 4Gi to 3Gi with Kube128", func() {
@@ -133,7 +148,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 
 		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
 		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
-		scaleDownMemorySizeWorkflow(kube128, kube128Image, "4Gi", "3Gi")
+		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 2, 2, 1, 1)
 	})
 
 	It("Scale down a cluster with CP and Worker node machine memory size from 4Gi to 3Gi with Kube129", func() {
@@ -142,7 +157,62 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 
 		Kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
 		Kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
-		scaleDownMemorySizeWorkflow(Kube129, Kube129Image, "4Gi", "3Gi")
+		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 2, 2, 1, 1)
 	})
 
+	It("Scale down a cluster with CP and Worker node VCPUSockets from 3 to 2 with Kube127", func() {
+		clusterName = testHelper.generateTestClusterName(specName)
+		Expect(clusterName).NotTo(BeNil())
+
+		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
+		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
+		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 3, 2, 1, 1)
+	})
+
+	It("Scale down a cluster with CP and Worker node VCPUSockets from 3 to 2 with Kube128", func() {
+		clusterName = testHelper.generateTestClusterName(specName)
+		Expect(clusterName).NotTo(BeNil())
+
+		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
+		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
+		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 3, 2, 1, 1)
+	})
+
+	It("Scale down a cluster with CP and Worker node machine VCPUSockets from 3 to 2 with Kube129", func() {
+		clusterName = testHelper.generateTestClusterName(specName)
+		Expect(clusterName).NotTo(BeNil())
+
+		Kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
+		Kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
+		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 3, 2, 1, 1)
+	})
+
+	It("Scale down a cluster with CP and Worker node vcpu per socket from 2 to 1 with Kube127", func() {
+		clusterName = testHelper.generateTestClusterName(specName)
+		Expect(clusterName).NotTo(BeNil())
+
+		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
+		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
+		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 3, 3, 2, 1)
+	})
+
+	It("Scale down a cluster with CP and Worker node vcpu per socket from 2 to 1 with Kube128", func() {
+		clusterName = testHelper.generateTestClusterName(specName)
+		Expect(clusterName).NotTo(BeNil())
+
+		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
+		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
+		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 3, 3, 2, 1)
+	})
+
+	It("Scale down a cluster with CP and Worker node machine vcpu per socket from 2 to 1 with Kube129", func() {
+		clusterName = testHelper.generateTestClusterName(specName)
+		Expect(clusterName).NotTo(BeNil())
+
+		Kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
+		Kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
+		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 3, 3, 2, 1)
+	})
+
+	TODO add system disk tests
 })
