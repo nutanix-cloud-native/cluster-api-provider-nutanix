@@ -227,8 +227,8 @@ type ClusterTopologyConfig struct {
 	workerImageName       string
 	machineMemorySize     string
 	machineSystemDiskSize string
-	machineVCPUSockets    int
-	machineVCPUSPerSocket int
+	machineVCPUSockets    int64
+	machineVCPUSPerSocket int64
 }
 
 type ClusterTopologyConfigOption func(*ClusterTopologyConfig)
@@ -297,14 +297,14 @@ func WithMachineSystemDiskSize(machineSystemDiskSize string) ClusterTopologyConf
 	}
 }
 
-func WithMachineVCPUSockets(machineVCPUSockets int) ClusterTopologyConfigOption {
+func WithMachineVCPUSockets(machineVCPUSockets int64) ClusterTopologyConfigOption {
 	return func(clusterTopologyConfig *ClusterTopologyConfig) {
 		clusterTopologyConfig.machineVCPUSockets = machineVCPUSockets
 		os.Setenv("NUTANIX_MACHINE_VCPU_SOCKET", fmt.Sprint(machineVCPUSockets))
 	}
 }
 
-func WithMachineVCPUSPerSocket(machineVCPUSPerSocket int) ClusterTopologyConfigOption {
+func WithMachineVCPUSPerSocket(machineVCPUSPerSocket int64) ClusterTopologyConfigOption {
 	return func(clusterTopologyConfig *ClusterTopologyConfig) {
 		clusterTopologyConfig.machineVCPUSPerSocket = machineVCPUSPerSocket
 		os.Setenv("NUTANIX_MACHINE_VCPU_PER_SOCKET", fmt.Sprint(machineVCPUSPerSocket))
