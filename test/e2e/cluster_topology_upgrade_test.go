@@ -27,7 +27,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
-var _ = Describe("When upgrading the k8s version of cluster with topology", Label("clusterclass", "cluster-topology-upgrade"), func() {
+var _ = Describe("When upgrading the k8s version of cluster with topology", Label("clusterclass"), func() {
 	const specName = "cluster-with-topology-upgrade-workflow"
 	const flavor = "topology"
 
@@ -105,7 +105,7 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 		By("PASSED!")
 	}
 
-	It("Upgrade a cluster with topology from version Kube127 to Kube128", func() {
+	It("Upgrade a cluster with topology from version Kube127 to Kube128", Label("Kube128", "cluster-topology-upgrade"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -116,7 +116,7 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 		upgradeWorkflow(kube127, kube127Image, kube128, kube128Image)
 	})
 
-	It("Upgrade a cluster with topology from version Kube128 to Kube129", func() {
+	It("Upgrade a cluster with topology from version Kube128 to Kube129", Label("Kube129", "cluster-topology-upgrade"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 

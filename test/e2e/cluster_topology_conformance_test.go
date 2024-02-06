@@ -27,7 +27,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
-var _ = Describe("When creating a cluster with topology and running kubetest/conformance", Label("clusterclass", "cluster-topology-conformance"), func() {
+var _ = Describe("When creating a cluster with topology and running kubetest/conformance", Label("clusterclass"), func() {
 	const specName = "cluster-with-topology-conformance"
 	const flavor = "topology"
 
@@ -93,7 +93,7 @@ var _ = Describe("When creating a cluster with topology and running kubetest/con
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	It("Create a cluster with topology with version Kube127", func() {
+	It("Create a cluster with topology with version Kube127", Label("Kube127", "cluster-topology-conformance"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -102,7 +102,7 @@ var _ = Describe("When creating a cluster with topology and running kubetest/con
 		conformanceWorkflow(kube127, kube127Image)
 	})
 
-	It("Create a cluster with topology with version Kube128", func() {
+	It("Create a cluster with topology with version Kube128", Label("Kube128", "cluster-topology-conformance"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -111,7 +111,7 @@ var _ = Describe("When creating a cluster with topology and running kubetest/con
 		conformanceWorkflow(kube128, kube128Image)
 	})
 
-	It("Create a cluster with topology with version Kube129", func() {
+	It("Create a cluster with topology with version Kube129", Label("Kube129", "cluster-topology-conformance"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 

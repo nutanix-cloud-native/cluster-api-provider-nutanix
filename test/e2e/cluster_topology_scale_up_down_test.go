@@ -28,7 +28,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
-var _ = Describe("When scaling down cluster with topology ", Label("clusterclass", "cluster-topology-scale-up-down"), func() {
+var _ = Describe("When scaling down cluster with topology ", Label("clusterclass"), func() {
 	const specName = "cluster-with-topology-scale-up-down-workflow"
 	const flavor = "topology"
 
@@ -139,7 +139,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 		By("PASSED!")
 	}
 
-	It("Scale down a cluster with CP and Worker node machine memory size from 4Gi to 3Gi with Kube127", func() {
+	It("Scale down a cluster with CP and Worker node machine memory size from 4Gi to 3Gi with Kube127", Label("Kube127", "cluster-topology-scale-down"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -148,7 +148,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 		scaleDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 2, 2, 1, 1)
 	})
 
-	It("Scale down a cluster with CP and Worker node machine memory size from 4Gi to 3Gi with Kube128", func() {
+	It("Scale down a cluster with CP and Worker node machine memory size from 4Gi to 3Gi with Kube128", Label("Kube128", "cluster-topology-scale-down"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -157,7 +157,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 		scaleDownWorkflow(kube128, kube128Image, "4Gi", "3Gi", "40Gi", "40Gi", 2, 2, 1, 1)
 	})
 
-	It("Scale down a cluster with CP and Worker node machine memory size from 4Gi to 3Gi with Kube129", func() {
+	It("Scale down a cluster with CP and Worker node machine memory size from 4Gi to 3Gi with Kube129", Label("Kube129", "cluster-topology-scale-down"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -166,7 +166,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 		scaleDownWorkflow(Kube129, Kube129Image, "4Gi", "3Gi", "40Gi", "40Gi", 2, 2, 1, 1)
 	})
 
-	It("Scale down a cluster with CP and Worker node VCPUSockets from 3 to 2 with Kube127", func() {
+	It("Scale down a cluster with CP and Worker node VCPUSockets from 3 to 2 with Kube127", Label("Kube127", "cluster-topology-scale-down"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -175,7 +175,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 		scaleDownWorkflow(kube127, kube127Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 2, 1, 1)
 	})
 
-	It("Scale down a cluster with CP and Worker node VCPUSockets from 3 to 2 with Kube128", func() {
+	It("Scale down a cluster with CP and Worker node VCPUSockets from 3 to 2 with Kube128", Label("Kube128", "cluster-topology-scale-down"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -184,7 +184,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 		scaleDownWorkflow(kube128, kube128Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 2, 1, 1)
 	})
 
-	It("Scale down a cluster with CP and Worker node machine VCPUSockets from 3 to 2 with Kube129", func() {
+	It("Scale down a cluster with CP and Worker node machine VCPUSockets from 3 to 2 with Kube129", Label("Kube129", "cluster-topology-scale-down"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -193,7 +193,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 		scaleDownWorkflow(Kube129, Kube129Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 2, 1, 1)
 	})
 
-	It("Scale down a cluster with CP and Worker node vcpu per socket from 2 to 1 with Kube127", func() {
+	It("Scale down a cluster with CP and Worker node vcpu per socket from 2 to 1 with Kube127", Label("Kube127", "cluster-topology-scale-down"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -202,7 +202,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 		scaleDownWorkflow(kube127, kube127Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 3, 2, 1)
 	})
 
-	It("Scale down a cluster with CP and Worker node vcpu per socket from 2 to 1 with Kube128", func() {
+	It("Scale down a cluster with CP and Worker node vcpu per socket from 2 to 1 with Kube128", Label("Kube128", "cluster-topology-scale-down"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -211,7 +211,7 @@ var _ = Describe("When scaling down cluster with topology ", Label("clusterclass
 		scaleDownWorkflow(kube128, kube128Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 3, 2, 1)
 	})
 
-	It("Scale down a cluster with CP and Worker node machine vcpu per socket from 2 to 1 with Kube129", func() {
+	It("Scale down a cluster with CP and Worker node machine vcpu per socket from 2 to 1 with Kube129", Label("Kube129", "cluster-topology-scale-down"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 

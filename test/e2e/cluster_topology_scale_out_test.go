@@ -27,7 +27,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
-var _ = Describe("When scaling out cluster with topology ", Label("clusterclass", "cluster-topology-scale-out"), func() {
+var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"), func() {
 	const specName = "cluster-with-topology-scale-out-workflow"
 	const flavor = "topology"
 
@@ -105,7 +105,7 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		By("PASSED!")
 	}
 
-	It("Scale out a cluster with topology from 1 CP node to 3 CP nodes with Kube127", func() {
+	It("Scale out a cluster with topology from 1 CP node to 3 CP nodes with Kube127", Label("Kube127", "cluster-topology-scale-out"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -114,7 +114,7 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		scaleOutWorkflow(kube127, kube127Image, 1, 1, 3, 1)
 	})
 
-	It("Scale out a cluster with topology from 1 Worker node to 3 Worker nodes with Kube127", func() {
+	It("Scale out a cluster with topology from 1 Worker node to 3 Worker nodes with Kube127", Label("Kube127", "cluster-topology-scale-out"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -123,7 +123,7 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		scaleOutWorkflow(kube127, kube127Image, 1, 1, 1, 3)
 	})
 
-	It("Scale out a cluster with topology from 1 CP and Worker node to 3 CP and Worker nodes with Kube127", func() {
+	It("Scale out a cluster with topology from 1 CP and Worker node to 3 CP and Worker nodes with Kube127", Label("Kube127", "cluster-topology-scale-out"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -132,7 +132,7 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		scaleOutWorkflow(kube127, kube127Image, 1, 1, 3, 3)
 	})
 
-	It("Scale out a cluster with topology from 1 CP node to 3 CP nodes with Kube128", func() {
+	It("Scale out a cluster with topology from 1 CP node to 3 CP nodes with Kube128", Label("Kube128", "cluster-topology-scale-out"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -141,7 +141,7 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		scaleOutWorkflow(kube128, kube128Image, 1, 1, 3, 1)
 	})
 
-	It("Scale out a cluster with topology from 1 Worker node to 3 Worker nodes with Kube128", func() {
+	It("Scale out a cluster with topology from 1 Worker node to 3 Worker nodes with Kube128", Label("Kube128", "cluster-topology-scale-out"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -150,7 +150,7 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		scaleOutWorkflow(kube128, kube128Image, 1, 1, 1, 3)
 	})
 
-	It("Scale out a cluster with topology from 1 CP and Worker node to 3 CP and Worker nodes with Kube128", func() {
+	It("Scale out a cluster with topology from 1 CP and Worker node to 3 CP and Worker nodes with Kube128", Label("Kube128", "cluster-topology-scale-out"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -159,7 +159,7 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		scaleOutWorkflow(kube128, kube128Image, 1, 1, 3, 3)
 	})
 
-	It("Scale out a cluster with topology from 1 CP node to 3 CP nodes with Kube129", func() {
+	It("Scale out a cluster with topology from 1 CP node to 3 CP nodes with Kube129", Label("Kube129", "cluster-topology-scale-out"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -168,7 +168,7 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		scaleOutWorkflow(kube129, kube129Image, 1, 1, 3, 1)
 	})
 
-	It("Scale out a cluster with topology from 1 Worker node to 3 Worker nodes with Kube129", func() {
+	It("Scale out a cluster with topology from 1 Worker node to 3 Worker nodes with Kube129", Label("Kube129", "cluster-topology-scale-out"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -177,7 +177,7 @@ var _ = Describe("When scaling out cluster with topology ", Label("clusterclass"
 		scaleOutWorkflow(kube129, kube129Image, 1, 1, 1, 3)
 	})
 
-	It("Scale out a cluster with topology from 1 CP and Worker node to 3 CP and Worker nodes with Kube129", func() {
+	It("Scale out a cluster with topology from 1 CP and Worker node to 3 CP and Worker nodes with Kube129", Label("Kube129", "cluster-topology-scale-out"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 

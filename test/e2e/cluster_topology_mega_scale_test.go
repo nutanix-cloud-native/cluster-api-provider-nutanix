@@ -27,7 +27,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
-var _ = Describe("When creating a cluster with topology with mega scale workflow", Label("clusterclass", "cluster-topology-mega-scale"), func() {
+var _ = Describe("When creating a cluster with topology with mega scale workflow", Label("clusterclass"), func() {
 	const specName = "cluster-with-topology-mega-scale-workflow"
 	const flavor = "topology"
 
@@ -84,7 +84,7 @@ var _ = Describe("When creating a cluster with topology with mega scale workflow
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	It("Create a cluster with topology with version Kube127 and 7 CP and 100 workers", func() {
+	It("Create a cluster with topology with version Kube127 and 7 CP and 100 workers", Label("Kube127", "cluster-topology-mega-scale"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -94,7 +94,7 @@ var _ = Describe("When creating a cluster with topology with mega scale workflow
 
 	})
 
-	It("Create a cluster with topology with version Kube128", func() {
+	It("Create a cluster with topology with version Kube128 and 7 CP and 100 workers", Label("Kube128", "cluster-topology-mega-scale"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
@@ -103,7 +103,7 @@ var _ = Describe("When creating a cluster with topology with mega scale workflow
 		megaScaleWorkflow(kube128, kube128Image, 7, 100)
 	})
 
-	It("Create a cluster with topology with version Kube129", func() {
+	It("Create a cluster with topology with version Kube129 and 7 CP and 100 workers", Label("Kube129", "cluster-topology-mega-scale"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
 
