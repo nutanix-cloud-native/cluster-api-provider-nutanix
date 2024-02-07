@@ -1,4 +1,4 @@
-name: Black Duck Intelligent Policy Check
+name: Black Duck Daily Policy Check
 on:
   schedule:
     - cron: "0 0 * * *"
@@ -20,11 +20,11 @@ jobs:
       - name: Build Project
         run: devbox run -- make build
 
-      - name: Run Synopsys Detect
-        uses: synopsys-sig/detect-action@v0.3.4
+      - name: Black Duck Full Scan
+        uses: synopsys-sig/synopsys-action@v1.7.0
         with:
-          scan-mode: INTELLIGENT
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          detect-version: 8.10.0
-          blackduck-url: ${{ secrets.BLACKDUCK_URL }}
-          blackduck-api-token: ${{ secrets.BLACKDUCK_API_TOKEN }}
+          blackduck_url: ${{ secrets.BLACKDUCK_URL }}
+          blackduck_apiToken: ${{ secrets.BLACKDUCK_API_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          blackduck_scan_full: true
+          blackduck_scan_failure_severities: 'BLOCKER,CRITICAL'
