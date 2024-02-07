@@ -57,7 +57,7 @@ var _ = Describe("When creating a cluster with topology with mega scale workflow
 		)
 	})
 
-	var megaScaleWorkflow = func(targetKubeVer, targetImageName string, cpNodeCount, workerNodeCount int) {
+	megaScaleWorkflow := func(targetKubeVer, targetImageName string, cpNodeCount, workerNodeCount int) {
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
@@ -91,7 +91,6 @@ var _ = Describe("When creating a cluster with topology with mega scale workflow
 		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
 		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
 		megaScaleWorkflow(kube127, kube127Image, 7, 100)
-
 	})
 
 	It("Create a cluster with topology with version Kube128 and 7 CP and 100 workers", Label("Kube128", "cluster-topology-mega-scale"), func() {
