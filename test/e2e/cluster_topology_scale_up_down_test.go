@@ -62,7 +62,7 @@ var _ = Describe("When scaling up/down cluster with topology ", Label("clustercl
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	var scaleUpDownWorkflow = func(
+	scaleUpDownWorkflow := func(
 		targetKubeVer,
 		targetImageName,
 		fromMachineMemorySizeGibStr,
@@ -72,7 +72,8 @@ var _ = Describe("When scaling up/down cluster with topology ", Label("clustercl
 		fromMachineVCPUSockets,
 		toMachineVCPUSockets,
 		fromMachineVCPUsPerSocket,
-		toMachineVCPUsPerSocket int64) {
+		toMachineVCPUsPerSocket int64,
+	) {
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),

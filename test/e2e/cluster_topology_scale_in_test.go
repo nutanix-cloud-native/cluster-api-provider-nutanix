@@ -61,7 +61,7 @@ var _ = Describe("When scaling in cluster with topology ", Label("clusterclass")
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	var scaleOutWorkflow = func(targetKubeVer, targetImageName string, fromCPNodeCount, fromWorkerNodeCount, toCPNodeCount, toWorkerNodeCount int) {
+	scaleOutWorkflow := func(targetKubeVer, targetImageName string, fromCPNodeCount, fromWorkerNodeCount, toCPNodeCount, toWorkerNodeCount int) {
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
@@ -185,5 +185,4 @@ var _ = Describe("When scaling in cluster with topology ", Label("clusterclass")
 		kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
 		scaleOutWorkflow(kube129, kube129Image, 3, 3, 1, 1)
 	})
-
 })

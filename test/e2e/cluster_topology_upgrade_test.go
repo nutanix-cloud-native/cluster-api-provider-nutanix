@@ -61,7 +61,7 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	var upgradeWorkflow = func(fromKubeVer, fromImageName, toKubeVer, toImageName string) {
+	upgradeWorkflow := func(fromKubeVer, fromImageName, toKubeVer, toImageName string) {
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
@@ -126,5 +126,4 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 		kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
 		upgradeWorkflow(kube128, kube128Image, kube129, kube129Image)
 	})
-
 })
