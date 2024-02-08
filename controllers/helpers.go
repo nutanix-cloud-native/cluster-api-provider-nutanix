@@ -23,13 +23,14 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixClientHelper "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"k8s.io/apimachinery/pkg/api/resource"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	nutanixClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 )
 
 const (
@@ -47,12 +48,8 @@ const (
 func CreateNutanixClient(ctx context.Context, secretInformer coreinformers.SecretInformer, cmInformer coreinformers.ConfigMapInformer, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.V(1).Info("creating nutanix client")
-	helper, err := nutanixClientHelper.NewNutanixClientHelper(secretInformer, cmInformer)
-	if err != nil {
-		log.Error(err, "error creating nutanix client helper")
-		return nil, err
-	}
-	return helper.GetClientFromEnvironment(ctx, nutanixCluster)
+	helper := nutanixClient.NewHelper(secretInformer, cmInformer)
+	return helper.BuildClientForNutanixClusterWithFallback(ctx, nutanixCluster)
 }
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
@@ -346,7 +343,7 @@ func GetImageUUID(ctx context.Context, client *nutanixClientV3.Client, imageName
 // HasTaskInProgress returns true if the given task is in progress
 func HasTaskInProgress(ctx context.Context, client *nutanixClientV3.Client, taskUUID string) (bool, error) {
 	log := ctrl.LoggerFrom(ctx)
-	taskStatus, err := nutanixClientHelper.GetTaskStatus(ctx, client, taskUUID)
+	taskStatus, err := nutanixClient.GetTaskStatus(ctx, client, taskUUID)
 	if err != nil {
 		return false, err
 	}

@@ -30,7 +30,7 @@ import (
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 
-	nutanixClientHelper "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	nutanixClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 )
 
 const (
@@ -127,11 +127,10 @@ func initNutanixClient(e2eConfig clusterctl.E2EConfig) (*prismGoClientV3.Client,
 		}
 		trustBundle = string(decodedCert)
 	}
-	nch := nutanixClientHelper.NutanixClientHelper{}
-	nutanixClient, err := nch.GetClient(*creds, trustBundle)
+	client, err := nutanixClient.Build(*creds, trustBundle)
 	if err != nil {
 		return nil, err
 	}
 
-	return nutanixClient, nil
+	return client, nil
 }
