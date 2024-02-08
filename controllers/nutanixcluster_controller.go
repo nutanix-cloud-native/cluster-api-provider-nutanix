@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,7 +44,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
@@ -101,11 +101,11 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 	return nil
 }
 
-//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update;delete
-//+kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters;clusters/status,verbs=get;list;watch
-//+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters/finalizers,verbs=update
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update;delete
+// +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters;clusters/status,verbs=get;list;watch
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -306,7 +306,7 @@ func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterC
 
 func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Context, nutanixCluster *infrav1.NutanixCluster) error {
 	log := ctrl.LoggerFrom(ctx)
-	credentialRef, err := nutanixClient.GetCredentialRefForCluster(nutanixCluster)
+	credentialRef, err := getPrismCentralCredentialRefForCluster(nutanixCluster)
 	if err != nil {
 		return err
 	}
@@ -345,7 +345,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Cont
 
 func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, nutanixCluster *infrav1.NutanixCluster) error {
 	log := ctrl.LoggerFrom(ctx)
-	credentialRef, err := nutanixClient.GetCredentialRefForCluster(nutanixCluster)
+	credentialRef, err := getPrismCentralCredentialRefForCluster(nutanixCluster)
 	if err != nil {
 		return err
 	}
@@ -385,4 +385,13 @@ func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, n
 		return errorMsg
 	}
 	return nil
+}
+
+// getPrismCentralCredentialRefForCluster calls nutanixCluster.GetPrismCentralCredentialRef() function
+// and returns an error if nutanixCluster is nil
+func getPrismCentralCredentialRefForCluster(nutanixCluster *infrav1.NutanixCluster) (*credentialTypes.NutanixCredentialReference, error) {
+	if nutanixCluster == nil {
+		return nil, fmt.Errorf("cannot get credential reference if nutanix cluster object is nil")
+	}
+	return nutanixCluster.GetPrismCentralCredentialRef()
 }
