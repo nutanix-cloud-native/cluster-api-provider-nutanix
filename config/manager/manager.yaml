@@ -114,12 +114,6 @@ spec:
               port: 8081
             initialDelaySeconds: 5
             periodSeconds: 10
-          resources:
-            limits:
-              memory: 100Mi
-            requests:
-              cpu: 30m
-              memory: 50Mi
       volumes:
         - name: endpoint
           configMap:
