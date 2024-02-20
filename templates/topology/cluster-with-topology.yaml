@@ -55,3 +55,5 @@ spec:
         imageName: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}"
         clusterName: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
         subnetName: "${NUTANIX_SUBNET_NAME}"
+    - name: apiServerSigningCertExtraCertSANs
+      value: "localhost, 127.0.0.1, 0.0.0.0"
