@@ -45,7 +45,7 @@ spec:
           ref:
             apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
             kind: KubeadmConfigTemplate
-            name: "${CLUSTER_NAME}-kcfg-0"
+            name: "${CLUSTER_CLASS_NAME}-kcfg-0"
             namespace: ${NAMESPACE}
         infrastructure:
           ref:
