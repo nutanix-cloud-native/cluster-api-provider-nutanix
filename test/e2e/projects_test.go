@@ -68,7 +68,7 @@ var _ = Describe("Nutanix projects", Label("capx-feature-test", "projects"), fun
 			invalidProjectNMT := testHelper.createDefaultNMT(clusterName, namespace.Name)
 			invalidProjectNMT.Spec.Template.Spec.Project = &infrav1.NutanixResourceIdentifier{
 				Type: "name",
-				Name: pointer.StringPtr(nonExistingProjectName),
+				Name: pointer.String(nonExistingProjectName),
 			}
 			testHelper.createCapiObject(ctx, createCapiObjectParams{
 				creator:    bootstrapClusterProxy.GetClient(),

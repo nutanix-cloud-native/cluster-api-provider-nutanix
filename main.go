@@ -21,15 +21,7 @@ import (
 	"os"
 	"time"
 
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	// to ensure that exec-entrypoint and run can make use of them.
-
+	"github.com/spf13/pflag"
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -40,14 +32,15 @@ import (
 	"k8s.io/client-go/tools/cache"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
+	capiflags "sigs.k8s.io/cluster-api/util/flags"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	//+kubebuilder:scaffold:imports
 
 	infrav1alpha4 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1alpha4"
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
-	//+kubebuilder:scaffold:imports
 )
 
 var (
@@ -78,18 +71,18 @@ const (
 
 func main() {
 	var (
-		metricsAddr             string
 		enableLeaderElection    bool
 		probeAddr               string
 		maxConcurrentReconciles int
+		diagnosticsOptions      capiflags.DiagnosticsOptions
 	)
 
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
+	capiflags.AddDiagnosticsOptions(pflag.CommandLine, &diagnosticsOptions)
+	pflag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	pflag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.IntVar(
+	pflag.IntVar(
 		&maxConcurrentReconciles,
 		"max-concurrent-reconciles",
 		defaultMaxConcurrentReconciles,
@@ -99,15 +92,19 @@ func main() {
 		TimeEncoder: zapcore.RFC3339TimeEncoder,
 	}
 	opts.BindFlags(flag.CommandLine)
-	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	logger := zap.New(zap.UseFlagOptions(&opts))
+	ctrl.SetLogger(logger)
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+	pflag.Parse()
+
 	setupLog.Info("Initializing Nutanix Cluster API Infrastructure Provider", "Git Hash", gitCommitHash)
+
+	//nolint:staticcheck
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
+		Metrics:                capiflags.GetDiagnosticsOptions(diagnosticsOptions),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "f265110d.cluster.x-k8s.io",

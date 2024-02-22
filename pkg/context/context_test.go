@@ -21,7 +21,7 @@ func TestIsControlPlaneMachine(t *testing.T) {
 			machine: &infrav1.NutanixMachine{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						capiv1.MachineControlPlaneLabelName: "",
+						capiv1.MachineControlPlaneNameLabel: "",
 					},
 				},
 			},

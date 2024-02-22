@@ -19,6 +19,7 @@ package v1alpha4
 import (
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	//nolint:staticcheck
 	capiv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/errors"
 )

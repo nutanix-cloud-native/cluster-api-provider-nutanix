@@ -254,16 +254,16 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 					MemorySize:     resource.MustParse(defaultMemorySize),
 					Image: infrav1.NutanixResourceIdentifier{
 						Type: infrav1.NutanixIdentifierUUID,
-						UUID: pointer.StringPtr(imageUUID),
+						UUID: pointer.String(imageUUID),
 					},
 					Cluster: infrav1.NutanixResourceIdentifier{
 						Type: infrav1.NutanixIdentifierUUID,
-						UUID: pointer.StringPtr(clusterUUID),
+						UUID: pointer.String(clusterUUID),
 					},
 					Subnets: []infrav1.NutanixResourceIdentifier{
 						{
 							Type: infrav1.NutanixIdentifierUUID,
-							UUID: pointer.StringPtr(subnetUUID),
+							UUID: pointer.String(subnetUUID),
 						},
 					},
 					SystemDiskSize: resource.MustParse(defaultSystemDiskSize),
@@ -426,8 +426,8 @@ func (t testHelper) deployCluster(params deployClusterParams, clusterResources *
 		Namespace:                params.namespace.Name,
 		ClusterName:              params.clusterName,
 		KubernetesVersion:        t.e2eConfig.GetVariable(KubernetesVersion),
-		ControlPlaneMachineCount: pointer.Int64Ptr(1),
-		WorkerMachineCount:       pointer.Int64Ptr(1),
+		ControlPlaneMachineCount: pointer.Int64(1),
+		WorkerMachineCount:       pointer.Int64(1),
 	}
 
 	t.createClusterFromConfig(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
@@ -449,8 +449,8 @@ func (t testHelper) deployClusterAndWait(params deployClusterParams, clusterReso
 		Namespace:                params.namespace.Name,
 		ClusterName:              params.clusterName,
 		KubernetesVersion:        t.e2eConfig.GetVariable(KubernetesVersion),
-		ControlPlaneMachineCount: pointer.Int64Ptr(1),
-		WorkerMachineCount:       pointer.Int64Ptr(1),
+		ControlPlaneMachineCount: pointer.Int64(1),
+		WorkerMachineCount:       pointer.Int64(1),
 	}
 
 	clusterctl.ApplyClusterTemplateAndWait(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
@@ -492,7 +492,7 @@ func (t testHelper) getNutanixClusterByName(ctx context.Context, input getNutani
 
 func (t testHelper) getMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *clusterv1.MachineList {
 	machineList := &clusterv1.MachineList{}
-	labels := map[string]string{clusterv1.ClusterLabelName: clusterName}
+	labels := map[string]string{clusterv1.ClusterNameLabel: clusterName}
 	err := bootstrapClusterProxy.GetClient().List(ctx, machineList, client.InNamespace(namespace), client.MatchingLabels(labels))
 	Expect(err).ShouldNot(HaveOccurred())
 	return machineList
@@ -512,7 +512,7 @@ func (t testHelper) getNutanixMachineForCluster(ctx context.Context, clusterName
 
 func (t testHelper) getNutanixMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *infrav1.NutanixMachineList {
 	machineList := &infrav1.NutanixMachineList{}
-	labels := map[string]string{clusterv1.ClusterLabelName: clusterName}
+	labels := map[string]string{clusterv1.ClusterNameLabel: clusterName}
 	err := bootstrapClusterProxy.GetClient().List(ctx, machineList, client.InNamespace(namespace), client.MatchingLabels(labels))
 	Expect(err).ShouldNot(HaveOccurred())
 	return machineList
@@ -537,7 +537,7 @@ func (t testHelper) getNutanixResourceIdentifierFromEnv(envVarKey string) infrav
 	Expect(envVarValue).ToNot(BeEmpty(), "expected environment variable %s to be set", envVarKey)
 	return infrav1.NutanixResourceIdentifier{
 		Type: nameType,
-		Name: pointer.StringPtr(envVarValue),
+		Name: pointer.String(envVarValue),
 	}
 }
 
@@ -545,7 +545,7 @@ func (t testHelper) getNutanixResourceIdentifierFromE2eConfig(variableKey string
 	variableValue := t.getVariableFromE2eConfig(variableKey)
 	return infrav1.NutanixResourceIdentifier{
 		Type: nameType,
-		Name: pointer.StringPtr(variableValue),
+		Name: pointer.String(variableValue),
 	}
 }
 
