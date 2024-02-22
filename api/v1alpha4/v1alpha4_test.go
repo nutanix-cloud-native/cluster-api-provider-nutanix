@@ -7,6 +7,7 @@ import (
 
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	"github.com/stretchr/testify/assert"
+	//nolint:staticcheck
 	"sigs.k8s.io/cluster-api/api/v1alpha4"
 )
 
