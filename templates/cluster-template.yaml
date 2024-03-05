@@ -231,9 +231,18 @@ metadata:
   name: ${CLUSTER_NAME}
   namespace: ${NAMESPACE}
 stringData:
-  credentials: "[\n  {\n    \"type\": \"basic_auth\", \n    \"data\": { \n      \"prismCentral\":{\n
-    \       \"username\": \"${NUTANIX_USER}\", \n        \"password\": \"${NUTANIX_PASSWORD}\"\n
-    \     }\n    }\n  }\n]\n"
+  credentials: |
+    [
+      {
+        "type": "basic_auth",
+        "data": {
+          "prismCentral":{
+            "username": "${NUTANIX_USER}",
+            "password": "${NUTANIX_PASSWORD}"
+          }
+        }
+      }
+    ]
 ---
 apiVersion: v1
 kind: Secret
@@ -241,11 +250,26 @@ metadata:
   name: nutanix-ccm-secret
   namespace: ${NAMESPACE}
 stringData:
-  nutanix-ccm-secret.yaml: "apiVersion: v1\nkind: Secret\nmetadata:\n  name: nutanix-creds\n
-    \ namespace: kube-system\nstringData:\n  credentials: |\n    [\n      {\n        \"type\":
-    \"basic_auth\", \n        \"data\": { \n          \"prismCentral\":{\n            \"username\":
-    \"${NUTANIX_USER}\",\n            \"password\": \"${NUTANIX_PASSWORD}\"\n          },\n
-    \         \"prismElements\": null\n        }\n      }\n    ]\n"
+  nutanix-ccm-secret.yaml: |
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: nutanix-creds
+      namespace: kube-system
+    stringData:
+      credentials: |
+        [
+          {
+            "type": "basic_auth",
+            "data": {
+              "prismCentral":{
+                "username": "${NUTANIX_USER}",
+                "password": "${NUTANIX_PASSWORD}"
+              },
+              "prismElements": null
+            }
+          }
+        ]
 type: addons.cluster.x-k8s.io/resource-set
 ---
 apiVersion: addons.cluster.x-k8s.io/v1beta1
@@ -457,10 +481,6 @@ spec:
                   name: kubeconfig
               resources: {}
           hostNetwork: true
-          hostAliases:
-            - hostnames:
-                - kubernetes
-              ip: 127.0.0.1
           volumes:
             - name: kubeconfig
               hostPath:
@@ -483,10 +503,30 @@ spec:
           tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
     postKubeadmCommands:
     - echo export KUBECONFIG=/etc/kubernetes/admin.conf >> /root/.bashrc
+    - |
+      KUBERNETES_VERSION_NO_V=${KUBERNETES_VERSION#v}
+      VERSION_TO_COMPARE=1.29.0
+      if [ "$(printf '%s\n' "$KUBERNETES_VERSION_NO_V" "$VERSION_TO_COMPARE" | sort -V | head -n1)" != "$KUBERNETES_VERSION_NO_V" ]; then
+        if [ -f /run/kubeadm/kubeadm.yaml ]; then
+          sed -i 's#path: /etc/kubernetes/super-admin.conf#path: /etc/kubernetes/admin.conf#' /etc/kubernetes/manifests/kube-vip.yaml;
+        fi
+      fi
     - echo "after kubeadm call" > /var/log/postkubeadm.log
     preKubeadmCommands:
     - echo "before kubeadm call" > /var/log/prekubeadm.log
     - hostnamectl set-hostname "{{ ds.meta_data.hostname }}"
+    - echo "::1         ipv6-localhost ipv6-loopback" >/etc/hosts
+    - echo "127.0.0.1   localhost" >>/etc/hosts
+    - echo "127.0.0.1   kubernetes" >>/etc/hosts
+    - echo "127.0.0.1   {{ ds.meta_data.hostname }}" >> /etc/hosts
+    - |
+      KUBERNETES_VERSION_NO_V=${KUBERNETES_VERSION#v}
+      VERSION_TO_COMPARE=1.29.0
+      if [ "$(printf '%s\n' "$KUBERNETES_VERSION_NO_V" "$VERSION_TO_COMPARE" | sort -V | head -n1)" != "$KUBERNETES_VERSION_NO_V" ]; then
+        if [ -f /run/kubeadm/kubeadm.yaml ]; then
+          sed -i 's#path: /etc/kubernetes/admin.conf#path: /etc/kubernetes/super-admin.conf#' /etc/kubernetes/manifests/kube-vip.yaml;
+        fi
+      fi
     useExperimentalRetryJoin: true
     users:
     - lockPassword: false
