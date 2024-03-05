@@ -217,7 +217,7 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: $(CONTROLLER_GEN_BIN) ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: release-manifests
@@ -228,7 +228,7 @@ release-manifests: manifests cluster-templates
 	cp $(REPO_ROOT)/metadata.yaml $(RELEASE_DIR)/metadata.yaml
 
 .PHONY: generate
-generate: controller-gen conversion-gen ## Generate code containing DeepCopy, DeepCopyInto, DeepCopyObject method implementations and API conversion implementations.
+generate: $(CONTROLLER_GEN_BIN) $(CONVERSION_GEN_BIN) ## Generate code containing DeepCopy, DeepCopyInto, DeepCopyObject method implementations and API conversion implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 	$(CONVERSION_GEN) \

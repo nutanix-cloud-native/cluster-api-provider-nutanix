@@ -40,7 +40,6 @@ spec:
     apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
     kind: NutanixCluster
     name: "${CLUSTER_NAME}"
-
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
 kind: KubeadmControlPlane
@@ -125,10 +124,6 @@ spec:
                     name: kubeconfig
                 resources: {}
             hostNetwork: true
-            hostAliases:
-              - hostnames:
-                  - kubernetes
-                ip: 127.0.0.1
             volumes:
               - name: kubeconfig
                 hostPath:
@@ -162,12 +157,31 @@ spec:
     preKubeadmCommands:
       - echo "before kubeadm call" > /var/log/prekubeadm.log
       - hostnamectl set-hostname "{{ ds.meta_data.hostname }}"
+      - echo "::1         ipv6-localhost ipv6-loopback" >/etc/hosts
+      - echo "127.0.0.1   localhost" >>/etc/hosts
+      - echo "127.0.0.1   kubernetes" >>/etc/hosts
+      - echo "127.0.0.1   {{ ds.meta_data.hostname }}" >> /etc/hosts
+      - |
+        KUBERNETES_VERSION_NO_V=${KUBERNETES_VERSION#v}
+        VERSION_TO_COMPARE=1.29.0
+        if [ "$(printf '%s\n' "$KUBERNETES_VERSION_NO_V" "$VERSION_TO_COMPARE" | sort -V | head -n1)" != "$KUBERNETES_VERSION_NO_V" ]; then
+          if [ -f /run/kubeadm/kubeadm.yaml ]; then
+            sed -i 's#path: /etc/kubernetes/admin.conf#path: /etc/kubernetes/super-admin.conf#' /etc/kubernetes/manifests/kube-vip.yaml;
+          fi
+        fi
     postKubeadmCommands:
       - echo export KUBECONFIG=/etc/kubernetes/admin.conf >> /root/.bashrc
+      - |
+        KUBERNETES_VERSION_NO_V=${KUBERNETES_VERSION#v}
+        VERSION_TO_COMPARE=1.29.0
+        if [ "$(printf '%s\n' "$KUBERNETES_VERSION_NO_V" "$VERSION_TO_COMPARE" | sort -V | head -n1)" != "$KUBERNETES_VERSION_NO_V" ]; then
+          if [ -f /run/kubeadm/kubeadm.yaml ]; then
+            sed -i 's#path: /etc/kubernetes/super-admin.conf#path: /etc/kubernetes/admin.conf#' /etc/kubernetes/manifests/kube-vip.yaml;
+          fi
+        fi
       - echo "after kubeadm call" > /var/log/postkubeadm.log
     useExperimentalRetryJoin: true
     verbosity: 10
-
 ---
 apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
 kind: KubeadmConfigTemplate
