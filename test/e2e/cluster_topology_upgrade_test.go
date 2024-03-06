@@ -105,6 +105,17 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 		By("PASSED!")
 	}
 
+	It("Upgrade a cluster with topology from version Kube126 to Kube127", Label("Kube127", "cluster-topology-upgrade"), func() {
+		clusterName = testHelper.generateTestClusterName(specName)
+		Expect(clusterName).NotTo(BeNil())
+
+		kube126 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_26")
+		kube126Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_26")
+		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
+		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
+		upgradeWorkflow(kube126, kube126Image, kube127, kube127Image)
+	})
+
 	It("Upgrade a cluster with topology from version Kube127 to Kube128", Label("Kube128", "cluster-topology-upgrade"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
 		Expect(clusterName).NotTo(BeNil())
@@ -115,6 +126,21 @@ var _ = Describe("When upgrading the k8s version of cluster with topology", Labe
 		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
 		upgradeWorkflow(kube127, kube127Image, kube128, kube128Image)
 	})
+
+	// It("Upgrade a cluster with topology from version Kube126 to Kube128 and expect failure", Label("Kube128", "cluster-topology-upgrade-test"), func() {
+	// 	// NOTE: Following test will always fail and did not find a way to not fail as function we call has Expect call
+	// 	// For more info on why refer https://cluster-api.sigs.k8s.io/tasks/experimental-features/cluster-class/operate-cluster
+	// 	// we get following error
+	// 	// The Cluster "cluster-with-topology-upgrade-workflow-u318rg" is invalid: spec.topology.version: Forbidden: version cannot be increased from "1.26.13" to "1.28.6"
+	// 	clusterName = testHelper.generateTestClusterName(specName)
+	// 	Expect(clusterName).NotTo(BeNil())
+
+	// 	kube126 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_26")
+	// 	kube126Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_26")
+	// 	kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
+	// 	kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
+	// 	upgradeWorkflow(kube126, kube126Image, kube128, kube128Image)
+	// })
 
 	It("Upgrade a cluster with topology from version Kube128 to Kube129", Label("Kube129", "cluster-topology-upgrade"), func() {
 		clusterName = testHelper.generateTestClusterName(specName)
