@@ -422,31 +422,31 @@ spec:
     name: add-pc-endpoint-and-creds
   - definitions:
     - jsonPatches:
-      - op: replace
+      - op: add
         path: /spec/template/spec/bootType
         valueFrom:
           variable: controlPlaneMachineDetails.bootType
-      - op: replace
+      - op: add
         path: /spec/template/spec/vcpusPerSocket
         valueFrom:
           variable: controlPlaneMachineDetails.vcpusPerSocket
-      - op: replace
+      - op: add
         path: /spec/template/spec/memorySize
         valueFrom:
           variable: controlPlaneMachineDetails.memorySize
-      - op: replace
+      - op: add
         path: /spec/template/spec/systemDiskSize
         valueFrom:
           variable: controlPlaneMachineDetails.systemDiskSize
-      - op: replace
+      - op: add
         path: /spec/template/spec/image/name
         valueFrom:
           variable: controlPlaneMachineDetails.imageName
-      - op: replace
+      - op: add
         path: /spec/template/spec/cluster/name
         valueFrom:
           variable: controlPlaneMachineDetails.clusterName
-      - op: replace
+      - op: add
         path: /spec/template/spec/subnet
         valueFrom:
           template: |
@@ -460,31 +460,31 @@ spec:
     name: update-control-plane-machine-template
   - definitions:
     - jsonPatches:
-      - op: replace
+      - op: add
         path: /spec/template/spec/bootType
         valueFrom:
           variable: workerMachineDetails.bootType
-      - op: replace
+      - op: add
         path: /spec/template/spec/vcpusPerSocket
         valueFrom:
           variable: workerMachineDetails.vcpusPerSocket
-      - op: replace
+      - op: add
         path: /spec/template/spec/memorySize
         valueFrom:
           variable: workerMachineDetails.memorySize
-      - op: replace
+      - op: add
         path: /spec/template/spec/systemDiskSize
         valueFrom:
           variable: workerMachineDetails.systemDiskSize
-      - op: replace
+      - op: add
         path: /spec/template/spec/image/name
         valueFrom:
           variable: workerMachineDetails.imageName
-      - op: replace
+      - op: add
         path: /spec/template/spec/cluster/name
         valueFrom:
           variable: workerMachineDetails.clusterName
-      - op: replace
+      - op: add
         path: /spec/template/spec/subnet
         valueFrom:
           template: |
@@ -757,21 +757,21 @@ metadata:
 spec:
   template:
     spec:
-      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+      bootType: legacy
       cluster:
-        name: ${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}
+        name: ""
         type: name
       image:
-        name: ${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}
+        name: ""
         type: name
-      memorySize: ${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}
+      memorySize: 4Gi
       providerID: nutanix://${CLUSTER_NAME}-m1
       subnet:
-      - name: ${NUTANIX_SUBNET_NAME}
+      - name: ""
         type: name
-      systemDiskSize: ${NUTANIX_SYSTEMDISK_SIZE=40Gi}
-      vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
-      vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+      systemDiskSize: 40Gi
+      vcpuSockets: 2
+      vcpusPerSocket: 1
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate
@@ -780,18 +780,18 @@ metadata:
 spec:
   template:
     spec:
-      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+      bootType: legacy
       cluster:
-        name: ${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}
+        name: ""
         type: name
       image:
-        name: ${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}
+        name: ""
         type: name
-      memorySize: ${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}
+      memorySize: 4Gi
       providerID: nutanix://${CLUSTER_NAME}-m1
       subnet:
-      - name: ${NUTANIX_SUBNET_NAME}
+      - name: ""
         type: name
-      systemDiskSize: ${NUTANIX_SYSTEMDISK_SIZE=40Gi}
-      vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
-      vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
+      systemDiskSize: 40Gi
+      vcpuSockets: 2
+      vcpusPerSocket: 1

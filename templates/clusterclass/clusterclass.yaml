@@ -159,31 +159,31 @@ spec:
         matchResources:
           controlPlane: true
       jsonPatches:
-          - op: replace
+          - op: add
             path: /spec/template/spec/bootType
             valueFrom:
               variable: controlPlaneMachineDetails.bootType
-          - op: replace
+          - op: add
             path: /spec/template/spec/vcpusPerSocket
             valueFrom:
               variable: controlPlaneMachineDetails.vcpusPerSocket
-          - op: replace
+          - op: add
             path: /spec/template/spec/memorySize
             valueFrom:
               variable: controlPlaneMachineDetails.memorySize
-          - op: replace
+          - op: add
             path: /spec/template/spec/systemDiskSize
             valueFrom:
               variable: controlPlaneMachineDetails.systemDiskSize
-          - op: replace
+          - op: add
             path: /spec/template/spec/image/name
             valueFrom:
               variable: controlPlaneMachineDetails.imageName
-          - op: replace
+          - op: add
             path: /spec/template/spec/cluster/name
             valueFrom:
               variable: controlPlaneMachineDetails.clusterName
-          - op: replace
+          - op: add
             path: /spec/template/spec/subnet
             valueFrom:
               template: |
@@ -199,31 +199,31 @@ spec:
             names:
             - ${CLUSTER_CLASS_NAME}-worker
       jsonPatches:
-          - op: replace
+          - op: add
             path: /spec/template/spec/bootType
             valueFrom:
               variable: workerMachineDetails.bootType
-          - op: replace
+          - op: add
             path: /spec/template/spec/vcpusPerSocket
             valueFrom:
               variable: workerMachineDetails.vcpusPerSocket
-          - op: replace
+          - op: add
             path: /spec/template/spec/memorySize
             valueFrom:
               variable: workerMachineDetails.memorySize
-          - op: replace
+          - op: add
             path: /spec/template/spec/systemDiskSize
             valueFrom:
               variable: workerMachineDetails.systemDiskSize
-          - op: replace
+          - op: add
             path: /spec/template/spec/image/name
             valueFrom:
               variable: workerMachineDetails.imageName
-          - op: replace
+          - op: add
             path: /spec/template/spec/cluster/name
             valueFrom:
               variable: workerMachineDetails.clusterName
-          - op: replace
+          - op: add
             path: /spec/template/spec/subnet
             valueFrom:
               template: |
