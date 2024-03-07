@@ -5,7 +5,6 @@ metadata:
     ccm: nutanix
     cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
   name: ${CLUSTER_NAME}
-  namespace: ${NAMESPACE}
 spec:
   clusterNetwork:
     pods:
