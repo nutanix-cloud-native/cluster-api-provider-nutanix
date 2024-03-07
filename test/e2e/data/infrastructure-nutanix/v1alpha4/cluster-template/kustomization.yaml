@@ -1,5 +1,7 @@
-bases:
-  - ../bases/cluster-with-kcp.yaml
-  - ../bases/md.yaml
-  - ../bases/mhc.yaml
-  - ../bases/cm.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../bases/cluster-with-kcp.yaml
+- ../bases/md.yaml
+- ../bases/mhc.yaml
+- ../bases/cm.yaml
