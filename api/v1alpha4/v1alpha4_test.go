@@ -4,10 +4,9 @@ import (
 	"testing"
 
 	"github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
-
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	"github.com/stretchr/testify/assert"
-	//nolint:staticcheck
+	//nolint:staticcheck // sigs.k8s.io/cluster-api/api/v1alpha4 is deprecated and will be removed in one of the next releases.
 	"sigs.k8s.io/cluster-api/api/v1alpha4"
 )
 

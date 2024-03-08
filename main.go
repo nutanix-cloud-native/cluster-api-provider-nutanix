@@ -100,8 +100,6 @@ func main() {
 
 	setupLog.Info("Initializing Nutanix Cluster API Infrastructure Provider", "Git Hash", gitCommitHash)
 
-	//nolint:staticcheck
-
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                capiflags.GetDiagnosticsOptions(diagnosticsOptions),

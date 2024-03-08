@@ -399,11 +399,9 @@ test-e2e-clusterctl-upgrade: docker-build-e2e cluster-e2e-templates cluster-temp
 
 ##@ Lint and Verify
 
-GOLANGCI_LINT_EXTRA_ARGS := --enable gofmt --enable gofumpt --build-tags e2e
-
 .PHONY: lint
 lint: ## Lint the codebase
-	golangci-lint run -v $(GOLANGCI_LINT_EXTRA_ARGS)
+	golangci-lint run -v
 
 lint-yaml: ## Use yamllint on the yaml file of your projects
 ifeq ($(EXPORT_RESULT), true)

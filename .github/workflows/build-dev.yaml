@@ -42,8 +42,6 @@ jobs:
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v3.7.0
-        with:
-          args: --enable gofmt --enable gofumpt --timeout 5m  --build-tags e2e
 
       - name: Lint
         run: devbox run -- make lint-yaml
