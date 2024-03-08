@@ -1,7 +1,7 @@
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
 kind: KubeadmControlPlaneTemplate
 metadata:
-  name: "${CLUSTER_CLASS_NAME}-kcpt"
+  name: "nutanix-quick-start-kcpt"
 spec:
   template:
     spec:

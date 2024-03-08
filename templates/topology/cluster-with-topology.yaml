@@ -12,14 +12,14 @@ spec:
       cidrBlocks: ["172.20.0.0/16"]
     serviceDomain: "cluster.local"
   topology:
-    class: "${CLUSTER_CLASS_NAME}"
+    class: "nutanix-quick-start"
     version: ${KUBERNETES_VERSION}
     controlPlane:
       replicas: ${CONTROL_PLANE_MACHINE_COUNT}
       metadata: {}
     workers:
       machineDeployments:
-      - class: ${CLUSTER_CLASS_NAME}-worker
+      - class: nutanix-quick-start-worker
         name: md-0
         replicas: ${WORKER_MACHINE_COUNT}
         metadata: {}
