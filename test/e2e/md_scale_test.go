@@ -27,7 +27,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
@@ -96,8 +96,8 @@ var _ = Describe("When testing MachineDeployment scale up/down from 10 replicas 
 				Namespace:                namespace.Name,
 				ClusterName:              fmt.Sprintf("%s-%s", specName, util.RandomString(6)),
 				KubernetesVersion:        input.E2EConfig.GetVariable(KubernetesVersion),
-				ControlPlaneMachineCount: pointer.Int64(1),
-				WorkerMachineCount:       pointer.Int64(10),
+				ControlPlaneMachineCount: ptr.To(int64(1)),
+				WorkerMachineCount:       ptr.To(int64(10)),
 			},
 			ControlPlaneWaiters:          input.ControlPlaneWaiters,
 			WaitForClusterIntervals:      input.E2EConfig.GetIntervals(specName, "wait-cluster"),
@@ -105,7 +105,7 @@ var _ = Describe("When testing MachineDeployment scale up/down from 10 replicas 
 			WaitForMachineDeployments:    input.E2EConfig.GetIntervals(specName, "wait-worker-nodes"),
 		}, clusterResources)
 
-		Expect(clusterResources.MachineDeployments[0].Spec.Replicas).To(Equal(pointer.Int32(10)))
+		Expect(clusterResources.MachineDeployments[0].Spec.Replicas).To(Equal(ptr.To(int32(10))))
 
 		By("Scaling the MachineDeployment out to 20")
 		framework.ScaleAndWaitMachineDeployment(ctx, framework.ScaleAndWaitMachineDeploymentInput{

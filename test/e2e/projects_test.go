@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 
@@ -68,7 +68,7 @@ var _ = Describe("Nutanix projects", Label("capx-feature-test", "projects"), fun
 			invalidProjectNMT := testHelper.createDefaultNMT(clusterName, namespace.Name)
 			invalidProjectNMT.Spec.Template.Spec.Project = &infrav1.NutanixResourceIdentifier{
 				Type: "name",
-				Name: pointer.String(nonExistingProjectName),
+				Name: ptr.To(nonExistingProjectName),
 			}
 			testHelper.createCapiObject(ctx, createCapiObjectParams{
 				creator:    bootstrapClusterProxy.GetClient(),
