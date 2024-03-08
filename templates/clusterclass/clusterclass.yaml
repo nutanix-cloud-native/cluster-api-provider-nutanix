@@ -1,19 +1,19 @@
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: ClusterClass
 metadata:
-  name: "${CLUSTER_CLASS_NAME}"
+  name: "nutanix-quick-start"
 spec:
   controlPlane:
     ref:
       apiVersion: controlplane.cluster.x-k8s.io/v1beta1
       kind: KubeadmControlPlaneTemplate
-      name: ${CLUSTER_CLASS_NAME}-kcpt
+      name: nutanix-quick-start-kcpt
       namespace: ${NAMESPACE}
     machineInfrastructure:
       ref:
         kind: NutanixMachineTemplate
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-        name: ${CLUSTER_CLASS_NAME}-cp-nmt
+        name: nutanix-quick-start-cp-nmt
         namespace: ${NAMESPACE}
     machineHealthCheck:
       maxUnhealthy: 40%
@@ -39,19 +39,19 @@ spec:
           timeout: 300s
   workers:
     machineDeployments:
-    - class: ${CLUSTER_CLASS_NAME}-worker
+    - class: nutanix-quick-start-worker
       template:
         bootstrap:
           ref:
             apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
             kind: KubeadmConfigTemplate
-            name: "${CLUSTER_CLASS_NAME}-kcfg-0"
+            name: "nutanix-quick-start-kcfg-0"
             namespace: ${NAMESPACE}
         infrastructure:
           ref:
             apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
             kind: NutanixMachineTemplate
-            name: ${CLUSTER_CLASS_NAME}-md-nmt
+            name: nutanix-quick-start-md-nmt
             namespace: ${NAMESPACE}
       machineHealthCheck:
         maxUnhealthy: 40%
@@ -79,7 +79,7 @@ spec:
     ref:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
       kind: NutanixClusterTemplate
-      name: ${CLUSTER_CLASS_NAME}-nct
+      name: nutanix-quick-start-nct
       namespace: ${NAMESPACE}
   patches:
   - name: add-ssh-user
@@ -105,7 +105,7 @@ spec:
         matchResources:
           machineDeploymentClass:
             names:
-            - ${CLUSTER_CLASS_NAME}-worker
+            - nutanix-quick-start-worker
       jsonPatches:
       - op: add
         path: /spec/template/spec/users
@@ -197,7 +197,7 @@ spec:
         matchResources:
           machineDeploymentClass:
             names:
-            - ${CLUSTER_CLASS_NAME}-worker
+            - nutanix-quick-start-worker
       jsonPatches:
           - op: add
             path: /spec/template/spec/bootType

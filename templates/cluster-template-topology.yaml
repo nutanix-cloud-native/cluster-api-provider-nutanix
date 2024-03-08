@@ -15,7 +15,7 @@ spec:
       cidrBlocks:
       - 172.19.0.0/16
   topology:
-    class: ${CLUSTER_CLASS_NAME}
+    class: nutanix-quick-start
     controlPlane:
       metadata: {}
       replicas: ${CONTROL_PLANE_MACHINE_COUNT}
@@ -54,7 +54,7 @@ spec:
     version: ${KUBERNETES_VERSION}
     workers:
       machineDeployments:
-      - class: ${CLUSTER_CLASS_NAME}-worker
+      - class: nutanix-quick-start-worker
         metadata: {}
         name: md-0
         replicas: ${WORKER_MACHINE_COUNT}

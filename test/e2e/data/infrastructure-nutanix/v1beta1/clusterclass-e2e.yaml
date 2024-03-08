@@ -288,7 +288,7 @@ spec:
 apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
 kind: KubeadmConfigTemplate
 metadata:
-  name: ${CLUSTER_CLASS_NAME}-kcfg-0
+  name: nutanix-quick-start-kcfg-0
 spec:
   template:
     spec:
@@ -308,7 +308,7 @@ spec:
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: ClusterClass
 metadata:
-  name: ${CLUSTER_CLASS_NAME}
+  name: nutanix-quick-start
 spec:
   controlPlane:
     machineHealthCheck:
@@ -337,18 +337,18 @@ spec:
       ref:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         kind: NutanixMachineTemplate
-        name: ${CLUSTER_CLASS_NAME}-cp-nmt
+        name: nutanix-quick-start-cp-nmt
         namespace: ${NAMESPACE}
     ref:
       apiVersion: controlplane.cluster.x-k8s.io/v1beta1
       kind: KubeadmControlPlaneTemplate
-      name: ${CLUSTER_CLASS_NAME}-kcpt
+      name: nutanix-quick-start-kcpt
       namespace: ${NAMESPACE}
   infrastructure:
     ref:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
       kind: NutanixClusterTemplate
-      name: ${CLUSTER_CLASS_NAME}-nct
+      name: nutanix-quick-start-nct
       namespace: ${NAMESPACE}
   patches:
   - definitions:
@@ -383,7 +383,7 @@ spec:
         matchResources:
           machineDeploymentClass:
             names:
-            - ${CLUSTER_CLASS_NAME}-worker
+            - nutanix-quick-start-worker
     name: add-ssh-user
   - definitions:
     - jsonPatches:
@@ -496,7 +496,7 @@ spec:
         matchResources:
           machineDeploymentClass:
             names:
-            - ${CLUSTER_CLASS_NAME}-worker
+            - nutanix-quick-start-worker
     name: update-worker-machine-template
   variables:
   - name: sshKey
@@ -573,7 +573,7 @@ spec:
         type: object
   workers:
     machineDeployments:
-    - class: ${CLUSTER_CLASS_NAME}-worker
+    - class: nutanix-quick-start-worker
       machineHealthCheck:
         maxUnhealthy: 40%
         nodeStartupTimeout: 10m
@@ -601,19 +601,19 @@ spec:
           ref:
             apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
             kind: KubeadmConfigTemplate
-            name: ${CLUSTER_CLASS_NAME}-kcfg-0
+            name: nutanix-quick-start-kcfg-0
             namespace: ${NAMESPACE}
         infrastructure:
           ref:
             apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
             kind: NutanixMachineTemplate
-            name: ${CLUSTER_CLASS_NAME}-md-nmt
+            name: nutanix-quick-start-md-nmt
             namespace: ${NAMESPACE}
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
 kind: KubeadmControlPlaneTemplate
 metadata:
-  name: ${CLUSTER_CLASS_NAME}-kcpt
+  name: nutanix-quick-start-kcpt
 spec:
   template:
     spec:
@@ -744,7 +744,7 @@ spec:
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixClusterTemplate
 metadata:
-  name: ${CLUSTER_CLASS_NAME}-nct
+  name: nutanix-quick-start-nct
 spec:
   template:
     spec:
@@ -753,7 +753,7 @@ spec:
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate
 metadata:
-  name: ${CLUSTER_CLASS_NAME}-cp-nmt
+  name: nutanix-quick-start-cp-nmt
 spec:
   template:
     spec:
@@ -776,7 +776,7 @@ spec:
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate
 metadata:
-  name: ${CLUSTER_CLASS_NAME}-md-nmt
+  name: nutanix-quick-start-md-nmt
 spec:
   template:
     spec:
