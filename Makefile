@@ -28,7 +28,7 @@ PLATFORMS_E2E ?= linux/amd64
 KIND_CLUSTER_NAME ?= capi-test
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.23
+ENVTEST_K8S_VERSION = 1.29
 
 #
 # Directories.
@@ -174,7 +174,7 @@ kind-delete: ## Delete the kind cluster
 ##@ Build
 
 .PHONY: build
-build: generate fmt ## Build manager binary.
+build: mocks generate fmt ## Build manager binary.
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
 	go build -ldflags "-X main.gitCommitHash=${GIT_COMMIT_HASH}" -o bin/manager main.go
 
@@ -299,16 +299,26 @@ prepare-local-clusterctl: manifests cluster-templates  ## Prepare overide file f
 	env LOCAL_PROVIDER_VERSION=$(LOCAL_PROVIDER_VERSION) \
 		envsubst -no-unset -no-empty -no-digit < ./clusterctl.yaml > ~/.cluster-api/clusterctl.yaml
 
+.PHONY: mocks
+mocks: ## Generate mocks for the project
+	mockgen -destination=mocks/ctlclient/client_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/client Client
+	mockgen -destination=mocks/ctlclient/manager_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/manager Manager
+	mockgen -destination=mocks/ctlclient/cache_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/cache Cache
+	mockgen -destination=mocks/k8sclient/cm_informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 ConfigMapInformer
+	mockgen -destination=mocks/k8sclient/secret_informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 SecretInformer
+
+GOTESTPKGS = $(shell go list ./... | grep -v /mocks)
+
 .PHONY: unit-test
-unit-test:  ## Run unit tests.
+unit-test: mocks  ## Run unit tests.
 ifeq ($(EXPORT_RESULT), true)
 	$(eval OUTPUT_OPTIONS = | go-junit-report -set-exit-code > junit-report.xml)
 endif
-	KUBEBUILDER_ASSETS="$(shell setup-envtest use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) ./... $(OUTPUT_OPTIONS)
+	KUBEBUILDER_ASSETS="$(shell setup-envtest use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) $(GOTESTPKGS) $(OUTPUT_OPTIONS)
 
 .PHONY: coverage
-coverage: ## Run the tests of the project and export the coverage
-	KUBEBUILDER_ASSETS="$(shell setup-envtest use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) -cover -covermode=count -coverprofile=profile.cov ./...
+coverage: mocks ## Run the tests of the project and export the coverage
+	KUBEBUILDER_ASSETS="$(shell setup-envtest use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) -cover -covermode=count -coverprofile=profile.cov $(GOTESTPKGS)
 	$(GOTOOL) cover -func profile.cov
 ifeq ($(EXPORT_RESULT), true)
 	gocov convert profile.cov | gocov-xml > coverage.xml

@@ -1,12 +1,18 @@
 package context
 
 import (
+	"context"
+	"fmt"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	mockctlclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/ctlclient"
 )
 
 func TestIsControlPlaneMachine(t *testing.T) {
@@ -49,4 +55,56 @@ func TestIsControlPlaneMachine(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetNutanixMachinesInCluster(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t.Run("should return error when unable to list machines", func(t *testing.T) {
+		mockClient := mockctlclient.NewMockClient(ctrl)
+		ctx := context.Background()
+		mockClient.EXPECT().List(ctx, gomock.Any(), gomock.Any(), gomock.Any()).Return(fmt.Errorf("list error"))
+
+		clctx := &ClusterContext{
+			Context: ctx,
+			NutanixCluster: &infrav1.NutanixCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "default",
+				},
+			},
+		}
+
+		_, err := clctx.GetNutanixMachinesInCluster(mockClient)
+		assert.Error(t, err)
+	})
+
+	t.Run("should return list of NutanixMachines when successful", func(t *testing.T) {
+		mockClient := mockctlclient.NewMockClient(ctrl)
+		ctx := context.Background()
+		mockClient.EXPECT().List(ctx, gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			func(ctx context.Context, list ctlclient.ObjectList, opts ...ctlclient.ListOption) error {
+				machineList := list.(*infrav1.NutanixMachineList)
+				machineList.Items = []infrav1.NutanixMachine{
+					{ObjectMeta: metav1.ObjectMeta{Name: "test1", Namespace: "default"}},
+					{ObjectMeta: metav1.ObjectMeta{Name: "test2", Namespace: "default"}},
+				}
+				return nil
+			})
+
+		clctx := &ClusterContext{
+			Context: ctx,
+			NutanixCluster: &infrav1.NutanixCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "default",
+				},
+			},
+		}
+
+		machines, err := clctx.GetNutanixMachinesInCluster(mockClient)
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(machines))
+	})
 }
