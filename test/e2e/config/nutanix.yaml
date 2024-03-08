@@ -285,7 +285,7 @@ variables:
   # allowing the same e2e config file to be re-used in different Prow jobs e.g. each one with a K8s version permutation.
   # The following Kubernetes versions should be the latest versions with already published kindest/node images.
   # This avoids building node images in the default case which improves the test duration significantly.
-  KUBERNETES_VERSION_MANAGEMENT: "v1.28.7"
+  KUBERNETES_VERSION_MANAGEMENT: "v1.29.2"
   IP_FAMILY: "IPv4"
   CLUSTERCTL_LOG_LEVEL: 10
   CLUSTER_TOPOLOGY: "true"
@@ -297,18 +297,18 @@ variables:
   NUTANIX_PORT: "9440"
   NUTANIX_INSECURE: true
   NUTANIX_ADDITIONAL_TRUST_BUNDLE: ""
-  KUBERNETES_VERSION: "v1.28.7"
+  KUBERNETES_VERSION: "v1.29.2"
   NUTANIX_SSH_AUTHORIZED_KEY: ""
   CONTROL_PLANE_ENDPOINT_IP: ""
   CONTROL_PLANE_ENDPOINT_IP_V124: ""
   CONTROL_PLANE_MACHINE_COUNT: 3
   WORKER_MACHINE_COUNT: 3
   NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ""
-  NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: "ubuntu-2204-kube-v1.28.7.qcow2"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: "ubuntu-2204-kube-v1.29.2.qcow2"
   CONTROL_PLANE_MACHINE_TEMPLATE_UPGRADE_TO: "cluster-upgrade-conformance"
   WORKERS_MACHINE_TEMPLATE_UPGRADE_TO: "cluster-upgrade-conformance"
-  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_TO: "ubuntu-2204-kube-v1.28.7.qcow2"
-  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_FROM: "ubuntu-2204-kube-v1.27.11.qcow2"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_TO: "ubuntu-2204-kube-v1.29.2.qcow2"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_FROM: "ubuntu-2204-kube-v1.28.7.qcow2"
   NUTANIX_SUBNET_NAME: ""
   # NOTE: 'NUTANIX_ADDITIONAL_SUBNET_NAME' is required for multi network interface e2e tests
   NUTANIX_ADDITIONAL_SUBNET_NAME: ""
@@ -319,8 +319,8 @@ variables:
   CNI: "./data/cni/kindnet/kindnet.yaml"
   EXP_CLUSTER_RESOURCE_SET: "true"
   DOCKER_POD_CIDRS: "192.168.0.0/16"
-  KUBERNETES_VERSION_UPGRADE_TO: "v1.28.7"
-  KUBERNETES_VERSION_UPGRADE_FROM: "v1.27.11"
+  KUBERNETES_VERSION_UPGRADE_TO: "v1.29.2"
+  KUBERNETES_VERSION_UPGRADE_FROM: "v1.28.7"
   ETCD_VERSION_UPGRADE_TO: "3.5.3-0"
   COREDNS_VERSION_UPGRADE_TO: "v1.8.6"
   KUBETEST_CONFIGURATION: "./data/kubetest/conformance.yaml"
@@ -345,10 +345,10 @@ variables:
   # NOTE: INIT_WITH_BINARY and INIT_WITH_KUBERNETES_VERSION are only used by the clusterctl upgrade test to initialize
   # the management cluster to be upgraded.
   # NOTE: We test the latest release with a previous contract.
-  INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.5.6/clusterctl-{OS}-{ARCH}"
+  INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.6.2/clusterctl-{OS}-{ARCH}"
   #INIT_WITH_BINARY_V1ALPHA4: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.7/clusterctl-{OS}-{ARCH}"
   #INIT_WITH_PROVIDERS_CONTRACT: "v1alpha4"
-  INIT_WITH_KUBERNETES_VERSION: "v1.28.7"
+  INIT_WITH_KUBERNETES_VERSION: "v1.29.2"
 
 intervals:
   default/wait-controllers: ["3m", "10s"]
