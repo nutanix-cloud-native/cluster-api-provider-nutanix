@@ -338,18 +338,15 @@ spec:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         kind: NutanixMachineTemplate
         name: nutanix-quick-start-cp-nmt
-        namespace: ${NAMESPACE}
     ref:
       apiVersion: controlplane.cluster.x-k8s.io/v1beta1
       kind: KubeadmControlPlaneTemplate
       name: nutanix-quick-start-kcpt
-      namespace: ${NAMESPACE}
   infrastructure:
     ref:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
       kind: NutanixClusterTemplate
       name: nutanix-quick-start-nct
-      namespace: ${NAMESPACE}
   patches:
   - definitions:
     - jsonPatches:
@@ -602,13 +599,11 @@ spec:
             apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
             kind: KubeadmConfigTemplate
             name: nutanix-quick-start-kcfg-0
-            namespace: ${NAMESPACE}
         infrastructure:
           ref:
             apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
             kind: NutanixMachineTemplate
             name: nutanix-quick-start-md-nmt
-            namespace: ${NAMESPACE}
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
 kind: KubeadmControlPlaneTemplate
