@@ -3,4 +3,4 @@ kind: Cluster
 metadata:
   labels:
     ccm: "nutanix"
-  name: "nutanix-quick-start-cluster-topology"
+  name: "${CLUSTER_NAME}"
