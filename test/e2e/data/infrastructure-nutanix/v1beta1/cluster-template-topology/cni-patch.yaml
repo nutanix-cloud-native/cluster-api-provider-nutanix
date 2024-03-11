@@ -2,5 +2,5 @@ apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
 metadata:
   labels:
-    ccm: "nutanix"
+    cni: nutanix-quick-start-cluster-topology-crs-cni
   name: "nutanix-quick-start-cluster-topology"
