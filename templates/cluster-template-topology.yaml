@@ -3,8 +3,8 @@ kind: Cluster
 metadata:
   labels:
     ccm: nutanix
-    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
-  name: ${CLUSTER_NAME}
+    cluster.x-k8s.io/cluster-name: nutanix-quick-start-cluster-topology
+  name: nutanix-quick-start-cluster-topology
 spec:
   clusterNetwork:
     pods:

@@ -1,9 +1,9 @@
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
 metadata:
-  name: "${CLUSTER_NAME}"
+  name: "nutanix-quick-start-cluster-topology"
   labels:
-      cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+      cluster.x-k8s.io/cluster-name: "nutanix-quick-start-cluster-topology"
 spec:
   clusterNetwork:
     services:
