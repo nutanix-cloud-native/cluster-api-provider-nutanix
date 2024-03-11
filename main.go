@@ -232,7 +232,6 @@ func initializeManager(config *managerConfig) (manager.Manager, error) {
 
 func main() {
 	logger := setupLogger()
-	logger.Info("Initializing Nutanix Cluster API Infrastructure Provider", "Git Hash", gitCommitHash)
 
 	restConfig := ctrl.GetConfigOrDie()
 
@@ -242,6 +241,7 @@ func main() {
 	}
 	parseFlags(config)
 
+	logger.Info("Initializing Nutanix Cluster API Infrastructure Provider", "Git Hash", gitCommitHash)
 	mgr, err := initializeManager(config)
 	if err != nil {
 		logger.Error(err, "unable to create manager")

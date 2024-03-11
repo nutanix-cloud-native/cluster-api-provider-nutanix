@@ -1,5 +1,5 @@
 ---
-# CI E2E test test configuration scenario using locally build images and manifests for:
+# CI E2E test configuration scenario using locally build images and manifests for:
 # - cluster-api
 # - bootstrap kubeadm
 # - control-plane kubeadm
@@ -43,24 +43,6 @@ providers:
   - name: cluster-api
     type: CoreProvider
     versions:
-      - name: v0.3.25 # latest published release in the v1alpha3 series; this is used for v1alpha3 --> v1beta1 clusterctl upgrades test only.
-        value: https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.3.25/core-components.yaml
-        type: url
-        contract: v1alpha3
-        files:
-          - sourcePath: "../data/shared/metadata.yaml"
-        replacements:
-          - old: "imagePullPolicy: Always"
-            new: "imagePullPolicy: IfNotPresent"
-      - name: v0.4.7 # latest published release in the v1alpha4 series; this is used for v1alpha4 --> v1beta1 clusterctl upgrades test only.
-        contract: v1alpha4
-        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.7/core-components.yaml"
-        type: "url"
-        files:
-          - sourcePath: "../data/shared/metadata.yaml"
-        replacements:
-          - old: "imagePullPolicy: Always"
-            new: "imagePullPolicy: IfNotPresent"
       - name: v1.3.10
         # Use manifest from source files
         value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.3.10/core-components.yaml"
@@ -81,27 +63,29 @@ providers:
         replacements:
           - old: "imagePullPolicy: Always"
             new: "imagePullPolicy: IfNotPresent"
+      - name: v1.5.4
+        # Use manifest from source files
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.5.4/core-components.yaml"
+        type: "url"
+        contract: v1beta1
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+      - name: v1.6.2
+        # Use manifest from source files
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.6.2/core-components.yaml"
+        type: "url"
+        contract: v1beta1
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
   - name: kubeadm
     type: BootstrapProvider
     versions:
-      - name: v0.3.25 # latest published release in the v1alpha3 series; this is used for v1alpha3 --> v1beta1 clusterctl upgrades test only.
-        value: https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.3.25/bootstrap-components.yaml
-        type: url
-        contract: v1alpha3
-        files:
-          - sourcePath: "../data/shared/metadata.yaml"
-        replacements:
-          - old: "imagePullPolicy: Always"
-            new: "imagePullPolicy: IfNotPresent"
-      - name: v0.4.7 # latest published release in the v1alpha4 series; this is used for v1alpha4 --> v1beta1 clusterctl upgrades test only.
-        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.7/bootstrap-components.yaml"
-        type: "url"
-        contract: v1alpha4
-        files:
-          - sourcePath: "../data/shared/metadata.yaml"
-        replacements:
-          - old: "imagePullPolicy: Always"
-            new: "imagePullPolicy: IfNotPresent"
       - name: v1.3.10
         # Use manifest from source files
         value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.3.10/bootstrap-components.yaml"
@@ -122,27 +106,29 @@ providers:
         replacements:
           - old: "imagePullPolicy: Always"
             new: "imagePullPolicy: IfNotPresent"
+      - name: v1.5.4
+        # Use manifest from source files
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.5.4/bootstrap-components.yaml"
+        type: "url"
+        contract: "v1beta1"
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+      - name: v1.6.2
+        # Use manifest from source files
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.6.2/bootstrap-components.yaml"
+        type: "url"
+        contract: "v1beta1"
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
   - name: kubeadm
     type: ControlPlaneProvider
     versions:
-      - name: v0.3.25 # latest published release in the v1alpha3 series; this is used for v1alpha3 --> v1beta1 clusterctl upgrades test only.
-        value: https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.3.25/control-plane-components.yaml
-        type: url
-        contract: v1alpha3
-        files:
-          - sourcePath: "../data/shared/metadata.yaml"
-        replacements:
-          - old: "imagePullPolicy: Always"
-            new: "imagePullPolicy: IfNotPresent"
-      - name: v0.4.7 # latest published release in the v1alpha4 series; this is used for v1alpha4 --> v1beta1 clusterctl upgrades test only.
-        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.7/control-plane-components.yaml"
-        type: "url"
-        contract: v1alpha4
-        files:
-          - sourcePath: "../data/shared/metadata.yaml"
-        replacements:
-          - old: "imagePullPolicy: Always"
-            new: "imagePullPolicy: IfNotPresent"
       - name: v1.3.10
         # Use manifest from source files
         value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.3.10/control-plane-components.yaml"
@@ -163,79 +149,29 @@ providers:
         replacements:
           - old: "imagePullPolicy: Always"
             new: "imagePullPolicy: IfNotPresent"
+      - name: v1.5.4
+        # Use manifest from source files
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.5.4/control-plane-components.yaml"
+        type: "url"
+        contract: v1beta1
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
+      - name: v1.6.2
+        # Use manifest from source files
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.6.2/control-plane-components.yaml"
+        type: "url"
+        contract: v1beta1
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
   - name: nutanix
     type: InfrastructureProvider
     versions:
-      - name: v0.4.0 # next; use manifest from source files
-        type: "url"
-        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v0.4.0/infrastructure-components.yaml
-        contract: v1alpha4
-        replacements:
-          - old: "imagePullPolicy: Always"
-            new: "imagePullPolicy: IfNotPresent"
-        files:
-          - sourcePath: "../../../metadata.yaml"
-          - sourcePath: "../data/infrastructure-nutanix/v1alpha4/cluster-template.yaml"
-      - name: v0.5.0
-        type: "url"
-        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v0.5.0/infrastructure-components.yaml
-        contract: v1beta1
-        replacements:
-          - old: "imagePullPolicy: Always"
-            new: "imagePullPolicy: IfNotPresent"
-        files:
-          - sourcePath: "../../../metadata.yaml"
-          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"
-      - name: v1.0.0
-        type: "url"
-        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.0.0/infrastructure-components.yaml
-        contract: v1beta1
-        replacements:
-          - old: "imagePullPolicy: Always"
-            new: "imagePullPolicy: IfNotPresent"
-        files:
-          - sourcePath: "../../../metadata.yaml"
-          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"
-      - name: v1.1.0
-        type: url
-        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.1.0/infrastructure-components.yaml
-        contract: v1beta1
-        replacements:
-          - old: "imagePullPolicy: Always"
-            new: "imagePullPolicy: IfNotPresent"
-        files:
-          - sourcePath: "../../../metadata.yaml"
-          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"
-      - name: v1.1.1
-        type: url
-        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.1.1/infrastructure-components.yaml
-        contract: v1beta1
-        replacements:
-          - old: "imagePullPolicy: Always"
-            new: "imagePullPolicy: IfNotPresent"
-        files:
-          - sourcePath: "../../../metadata.yaml"
-          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"
-      - name: v1.1.2
-        type: url
-        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.1.2/infrastructure-components.yaml
-        contract: v1beta1
-        replacements:
-          - old: "imagePullPolicy: Always"
-            new: "imagePullPolicy: IfNotPresent"
-        files:
-          - sourcePath: "../../../metadata.yaml"
-          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"
-      - name: v1.1.3
-        type: url
-        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.1.3/infrastructure-components.yaml
-        contract: v1beta1
-        replacements:
-          - old: "imagePullPolicy: Always"
-            new: "imagePullPolicy: IfNotPresent"
-        files:
-          - sourcePath: "../../../metadata.yaml"
-          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"
       - name: v1.2.4
         type: url
         value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.2.4/infrastructure-components.yaml
