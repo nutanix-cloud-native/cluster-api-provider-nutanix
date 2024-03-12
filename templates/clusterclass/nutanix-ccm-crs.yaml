@@ -1,0 +1,22 @@
+apiVersion: addons.cluster.x-k8s.io/v1beta1
+kind: ClusterResourceSet
+metadata:
+  name: nutanix-ccm-crs
+spec:
+  clusterSelector:
+    matchLabels:
+      ccm: nutanix
+  resources:
+  - kind: ConfigMap
+    name: nutanix-ccm
+  - kind: Secret
+    name: nutanix-ccm-secret
+  - kind: ConfigMap
+    name: nutanix-ccm-pc-trusted-ca-bundle
+  strategy: ApplyOnce
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nutanix-ccm
+data:
