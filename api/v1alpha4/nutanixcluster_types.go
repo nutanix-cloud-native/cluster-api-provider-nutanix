@@ -91,6 +91,8 @@ type NutanixClusterStatus struct {
 //+kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.ready",description="in ready status"
 
 // NutanixCluster is the Schema for the nutanixclusters API
+// +kubebuilder:deprecatedversion:warning=v1alpha4 NutanixCluster is deprecated and marked as unserved. It will be removed in a future release. Use v1beta1 NutanixCluster instead.
+// +kubebuilder:unservedversion
 type NutanixCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
