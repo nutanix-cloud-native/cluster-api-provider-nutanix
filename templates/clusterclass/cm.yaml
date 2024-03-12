@@ -1,0 +1,7 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nutanix-quick-start-pc-trusted-ca-bundle
+binaryData:
+  ca.crt: ""
