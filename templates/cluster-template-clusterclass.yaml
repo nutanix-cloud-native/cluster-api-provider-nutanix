@@ -760,7 +760,7 @@ spec:
         name: ""
         type: name
       memorySize: 4Gi
-      providerID: nutanix://${CLUSTER_NAME}-m1
+      providerID: nutanix://vm-uuid
       subnet:
       - name: ""
         type: name
@@ -783,7 +783,7 @@ spec:
         name: ""
         type: name
       memorySize: 4Gi
-      providerID: nutanix://${CLUSTER_NAME}-m1
+      providerID: nutanix://vm-uuid
       subnet:
       - name: ""
         type: name
