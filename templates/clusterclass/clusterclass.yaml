@@ -141,10 +141,10 @@ spec:
             port: {{ .prismCentralEndpoint.port }}
             insecure: {{ .prismCentralEndpoint.insecure }}
             credentialRef:
-              name: "${CLUSTER_NAME}"
+              name: "nutanix-quick-start-pc-creds"
               kind: Secret
             additionalTrustBundle:
-              name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
+              name: nutanix-quick-start-pc-trusted-ca-bundle
               kind: ConfigMap
   - name: update-control-plane-machine-template
     definitions:

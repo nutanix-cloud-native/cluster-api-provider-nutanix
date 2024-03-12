@@ -3,12 +3,12 @@ bases:
   - ../../../../../../templates/base/cluster-without-topology.yaml
   - ../../../../../../templates/base/kcp.yaml
   - ../../../../../../templates/base/kct.yaml
-  - ../../../../../../templates/base-root/secret.yaml
-  - ../../../../../../templates/base-root/cm.yaml
+  - ../../../../../../templates/base/secret.yaml
+  - ../../../../../../templates/base/cm.yaml
   - ../../../../../../templates/base/nmt.yaml
   - ../../../../../../templates/base/md.yaml
-  - ../../../../../../templates/base-root/nutanix-ccm-crs.yaml
-  - ../../../../../../templates/base-root/nutanix-ccm-secret.yaml
+  - ../../../../../../templates/ccm/nutanix-ccm-crs.yaml
+  - ../../../../../../templates/ccm/nutanix-ccm-secret.yaml
   - ../base/crs.yaml
   - ./mhc.yaml
 
@@ -16,7 +16,7 @@ configMapGenerator:
   - name: nutanix-ccm
     behavior: merge
     files:
-      - ../../../../../../templates/base-root/nutanix-ccm.yaml
+      - ../../../../../../templates/ccm/nutanix-ccm.yaml
 
 patchesStrategicMerge:
   - ../base/cni-patch.yaml
