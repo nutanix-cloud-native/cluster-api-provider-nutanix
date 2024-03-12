@@ -153,8 +153,8 @@ func createPreWaitForClusterFunc(testInputFunc func() capi_e2e.ClusterctlUpgrade
 	}
 }
 
-func createPostUpgradeFunc(testInputFunc func() capi_e2e.ClusterctlUpgradeSpecInput) func(framework.ClusterProxy) {
-	return func(managementClusterProxy framework.ClusterProxy) {
+func createPostUpgradeFunc(testInputFunc func() capi_e2e.ClusterctlUpgradeSpecInput) func(framework.ClusterProxy, string, string) {
+	return func(managementClusterProxy framework.ClusterProxy, clusterNamespace string, clusterName string) {
 		testInput := testInputFunc()
 		Expect(testInput.E2EConfig).NotTo(BeNil(), "Invalid argument. testInput.E2EConfig can't be nil when calling createPostUpgradeFunc")
 		Expect(testInput.ArtifactFolder).NotTo(BeEmpty(), "Invalid argument. testInput.ArtifactFolder can't be empty when calling createPostUpgradeFunc")

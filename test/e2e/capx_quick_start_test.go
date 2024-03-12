@@ -20,7 +20,7 @@ package e2e
 
 import (
 	. "github.com/onsi/ginkgo/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 )
 
@@ -44,7 +44,7 @@ var _ = Describe("When following the Cluster API quick-start with ClusterClass",
 			BootstrapClusterProxy: bootstrapClusterProxy,
 			ArtifactFolder:        artifactFolder,
 			SkipCleanup:           skipCleanup,
-			Flavor:                pointer.String("topology"),
+			Flavor:                ptr.To("topology"),
 		}
 	})
 })
@@ -58,7 +58,7 @@ var _ = Describe("When following the Cluster API quick-start with ClusterClass",
 // 			BootstrapClusterProxy: bootstrapClusterProxy,
 // 			ArtifactFolder:        artifactFolder,
 // 			SkipCleanup:           skipCleanup,
-// 			Flavor:                pointer.String("ipv6"),
+// 			Flavor:                ptr.To("ipv6"),
 // 		}
 // 	})
 // })
@@ -71,7 +71,7 @@ var _ = Describe("When following the Cluster API quick-start with ClusterClass",
 // 			BootstrapClusterProxy: bootstrapClusterProxy,
 // 			ArtifactFolder:        artifactFolder,
 // 			SkipCleanup:           skipCleanup,
-// 			Flavor:                pointer.String("ignition"),
+// 			Flavor:                ptr.To("ignition"),
 // 		}
 // 	})
 // })

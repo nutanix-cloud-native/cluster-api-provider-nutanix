@@ -23,52 +23,49 @@ import (
 )
 
 // ConvertTo converts this NutanixMachine to the Hub version (v1beta1).
-func (src *NutanixMachine) ConvertTo(dstRaw conversion.Hub) error { // nolint
+func (src *NutanixMachine) ConvertTo(dstRaw conversion.Hub) error {
 	dst := dstRaw.(*infrav1beta1.NutanixMachine)
 	return Convert_v1alpha4_NutanixMachine_To_v1beta1_NutanixMachine(src, dst, nil)
 }
 
 // ConvertFrom converts from the Hub version (v1beta1) to this NutanixMachine.
-func (dst *NutanixMachine) ConvertFrom(srcRaw conversion.Hub) error { // nolint
+func (dst *NutanixMachine) ConvertFrom(srcRaw conversion.Hub) error {
 	src := srcRaw.(*infrav1beta1.NutanixMachine)
 	return Convert_v1beta1_NutanixMachine_To_v1alpha4_NutanixMachine(src, dst, nil)
 }
 
 // ConvertTo converts this NutanixMachineList to the Hub version (v1beta1).
-func (src *NutanixMachineList) ConvertTo(dstRaw conversion.Hub) error { // nolint
+func (src *NutanixMachineList) ConvertTo(dstRaw conversion.Hub) error {
 	dst := dstRaw.(*infrav1beta1.NutanixMachineList)
 	return Convert_v1alpha4_NutanixMachineList_To_v1beta1_NutanixMachineList(src, dst, nil)
 }
 
 // ConvertFrom converts from the Hub version(v1beta1) to this NutanixMachineList.
-func (dst *NutanixMachineList) ConvertFrom(srcRaw conversion.Hub) error { // nolint
+func (dst *NutanixMachineList) ConvertFrom(srcRaw conversion.Hub) error {
 	src := srcRaw.(*infrav1beta1.NutanixMachineList)
 	return Convert_v1beta1_NutanixMachineList_To_v1alpha4_NutanixMachineList(src, dst, nil)
 }
 
 // Convert_v1alpha4_NutanixMachineSpec_To_v1beta1_NutanixMachineSpec converts NutanixMachineSpec in NutanixMachineResource from v1alpha4 to v1beta1 version.
-//
-//nolint:all
 func Convert_v1alpha4_NutanixMachineSpec_To_v1beta1_NutanixMachineSpec(in *NutanixMachineSpec, out *infrav1beta1.NutanixMachineSpec, s apiconversion.Scope) error {
 	// Wrapping the conversion function to avoid compilation errors due to compileErrorOnMissingConversion()
 	// Ref: https://github.com/kubernetes/kubernetes/issues/98380
+	//nolint:staticcheck // infinite recursive call
 	return Convert_v1alpha4_NutanixMachineSpec_To_v1beta1_NutanixMachineSpec(in, out, s)
 }
 
 // Convert_v1beta1_NutanixMachineSpec_To_v1alpha4_NutanixMachineSpec converts NutanixMachineSpec in NutanixMachineResource from v1alpha4 to v1beta1 version.
-//
-//nolint:all
 func Convert_v1beta1_NutanixMachineSpec_To_v1alpha4_NutanixMachineSpec(in *infrav1beta1.NutanixMachineSpec, out *NutanixMachineSpec, s apiconversion.Scope) error {
 	// Wrapping the conversion function to avoid compilation errors due to compileErrorOnMissingConversion()
 	// Ref: https://github.com/kubernetes/kubernetes/issues/98380
+	//nolint:staticcheck // infinite recursive call
 	return Convert_v1beta1_NutanixMachineSpec_To_v1alpha4_NutanixMachineSpec(in, out, s)
 }
 
 // Convert_v1alpha4_NutanixMachineStatus_To_v1beta1_NutanixMachineStatus converts NutanixMachineStatus in NutanixMachineResource from v1alpha4 to v1beta1 version.
-//
-//nolint:all
 func Convert_v1alpha4_NutanixMachineStatus_To_v1beta1_NutanixMachineStatus(in *NutanixMachineStatus, out *infrav1beta1.NutanixMachineStatus, s apiconversion.Scope) error {
 	// Wrapping the conversion function to avoid compilation errors due to compileErrorOnMissingConversion()
 	// Ref: https://github.com/kubernetes/kubernetes/issues/98380
+	//nolint:staticcheck // infinite recursive call
 	return Convert_v1alpha4_NutanixMachineStatus_To_v1beta1_NutanixMachineStatus(in, out, s)
 }
