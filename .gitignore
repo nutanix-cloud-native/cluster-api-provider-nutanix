@@ -117,3 +117,6 @@ coverage.xml
 clusterctl.yaml
 cluster.yaml
 *.workload.kubeconfig
+
+junit-report.xml
+

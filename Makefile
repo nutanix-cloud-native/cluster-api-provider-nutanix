@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 GOCMD=go
 GOTEST=$(GOCMD) test
-GOGET=$(GOCMD) get
+GOINSTALL=$(GOCMD) install
 GOTOOL=$(GOCMD) tool
 EXPORT_RESULT?=false # for CI please set EXPORT_RESULT to true
 # Image URL to use all building/pushing image targets
@@ -81,7 +81,7 @@ SETUP_ENVTEST_BIN := setup-envtest
 SETUP_ENVTEST := $(abspath $(TOOLS_BIN_DIR)/$(SETUP_ENVTEST_BIN)-$(SETUP_ENVTEST_VER))
 SETUP_ENVTEST_PKG := sigs.k8s.io/controller-runtime/tools/setup-envtest
 
-CONTROLLER_GEN_VER := v0.8.0
+CONTROLLER_GEN_VER := v0.14.0
 CONTROLLER_GEN_BIN := controller-gen
 CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/$(CONTROLLER_GEN_BIN)-$(CONTROLLER_GEN_VER))
 CONTROLLER_GEN_PKG := sigs.k8s.io/controller-tools/cmd/controller-gen
@@ -217,7 +217,7 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: $(CONTROLLER_GEN_BIN) ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: release-manifests
@@ -228,7 +228,7 @@ release-manifests: manifests cluster-templates
 	cp $(REPO_ROOT)/metadata.yaml $(RELEASE_DIR)/metadata.yaml
 
 .PHONY: generate
-generate: controller-gen conversion-gen ## Generate code containing DeepCopy, DeepCopyInto, DeepCopyObject method implementations and API conversion implementations.
+generate: $(CONTROLLER_GEN_BIN) $(CONVERSION_GEN_BIN) ## Generate code containing DeepCopy, DeepCopyInto, DeepCopyObject method implementations and API conversion implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 	$(CONVERSION_GEN) \
@@ -372,7 +372,7 @@ prepare-local-clusterctl: manifests kustomize cluster-templates envsubst ## Prep
 .PHONY: unit-test
 unit-test: setup-envtest ## Run unit tests.
 ifeq ($(EXPORT_RESULT), true)
-	GO111MODULE=off $(GOGET) -u github.com/jstemmer/go-junit-report
+	$(GOINSTALL) github.com/jstemmer/go-junit-report/v2@latest
 	$(eval OUTPUT_OPTIONS = | go-junit-report -set-exit-code > junit-report.xml)
 endif
 	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) ./... $(OUTPUT_OPTIONS)
@@ -382,8 +382,8 @@ coverage: setup-envtest ## Run the tests of the project and export the coverage
 	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --arch=amd64 -p path)" $(GOTEST) -cover -covermode=count -coverprofile=profile.cov -coverpkg=./... ./...
 	$(GOTOOL) cover -func profile.cov
 ifeq ($(EXPORT_RESULT), true)
-	GO111MODULE=off $(GOGET) -u github.com/AlekSi/gocov-xml
-	GO111MODULE=off $(GOGET) -u github.com/axw/gocov/gocov
+	$(GOINSTALL) github.com/AlekSi/gocov-xml@latest
+	$(GOINSTALL) github.com/axw/gocov/gocov@latest
 	gocov convert profile.cov | gocov-xml > coverage.xml
 endif
 
