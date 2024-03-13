@@ -134,6 +134,8 @@ type NutanixMachineStatus struct {
 // +kubebuilder:printcolumn:name="ProviderID",type="string",JSONPath=".spec.providerID",description="NutanixMachine instance ID"
 
 // NutanixMachine is the Schema for the nutanixmachines API
+// +kubebuilder:deprecatedversion:warning=v1alpha4 NutanixMachine is deprecated and marked as unserved. It will be removed in a future release. Use v1beta1 NutanixMachine instead.
+// +kubebuilder:unservedversion
 type NutanixMachine struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
