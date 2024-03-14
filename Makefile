@@ -307,7 +307,7 @@ mocks: ## Generate mocks for the project
 	mockgen -destination=mocks/k8sclient/cm_informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 ConfigMapInformer
 	mockgen -destination=mocks/k8sclient/secret_informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 SecretInformer
 
-GOTESTPKGS = $(shell go list ./... | grep -v /mocks)
+GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
 
 .PHONY: unit-test
 unit-test: mocks  ## Run unit tests.
@@ -323,6 +323,10 @@ coverage: mocks ## Run the tests of the project and export the coverage
 ifeq ($(EXPORT_RESULT), true)
 	gocov convert profile.cov | gocov-xml > coverage.xml
 endif
+
+.PHONY: template-test
+template-test: cluster-templates ## Run the template tests
+	GOPROXY=off $(GOTEST) -v ./templates
 
 .PHONY: ginkgo-help
 ginkgo-help:
