@@ -4,7 +4,7 @@
     "clusterctl@1.6.2",
     "envsubst@1.4.2",
     "gnumake@4.4.1",
-    "ginkgo@2.1.4",
+    "ginkgo@2.17.0",
     "go@1.22.1",
     "gotestsum@1.6.4",
     "kind@0.22.0",
