@@ -1,25 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-generatorOptions:
- disableNameSuffixHash: true
-
-configMapGenerator:
-- name: nutanix-ccm
-  behavior: merge
-  files:
-  - nutanix-ccm-cm.yaml
-  - nutanix-ccm.yaml
-- name: nutanix-config
-  namespace: kube-system
-  files:
-  - nutanix_config.json
-
 bases:
-  - ./nutanix-ccm-crs.yaml
-  - ./nutanix-ccm-secret.yaml
-  - ./cm.yaml
-  - ./secret.yaml
   - ./nct.yaml
   - ./clusterclass.yaml
   - ./nmt-cp.yaml

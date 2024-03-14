@@ -141,10 +141,10 @@ spec:
             port: {{ .prismCentralEndpoint.port }}
             insecure: {{ .prismCentralEndpoint.insecure }}
             credentialRef:
-              name: "nutanix-quick-start-pc-creds"
+              name: '{{ .prismCentralEndpoint.credentialSecret }}'
               kind: Secret
             additionalTrustBundle:
-              name: nutanix-quick-start-pc-trusted-ca-bundle
+              name: '{{ .prismCentralEndpoint.additionalTrustBundle }}'
               kind: ConfigMap
   - name: update-control-plane-machine-template
     definitions:
@@ -252,6 +252,10 @@ spec:
             type: integer
           insecure:
             type: boolean
+          credentialSecret:
+            type: string
+          additionalTrustBundle:
+            type: string
         type: object
   - name: controlPlaneMachineDetails
     required: true
