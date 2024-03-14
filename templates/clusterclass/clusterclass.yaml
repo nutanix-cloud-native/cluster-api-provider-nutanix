@@ -224,6 +224,29 @@ spec:
               template: |
                 - type: name
                   name: {{ .controlPlaneMachineDetails.subnetName }}
+  - name: add-failure-domains
+    enabledIf: "{{if .failureDomains}}true{{end}}"
+    definitions:
+      - selector:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+          kind: NutanixClusterTemplate
+          matchResources:
+            infrastructureCluster: true
+        jsonPatches:
+          - op: replace
+            path: /spec/template/spec/failureDomains
+            valueFrom:
+              variable: failureDomains
+      - selector:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+          kind: NutanixMachineTemplate
+          matchResources:
+            controlPlane: true
+        jsonPatches:
+          - op: remove
+            path: /spec/template/spec/cluster
+          - op: remove
+            path: /spec/template/spec/subnet
   variables:
   - name: sshKey
     required: true
@@ -301,3 +324,41 @@ spec:
           subnetName:
             type: string
         type: object
+  - name: failureDomains
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            cluster:
+              type: object
+              properties:
+                name:
+                  type: string
+                uuid:
+                  type: string
+                type:
+                  type: string
+                  enum:
+                    - name
+                    - uuid
+            controlPlane:
+              type: boolean
+            subnets:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  uuid:
+                    type: string
+                  type:
+                    type: string
+                    enum:
+                      - name
+                      - uuid

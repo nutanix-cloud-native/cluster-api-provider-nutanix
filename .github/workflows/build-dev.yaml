@@ -46,6 +46,9 @@ jobs:
       - name: Lint
         run: devbox run -- make lint-yaml
 
+      - name: Template Tests
+        run: devbox run -- make template-test
+
       - name: Run unit tests
         run: devbox run -- make unit-test
 

@@ -208,6 +208,29 @@ spec:
             names:
             - nutanix-quick-start-worker
     name: update-worker-machine-template
+  - definitions:
+    - jsonPatches:
+      - op: replace
+        path: /spec/template/spec/failureDomains
+        valueFrom:
+          variable: failureDomains
+      selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixClusterTemplate
+        matchResources:
+          infrastructureCluster: true
+    - jsonPatches:
+      - op: remove
+        path: /spec/template/spec/cluster
+      - op: remove
+        path: /spec/template/spec/subnet
+      selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        matchResources:
+          controlPlane: true
+    enabledIf: '{{if .failureDomains}}true{{end}}'
+    name: add-failure-domains
   variables:
   - name: sshKey
     required: true
@@ -285,6 +308,44 @@ spec:
           vcpusPerSocket:
             type: integer
         type: object
+  - name: failureDomains
+    required: false
+    schema:
+      openAPIV3Schema:
+        items:
+          properties:
+            cluster:
+              properties:
+                name:
+                  type: string
+                type:
+                  enum:
+                  - name
+                  - uuid
+                  type: string
+                uuid:
+                  type: string
+              type: object
+            controlPlane:
+              type: boolean
+            name:
+              type: string
+            subnets:
+              items:
+                properties:
+                  name:
+                    type: string
+                  type:
+                    enum:
+                    - name
+                    - uuid
+                    type: string
+                  uuid:
+                    type: string
+                type: object
+              type: array
+          type: object
+        type: array
   workers:
     machineDeployments:
     - class: nutanix-quick-start-worker
