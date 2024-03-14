@@ -26,7 +26,8 @@ spec:
       - name: manager
         args:
         - "--health-probe-bind-address=:8081"
-        - "--metrics-bind-address=127.0.0.1:8080"
+        - "--diagnostics-address=127.0.0.1:8080"
+        - "--insecure-diagnostics"
         - "--leader-elect"
         - "--zap-log-level=${NUTANIX_LOG_LEVEL=info}"
         - "--zap-devel=${NUTANIX_LOG_DEVELOPMENT=true}"

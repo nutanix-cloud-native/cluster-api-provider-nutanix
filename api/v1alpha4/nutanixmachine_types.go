@@ -20,6 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	//nolint:staticcheck // sigs.k8s.io/cluster-api/api/v1alpha4 is deprecated and will be removed in one of the next releases.
 	capiv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/errors"
 )
@@ -133,6 +134,8 @@ type NutanixMachineStatus struct {
 // +kubebuilder:printcolumn:name="ProviderID",type="string",JSONPath=".spec.providerID",description="NutanixMachine instance ID"
 
 // NutanixMachine is the Schema for the nutanixmachines API
+// +kubebuilder:deprecatedversion:warning=v1alpha4 NutanixMachine is deprecated and marked as unserved. It will be removed in a future release. Use v1beta1 NutanixMachine instead.
+// +kubebuilder:unservedversion
 type NutanixMachine struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

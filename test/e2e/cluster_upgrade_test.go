@@ -21,8 +21,7 @@ package e2e
 
 import (
 	. "github.com/onsi/ginkgo/v2"
-	"k8s.io/utils/pointer"
-
+	"k8s.io/utils/ptr"
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 )
 
@@ -48,7 +47,7 @@ var _ = Describe("When upgrading a workload cluster and testing K8S conformance"
 // 			BootstrapClusterProxy: bootstrapClusterProxy,
 // 			ArtifactFolder:        artifactFolder,
 // 			SkipCleanup:           skipCleanup,
-// 			Flavor:                pointer.String("topology"),
+// 			Flavor:                ptr.To("topology"),
 // 			// This test is run in CI in parallel with other tests. To keep the test duration reasonable
 // 			// the conformance tests are skipped.
 // 			SkipConformanceTests: true,
@@ -67,8 +66,8 @@ var _ = Describe("When upgrading a workload cluster with a single control plane 
 			// This test is run in CI in parallel with other tests. To keep the test duration reasonable
 			// the conformance tests are skipped.
 			SkipConformanceTests:     true,
-			ControlPlaneMachineCount: pointer.Int64(1),
-			WorkerMachineCount:       pointer.Int64(1),
+			ControlPlaneMachineCount: ptr.To(int64(1)),
+			WorkerMachineCount:       ptr.To(int64(1)),
 		}
 	})
 })
@@ -84,8 +83,8 @@ var _ = Describe("When upgrading a workload cluster with a HA control plane", La
 			// This test is run in CI in parallel with other tests. To keep the test duration reasonable
 			// the conformance tests are skipped.
 			SkipConformanceTests:     true,
-			ControlPlaneMachineCount: pointer.Int64(3),
-			WorkerMachineCount:       pointer.Int64(1),
+			ControlPlaneMachineCount: ptr.To(int64(3)),
+			WorkerMachineCount:       ptr.To(int64(1)),
 		}
 	})
 })
@@ -101,9 +100,9 @@ var _ = Describe("When upgrading a workload cluster with a HA control plane usin
 			// This test is run in CI in parallel with other tests. To keep the test duration reasonable
 			// the conformance tests are skipped.
 			SkipConformanceTests:     true,
-			ControlPlaneMachineCount: pointer.Int64(3),
-			WorkerMachineCount:       pointer.Int64(1),
-			Flavor:                   pointer.String("kcp-scale-in"),
+			ControlPlaneMachineCount: ptr.To(int64(3)),
+			WorkerMachineCount:       ptr.To(int64(1)),
+			Flavor:                   ptr.To("kcp-scale-in"),
 		}
 	})
 })

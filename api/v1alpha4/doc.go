@@ -19,4 +19,6 @@ limitations under the License.
 // +kubebuilder:object:generate=true
 // +groupName=infrastructure.cluster.x-k8s.io
 // +k8s:conversion-gen=github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1
+//
+// Deprecated: This package will be removed in one of the next releases.
 package v1alpha4

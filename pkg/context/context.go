@@ -66,7 +66,7 @@ func IsControlPlaneMachine(nma *infrav1.NutanixMachine) bool {
 	if nma == nil {
 		return false
 	}
-	_, ok := nma.GetLabels()[capiv1.MachineControlPlaneLabelName]
+	_, ok := nma.GetLabels()[capiv1.MachineControlPlaneNameLabel]
 	return ok
 }
 
@@ -74,7 +74,7 @@ func IsControlPlaneMachine(nma *infrav1.NutanixMachine) bool {
 func (clctx *ClusterContext) GetNutanixMachinesInCluster(client ctlclient.Client) ([]*infrav1.NutanixMachine, error) {
 	clusterName := clctx.NutanixCluster.Name
 	clusterNamespace := clctx.NutanixCluster.Namespace
-	labels := map[string]string{capiv1.ClusterLabelName: clusterName}
+	labels := map[string]string{capiv1.ClusterNameLabel: clusterName}
 	machineList := &infrav1.NutanixMachineList{}
 
 	err := client.List(clctx.Context, machineList,

@@ -4,7 +4,6 @@ binaryData:
 kind: ConfigMap
 metadata:
   name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
-  namespace: ${NAMESPACE}
 ---
 apiVersion: v1
 data:
@@ -223,13 +222,11 @@ data:
 kind: ConfigMap
 metadata:
   name: nutanix-ccm
-  namespace: ${NAMESPACE}
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   name: ${CLUSTER_NAME}
-  namespace: ${NAMESPACE}
 stringData:
   credentials: |
     [
@@ -248,7 +245,6 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: nutanix-ccm-secret
-  namespace: ${NAMESPACE}
 stringData:
   nutanix-ccm-secret.yaml: |
     apiVersion: v1
@@ -276,7 +272,6 @@ apiVersion: addons.cluster.x-k8s.io/v1beta1
 kind: ClusterResourceSet
 metadata:
   name: nutanix-ccm-crs
-  namespace: ${NAMESPACE}
 spec:
   clusterSelector:
     matchLabels:
@@ -294,7 +289,6 @@ apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
 kind: KubeadmConfigTemplate
 metadata:
   name: ${CLUSTER_CLASS_NAME}-kcfg-0
-  namespace: ${NAMESPACE}
 spec:
   template:
     spec:
@@ -315,7 +309,6 @@ apiVersion: cluster.x-k8s.io/v1beta1
 kind: ClusterClass
 metadata:
   name: ${CLUSTER_CLASS_NAME}
-  namespace: ${NAMESPACE}
 spec:
   controlPlane:
     machineHealthCheck:
@@ -621,7 +614,6 @@ apiVersion: controlplane.cluster.x-k8s.io/v1beta1
 kind: KubeadmControlPlaneTemplate
 metadata:
   name: ${CLUSTER_CLASS_NAME}-kcpt
-  namespace: ${NAMESPACE}
 spec:
   template:
     spec:
@@ -753,7 +745,6 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixClusterTemplate
 metadata:
   name: ${CLUSTER_CLASS_NAME}-nct
-  namespace: ${NAMESPACE}
 spec:
   template:
     spec:
@@ -763,7 +754,6 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate
 metadata:
   name: ${CLUSTER_CLASS_NAME}-cp-nmt
-  namespace: ${NAMESPACE}
 spec:
   template:
     spec:
@@ -787,7 +777,6 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate
 metadata:
   name: ${CLUSTER_CLASS_NAME}-md-nmt
-  namespace: ${NAMESPACE}
 spec:
   template:
     spec:

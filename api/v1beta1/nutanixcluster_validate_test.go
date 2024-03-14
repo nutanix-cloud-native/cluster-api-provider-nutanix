@@ -90,7 +90,7 @@ func TestNutanixClusterOpenAPIValidationPCAddress(t *testing.T) {
 				)
 				g.Expect(err).NotTo(HaveOccurred())
 
-				validator, _, err := validation.NewSchemaValidator(unversionedCRValidation)
+				validator, _, err := validation.NewSchemaValidator(unversionedCRValidation.OpenAPIV3Schema)
 				g.Expect(err).NotTo(HaveOccurred())
 
 				if tc.wantErr {

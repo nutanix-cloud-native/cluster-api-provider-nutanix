@@ -85,7 +85,7 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 
 	if err = c.Watch(
 		// Watch the CAPI resource that owns this infrastructure resource.
-		&source.Kind{Type: &capiv1.Cluster{}},
+		source.Kind(mgr.GetCache(), &capiv1.Cluster{}),
 		handler.EnqueueRequestsFromMapFunc(
 			capiutil.ClusterToInfrastructureMapFunc(
 				ctx,
