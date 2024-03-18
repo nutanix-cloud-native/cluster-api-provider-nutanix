@@ -108,6 +108,22 @@ spec:
         kind: NutanixClusterTemplate
         matchResources:
           infrastructureCluster: true
+    - jsonPatches:
+      - op: add
+        path: /spec/template/spec/kubeadmConfigSpec/preKubeadmCommands/-
+        valueFrom:
+          template: |
+            sed -i 's/control_plane_endpoint_ip/{{ .controlPlaneEndpoint.IP }}/g' /etc/kubernetes/manifests/kube-vip.yaml
+      - op: add
+        path: /spec/template/spec/kubeadmConfigSpec/preKubeadmCommands/-
+        valueFrom:
+          template: |
+            sed -i 's/control_plane_endpoint_port/{{ .controlPlaneEndpoint.port }}/g' /etc/kubernetes/manifests/kube-vip.yaml
+      selector:
+        apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+        kind: KubeadmControlPlaneTemplate
+        matchResources:
+          controlPlane: true
     name: update-control-plane-endpoint
   - definitions:
     - jsonPatches:
@@ -425,9 +441,9 @@ spec:
                     - name: vip_arp
                       value: "true"
                     - name: address
-                      value: "${CONTROL_PLANE_ENDPOINT_IP}"
+                      value: "control_plane_endpoint_ip"
                     - name: port
-                      value: "${CONTROL_PLANE_ENDPOINT_PORT=6443}"
+                      value: "control_plane_endpoint_port"
                     - name: vip_cidr
                       value: "32"
                     - name: cp_enable

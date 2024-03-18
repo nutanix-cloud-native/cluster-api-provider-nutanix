@@ -294,4 +294,36 @@ var _ = Describe("Cluster Class Template Patches Test Suite", Ordered, func() {
 			Expect(clnt.Delete(context.Background(), obj)).NotTo(HaveOccurred())
 		})
 	})
+
+	Describe("patches for control plane endpoint kubevip", func() {
+		It("kubevip should have correct control plane endpoint", func() {
+			clusterManifest := "testdata/cluster-with-control-plane-endpoint.yaml"
+			obj, err := getClusterManifest(clusterManifest)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = clnt.Create(context.Background(), obj) // Create the cluster
+			Expect(err).NotTo(HaveOccurred())
+
+			var nutanixCluster *v1beta1.NutanixCluster
+			Eventually(func() error {
+				nutanixCluster, err = fetchNutanixCluster(clnt, obj.GetName())
+				return err
+			}).Within(time.Minute).Should(Succeed())
+
+			Expect(nutanixCluster.Spec.ControlPlaneEndpoint).NotTo(BeNil())
+			Expect(nutanixCluster.Spec.ControlPlaneEndpoint.Host).To(Equal("1.2.3.4"))
+			Expect(nutanixCluster.Spec.ControlPlaneEndpoint.Port).To(Equal(int32(6443)))
+
+			var kubeadmcontrolplane *controlplanev1.KubeadmControlPlane
+			Eventually(func() error {
+				kcp, err := fetchKubeadmControlPlane(clnt, obj.GetName())
+				kubeadmcontrolplane = kcp
+				return err
+			}).Within(time.Minute).Should(Succeed())
+			Expect(kubeadmcontrolplane.Spec.KubeadmConfigSpec.PreKubeadmCommands).To(ContainElements(
+				"sed -i 's/control_plane_endpoint_ip/1.2.3.4/g' /etc/kubernetes/manifests/kube-vip.yaml",
+				"sed -i 's/control_plane_endpoint_port/6443/g' /etc/kubernetes/manifests/kube-vip.yaml",
+			))
+		})
+	})
 })
