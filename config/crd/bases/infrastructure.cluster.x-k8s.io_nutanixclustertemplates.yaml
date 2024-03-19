@@ -228,9 +228,6 @@ spec:
                         - address
                         - port
                         type: object
-                    required:
-                    - controlPlaneEndpoint
-                    - prismCentral
                     type: object
                 required:
                 - spec
