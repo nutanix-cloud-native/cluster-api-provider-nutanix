@@ -226,6 +226,9 @@ spec:
                 - address
                 - port
                 type: object
+            required:
+            - controlPlaneEndpoint
+            - prismCentral
             type: object
           status:
             description: NutanixClusterStatus defines the observed state of NutanixCluster
