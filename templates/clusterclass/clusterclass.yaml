@@ -263,6 +263,35 @@ spec:
             path: /spec/template/spec/cluster
           - op: remove
             path: /spec/template/spec/subnet
+  - name: add-project
+    enabledIf: "{{if .projectName}}true{{end}}"
+    definitions:
+      - selector:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+          kind: NutanixMachineTemplate
+          matchResources:
+            controlPlane: true
+        jsonPatches:
+          - op: add
+            path: /spec/template/spec/project
+            valueFrom:
+              template: |
+                type: name
+                name: {{ .projectName }}
+      - selector:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+          kind: NutanixMachineTemplate
+          matchResources:
+            machineDeploymentClass:
+              names:
+                - nutanix-quick-start-worker
+        jsonPatches:
+          - op: add
+            path: /spec/template/spec/project
+            valueFrom:
+              template: |
+                type: name
+                name: {{ .projectName }}
   variables:
   - name: sshKey
     required: true
@@ -376,3 +405,9 @@ spec:
                     enum:
                       - name
                       - uuid
+  - name: projectName
+    required: false
+    schema:
+      openAPIV3Schema:
+        description: Prism Central project name to deploy the cluster resources into.
+        type: string
