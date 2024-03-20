@@ -13,6 +13,7 @@ testbin/*
 
 # auto-generated e2e cluster-template yaml files
 test/e2e/data/infrastructure-nutanix/*/cluster-template*.yaml
+test/e2e/data/infrastructure-nutanix/*/clusterclass-*.yaml
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
