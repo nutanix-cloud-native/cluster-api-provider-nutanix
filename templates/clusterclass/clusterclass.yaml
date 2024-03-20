@@ -311,12 +311,37 @@ spec:
             matchResources:
               machineDeploymentClass:
                 names:
-                - nutanix-quick-start-worker
+                  - nutanix-quick-start-worker
           jsonPatches:
             - op: add
               path: /spec/template/spec/additionalCategories
               valueFrom:
                 variable: additionalCategories
+    - name: add-gpus
+      enabledIf: "{{if .gpus}}true{{end}}"
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: NutanixMachineTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: add
+              path: /spec/template/spec/gpus
+              valueFrom:
+                variable: gpus
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: NutanixMachineTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                - nutanix-quick-start-worker
+          jsonPatches:
+            - op: add
+              path: /spec/template/spec/gpus
+              valueFrom:
+                variable: gpus
   variables:
     - name: sshKey
       required: true
@@ -448,3 +473,18 @@ spec:
                 type: string
               value:
                 type: string
+    - name: gpus
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              deviceID:
+                type: integer
+              type:
+                type: string
+        description: List of GPUs to be used in the machine deployment in cluster.
