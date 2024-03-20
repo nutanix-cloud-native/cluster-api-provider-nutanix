@@ -247,6 +247,31 @@ spec:
           controlPlane: true
     enabledIf: '{{if .failureDomains}}true{{end}}'
     name: add-failure-domains
+  - definitions:
+    - jsonPatches:
+      - op: add
+        path: /spec/template/spec/project
+        valueFrom:
+          variable: project
+      selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        matchResources:
+          controlPlane: true
+    - jsonPatches:
+      - op: add
+        path: /spec/template/spec/project
+        valueFrom:
+          variable: project
+      selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - nutanix-quick-start-worker
+    enabledIf: '{{if .project}}true{{end}}'
+    name: add-project
   variables:
   - name: sshKey
     required: true
@@ -362,6 +387,22 @@ spec:
               type: array
           type: object
         type: array
+  - name: project
+    required: false
+    schema:
+      openAPIV3Schema:
+        description: Prism Central project to deploy the cluster resources into.
+        properties:
+          name:
+            type: string
+          type:
+            enum:
+            - name
+            - uuid
+            type: string
+          uuid:
+            type: string
+        type: object
   workers:
     machineDeployments:
     - class: nutanix-quick-start-worker
