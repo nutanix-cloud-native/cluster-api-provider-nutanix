@@ -214,6 +214,7 @@ providers:
           - sourcePath: "../data/infrastructure-nutanix/ccm-update.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-clusterclass.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/clusterclass-e2e.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/clusterclass-nutanix-quick-start.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-topology.yaml"
 
 variables:
