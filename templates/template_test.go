@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"k8s.io/utils/ptr"
 	"os"
 	"strings"
 	"testing"
@@ -362,6 +363,37 @@ var _ = Describe("Cluster Class Template Patches Test Suite", Ordered, func() {
 					Key:   "fake-category-key",
 					Value: "fake-category-value",
 				})))))
+		})
+	})
+
+	Describe("patches for GPUs", func() {
+		It("should have correct GPUs", func() {
+			clusterManifest := "testdata/cluster-with-gpu.yaml"
+			obj, err := getClusterManifest(clusterManifest)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = clnt.Create(context.Background(), obj) // Create the cluster
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(func() error {
+				_, err = fetchNutanixCluster(clnt, obj.GetName())
+				return err
+			}).Within(time.Minute).Should(Succeed())
+
+			Eventually(func() ([]*v1beta1.NutanixMachineTemplate, error) {
+				return fetchMachineTemplates(clnt, obj.GetName())
+			}).Within(time.Minute).Should(And(HaveLen(2),
+				HaveEach(HaveExistingField("Spec.Template.Spec.GPUs")),
+				HaveEach(HaveField("Spec.Template.Spec.GPUs", HaveLen(2))),
+				HaveEach(HaveField("Spec.Template.Spec.GPUs", ContainElement(v1beta1.NutanixGPU{
+					Type: v1beta1.NutanixGPUIdentifierName,
+					Name: ptr.To("fake-gpu"),
+				}))),
+				HaveEach(HaveField("Spec.Template.Spec.GPUs", ContainElement(v1beta1.NutanixGPU{
+					Type:     v1beta1.NutanixGPUIdentifierDeviceID,
+					DeviceID: ptr.To(int64(42)),
+				}))),
+			))
 		})
 	})
 })
