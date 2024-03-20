@@ -276,6 +276,31 @@ spec:
             - nutanix-quick-start-worker
     enabledIf: '{{if .projectName}}true{{end}}'
     name: add-project
+  - definitions:
+    - jsonPatches:
+      - op: add
+        path: /spec/template/spec/additionalCategories
+        valueFrom:
+          variable: additionalCategories
+      selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        matchResources:
+          controlPlane: true
+    - jsonPatches:
+      - op: add
+        path: /spec/template/spec/additionalCategories
+        valueFrom:
+          variable: additionalCategories
+      selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - nutanix-quick-start-worker
+    enabledIf: '{{if .additionalCategories}}true{{end}}'
+    name: add-additional-categories
   variables:
   - name: sshKey
     required: true
@@ -395,6 +420,18 @@ spec:
       openAPIV3Schema:
         description: Prism Central project name to deploy the cluster resources into.
         type: string
+  - name: additionalCategories
+    required: false
+    schema:
+      openAPIV3Schema:
+        items:
+          properties:
+            key:
+              type: string
+            value:
+              type: string
+          type: object
+        type: array
   workers:
     machineDeployments:
     - class: nutanix-quick-start-worker

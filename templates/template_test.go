@@ -338,4 +338,30 @@ var _ = Describe("Cluster Class Template Patches Test Suite", Ordered, func() {
 				HaveEach(HaveField("Spec.Template.Spec.Project.Name", HaveValue(Equal("fake-project"))))))
 		})
 	})
+
+	Describe("patches for additional categories", func() {
+		It("should have correct categories", func() {
+			clusterManifest := "testdata/cluster-with-additional-categories.yaml"
+			obj, err := getClusterManifest(clusterManifest)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = clnt.Create(context.Background(), obj) // Create the cluster
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(func() error {
+				_, err = fetchNutanixCluster(clnt, obj.GetName())
+				return err
+			}).Within(time.Minute).Should(Succeed())
+
+			Eventually(func() ([]*v1beta1.NutanixMachineTemplate, error) {
+				return fetchMachineTemplates(clnt, obj.GetName())
+			}).Within(time.Minute).Should(And(HaveLen(2),
+				HaveEach(HaveExistingField("Spec.Template.Spec.AdditionalCategories")),
+				HaveEach(HaveField("Spec.Template.Spec.AdditionalCategories", HaveLen(1))),
+				HaveEach(HaveField("Spec.Template.Spec.AdditionalCategories", ContainElement(v1beta1.NutanixCategoryIdentifier{
+					Key:   "fake-category-key",
+					Value: "fake-category-value",
+				})))))
+		})
+	})
 })
