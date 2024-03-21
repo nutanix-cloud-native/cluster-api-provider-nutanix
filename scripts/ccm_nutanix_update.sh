@@ -22,4 +22,4 @@ helm template -n kube-system nutanix-cloud-provider nutanix/nutanix-cloud-provid
   --set prismCentralEndPoint='${NUTANIX_ENDPOINT}',prismCentralPort='${NUTANIX_PORT=9440}',prismCentralInsecure='${NUTANIX_INSECURE=false}' \
   --set image.repository="\${CCM_REPO=$NUTANIX_CCM_REPO}",image.tag="\${CCM_TAG=v$NUTANIX_CCM_VERSION}" \
   --set createSecret=false \
-  > templates/base-root/nutanix-ccm.yaml
+  > templates/ccm/nutanix-ccm.yaml

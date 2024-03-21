@@ -1,0 +1,7 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
+binaryData:
+  ca.crt: ${NUTANIX_ADDITIONAL_TRUST_BUNDLE=""}

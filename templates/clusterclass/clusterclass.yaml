@@ -1,20 +1,18 @@
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: ClusterClass
 metadata:
-  name: "${CLUSTER_CLASS_NAME}"
+  name: "nutanix-quick-start"
 spec:
   controlPlane:
     ref:
       apiVersion: controlplane.cluster.x-k8s.io/v1beta1
       kind: KubeadmControlPlaneTemplate
-      name: ${CLUSTER_CLASS_NAME}-kcpt
-      namespace: ${NAMESPACE}
+      name: nutanix-quick-start-kcpt
     machineInfrastructure:
       ref:
         kind: NutanixMachineTemplate
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-        name: ${CLUSTER_CLASS_NAME}-cp-nmt
-        namespace: ${NAMESPACE}
+        name: nutanix-quick-start-cp-nmt
     machineHealthCheck:
       maxUnhealthy: 40%
       nodeStartupTimeout: 10m
@@ -39,20 +37,18 @@ spec:
           timeout: 300s
   workers:
     machineDeployments:
-    - class: ${CLUSTER_CLASS_NAME}-worker
+    - class: nutanix-quick-start-worker
       template:
         bootstrap:
           ref:
             apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
             kind: KubeadmConfigTemplate
-            name: "${CLUSTER_CLASS_NAME}-kcfg-0"
-            namespace: ${NAMESPACE}
+            name: "nutanix-quick-start-kcfg-0"
         infrastructure:
           ref:
             apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
             kind: NutanixMachineTemplate
-            name: ${CLUSTER_CLASS_NAME}-md-nmt
-            namespace: ${NAMESPACE}
+            name: nutanix-quick-start-md-nmt
       machineHealthCheck:
         maxUnhealthy: 40%
         nodeStartupTimeout: 10m
@@ -79,8 +75,7 @@ spec:
     ref:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
       kind: NutanixClusterTemplate
-      name: ${CLUSTER_CLASS_NAME}-nct
-      namespace: ${NAMESPACE}
+      name: nutanix-quick-start-nct
   patches:
   - name: add-ssh-user
     definitions:
@@ -105,7 +100,7 @@ spec:
         matchResources:
           machineDeploymentClass:
             names:
-            - ${CLUSTER_CLASS_NAME}-worker
+            - nutanix-quick-start-worker
       jsonPatches:
       - op: add
         path: /spec/template/spec/users
@@ -146,10 +141,10 @@ spec:
             port: {{ .prismCentralEndpoint.port }}
             insecure: {{ .prismCentralEndpoint.insecure }}
             credentialRef:
-              name: "${CLUSTER_NAME}"
+              name: '{{ .prismCentralEndpoint.credentialSecret }}'
               kind: Secret
             additionalTrustBundle:
-              name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
+              name: '{{ .prismCentralEndpoint.additionalTrustBundle }}'
               kind: ConfigMap
   - name: update-control-plane-machine-template
     definitions:
@@ -159,31 +154,31 @@ spec:
         matchResources:
           controlPlane: true
       jsonPatches:
-          - op: replace
+          - op: add
             path: /spec/template/spec/bootType
             valueFrom:
               variable: controlPlaneMachineDetails.bootType
-          - op: replace
+          - op: add
             path: /spec/template/spec/vcpusPerSocket
             valueFrom:
               variable: controlPlaneMachineDetails.vcpusPerSocket
-          - op: replace
+          - op: add
             path: /spec/template/spec/memorySize
             valueFrom:
               variable: controlPlaneMachineDetails.memorySize
-          - op: replace
+          - op: add
             path: /spec/template/spec/systemDiskSize
             valueFrom:
               variable: controlPlaneMachineDetails.systemDiskSize
-          - op: replace
+          - op: add
             path: /spec/template/spec/image/name
             valueFrom:
               variable: controlPlaneMachineDetails.imageName
-          - op: replace
+          - op: add
             path: /spec/template/spec/cluster/name
             valueFrom:
               variable: controlPlaneMachineDetails.clusterName
-          - op: replace
+          - op: add
             path: /spec/template/spec/subnet
             valueFrom:
               template: |
@@ -197,33 +192,33 @@ spec:
         matchResources:
           machineDeploymentClass:
             names:
-            - ${CLUSTER_CLASS_NAME}-worker
+            - nutanix-quick-start-worker
       jsonPatches:
-          - op: replace
+          - op: add
             path: /spec/template/spec/bootType
             valueFrom:
               variable: workerMachineDetails.bootType
-          - op: replace
+          - op: add
             path: /spec/template/spec/vcpusPerSocket
             valueFrom:
               variable: workerMachineDetails.vcpusPerSocket
-          - op: replace
+          - op: add
             path: /spec/template/spec/memorySize
             valueFrom:
               variable: workerMachineDetails.memorySize
-          - op: replace
+          - op: add
             path: /spec/template/spec/systemDiskSize
             valueFrom:
               variable: workerMachineDetails.systemDiskSize
-          - op: replace
+          - op: add
             path: /spec/template/spec/image/name
             valueFrom:
               variable: workerMachineDetails.imageName
-          - op: replace
+          - op: add
             path: /spec/template/spec/cluster/name
             valueFrom:
               variable: workerMachineDetails.clusterName
-          - op: replace
+          - op: add
             path: /spec/template/spec/subnet
             valueFrom:
               template: |
@@ -257,6 +252,10 @@ spec:
             type: integer
           insecure:
             type: boolean
+          credentialSecret:
+            type: string
+          additionalTrustBundle:
+            type: string
         type: object
   - name: controlPlaneMachineDetails
     required: true

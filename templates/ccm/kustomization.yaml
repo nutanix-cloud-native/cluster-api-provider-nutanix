@@ -8,7 +8,5 @@ configMapGenerator:
   - nutanix-ccm.yaml
 
 bases:
-  - ./secret.yaml
-  - ./cm.yaml
   - ./nutanix-ccm-crs.yaml
   - ./nutanix-ccm-secret.yaml

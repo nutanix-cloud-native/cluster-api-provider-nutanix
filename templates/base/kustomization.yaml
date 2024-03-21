@@ -4,7 +4,9 @@ kind: Kustomization
 namespace: "${NAMESPACE}"
 
 bases:
-  - ../base-root
+  - ../ccm
+  - ./cm.yaml
+  - ./secret.yaml
   - ./nutanix-cluster.yaml
   - ./cluster-without-topology.yaml
   - ./kcp.yaml

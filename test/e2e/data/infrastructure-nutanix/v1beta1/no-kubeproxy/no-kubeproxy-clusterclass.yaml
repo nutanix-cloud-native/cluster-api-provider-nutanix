@@ -1,22 +1,22 @@
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
 kind: KubeadmControlPlaneTemplate
 metadata:
-  name: "${CLUSTER_CLASS_NAME}-kcpt"
+  name: "nutanix-quick-start-kcpt"
 spec:
   template:
     spec:
       kubeadmConfigSpec:
         initConfiguration:
           skipPhases:
-          - addon/kube-proxy
+            - addon/kube-proxy
 ---
 apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
 kind: KubeadmConfigTemplate
 metadata:
-  name: "${CLUSTER_NAME}-kcfg-0"
+  name: "nutanix-quick-start-kcfg-0"
 spec:
   template:
     spec:
       initConfiguration:
         skipPhases:
-        - addon/kube-proxy
+          - addon/kube-proxy

@@ -1,27 +1,27 @@
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate
 metadata:
-  name: "${CLUSTER_CLASS_NAME}-md-nmt"
+  name: "nutanix-quick-start-md-nmt"
 spec:
   template:
     spec:
-      providerID: "nutanix://${CLUSTER_NAME}-m1"
+      providerID: "nutanix://vm-uuid"
       # Supported options for boot type: legacy and uefi
       # Defaults to legacy if not set
-      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
-      vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
-      vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
-      memorySize: "${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}"
-      systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
+      bootType: legacy
+      vcpusPerSocket: 1
+      vcpuSockets: 2
+      memorySize: 4Gi
+      systemDiskSize: 40Gi
       image:
         type: name
-        name: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}"
+        name: ""
       cluster:
         type: name
-        name: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
+        name: ""
       subnet:
         - type: name
-          name: "${NUTANIX_SUBNET_NAME}"
+          name: ""
       # Adds additional categories to the virtual machines.
       # Note: Categories must already be present in Prism Central
       # additionalCategories:
