@@ -1,24 +1,24 @@
-bases:
-  - ../../../../../../templates/base/nutanix-cluster.yaml
-  - ../../../../../../templates/base/cluster-without-topology.yaml
-  - ../../../../../../templates/base/kcp.yaml
-  - ../../../../../../templates/base/kct.yaml
-  - ../../../../../../templates/base/secret.yaml
-  - ../../../../../../templates/base/cm.yaml
-  - ../../../../../../templates/base/nmt.yaml
-  - ../../../../../../templates/base/md.yaml
-  - ../../../../../../templates/ccm/nutanix-ccm-crs.yaml
-  - ../../../../../../templates/ccm/nutanix-ccm-secret.yaml
-  - ../base/crs.yaml
-  - ./mhc.yaml
-
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../../../../../templates/base/nutanix-cluster.yaml
+- ../../../../../../templates/base/cluster-without-topology.yaml
+- ../../../../../../templates/base/kcp.yaml
+- ../../../../../../templates/base/kct.yaml
+- ../../../../../../templates/base/secret.yaml
+- ../../../../../../templates/base/cm.yaml
+- ../../../../../../templates/base/nmt.yaml
+- ../../../../../../templates/base/md.yaml
+- ../../../../../../templates/ccm/nutanix-ccm-crs.yaml
+- ../../../../../../templates/ccm/nutanix-ccm-secret.yaml
+- ../base/crs.yaml
+- ./mhc.yaml
+patches:
+- path: ../base/cni-patch.yaml
+- path: ./md.yaml
+- path: ../../../../../../templates/base/ccm-patch.yaml
 configMapGenerator:
-  - name: nutanix-ccm
-    behavior: merge
+  - behavior: merge
     files:
       - ../../../../../../templates/ccm/nutanix-ccm.yaml
-
-patchesStrategicMerge:
-  - ../base/cni-patch.yaml
-  - ./md.yaml
-  - ../../../../../../templates/base/ccm-patch.yaml
+    name: nutanix-ccm

@@ -1,6 +1,7 @@
-bases:
-  - ../../../../../../templates/topology/
-  - ../base/crs.yaml
-
-patchesStrategicMerge:
-  - ../base/cni-patch.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../../../../../templates/topology/
+- ../base/crs.yaml
+patches:
+- path: ../base/cni-patch.yaml

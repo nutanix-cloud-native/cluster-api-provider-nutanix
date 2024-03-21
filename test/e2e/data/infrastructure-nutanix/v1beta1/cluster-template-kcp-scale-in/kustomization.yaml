@@ -1,6 +1,7 @@
-bases:
-  - ../cluster-template-upgrades
-
-patchesStrategicMerge:
-  - ../base/cni-patch.yaml
-  - ./cluster-with-kcp.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../cluster-template-upgrades
+patches:
+- path: ../base/cni-patch.yaml
+- path: ./cluster-with-kcp.yaml

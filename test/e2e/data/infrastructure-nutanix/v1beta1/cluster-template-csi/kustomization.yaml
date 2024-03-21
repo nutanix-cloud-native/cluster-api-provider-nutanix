@@ -1,8 +1,9 @@
-bases:
-  - ../../../../../../templates/csi/
-  - ../base/crs.yaml
-
-patchesStrategicMerge:
-  - ../base/cni-patch.yaml
-  - ./kcp.yaml
-  - ./kct.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../../../../../templates/csi/
+- ../base/crs.yaml
+patches:
+- path: ../base/cni-patch.yaml
+- path: ./kcp.yaml
+- path: ./kct.yaml
