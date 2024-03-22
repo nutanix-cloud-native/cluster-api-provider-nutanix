@@ -8,7 +8,7 @@ require (
 	github.com/go-logr/logr v1.4.1
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.3.1
-	github.com/nutanix-cloud-native/prism-go-client v0.3.4
+	github.com/nutanix-cloud-native/prism-go-client v0.3.5-0.20240326132746-18a22da74d78
 	github.com/onsi/ginkgo/v2 v2.17.0
 	github.com/onsi/gomega v1.30.0
 	github.com/pkg/errors v0.9.1
