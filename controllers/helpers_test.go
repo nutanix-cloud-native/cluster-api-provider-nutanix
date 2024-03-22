@@ -22,6 +22,7 @@ import (
 
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
@@ -52,6 +53,7 @@ func TestControllerHelpers(t *testing.T) {
 					Namespace: "default",
 				},
 				Spec: infrav1.NutanixClusterSpec{
+					ControlPlaneEndpoint: &capiv1.APIEndpoint{},
 					PrismCentral: &credentialTypes.NutanixPrismEndpoint{
 						// Adding port info to override default value (0)
 						Port: 9440,
