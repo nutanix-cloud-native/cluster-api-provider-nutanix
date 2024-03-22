@@ -46,7 +46,7 @@ type NutanixClusterSpec struct {
 
 	// ControlPlaneEndpoint represents the endpoint used to communicate with the control plane.
 	// host can be either DNS name or ip address
-	ControlPlaneEndpoint capiv1.APIEndpoint `json:"controlPlaneEndpoint"`
+	ControlPlaneEndpoint *capiv1.APIEndpoint `json:"controlPlaneEndpoint"`
 
 	// prismCentral holds the endpoint address and port to access the Nutanix Prism Central.
 	// When a cluster-wide proxy is installed, by default, this endpoint will be accessed via the proxy.
