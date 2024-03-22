@@ -81,11 +81,12 @@ func (n *NutanixClientHelper) BuildClientForNutanixClusterWithFallback(ctx conte
 		return nil, err
 	}
 	creds := prismgoclient.Credentials{
-		URL:      me.Address.Host,
-		Endpoint: me.Address.Host,
-		Insecure: me.Insecure,
-		Username: me.ApiCredentials.Username,
-		Password: me.ApiCredentials.Password,
+		URL:         me.Address.Host,
+		Endpoint:    me.Address.Host,
+		Insecure:    me.Insecure,
+		Username:    me.ApiCredentials.Username,
+		Password:    me.ApiCredentials.Password,
+		SessionAuth: true,
 	}
 	return Build(creds, me.AdditionalTrustBundle)
 }
