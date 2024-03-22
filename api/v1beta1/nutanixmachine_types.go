@@ -73,6 +73,7 @@ type NutanixMachineSpec struct {
 	Subnets []NutanixResourceIdentifier `json:"subnet"`
 	// List of categories that need to be added to the machines. Categories must already exist in Prism Central
 	// +kubebuilder:validation:Optional
+	// +optional
 	AdditionalCategories []NutanixCategoryIdentifier `json:"additionalCategories,omitempty"`
 	// Add the machine resources to a Prism Central project
 	// +optional
@@ -94,6 +95,7 @@ type NutanixMachineSpec struct {
 
 	// List of GPU devices that need to be added to the machines.
 	// +kubebuilder:validation:Optional
+	// +optional
 	GPUs []NutanixGPU `json:"gpus,omitempty"`
 }
 
