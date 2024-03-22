@@ -37,6 +37,8 @@ var _ = Describe("When upgrading a workload cluster and testing K8S conformance"
 	})
 })
 
+// NOTE: following test does not work as nutanix provider needs cp and md imageName as an extra variable to be updated with
+// correct image path with the upgradeTo k8s version.
 // var _ = Describe("When upgrading a workload cluster using ClusterClass", func() {
 // 	ClusterUpgradeConformanceSpec(ctx, func() ClusterUpgradeConformanceSpecInput {
 // 		return ClusterUpgradeConformanceSpecInput{

@@ -25,7 +25,7 @@ import (
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 )
 
-var _ = Describe("When testing ClusterClass changes [ClusterClass]", Label("clusterclass", "slow", "network"), func() {
+var _ = Describe("When mutating ClusterClass fields", Label("clusterclass", "capx-feature-test"), func() {
 	capi_e2e.ClusterClassChangesSpec(ctx, func() capi_e2e.ClusterClassChangesSpecInput {
 		return capi_e2e.ClusterClassChangesSpecInput{
 			E2EConfig:             e2eConfig,
