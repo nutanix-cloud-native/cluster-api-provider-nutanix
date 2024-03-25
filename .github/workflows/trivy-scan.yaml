@@ -35,7 +35,7 @@ jobs:
           PLATFORMS: linux/amd64,linux/arm64,linux/arm
         run: |
           export SOURCE_DATE_EPOCH=$(date +%s)
-          ko build -B -t ${{ github.sha }} --platform=$PLATFORMS .
+          devbox run -- ko build -B -t ${{ github.sha }} --platform=$PLATFORMS .
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.16.1
