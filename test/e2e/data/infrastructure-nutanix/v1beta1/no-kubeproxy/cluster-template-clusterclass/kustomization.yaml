@@ -1,5 +1,6 @@
-bases:
-  - ../../cluster-template-clusterclass/
-
-patchesStrategicMerge:
-  - ../no-kubeproxy-clusterclass.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../cluster-template-clusterclass/
+patches:
+- path: ../no-kubeproxy-clusterclass.yaml
