@@ -53,7 +53,7 @@ func TestControllerHelpers(t *testing.T) {
 					Namespace: "default",
 				},
 				Spec: infrav1.NutanixClusterSpec{
-					ControlPlaneEndpoint: &capiv1.APIEndpoint{},
+					ControlPlaneEndpoint: capiv1.APIEndpoint{},
 					PrismCentral: &credentialTypes.NutanixPrismEndpoint{
 						// Adding port info to override default value (0)
 						Port: 9440,

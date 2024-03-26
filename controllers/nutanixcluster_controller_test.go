@@ -83,7 +83,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 					UID:       utilruntime.NewUUID(),
 				},
 				Spec: infrav1.NutanixClusterSpec{
-					ControlPlaneEndpoint: &capiv1.APIEndpoint{},
+					ControlPlaneEndpoint: capiv1.APIEndpoint{},
 					PrismCentral: &credentialTypes.NutanixPrismEndpoint{
 						// Adding port info to override default value (0)
 						Port: 9440,
@@ -246,7 +246,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 						Namespace: corev1.NamespaceDefault,
 					},
 					Spec: infrav1.NutanixClusterSpec{
-						ControlPlaneEndpoint: &capiv1.APIEndpoint{},
+						ControlPlaneEndpoint: capiv1.APIEndpoint{},
 						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
 							// Adding port info to override default value (0)
 							Port: 9440,
@@ -411,7 +411,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 						Namespace: "default",
 					},
 					Spec: infrav1.NutanixClusterSpec{
-						ControlPlaneEndpoint: &capiv1.APIEndpoint{},
+						ControlPlaneEndpoint: capiv1.APIEndpoint{},
 						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
 							// Adding port info to override default value (0)
 							Port: 9440,
@@ -474,7 +474,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 						Namespace: "default",
 					},
 					Spec: infrav1.NutanixClusterSpec{
-						ControlPlaneEndpoint: &capiv1.APIEndpoint{},
+						ControlPlaneEndpoint: capiv1.APIEndpoint{},
 						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
 							// Adding port info to override default value (0)
 							Port: 9440,
@@ -509,7 +509,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 						Namespace: "default",
 					},
 					Spec: infrav1.NutanixClusterSpec{
-						ControlPlaneEndpoint: &capiv1.APIEndpoint{},
+						ControlPlaneEndpoint: capiv1.APIEndpoint{},
 						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
 							// Adding port info to override default value (0)
 							Port: 9440,
@@ -545,28 +545,8 @@ func TestNutanixClusterReconciler(t *testing.T) {
 						Namespace: "default",
 					},
 					Spec: infrav1.NutanixClusterSpec{
-						ControlPlaneEndpoint: &capiv1.APIEndpoint{},
+						ControlPlaneEndpoint: capiv1.APIEndpoint{},
 						PrismCentral:         nil,
-					},
-				}
-
-				// Create the NutanixCluster object
-				g.Expect(k8sClient.Create(ctx, ntnxCluster)).NotTo(Succeed())
-			})
-		})
-
-		Context("NutanixCluster creation failed: ControlPlaneEndpoint Info is null", func() {
-			It("Should not return error", func() {
-				ctx := context.Background()
-
-				ntnxCluster := &infrav1.NutanixCluster{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test",
-						Namespace: "default",
-					},
-					Spec: infrav1.NutanixClusterSpec{
-						ControlPlaneEndpoint: nil,
-						PrismCentral:         &credentialTypes.NutanixPrismEndpoint{},
 					},
 				}
 

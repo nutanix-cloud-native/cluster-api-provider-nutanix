@@ -310,14 +310,18 @@ func Convert_v1beta1_NutanixClusterList_To_v1alpha4_NutanixClusterList(in *v1bet
 }
 
 func autoConvert_v1alpha4_NutanixClusterSpec_To_v1beta1_NutanixClusterSpec(in *NutanixClusterSpec, out *v1beta1.NutanixClusterSpec, s conversion.Scope) error {
-	out.ControlPlaneEndpoint = (*apiv1beta1.APIEndpoint)(unsafe.Pointer(&in.ControlPlaneEndpoint))
+	if err := Convert_v1alpha4_APIEndpoint_To_v1beta1_APIEndpoint(&in.ControlPlaneEndpoint, &out.ControlPlaneEndpoint, s); err != nil {
+		return err
+	}
 	out.PrismCentral = (*credentials.NutanixPrismEndpoint)(unsafe.Pointer(in.PrismCentral))
 	out.FailureDomains = *(*[]v1beta1.NutanixFailureDomain)(unsafe.Pointer(&in.FailureDomains))
 	return nil
 }
 
 func autoConvert_v1beta1_NutanixClusterSpec_To_v1alpha4_NutanixClusterSpec(in *v1beta1.NutanixClusterSpec, out *NutanixClusterSpec, s conversion.Scope) error {
-	out.ControlPlaneEndpoint = (apiv1beta1.APIEndpoint)(*in.ControlPlaneEndpoint)
+	if err := Convert_v1beta1_APIEndpoint_To_v1alpha4_APIEndpoint(&in.ControlPlaneEndpoint, &out.ControlPlaneEndpoint, s); err != nil {
+		return err
+	}
 	out.PrismCentral = (*credentials.NutanixPrismEndpoint)(unsafe.Pointer(in.PrismCentral))
 	out.FailureDomains = *(*[]NutanixFailureDomain)(unsafe.Pointer(&in.FailureDomains))
 	return nil
