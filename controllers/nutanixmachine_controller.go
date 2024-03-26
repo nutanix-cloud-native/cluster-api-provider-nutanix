@@ -50,6 +50,7 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client/prismclientcache"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
@@ -232,12 +233,23 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	v3Client, err := CreateNutanixClient(ctx, r.SecretInformer, r.ConfigMapInformer, ntxCluster)
+	v3Client, err := prismclientcache.DefaultCache.Get(ntxCluster.Name)
 	if err != nil {
-		conditions.MarkFalse(ntxMachine, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
-		return ctrl.Result{Requeue: true}, fmt.Errorf("client auth error: %v", err)
+		if errors.Is(err, prismclientcache.ErrorClientNotFound) {
+			log.Info("Nutanix Prism client not found in cache; Creating new client")
+			v3Client, err = CreateNutanixClient(ctx, r.SecretInformer, r.ConfigMapInformer, ntxCluster)
+			if err != nil {
+				conditions.MarkFalse(ntxMachine, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, fmt.Errorf("nutanix client error: %w", err)
+			}
+			prismclientcache.DefaultCache.Set(cluster.Name, v3Client)
+			conditions.MarkTrue(ntxMachine, infrav1.PrismCentralClientCondition)
+		} else {
+			conditions.MarkFalse(ntxMachine, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+			return ctrl.Result{}, err
+		}
 	}
-	conditions.MarkTrue(ntxMachine, infrav1.PrismCentralClientCondition)
+
 	rctx := &nctx.MachineContext{
 		Context:        ctx,
 		Cluster:        cluster,
