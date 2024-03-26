@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"time"
 
@@ -44,6 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client/prismclientcache"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
@@ -178,10 +180,21 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	conditions.MarkTrue(cluster, infrav1.CredentialRefSecretOwnerSetCondition)
 
-	v3Client, err := CreateNutanixClient(ctx, r.SecretInformer, r.ConfigMapInformer, cluster)
+	v3Client, err := prismclientcache.DefaultCache.Get(cluster.Name)
 	if err != nil {
-		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
-		return ctrl.Result{Requeue: true}, fmt.Errorf("nutanix client error: %v", err)
+		if stderrors.Is(err, prismclientcache.ErrorClientNotFound) {
+			log.Info("Nutanix Prism client not found in cache; Creating new client")
+			v3Client, err = CreateNutanixClient(ctx, r.SecretInformer, r.ConfigMapInformer, cluster)
+			if err != nil {
+				conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, fmt.Errorf("nutanix prism client error: %w", err)
+			}
+			prismclientcache.DefaultCache.Set(cluster.Name, v3Client)
+			conditions.MarkTrue(cluster, infrav1.PrismCentralClientCondition)
+		} else {
+			conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, fmt.Errorf("nutanix prism client error: %w", err)
+		}
 	}
 	conditions.MarkTrue(cluster, infrav1.PrismCentralClientCondition)
 
@@ -239,6 +252,8 @@ func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (r
 		Name:      rctx.Cluster.Name,
 	}
 	nctx.RemoveRemoteClient(clusterKey)
+	// delete the client from the cache
+	prismclientcache.DefaultCache.Delete(rctx.NutanixCluster.Name)
 
 	return reconcile.Result{}, nil
 }
