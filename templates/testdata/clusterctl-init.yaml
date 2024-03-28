@@ -1,0 +1,7 @@
+---
+CLUSTERCTL_LOG_LEVEL: 10
+EXP_CLUSTER_RESOURCE_SET: 'true'
+CLUSTER_TOPOLOGY: 'true'
+NUTANIX_ENDPOINT: ''  # IP or FQDN of Prism Central
+NUTANIX_USER: ''  # Prism Central user
+NUTANIX_PASSWORD: ''  # Prism Central password
