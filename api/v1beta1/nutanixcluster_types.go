@@ -60,7 +60,7 @@ type NutanixClusterSpec struct {
 	// +listType=map
 	// +listMapKey=name
 	// +optional
-	FailureDomains []NutanixFailureDomain `json:"failureDomains"`
+	FailureDomains []NutanixFailureDomain `json:"failureDomains,omitempty"`
 }
 
 // NutanixClusterStatus defines the observed state of NutanixCluster
