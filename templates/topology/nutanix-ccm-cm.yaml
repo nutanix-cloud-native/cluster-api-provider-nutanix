@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: nutanix-ccm-pc-trusted-ca-bundle
-  namespace: kube-system
-binaryData:
-  ca.crt: ""
