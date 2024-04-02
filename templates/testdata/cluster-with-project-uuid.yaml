@@ -1,0 +1,56 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  labels:
+    ccm: nutanix
+    cluster.x-k8s.io/cluster-name: cluster-with-project-uuid
+  name: cluster-with-project-uuid
+spec:
+  topology:
+    class: nutanix-quick-start
+    controlPlane:
+      metadata: {}
+      replicas: 1
+    variables:
+      - name: sshKey
+        value: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMe61GqA9gqeX3zDCiwuU8zEDt3ckLnfVm8ZxN7UuFyL user@host
+      - name: controlPlaneEndpoint
+        value:
+          IP: 1.2.3.4
+          port: 6443
+      - name: prismCentralEndpoint
+        value:
+          address: prismcentral.fake
+          credentialSecret: nutanix-quick-start-pc-creds
+          insecure: false
+          port: 9440
+      - name: controlPlaneMachineDetails
+        value:
+          bootType: legacy
+          clusterName: fake-cluster
+          imageName: ubuntu-2204-kube-v1.29.2.qcow2
+          memorySize: 4Gi
+          subnetName: fake-subnet
+          systemDiskSize: 40Gi
+          vcpuSockets: 2
+          vcpusPerSocket: 1
+      - name: workerMachineDetails
+        value:
+          bootType: legacy
+          clusterName: fake-cluster
+          imageName: ubuntu-2204-kube-v1.29.2.qcow2
+          memorySize: 4Gi
+          subnetName: fake-subnet
+          systemDiskSize: 40Gi
+          vcpuSockets: 2
+          vcpusPerSocket: 1
+      - name: project
+        value:
+          type: uuid
+          name: 00000000-0000-0000-0000-000000000001
+    version: v1.29.2
+    workers:
+      machineDeployments:
+        - class: nutanix-quick-start-worker
+          name: md-0
+          replicas: 2

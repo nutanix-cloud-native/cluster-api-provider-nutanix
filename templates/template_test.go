@@ -12,6 +12,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/format"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -38,6 +39,7 @@ const (
 var clnt client.Client
 
 func init() {
+	format.MaxLength = 100000
 	// Add NutanixCluster and NutanixMachine to the scheme
 	_ = v1beta1.AddToScheme(scheme.Scheme)
 	_ = capiv1.AddToScheme(scheme.Scheme)
@@ -324,6 +326,52 @@ var _ = Describe("Cluster Class Template Patches Test Suite", Ordered, func() {
 				"sed -i 's/control_plane_endpoint_ip/1.2.3.4/g' /etc/kubernetes/manifests/kube-vip.yaml",
 				"sed -i 's/control_plane_endpoint_port/6443/g' /etc/kubernetes/manifests/kube-vip.yaml",
 			))
+		})
+	})
+
+	Describe("patches for project (with name)", func() {
+		It("should have correct project", func() {
+			clusterManifest := "testdata/cluster-with-project-name.yaml"
+			obj, err := getClusterManifest(clusterManifest)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = clnt.Create(context.Background(), obj) // Create the cluster
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(func() error {
+				_, err = fetchNutanixCluster(clnt, obj.GetName())
+				return err
+			}).Within(time.Minute).Should(Succeed())
+
+			Eventually(func() ([]*v1beta1.NutanixMachineTemplate, error) {
+				return fetchMachineTemplates(clnt, obj.GetName())
+			}).Within(time.Minute).Should(And(HaveLen(2),
+				HaveEach(HaveExistingField("Spec.Template.Spec.Project")),
+				HaveEach(HaveField("Spec.Template.Spec.Project.Type", Equal(v1beta1.NutanixIdentifierName))),
+				HaveEach(HaveField("Spec.Template.Spec.Project.Name", HaveValue(Equal("fake-project"))))))
+		})
+	})
+
+	Describe("patches for project (with uuid)", func() {
+		It("should have correct project", func() {
+			clusterManifest := "testdata/cluster-with-project-uuid.yaml"
+			obj, err := getClusterManifest(clusterManifest)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = clnt.Create(context.Background(), obj) // Create the cluster
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(func() error {
+				_, err = fetchNutanixCluster(clnt, obj.GetName())
+				return err
+			}).Within(time.Minute).Should(Succeed())
+
+			Eventually(func() ([]*v1beta1.NutanixMachineTemplate, error) {
+				return fetchMachineTemplates(clnt, obj.GetName())
+			}).Within(time.Minute).Should(And(HaveLen(2),
+				HaveEach(HaveExistingField("Spec.Template.Spec.Project")),
+				HaveEach(HaveField("Spec.Template.Spec.Project.Type", Equal(v1beta1.NutanixIdentifierUUID))),
+				HaveEach(HaveField("Spec.Template.Spec.Project.Name", HaveValue(Equal("00000000-0000-0000-0000-000000000001"))))))
 		})
 	})
 })
