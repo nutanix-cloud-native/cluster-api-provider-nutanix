@@ -60,11 +60,11 @@ spec:
                       - name: vip_retryperiod
                         value: "2"
                       - name: svc_enable
-                        value: "${KUBEVIP_SVC_ENABLE=false}"
+                        value: "false"
                       - name: lb_enable
-                        value: "${KUBEVIP_LB_ENABLE=false}"
+                        value: "false"
                       - name: enableServicesElection
-                        value: "${KUBEVIP_SVC_ELECTION=false}"
+                        value: "false"
                     securityContext:
                       capabilities:
                         add:
