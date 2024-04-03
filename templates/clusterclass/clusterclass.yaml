@@ -288,6 +288,31 @@ spec:
             path: /spec/template/spec/project
             valueFrom:
               variable: project
+  - name: add-additional-categories
+    enabledIf: "{{if .additionalCategories}}true{{end}}"
+    definitions:
+      - selector:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+          kind: NutanixMachineTemplate
+          matchResources:
+            controlPlane: true
+        jsonPatches:
+          - op: add
+            path: /spec/template/spec/additionalCategories
+            valueFrom:
+              variable: additionalCategories
+      - selector:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+          kind: NutanixMachineTemplate
+          matchResources:
+            machineDeploymentClass:
+              names:
+              - nutanix-quick-start-worker
+        jsonPatches:
+          - op: add
+            path: /spec/template/spec/additionalCategories
+            valueFrom:
+              variable: additionalCategories
   variables:
   - name: sshKey
     required: true
@@ -419,3 +444,15 @@ spec:
             enum:
               - name
               - uuid
+  - name: additionalCategories
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: array
+        items:
+          type: object
+          properties:
+            key:
+              type: string
+            value:
+              type: string
