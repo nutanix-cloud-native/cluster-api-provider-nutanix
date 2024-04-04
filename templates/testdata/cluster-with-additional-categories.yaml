@@ -34,6 +34,9 @@ spec:
           systemDiskSize: 40Gi
           vcpuSockets: 2
           vcpusPerSocket: 1
+          additionalCategories:
+            - key: fake-category-key
+              value: fake-category-value
       - name: workerMachineDetails
         value:
           bootType: legacy
@@ -44,10 +47,9 @@ spec:
           systemDiskSize: 40Gi
           vcpuSockets: 2
           vcpusPerSocket: 1
-      - name: additionalCategories
-        value:
-          - key: fake-category-key
-            value: fake-category-value
+          additionalCategories:
+            - key: fake-category-key
+              value: fake-category-value
     version: v1.29.2
     workers:
       machineDeployments:

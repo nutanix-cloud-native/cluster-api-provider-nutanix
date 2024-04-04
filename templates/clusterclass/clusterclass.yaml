@@ -213,6 +213,19 @@ spec:
             path: /spec/template/spec/gpus
             valueFrom:
               variable: controlPlaneMachineDetails.gpus
+  - name: update-control-plane-machine-template-additional-categories
+    enabledIf: "{{if .controlPlaneMachineDetails.additionalCategories}}true{{end}}"
+    definitions:
+      - selector:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+          kind: NutanixMachineTemplate
+          matchResources:
+            controlPlane: true
+        jsonPatches:
+          - op: add
+            path: /spec/template/spec/additionalCategories
+            valueFrom:
+              variable: controlPlaneMachineDetails.additionalCategories
   - name: update-worker-machine-template
     definitions:
     - selector:
@@ -268,6 +281,21 @@ spec:
             path: /spec/template/spec/gpus
             valueFrom:
               variable: workerMachineDetails.gpus
+  - name: update-worker-machine-template-additional-categories
+    enabledIf: "{{if .workerMachineDetails.additionalCategories}}true{{end}}"
+    definitions:
+      - selector:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+          kind: NutanixMachineTemplate
+          matchResources:
+            machineDeploymentClass:
+              names:
+                - nutanix-quick-start-worker
+        jsonPatches:
+          - op: add
+            path: /spec/template/spec/additionalCategories
+            valueFrom:
+              variable: workerMachineDetails.additionalCategories
   - name: add-failure-domains
     enabledIf: "{{if .failureDomains}}true{{end}}"
     definitions:
@@ -316,31 +344,6 @@ spec:
             path: /spec/template/spec/project
             valueFrom:
               variable: project
-  - name: add-additional-categories
-    enabledIf: "{{if .additionalCategories}}true{{end}}"
-    definitions:
-      - selector:
-          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-          kind: NutanixMachineTemplate
-          matchResources:
-            controlPlane: true
-        jsonPatches:
-          - op: add
-            path: /spec/template/spec/additionalCategories
-            valueFrom:
-              variable: additionalCategories
-      - selector:
-          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-          kind: NutanixMachineTemplate
-          matchResources:
-            machineDeploymentClass:
-              names:
-              - nutanix-quick-start-worker
-        jsonPatches:
-          - op: add
-            path: /spec/template/spec/additionalCategories
-            valueFrom:
-              variable: additionalCategories
   variables:
   - name: sshKey
     required: true
@@ -409,6 +412,15 @@ spec:
                   type: integer
                 type:
                   type: string
+          additionalCategories:
+            type: array
+            items:
+              type: object
+              properties:
+                key:
+                  type: string
+                value:
+                  type: string
         type: object
   - name: workerMachineDetails
     required: true
@@ -442,6 +454,15 @@ spec:
                 deviceID:
                   type: integer
                 type:
+                  type: string
+          additionalCategories:
+            type: array
+            items:
+              type: object
+              properties:
+                key:
+                  type: string
+                value:
                   type: string
         type: object
   - name: failureDomains
@@ -499,16 +520,3 @@ spec:
             enum:
               - name
               - uuid
-  - name: additionalCategories
-    required: false
-    schema:
-      openAPIV3Schema:
-        description: Additional categories to be added to the machine deployment in cluster.
-        type: array
-        items:
-          type: object
-          properties:
-            key:
-              type: string
-            value:
-              type: string
