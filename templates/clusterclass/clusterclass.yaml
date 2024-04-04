@@ -200,6 +200,19 @@ spec:
               template: |
                 - type: name
                   name: {{ .controlPlaneMachineDetails.subnetName }}
+  - name: update-control-plane-machine-template-gpus
+    enabledIf: "{{if .controlPlaneMachineDetails.gpus}}true{{end}}"
+    definitions:
+      - selector:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+          kind: NutanixMachineTemplate
+          matchResources:
+            controlPlane: true
+        jsonPatches:
+          - op: add
+            path: /spec/template/spec/gpus
+            valueFrom:
+              variable: controlPlaneMachineDetails.gpus
   - name: update-worker-machine-template
     definitions:
     - selector:
@@ -240,6 +253,21 @@ spec:
               template: |
                 - type: name
                   name: {{ .controlPlaneMachineDetails.subnetName }}
+  - name: update-worker-machine-template-gpus
+    enabledIf: "{{if .workerMachineDetails.gpus}}true{{end}}"
+    definitions:
+      - selector:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+          kind: NutanixMachineTemplate
+          matchResources:
+            machineDeploymentClass:
+              names:
+                - nutanix-quick-start-worker
+        jsonPatches:
+          - op: add
+            path: /spec/template/spec/gpus
+            valueFrom:
+              variable: workerMachineDetails.gpus
   - name: add-failure-domains
     enabledIf: "{{if .failureDomains}}true{{end}}"
     definitions:
@@ -324,6 +352,7 @@ spec:
     required: true
     schema:
       openAPIV3Schema:
+        description: IP and port of the control plane endpoint.
         properties:
           IP:
             type: string
@@ -334,6 +363,7 @@ spec:
     required: true
     schema:
       openAPIV3Schema:
+        description: Endpoint and credentials of the Prism Central.
         properties:
           address:
             type: string
@@ -350,6 +380,7 @@ spec:
     required: true
     schema:
       openAPIV3Schema:
+        description: Details of the control plane machine deployment.
         properties:
           bootType:
             type: string
@@ -367,11 +398,23 @@ spec:
             type: string
           subnetName:
             type: string
+          gpus:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                deviceID:
+                  type: integer
+                type:
+                  type: string
         type: object
   - name: workerMachineDetails
     required: true
     schema:
       openAPIV3Schema:
+        description: Details of the worker machine deployment.
         properties:
           bootType:
             type: string
@@ -389,11 +432,23 @@ spec:
             type: string
           subnetName:
             type: string
+          gpus:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                deviceID:
+                  type: integer
+                type:
+                  type: string
         type: object
   - name: failureDomains
     required: false
     schema:
       openAPIV3Schema:
+        description: List of failure domains to be used in the cluster.
         type: array
         items:
           type: object
@@ -448,6 +503,7 @@ spec:
     required: false
     schema:
       openAPIV3Schema:
+        description: Additional categories to be added to the machine deployment in cluster.
         type: array
         items:
           type: object

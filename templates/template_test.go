@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2/textlogger"
+	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	clusterctllog "sigs.k8s.io/cluster-api/cmd/clusterctl/log"
 	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
@@ -238,6 +239,29 @@ func fetchControlPlaneMachineTemplate(clnt client.Client, clusterName string) (*
 	return nil, fmt.Errorf("no control plane NutanixMachineTemplate found for cluster %s", clusterName)
 }
 
+func fetchWorkerMachineTemplates(clnt client.Client, clusterName string) ([]*v1beta1.NutanixMachineTemplate, error) {
+	nmts, err := fetchMachineTemplates(clnt, clusterName)
+	if err != nil {
+		return nil, err
+	}
+
+	kcp, err := fetchKubeadmControlPlane(clnt, clusterName)
+	if err != nil {
+		return nil, err
+	}
+
+	workerNmts := make([]*v1beta1.NutanixMachineTemplate, 0)
+	for _, nmt := range nmts {
+		if nmt.ObjectMeta.Name == kcp.Spec.MachineTemplate.InfrastructureRef.Name {
+			continue
+		}
+
+		workerNmts = append(workerNmts, nmt)
+	}
+
+	return workerNmts, nil
+}
+
 func TestClusterClassTemplateSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 	BeforeSuite(func() {
@@ -338,11 +362,6 @@ var _ = Describe("Cluster Class Template Patches Test Suite", Ordered, func() {
 			err = clnt.Create(context.Background(), obj) // Create the cluster
 			Expect(err).NotTo(HaveOccurred())
 
-			Eventually(func() error {
-				_, err = fetchNutanixCluster(clnt, obj.GetName())
-				return err
-			}).Within(time.Minute).Should(Succeed())
-
 			Eventually(func() ([]*v1beta1.NutanixMachineTemplate, error) {
 				return fetchMachineTemplates(clnt, obj.GetName())
 			}).Within(time.Minute).Should(And(HaveLen(2),
@@ -360,11 +379,6 @@ var _ = Describe("Cluster Class Template Patches Test Suite", Ordered, func() {
 
 			err = clnt.Create(context.Background(), obj) // Create the cluster
 			Expect(err).NotTo(HaveOccurred())
-
-			Eventually(func() error {
-				_, err = fetchNutanixCluster(clnt, obj.GetName())
-				return err
-			}).Within(time.Minute).Should(Succeed())
 
 			Eventually(func() ([]*v1beta1.NutanixMachineTemplate, error) {
 				return fetchMachineTemplates(clnt, obj.GetName())
@@ -384,11 +398,6 @@ var _ = Describe("Cluster Class Template Patches Test Suite", Ordered, func() {
 			err = clnt.Create(context.Background(), obj) // Create the cluster
 			Expect(err).NotTo(HaveOccurred())
 
-			Eventually(func() error {
-				_, err = fetchNutanixCluster(clnt, obj.GetName())
-				return err
-			}).Within(time.Minute).Should(Succeed())
-
 			Eventually(func() ([]*v1beta1.NutanixMachineTemplate, error) {
 				return fetchMachineTemplates(clnt, obj.GetName())
 			}).Within(time.Minute).Should(And(HaveLen(2),
@@ -398,6 +407,37 @@ var _ = Describe("Cluster Class Template Patches Test Suite", Ordered, func() {
 					Key:   "fake-category-key",
 					Value: "fake-category-value",
 				})))))
+		})
+	})
+
+	Describe("patches for GPUs", func() {
+		It("should have correct GPUs", func() {
+			clusterManifest := "testdata/cluster-with-gpu.yaml"
+			obj, err := getClusterManifest(clusterManifest)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = clnt.Create(context.Background(), obj) // Create the cluster
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(func() (*v1beta1.NutanixMachineTemplate, error) {
+				return fetchControlPlaneMachineTemplate(clnt, obj.GetName())
+			}).Within(time.Minute).Should(And(HaveExistingField("Spec.Template.Spec.GPUs"),
+				HaveField("Spec.Template.Spec.GPUs", HaveLen(1)),
+				HaveField("Spec.Template.Spec.GPUs", ContainElement(v1beta1.NutanixGPU{
+					Type:     v1beta1.NutanixGPUIdentifierDeviceID,
+					DeviceID: ptr.To(int64(42)),
+				}))))
+
+			Eventually(func() ([]*v1beta1.NutanixMachineTemplate, error) {
+				return fetchWorkerMachineTemplates(clnt, obj.GetName())
+			}).Within(time.Minute).Should(And(HaveLen(1),
+				HaveEach(HaveExistingField("Spec.Template.Spec.GPUs")),
+				HaveEach(HaveField("Spec.Template.Spec.GPUs", HaveLen(1))),
+				HaveEach(HaveField("Spec.Template.Spec.GPUs", ContainElement(v1beta1.NutanixGPU{
+					Type: v1beta1.NutanixGPUIdentifierName,
+					Name: ptr.To("fake-gpu"),
+				}))),
+			))
 		})
 	})
 })
