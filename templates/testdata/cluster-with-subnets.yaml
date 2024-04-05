@@ -3,8 +3,8 @@ kind: Cluster
 metadata:
   labels:
     ccm: nutanix
-    cluster.x-k8s.io/cluster-name: cluster-with-additional-categories
-  name: cluster-with-additional-categories
+    cluster.x-k8s.io/cluster-name: cluster-with-subnets
+  name: cluster-with-subnets
 spec:
   topology:
     class: nutanix-quick-start
@@ -32,13 +32,12 @@ spec:
           memorySize: 4Gi
           subnets:
             - type: name
-              name: fake-subnet
+              name: shared-subnet
+            - type: name
+              name: controlplane-subnet
           systemDiskSize: 40Gi
           vcpuSockets: 2
           vcpusPerSocket: 1
-          additionalCategories:
-            - key: fake-category-key
-              value: fake-category-value
       - name: workerMachineDetails
         value:
           bootType: legacy
@@ -47,13 +46,12 @@ spec:
           memorySize: 4Gi
           subnets:
             - type: name
-              name: fake-subnet
+              name: shared-subnet
+            - type: name
+              name: worker-subnet
           systemDiskSize: 40Gi
           vcpuSockets: 2
           vcpusPerSocket: 1
-          additionalCategories:
-            - key: fake-category-key
-              value: fake-category-value
     version: v1.29.2
     workers:
       machineDeployments:

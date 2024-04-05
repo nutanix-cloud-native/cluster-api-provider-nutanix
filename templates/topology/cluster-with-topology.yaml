@@ -46,7 +46,9 @@ spec:
         systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
         imageName: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}"
         clusterName: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
-        subnetName: "${NUTANIX_SUBNET_NAME}"
+        subnets:
+        - type: name
+          name: "${NUTANIX_SUBNET_NAME}"
     - name: workerMachineDetails
       value:
         bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
@@ -56,4 +58,6 @@ spec:
         systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
         imageName: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}"
         clusterName: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
-        subnetName: "${NUTANIX_SUBNET_NAME}"
+        subnets:
+        - type: name
+          name: "${NUTANIX_SUBNET_NAME}"

@@ -326,7 +326,9 @@ spec:
         clusterName: ${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}
         imageName: ${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}
         memorySize: ${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}
-        subnetName: ${NUTANIX_SUBNET_NAME}
+        subnets:
+        - name: ${NUTANIX_SUBNET_NAME}
+          type: name
         systemDiskSize: ${NUTANIX_SYSTEMDISK_SIZE=40Gi}
         vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
         vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}
@@ -336,7 +338,9 @@ spec:
         clusterName: ${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}
         imageName: ${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}
         memorySize: ${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}
-        subnetName: ${NUTANIX_SUBNET_NAME}
+        subnets:
+        - name: ${NUTANIX_SUBNET_NAME}
+          type: name
         systemDiskSize: ${NUTANIX_SYSTEMDISK_SIZE=40Gi}
         vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
         vcpusPerSocket: ${NUTANIX_MACHINE_VCPU_PER_SOCKET=1}

@@ -175,9 +175,7 @@ spec:
       - op: add
         path: /spec/template/spec/subnet
         valueFrom:
-          template: |
-            - type: name
-              name: {{ .controlPlaneMachineDetails.subnetName }}
+          variable: controlPlaneMachineDetails.subnets
       selector:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         kind: NutanixMachineTemplate
@@ -239,9 +237,7 @@ spec:
       - op: add
         path: /spec/template/spec/subnet
         valueFrom:
-          template: |
-            - type: name
-              name: {{ .controlPlaneMachineDetails.subnetName }}
+          variable: workerMachineDetails.subnets
       selector:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         kind: NutanixMachineTemplate
@@ -397,8 +393,20 @@ spec:
             type: string
           memorySize:
             type: string
-          subnetName:
-            type: string
+          subnets:
+            items:
+              properties:
+                name:
+                  type: string
+                type:
+                  enum:
+                  - name
+                  - uuid
+                  type: string
+                uuid:
+                  type: string
+              type: object
+            type: array
           systemDiskSize:
             type: string
           vcpuSockets:
@@ -440,8 +448,20 @@ spec:
             type: string
           memorySize:
             type: string
-          subnetName:
-            type: string
+          subnets:
+            items:
+              properties:
+                name:
+                  type: string
+                type:
+                  enum:
+                  - name
+                  - uuid
+                  type: string
+                uuid:
+                  type: string
+              type: object
+            type: array
           systemDiskSize:
             type: string
           vcpuSockets:

@@ -440,4 +440,43 @@ var _ = Describe("Cluster Class Template Patches Test Suite", Ordered, func() {
 			))
 		})
 	})
+
+	Describe("patches for subnets", func() {
+		It("should have correct subnets", func() {
+			clusterManifest := "testdata/cluster-with-subnets.yaml"
+			obj, err := getClusterManifest(clusterManifest)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = clnt.Create(context.Background(), obj) // Create the cluster
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(func() (*v1beta1.NutanixMachineTemplate, error) {
+				return fetchControlPlaneMachineTemplate(clnt, obj.GetName())
+			}).Within(time.Minute).Should(And(HaveExistingField("Spec.Template.Spec.Subnets"),
+				HaveField("Spec.Template.Spec.Subnets", HaveLen(2)),
+				HaveField("Spec.Template.Spec.Subnets", ContainElement(v1beta1.NutanixResourceIdentifier{
+					Type: v1beta1.NutanixIdentifierName,
+					Name: ptr.To("shared-subnet"),
+				})),
+				HaveField("Spec.Template.Spec.Subnets", ContainElement(v1beta1.NutanixResourceIdentifier{
+					Type: v1beta1.NutanixIdentifierName,
+					Name: ptr.To("controlplane-subnet"),
+				}))))
+
+			Eventually(func() ([]*v1beta1.NutanixMachineTemplate, error) {
+				return fetchWorkerMachineTemplates(clnt, obj.GetName())
+			}).Within(time.Minute).Should(And(HaveLen(1),
+				HaveEach(HaveExistingField("Spec.Template.Spec.Subnets")),
+				HaveEach(HaveField("Spec.Template.Spec.Subnets", HaveLen(2))),
+				HaveEach(HaveField("Spec.Template.Spec.Subnets", ContainElement(v1beta1.NutanixResourceIdentifier{
+					Type: v1beta1.NutanixIdentifierName,
+					Name: ptr.To("shared-subnet"),
+				}))),
+				HaveEach(HaveField("Spec.Template.Spec.Subnets", ContainElement(v1beta1.NutanixResourceIdentifier{
+					Type: v1beta1.NutanixIdentifierName,
+					Name: ptr.To("worker-subnet"),
+				}))),
+			))
+		})
+	})
 })

@@ -30,7 +30,9 @@ spec:
           clusterName: fake-cluster
           imageName: ubuntu-2204-kube-v1.29.2.qcow2
           memorySize: 4Gi
-          subnetName: fake-subnet
+          subnets:
+            - type: name
+              name: fake-subnet
           systemDiskSize: 40Gi
           vcpuSockets: 2
           vcpusPerSocket: 1
@@ -40,7 +42,9 @@ spec:
           clusterName: fake-cluster
           imageName: ubuntu-2204-kube-v1.29.2.qcow2
           memorySize: 4Gi
-          subnetName: fake-subnet
+          subnets:
+            - type: name
+              name: fake-subnet
           systemDiskSize: 40Gi
           vcpuSockets: 2
           vcpusPerSocket: 1

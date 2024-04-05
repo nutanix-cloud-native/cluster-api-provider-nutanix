@@ -197,9 +197,7 @@ spec:
           - op: add
             path: /spec/template/spec/subnet
             valueFrom:
-              template: |
-                - type: name
-                  name: {{ .controlPlaneMachineDetails.subnetName }}
+              variable: controlPlaneMachineDetails.subnets
   - name: update-control-plane-machine-template-gpus
     enabledIf: "{{if .controlPlaneMachineDetails.gpus}}true{{end}}"
     definitions:
@@ -263,9 +261,7 @@ spec:
           - op: add
             path: /spec/template/spec/subnet
             valueFrom:
-              template: |
-                - type: name
-                  name: {{ .controlPlaneMachineDetails.subnetName }}
+              variable: workerMachineDetails.subnets
   - name: update-worker-machine-template-gpus
     enabledIf: "{{if .workerMachineDetails.gpus}}true{{end}}"
     definitions:
@@ -399,8 +395,20 @@ spec:
             type: string
           clusterName:
             type: string
-          subnetName:
-            type: string
+          subnets:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                uuid:
+                  type: string
+                type:
+                  type: string
+                  enum:
+                    - name
+                    - uuid
           gpus:
             type: array
             items:
@@ -442,8 +450,20 @@ spec:
             type: string
           clusterName:
             type: string
-          subnetName:
-            type: string
+          subnets:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                uuid:
+                  type: string
+                type:
+                  type: string
+                  enum:
+                    - name
+                    - uuid
           gpus:
             type: array
             items:
