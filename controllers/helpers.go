@@ -25,9 +25,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	coreinformers "k8s.io/client-go/informers/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/client-go/informers/core/v1"
+	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiutil "sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
@@ -43,14 +50,6 @@ const (
 
 	gpuUnused = "UNUSED"
 )
-
-// CreateNutanixClient creates a new Nutanix client from the environment
-func CreateNutanixClient(ctx context.Context, secretInformer coreinformers.SecretInformer, cmInformer coreinformers.ConfigMapInformer, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
-	log := ctrl.LoggerFrom(ctx)
-	log.V(1).Info("creating nutanix client")
-	helper := nutanixClient.NewHelper(secretInformer, cmInformer)
-	return helper.BuildClientForNutanixClusterWithFallback(ctx, nutanixCluster)
-}
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
 func DeleteVM(ctx context.Context, client *nutanixClientV3.Client, vmName, vmUUID string) (string, error) {
@@ -759,4 +758,93 @@ func GetFailureDomain(failureDomainName string, nutanixCluster *infrav1.NutanixC
 		}
 	}
 	return nil, fmt.Errorf("failed to find failure domain %s on nutanix cluster object", failureDomainName)
+}
+
+func reconcileCredentialRef(ctx context.Context, k8sClient client.Client, nutanixCluster *infrav1.NutanixCluster) error {
+	log := ctrl.LoggerFrom(ctx)
+	credentialRef, err := getPrismCentralCredentialRefForCluster(nutanixCluster)
+	if err != nil {
+		return err
+	}
+
+	secret := &corev1.Secret{}
+	if credentialRef == nil {
+		return nil
+	}
+
+	log.V(1).Info(fmt.Sprintf("credential ref is kind Secret for cluster %s", nutanixCluster.Name))
+	secretKey := client.ObjectKey{
+		Namespace: nutanixCluster.Namespace,
+		Name:      credentialRef.Name,
+	}
+
+	if err := k8sClient.Get(ctx, secretKey, secret); err != nil {
+		errorMsg := fmt.Errorf("error occurred while fetching cluster %s secret for credential ref: %v", nutanixCluster.Name, err)
+		log.Error(errorMsg, "error occurred fetching cluster")
+		return errorMsg
+	}
+
+	// Check if ownerRef is already set on nutanixCluster object
+	if !capiutil.IsOwnedByObject(secret, nutanixCluster) {
+		// Check if another nutanixCluster already has set ownerRef. Secret can only be owned by one nutanixCluster object
+		if capiutil.HasOwner(secret.OwnerReferences, infrav1.GroupVersion.String(), []string{
+			nutanixCluster.Kind,
+		}) {
+			return fmt.Errorf("secret %s already owned by another nutanixCluster object", secret.Name)
+		}
+		// Set nutanixCluster ownerRef on the secret
+		secret.OwnerReferences = capiutil.EnsureOwnerRef(secret.OwnerReferences, metav1.OwnerReference{
+			APIVersion: infrav1.GroupVersion.String(),
+			Kind:       nutanixCluster.Kind,
+			UID:        nutanixCluster.UID,
+			Name:       nutanixCluster.Name,
+		})
+	}
+
+	if !ctrlutil.ContainsFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer) {
+		ctrlutil.AddFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer)
+	}
+
+	err = k8sClient.Update(ctx, secret)
+	if err != nil {
+		errorMsg := fmt.Errorf("failed to update secret for cluster %s: %v", nutanixCluster.Name, err)
+		log.Error(errorMsg, "failed to update secret")
+		return errorMsg
+	}
+
+	return nil
+}
+
+func getPrismCentralClientForCluster(ctx context.Context, k8sClient client.Client, cluster *infrav1.NutanixCluster, capiCluster *capiv1.Cluster,
+	secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer,
+) (*nutanixClientV3.Client, error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	if err := reconcileCredentialRef(ctx, k8sClient, cluster); err != nil {
+		log.Error(err, fmt.Sprintf("error occurred while reconciling credential ref for cluster %s", capiCluster.Name))
+		conditions.MarkFalse(cluster, infrav1.CredentialRefSecretOwnerSetCondition, infrav1.CredentialRefSecretOwnerSetFailed, capiv1.ConditionSeverityError, err.Error())
+		return nil, err
+	}
+	conditions.MarkTrue(cluster, infrav1.CredentialRefSecretOwnerSetCondition)
+
+	clientHelper := nutanixClient.NewHelper(secretInformer, mapInformer)
+	mep, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
+	if err != nil {
+		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
+		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+		return nil, err
+	}
+
+	v3Client, err := nutanixClient.NutanixClientCache.GetOrCreate(&nutanixClient.CacheParams{
+		NutanixCluster:          cluster,
+		PrismManagementEndpoint: mep,
+	})
+	if err != nil {
+		log.Error(err, "error occurred while getting nutanix prism client from cache")
+		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+		return nil, fmt.Errorf("nutanix prism client error: %w", err)
+	}
+
+	conditions.MarkTrue(cluster, infrav1.PrismCentralClientCondition)
+	return v3Client, nil
 }

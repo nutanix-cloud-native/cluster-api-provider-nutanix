@@ -19,7 +19,6 @@ limitations under the License.
 package e2e
 
 import (
-	"encoding/base64"
 	"flag"
 	"fmt"
 	"os"
@@ -29,8 +28,6 @@ import (
 	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
-
-	nutanixClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 )
 
 const (
@@ -82,7 +79,7 @@ func getBaseAuthCredentials(e2eConfig clusterctl.E2EConfig) baseAuthCredentials 
 	}
 }
 
-func getNutanixCredentials(e2eConfig clusterctl.E2EConfig) (*prismGoClient.Credentials, error) {
+func getNutanixCredentials(e2eConfig clusterctl.E2EConfig) (prismGoClient.Credentials, error) {
 	up := getBaseAuthCredentials(e2eConfig)
 	if nutanixEndpoint == "" {
 		nutanixEndpoint = fetchCredentialParameter(nutanixEndpointVarKey, e2eConfig, false)
@@ -97,16 +94,17 @@ func getNutanixCredentials(e2eConfig clusterctl.E2EConfig) (*prismGoClient.Crede
 		nutanixAdditionalTrustBundle = fetchCredentialParameter(nutanixAdditionalTrustBundleVarKey, e2eConfig, true)
 	}
 
-	creds := &prismGoClient.Credentials{
+	creds := prismGoClient.Credentials{
 		Port:     nutanixPort,
 		Endpoint: nutanixEndpoint,
 		Username: up.username,
 		Password: up.password,
+		URL:      fmt.Sprintf("https://%s:%s", nutanixEndpoint, nutanixPort),
 	}
 	if nutanixInsecure != "" {
 		insecureBool, err := strconv.ParseBool(nutanixInsecure)
 		if err != nil {
-			return nil, fmt.Errorf("unable to convert value for environment variable %s to bool: %v", nutanixInsecureVarKey, err)
+			return prismGoClient.Credentials{}, fmt.Errorf("unable to convert value for environment variable %s to bool: %v", nutanixInsecureVarKey, err)
 		}
 		creds.Insecure = insecureBool
 	}
@@ -119,15 +117,12 @@ func initNutanixClient(e2eConfig clusterctl.E2EConfig) (*prismGoClientV3.Client,
 		return nil, err
 	}
 
-	var trustBundle string
+	opts := make([]prismGoClientV3.ClientOption, 0)
 	if nutanixAdditionalTrustBundle != "" {
-		decodedCert, err := base64.StdEncoding.DecodeString(nutanixAdditionalTrustBundle)
-		if err != nil {
-			return nil, err
-		}
-		trustBundle = string(decodedCert)
+		opts = append(opts, prismGoClientV3.WithPEMEncodedCertBundle([]byte(nutanixAdditionalTrustBundle)))
 	}
-	client, err := nutanixClient.Build(*creds, trustBundle)
+
+	client, err := prismGoClientV3.NewV3Client(creds, opts...)
 	if err != nil {
 		return nil, err
 	}

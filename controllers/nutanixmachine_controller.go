@@ -236,12 +236,12 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	v3Client, err := CreateNutanixClient(ctx, r.SecretInformer, r.ConfigMapInformer, ntxCluster)
+	v3Client, err := getPrismCentralClientForCluster(ctx, r.Client, ntxCluster, cluster, r.SecretInformer, r.ConfigMapInformer)
 	if err != nil {
-		conditions.MarkFalse(ntxMachine, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
-		return ctrl.Result{Requeue: true}, fmt.Errorf("client auth error: %v", err)
+		log.Error(err, "error occurred while fetching prism central client")
+		return reconcile.Result{}, err
 	}
-	conditions.MarkTrue(ntxMachine, infrav1.PrismCentralClientCondition)
+
 	rctx := &nctx.MachineContext{
 		Context:        ctx,
 		Cluster:        cluster,

@@ -272,7 +272,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(k8sClient.Create(ctx, ntnxSecret)).To(Succeed())
 
 				// Reconcile credentialRef
-				err := reconciler.reconcileCredentialRef(ctx, ntnxCluster)
+				err := reconcileCredentialRef(ctx, k8sClient, ntnxCluster)
 				g.Expect(err).To(HaveOccurred())
 			})
 			It("should add credentialRef and finalizer if not owned by other cluster", func() {
@@ -287,7 +287,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(k8sClient.Create(ctx, ntnxSecret)).To(Succeed())
 
 				// Reconcile credentialRef
-				err := reconciler.reconcileCredentialRef(ctx, ntnxCluster)
+				err := reconcileCredentialRef(ctx, k8sClient, ntnxCluster)
 				g.Expect(err).ToNot(HaveOccurred())
 
 				// Get latest secret status
@@ -323,7 +323,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(k8sClient.Create(ctx, ntnxSecret)).To(Succeed())
 
 				// Reconcile credentialRef
-				err := reconciler.reconcileCredentialRef(ctx, ntnxCluster)
+				err := reconcileCredentialRef(ctx, k8sClient, ntnxCluster)
 				g.Expect(err).ToNot(HaveOccurred())
 
 				// Get latest secret status
@@ -360,7 +360,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(k8sClient.Create(ctx, ntnxSecret)).To(Succeed())
 
 				// Reconcile credentialRef
-				err := reconciler.reconcileCredentialRef(ctx, ntnxCluster)
+				err := reconcileCredentialRef(ctx, k8sClient, ntnxCluster)
 				g.Expect(err).ToNot(HaveOccurred())
 
 				// Get latest secret status
@@ -383,12 +383,12 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				}
 
 				// Reconcile credentialRef
-				err := reconciler.reconcileCredentialRef(ctx, ntnxCluster)
+				err := reconcileCredentialRef(ctx, k8sClient, ntnxCluster)
 				g.Expect(err).To(HaveOccurred())
 			})
 			It("should error if NutanixCluster is nil", func() {
 				// Reconcile credentialRef
-				err := reconciler.reconcileCredentialRef(ctx, nil)
+				err := reconcileCredentialRef(ctx, k8sClient, nil)
 				g.Expect(err).To(HaveOccurred())
 			})
 		})
