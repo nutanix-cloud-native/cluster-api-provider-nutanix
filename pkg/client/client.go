@@ -22,12 +22,10 @@ import (
 	"fmt"
 	"os"
 
-	prismgoclient "github.com/nutanix-cloud-native/prism-go-client"
 	"github.com/nutanix-cloud-native/prism-go-client/environment"
 	"github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	kubernetesEnv "github.com/nutanix-cloud-native/prism-go-client/environment/providers/kubernetes"
 	envTypes "github.com/nutanix-cloud-native/prism-go-client/environment/types"
-	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -74,27 +72,10 @@ func (n *NutanixClientHelper) withCustomNutanixPrismEndpointReader(getter func()
 	return n
 }
 
-// BuildClientForNutanixClusterWithFallback builds a Nutanix Client from the information provided in nutanixCluster.
-func (n *NutanixClientHelper) BuildClientForNutanixClusterWithFallback(ctx context.Context, nutanixCluster *infrav1.NutanixCluster) (*nutanixClientV3.Client, error) {
-	me, err := n.buildManagementEndpoint(ctx, nutanixCluster)
-	if err != nil {
-		return nil, err
-	}
-	creds := prismgoclient.Credentials{
-		URL:         me.Address.Host,
-		Endpoint:    me.Address.Host,
-		Insecure:    me.Insecure,
-		Username:    me.ApiCredentials.Username,
-		Password:    me.ApiCredentials.Password,
-		SessionAuth: true,
-	}
-	return Build(creds, me.AdditionalTrustBundle)
-}
-
-// buildManagementEndpoint takes in a NutanixCluster and constructs a ManagementEndpoint with all the information provided.
+// BuildManagementEndpoint takes in a NutanixCluster and constructs a ManagementEndpoint with all the information provided.
 // If required information is not set, it will fallback to using information from /etc/nutanix/config/prismCentral,
 // which is expected to be mounted in the Pod.
-func (n *NutanixClientHelper) buildManagementEndpoint(ctx context.Context, nutanixCluster *infrav1.NutanixCluster) (*envTypes.ManagementEndpoint, error) {
+func (n *NutanixClientHelper) BuildManagementEndpoint(ctx context.Context, nutanixCluster *infrav1.NutanixCluster) (*envTypes.ManagementEndpoint, error) {
 	log := ctrl.LoggerFrom(ctx)
 
 	// Create an empty list of env providers
@@ -189,37 +170,6 @@ func (n *NutanixClientHelper) buildProviderFromFile() (envTypes.Provider, error)
 	}
 
 	return kubernetesEnv.NewProvider(*npe, n.secretInformer, n.configMapInformer), nil
-}
-
-func Build(creds prismgoclient.Credentials, additionalTrustBundle string) (*nutanixClientV3.Client, error) {
-	return buildClientFromCredentials(creds, additionalTrustBundle)
-}
-
-func buildClientFromCredentials(creds prismgoclient.Credentials, additionalTrustBundle string) (*nutanixClientV3.Client, error) {
-	if creds.Username == "" {
-		return nil, ErrPrismIUsernameNotSet
-	}
-	if creds.Password == "" {
-		return nil, ErrPrismIPasswordNotSet
-	}
-	if creds.Port == "" {
-		creds.Port = defaultEndpointPort
-	}
-	if creds.URL == "" {
-		creds.URL = fmt.Sprintf("%s:%s", creds.Endpoint, creds.Port)
-	}
-
-	clientOpts := make([]nutanixClientV3.ClientOption, 0)
-	if additionalTrustBundle != "" {
-		clientOpts = append(clientOpts, nutanixClientV3.WithPEMEncodedCertBundle([]byte(additionalTrustBundle)))
-	}
-	// Build the client with the creds and possibly an additional TrustBundle
-	cli, err := nutanixClientV3.NewV3Client(creds, clientOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create new nutanix client: %w", err)
-	}
-
-	return cli, nil
 }
 
 // readManagerNutanixPrismEndpoint reads the default config file and unmarshalls it into NutanixPrismEndpoint.
