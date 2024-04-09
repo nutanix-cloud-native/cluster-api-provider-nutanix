@@ -108,15 +108,15 @@ func (n *NutanixClientHelper) buildManagementEndpoint(ctx context.Context, nutan
 		providers = append(providers, providerForNutanixCluster)
 	} else {
 		log.Info(fmt.Sprintf("[WARNING] prismCentral attribute was not set on NutanixCluster %s in namespace %s. Defaulting to CAPX manager credentials", nutanixCluster.Name, nutanixCluster.Namespace))
-	}
-
-	// Fallback to building a provider using the global CAPX manager credentials
-	providerForLocalFile, err := n.buildProviderFromFile()
-	if err != nil {
-		return nil, fmt.Errorf("error building an environment provider from file: %w", err)
-	}
-	if providerForLocalFile != nil {
-		providers = append(providers, providerForLocalFile)
+		// Fallback to building a provider using prism central information from the CAPX management cluster
+		// using information from /etc/nutanix/config/prismCentral
+		providerForLocalFile, err := n.buildProviderFromFile()
+		if err != nil {
+			return nil, fmt.Errorf("error building an environment provider from file: %w", err)
+		}
+		if providerForLocalFile != nil {
+			providers = append(providers, providerForLocalFile)
+		}
 	}
 
 	// Initialize environment with providers
