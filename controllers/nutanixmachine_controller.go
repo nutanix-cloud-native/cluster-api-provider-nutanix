@@ -741,7 +741,7 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*nutanixClientV3.VMDisk, error
 			},
 		},
 		DataSourceReference: &nutanixClientV3.Reference{
-			Kind: ptr.To(infrav1.NutanixMachineBootstrapRefKindImage),
+			Kind: ptr.To(strings.ToLower(infrav1.NutanixMachineBootstrapRefKindImage)),
 			UUID: ptr.To(bootstrapImageUUID),
 		},
 	}
