@@ -116,23 +116,11 @@ func Test_buildManagementEndpoint(t *testing.T) {
 		expectedErr                error
 	}{
 		{
-			name: "all information set in NutanixCluster",
+			name: "all information set in NutanixCluster, should not fallback to management",
+			// asserting that not being able to read the file will not result in an error
 			helper: testHelperWithFakedInformers(testSecrets, testConfigMaps).withCustomNutanixPrismEndpointReader(
 				func() (*credentials.NutanixPrismEndpoint, error) {
-					return &credentials.NutanixPrismEndpoint{
-						Address: "manager-endpoint",
-						Port:    9440,
-						CredentialRef: &credentials.NutanixCredentialReference{
-							Kind:      credentials.SecretKind,
-							Name:      "capx-nutanix-creds",
-							Namespace: "capx-system",
-						},
-						AdditionalTrustBundle: &credentials.NutanixTrustBundleReference{
-							Kind:      credentials.NutanixTrustBundleKindConfigMap,
-							Name:      "cm",
-							Namespace: "capx-system",
-						},
-					}, nil
+					return nil, fmt.Errorf("could not read config")
 				},
 			),
 			nutanixCluster: &infrav1.NutanixCluster{
