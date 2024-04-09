@@ -19,14 +19,18 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/kdomanski/iso9660"
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"k8s.io/apimachinery/pkg/api/resource"
 	coreinformers "k8s.io/client-go/informers/core/v1"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
@@ -42,6 +46,11 @@ const (
 	subnetTypeOverlay = "OVERLAY"
 
 	gpuUnused = "UNUSED"
+
+	diskLabel        = "config-2"
+	isoFile          = "bootstrap-ign.iso"
+	metadataFilePath = "openstack/latest/meta_data.json"
+	userDataFilePath = "openstack/latest/user_data"
 )
 
 // CreateNutanixClient creates a new Nutanix client from the environment
@@ -759,4 +768,105 @@ func GetFailureDomain(failureDomainName string, nutanixCluster *infrav1.NutanixC
 		}
 	}
 	return nil, fmt.Errorf("failed to find failure domain %s on nutanix cluster object", failureDomainName)
+}
+
+func createCDROMFromImage(imgUUID string, deviceIndex int) *nutanixClientV3.VMDisk {
+	return &nutanixClientV3.VMDisk{
+		DeviceProperties: &nutanixClientV3.VMDiskDeviceProperties{
+			DeviceType: ptr.To(deviceTypeCDROM),
+			DiskAddress: &nutanixClientV3.DiskAddress{
+				AdapterType: ptr.To(adapterTypeIDE),
+				DeviceIndex: ptr.To(int64(deviceIndex)),
+			},
+		},
+		DataSourceReference: &nutanixClientV3.Reference{
+			Kind: ptr.To(strings.ToLower(infrav1.NutanixMachineBootstrapRefKindImage)),
+			UUID: ptr.To(imgUUID),
+		},
+	}
+}
+
+func getNextDeviceIndexFromDisks(disks []*nutanixClientV3.VMDisk) int {
+	deviceIndex := 0
+	for _, disk := range disks {
+		if disk.DeviceProperties != nil && disk.DeviceProperties.DiskAddress != nil {
+			if disk.DeviceProperties.DiskAddress.DeviceIndex != nil && int(*disk.DeviceProperties.DiskAddress.DeviceIndex) >= deviceIndex {
+				deviceIndex = int(*disk.DeviceProperties.DiskAddress.DeviceIndex) + 1
+			}
+		}
+	}
+
+	return deviceIndex
+}
+
+// bootISOImageName is the image name for Bootstrap node for a given infraID
+func bootISOImageName(infraID string) string {
+	return fmt.Sprintf("%s-%s", infraID, isoFile)
+}
+
+// bootISOImagePath is the image path for Bootstrap node for a given infraID and path
+func bootISOImagePath(path, infraID string) string {
+	imgName := bootISOImageName(infraID)
+	application := "capx"
+	subdir := "image_cache"
+	fullISOFile := filepath.Join(path, application, subdir, imgName)
+	return fullISOFile
+}
+
+// createBootstrapISO creates a ISO for the bootstrap node
+func createBootstrapISO(infraID, userData, metadata string) (string, error) {
+	writer, err := iso9660.NewWriter()
+	if err != nil {
+		return "", fmt.Errorf("failed to create new writer: %w", err)
+	}
+
+	defer func() {
+		_ = writer.Cleanup()
+	}()
+
+	userDataReader := strings.NewReader(userData)
+	if err := writer.AddFile(userDataReader, userDataFilePath); err != nil {
+		return "", fmt.Errorf("failed to add user_data file: %w", err)
+	}
+
+	metadataReader := strings.NewReader(metadata)
+	if err := writer.AddFile(metadataReader, metadataFilePath); err != nil {
+		return "", fmt.Errorf("failed to add meta_data file: %w", err)
+	}
+
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user cache directory: %w", err)
+	}
+
+	fullISOFile := bootISOImagePath(cacheDir, infraID)
+	fullISOFileDir, err := filepath.Abs(filepath.Dir(fullISOFile))
+	if err != nil {
+		return "", fmt.Errorf("failed to get absolute path of directory: %w", err)
+	}
+
+	if _, err := os.Stat(fullISOFileDir); err != nil {
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(fullISOFileDir, 0x0755); err != nil {
+				return "", fmt.Errorf("failed to create directory: %w", err)
+			}
+		} else {
+			return "", fmt.Errorf("failed to get directory info: %w", err)
+		}
+	}
+
+	outputFile, err := os.OpenFile(fullISOFile, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0x0644)
+	if err != nil {
+		return "", fmt.Errorf("failed to create ISO file: %w", err)
+	}
+
+	if err := writer.WriteTo(outputFile, diskLabel); err != nil {
+		return "", fmt.Errorf("failed to write to ISO file: %w", err)
+	}
+
+	if err := outputFile.Close(); err != nil {
+		return "", fmt.Errorf("failed to close ISO file: %w", err)
+	}
+
+	return fullISOFile, nil
 }

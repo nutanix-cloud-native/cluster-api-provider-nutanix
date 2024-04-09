@@ -563,13 +563,6 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		return nil, err
 	}
 
-	diskList, err := getDiskList(rctx)
-	if err != nil {
-		errorMsg := fmt.Errorf("failed to get the disk list to create the VM %s. %v", vmName, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
-		return nil, err
-	}
-
 	memorySizeMib := GetMibValueOfQuantity(rctx.NutanixMachine.Spec.MemorySize)
 	vmSpec.Resources = &nutanixClientV3.VMResources{
 		PowerState:            utils.StringPtr("ON"),
@@ -578,12 +571,18 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		NumSockets:            utils.Int64Ptr(int64(rctx.NutanixMachine.Spec.VCPUSockets)),
 		MemorySizeMib:         utils.Int64Ptr(memorySizeMib),
 		NicList:               nicList,
-		DiskList:              diskList,
+		DiskList:              make([]*nutanixClientV3.VMDisk, 0),
 		GpuList:               gpuList,
 	}
 	vmSpec.ClusterReference = &nutanixClientV3.Reference{
 		Kind: utils.StringPtr("cluster"),
 		UUID: utils.StringPtr(peUUID),
+	}
+
+	if err := r.addDisksToVM(rctx, vmSpec); err != nil {
+		errorMsg := fmt.Errorf("failed to add disks to create the VM %s. %v", vmName, err)
+		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		return nil, err
 	}
 
 	if err := r.addGuestCustomizationToVM(rctx, vmSpec); err != nil {
@@ -659,48 +658,92 @@ func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineC
 	// Get the bootstrapData
 	bootstrapRef := rctx.NutanixMachine.Spec.BootstrapRef
 	if bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindSecret {
+		metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"uuid\": \"%s\"}", rctx.Machine.Name, uuid.New())
+		metadataEncoded := base64.StdEncoding.EncodeToString([]byte(metadata))
+
 		bootstrapData, err := r.getBootstrapData(rctx)
 		if err != nil {
 			return err
 		}
 
-		// Encode the bootstrapData by base64
 		bsdataEncoded := base64.StdEncoding.EncodeToString(bootstrapData)
-		metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"uuid\": \"%s\"}", rctx.Machine.Name, uuid.New())
-		metadataEncoded := base64.StdEncoding.EncodeToString([]byte(metadata))
+		bsDataPayloadQuantity := resource.NewQuantity(int64(len(bsdataEncoded)), resource.DecimalSI)
 
-		vmSpec.Resources.GuestCustomization = &nutanixClientV3.GuestCustomization{
-			IsOverridable: utils.BoolPtr(true),
-			CloudInit: &nutanixClientV3.GuestCustomizationCloudInit{
-				UserData: utils.StringPtr(bsdataEncoded),
-				MetaData: utils.StringPtr(metadataEncoded),
-			},
+		// if bsdataEncoded is more than 32KiB, we need to create an ISO
+		// TODO: Identify whether the limit is 32KB or 32KiB
+		ahvUserDataPayloadLimit := resource.NewQuantity(32*1024, resource.BinarySI)
+
+		if ahvUserDataPayloadLimit.Cmp(*bsDataPayloadQuantity) >= 0 {
+			vmSpec.Resources.GuestCustomization = &nutanixClientV3.GuestCustomization{
+				IsOverridable: utils.BoolPtr(true),
+				CloudInit: &nutanixClientV3.GuestCustomizationCloudInit{
+					UserData: utils.StringPtr(bsdataEncoded),
+					MetaData: utils.StringPtr(metadataEncoded),
+				},
+			}
+		} else {
+			imgUUID, err := r.createBootstrapImage(rctx, bsdataEncoded, metadataEncoded)
+			if err != nil {
+				return err
+			}
+
+			bootstrapDisk := createCDROMFromImage(imgUUID, getNextDeviceIndexFromDisks(vmSpec.Resources.DiskList))
+			vmSpec.Resources.DiskList = append(vmSpec.Resources.DiskList, bootstrapDisk)
 		}
+	} else if bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindImage {
+		bootstrapDisk, err := getBootstrapDiskFromImageName(rctx, bootstrapRef.Name, getNextDeviceIndexFromDisks(vmSpec.Resources.DiskList))
+		if err != nil {
+			return err
+		}
+
+		vmSpec.Resources.DiskList = append(vmSpec.Resources.DiskList, bootstrapDisk)
 	}
 
 	return nil
 }
 
-func getDiskList(rctx *nctx.MachineContext) ([]*nutanixClientV3.VMDisk, error) {
-	diskList := make([]*nutanixClientV3.VMDisk, 0)
+// createBootstrapImage creates an ISO image from the bootstrap data, uploads it to the Prism Central image service and returns the UUID of the image
+func (r *NutanixMachineReconciler) createBootstrapImage(rctx *nctx.MachineContext, userdata, metadata string) (string, error) {
+	imgName := bootISOImageName(rctx.Cluster.Name)
+	path, err := createBootstrapISO(rctx.Cluster.Name, userdata, metadata)
+	if err != nil {
+		return "", err
+	}
 
+	imgReq := &nutanixClientV3.ImageIntentInput{
+		Spec: &nutanixClientV3.Image{
+			Name:        &imgName,
+			Description: ptr.To("Created By Cluster API Provider for Nutanix"),
+			Resources: &nutanixClientV3.ImageResources{
+				ImageType: ptr.To("ISO_IMAGE"),
+			},
+		},
+		Metadata: &nutanixClientV3.Metadata{
+			Kind: ptr.To(strings.ToLower(infrav1.NutanixMachineBootstrapRefKindImage)),
+		},
+	}
+
+	resp, err := rctx.NutanixClient.V3.CreateImage(rctx.Context, imgReq)
+	if err != nil {
+		return "", err
+	}
+
+	imgUUID := *resp.Metadata.UUID
+	if err := rctx.NutanixClient.V3.UploadImage(rctx.Context, imgUUID, path); err != nil {
+		return "", err
+	}
+
+	return imgUUID, nil
+}
+
+func (r *NutanixMachineReconciler) addDisksToVM(rctx *nctx.MachineContext, vmSpec *nutanixClientV3.VM) error {
 	systemDisk, err := getSystemDisk(rctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	diskList = append(diskList, systemDisk)
+	vmSpec.Resources.DiskList = append(vmSpec.Resources.DiskList, systemDisk)
 
-	bootstrapRef := rctx.NutanixMachine.Spec.BootstrapRef
-	if bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindImage {
-		bootstrapDisk, err := getBootstrapDisk(rctx)
-		if err != nil {
-			return nil, err
-		}
-
-		diskList = append(diskList, bootstrapDisk)
-	}
-
-	return diskList, nil
+	return nil
 }
 
 func getSystemDisk(rctx *nctx.MachineContext) (*nutanixClientV3.VMDisk, error) {
@@ -723,8 +766,7 @@ func getSystemDisk(rctx *nctx.MachineContext) (*nutanixClientV3.VMDisk, error) {
 	return systemDisk, nil
 }
 
-func getBootstrapDisk(rctx *nctx.MachineContext) (*nutanixClientV3.VMDisk, error) {
-	bootstrapImageName := rctx.NutanixMachine.Spec.BootstrapRef.Name
+func getBootstrapDiskFromImageName(rctx *nctx.MachineContext, bootstrapImageName string, deviceIndex int) (*nutanixClientV3.VMDisk, error) {
 	bootstrapImageUUID, err := GetImageUUID(rctx.Context, rctx.NutanixClient, &bootstrapImageName, nil)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the image UUID for image named %q: %w", bootstrapImageName, err)
@@ -732,20 +774,7 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*nutanixClientV3.VMDisk, error
 		return nil, err
 	}
 
-	bootstrapDisk := &nutanixClientV3.VMDisk{
-		DeviceProperties: &nutanixClientV3.VMDiskDeviceProperties{
-			DeviceType: ptr.To(deviceTypeCDROM),
-			DiskAddress: &nutanixClientV3.DiskAddress{
-				AdapterType: ptr.To(adapterTypeIDE),
-				DeviceIndex: ptr.To(int64(0)),
-			},
-		},
-		DataSourceReference: &nutanixClientV3.Reference{
-			Kind: ptr.To(strings.ToLower(infrav1.NutanixMachineBootstrapRefKindImage)),
-			UUID: ptr.To(bootstrapImageUUID),
-		},
-	}
-
+	bootstrapDisk := createCDROMFromImage(bootstrapImageUUID, deviceIndex)
 	return bootstrapDisk, nil
 }
 
