@@ -521,29 +521,6 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		return nil, err
 	}
 
-	// Get the bootstrapData
-	var bsdataEncoded string
-	bootstrapRef := rctx.NutanixMachine.Spec.BootstrapRef
-	if bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindSecret {
-		bootstrapData, err := r.getBootstrapData(rctx)
-		if err != nil {
-			log.Error(err, fmt.Sprintf("failed to get the bootstrap data to create the VM %s", vmName))
-			return nil, err
-		}
-
-		// Encode the bootstrapData by base64
-		bsdataEncoded = base64.StdEncoding.EncodeToString(bootstrapData)
-		log.V(1).Info(fmt.Sprintf("Retrieved the bootstrap data from secret %s (before encoding size: %d, encoded string size:%d)",
-			bootstrapRef.Name, len(bootstrapData), len(bsdataEncoded)))
-
-	}
-
-	// Generate metadata for the VM
-	vmUUID := uuid.New()
-	metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"uuid\": \"%s\"}", rctx.Machine.Name, vmUUID)
-	// Encode the metadata by base64
-	metadataEncoded := base64.StdEncoding.EncodeToString([]byte(metadata))
-
 	vmInput := &nutanixClientV3.VMIntentInput{}
 	vmSpec := &nutanixClientV3.VM{Name: utils.StringPtr(vmName)}
 
@@ -603,17 +580,16 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		NicList:               nicList,
 		DiskList:              diskList,
 		GpuList:               gpuList,
-		GuestCustomization: &nutanixClientV3.GuestCustomization{
-			IsOverridable: utils.BoolPtr(true),
-			CloudInit: &nutanixClientV3.GuestCustomizationCloudInit{
-				UserData: utils.StringPtr(bsdataEncoded),
-				MetaData: utils.StringPtr(metadataEncoded),
-			},
-		},
 	}
 	vmSpec.ClusterReference = &nutanixClientV3.Reference{
 		Kind: utils.StringPtr("cluster"),
 		UUID: utils.StringPtr(peUUID),
+	}
+
+	if err := r.addGuestCustomizationToVM(rctx, vmSpec); err != nil {
+		errorMsg := fmt.Errorf("error occurred while adding guest customization to vm spec: %v", err)
+		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		return nil, err
 	}
 
 	// Set BootType in VM Spec before creating VM
@@ -679,6 +655,32 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 	return vm, nil
 }
 
+func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineContext, vmSpec *nutanixClientV3.VM) error {
+	// Get the bootstrapData
+	bootstrapRef := rctx.NutanixMachine.Spec.BootstrapRef
+	if bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindSecret {
+		bootstrapData, err := r.getBootstrapData(rctx)
+		if err != nil {
+			return err
+		}
+
+		// Encode the bootstrapData by base64
+		bsdataEncoded := base64.StdEncoding.EncodeToString(bootstrapData)
+		metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"uuid\": \"%s\"}", rctx.Machine.Name, uuid.New())
+		metadataEncoded := base64.StdEncoding.EncodeToString([]byte(metadata))
+
+		vmSpec.Resources.GuestCustomization = &nutanixClientV3.GuestCustomization{
+			IsOverridable: utils.BoolPtr(true),
+			CloudInit: &nutanixClientV3.GuestCustomizationCloudInit{
+				UserData: utils.StringPtr(bsdataEncoded),
+				MetaData: utils.StringPtr(metadataEncoded),
+			},
+		}
+	}
+
+	return nil
+}
+
 func getDiskList(rctx *nctx.MachineContext) ([]*nutanixClientV3.VMDisk, error) {
 	diskList := make([]*nutanixClientV3.VMDisk, 0)
 
@@ -705,7 +707,7 @@ func getSystemDisk(rctx *nctx.MachineContext) (*nutanixClientV3.VMDisk, error) {
 	nodeOSImageName := rctx.NutanixMachine.Spec.Image.Name
 	nodeOSImageUUID, err := GetImageUUID(rctx.Context, rctx.NutanixClient, nodeOSImageName, rctx.NutanixMachine.Spec.Image.UUID)
 	if err != nil {
-		errorMsg := fmt.Errorf("failed to get the image UUID for image named %q: %w", nodeOSImageName, err)
+		errorMsg := fmt.Errorf("failed to get the image UUID for image named %q: %w", *nodeOSImageName, err)
 		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
 		return nil, err
 	}
