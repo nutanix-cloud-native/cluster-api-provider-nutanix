@@ -34,6 +34,7 @@ import (
 	apitypes "k8s.io/apimachinery/pkg/types"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
+	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	capierrors "sigs.k8s.io/cluster-api/errors"
 	capiutil "sigs.k8s.io/cluster-api/util"
@@ -55,6 +56,9 @@ import (
 
 const (
 	projectKind = "project"
+
+	deviceTypeCDROM = "CDROM"
+	adapterTypeIDE  = "IDE"
 )
 
 var (
@@ -517,31 +521,6 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		return nil, err
 	}
 
-	// Get Image UUID
-	imageUUID, err := GetImageUUID(ctx, nc, rctx.NutanixMachine.Spec.Image.Name, rctx.NutanixMachine.Spec.Image.UUID)
-	if err != nil {
-		errorMsg := fmt.Errorf("failed to get the image UUID to create the VM %s. %v", vmName, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
-		return nil, err
-	}
-
-	// Get the bootstrapData from the referenced secret
-	bootstrapData, err := r.getBootstrapData(rctx)
-	if err != nil {
-		log.Error(err, fmt.Sprintf("failed to get the bootstrap data to create the VM %s", vmName))
-		return nil, err
-	}
-	// Encode the bootstrapData by base64
-	bsdataEncoded := base64.StdEncoding.EncodeToString(bootstrapData)
-	log.V(1).Info(fmt.Sprintf("Retrieved the bootstrap data from secret %s (before encoding size: %d, encoded string size:%d)",
-		rctx.NutanixMachine.Spec.BootstrapRef.Name, len(bootstrapData), len(bsdataEncoded)))
-
-	// Generate metadata for the VM
-	vmUUID := uuid.New()
-	metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"uuid\": \"%s\"}", rctx.Machine.Name, vmUUID)
-	// Encode the metadata by base64
-	metadataEncoded := base64.StdEncoding.EncodeToString([]byte(metadata))
-
 	vmInput := &nutanixClientV3.VMIntentInput{}
 	vmSpec := &nutanixClientV3.VM{Name: utils.StringPtr(vmName)}
 
@@ -553,19 +532,6 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 				Kind: utils.StringPtr("subnet"),
 			},
 		}
-	}
-
-	// Create Disk Spec for systemdisk to be set later in VM Spec
-	diskSize := rctx.NutanixMachine.Spec.SystemDiskSize
-	diskSizeMib := GetMibValueOfQuantity(diskSize)
-	systemDisk, err := CreateSystemDiskSpec(imageUUID, diskSizeMib)
-	if err != nil {
-		errorMsg := fmt.Errorf("error occurred while creating system disk spec: %v", err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
-		return nil, errorMsg
-	}
-	diskList := []*nutanixClientV3.VMDisk{
-		systemDisk,
 	}
 
 	// Set Categories to VM Sepc before creating VM
@@ -597,8 +563,14 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		return nil, err
 	}
 
-	memorySize := rctx.NutanixMachine.Spec.MemorySize
-	memorySizeMib := GetMibValueOfQuantity(memorySize)
+	diskList, err := getDiskList(rctx)
+	if err != nil {
+		errorMsg := fmt.Errorf("failed to get the disk list to create the VM %s. %v", vmName, err)
+		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		return nil, err
+	}
+
+	memorySizeMib := GetMibValueOfQuantity(rctx.NutanixMachine.Spec.MemorySize)
 	vmSpec.Resources = &nutanixClientV3.VMResources{
 		PowerState:            utils.StringPtr("ON"),
 		HardwareClockTimezone: utils.StringPtr("UTC"),
@@ -608,17 +580,16 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 		NicList:               nicList,
 		DiskList:              diskList,
 		GpuList:               gpuList,
-		GuestCustomization: &nutanixClientV3.GuestCustomization{
-			IsOverridable: utils.BoolPtr(true),
-			CloudInit: &nutanixClientV3.GuestCustomizationCloudInit{
-				UserData: utils.StringPtr(bsdataEncoded),
-				MetaData: utils.StringPtr(metadataEncoded),
-			},
-		},
 	}
 	vmSpec.ClusterReference = &nutanixClientV3.Reference{
 		Kind: utils.StringPtr("cluster"),
 		UUID: utils.StringPtr(peUUID),
+	}
+
+	if err := r.addGuestCustomizationToVM(rctx, vmSpec); err != nil {
+		errorMsg := fmt.Errorf("error occurred while adding guest customization to vm spec: %v", err)
+		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		return nil, err
 	}
 
 	// Set BootType in VM Spec before creating VM
@@ -682,6 +653,100 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*nu
 
 	conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
 	return vm, nil
+}
+
+func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineContext, vmSpec *nutanixClientV3.VM) error {
+	// Get the bootstrapData
+	bootstrapRef := rctx.NutanixMachine.Spec.BootstrapRef
+	if bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindSecret {
+		bootstrapData, err := r.getBootstrapData(rctx)
+		if err != nil {
+			return err
+		}
+
+		// Encode the bootstrapData by base64
+		bsdataEncoded := base64.StdEncoding.EncodeToString(bootstrapData)
+		metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"uuid\": \"%s\"}", rctx.Machine.Name, uuid.New())
+		metadataEncoded := base64.StdEncoding.EncodeToString([]byte(metadata))
+
+		vmSpec.Resources.GuestCustomization = &nutanixClientV3.GuestCustomization{
+			IsOverridable: utils.BoolPtr(true),
+			CloudInit: &nutanixClientV3.GuestCustomizationCloudInit{
+				UserData: utils.StringPtr(bsdataEncoded),
+				MetaData: utils.StringPtr(metadataEncoded),
+			},
+		}
+	}
+
+	return nil
+}
+
+func getDiskList(rctx *nctx.MachineContext) ([]*nutanixClientV3.VMDisk, error) {
+	diskList := make([]*nutanixClientV3.VMDisk, 0)
+
+	systemDisk, err := getSystemDisk(rctx)
+	if err != nil {
+		return nil, err
+	}
+	diskList = append(diskList, systemDisk)
+
+	bootstrapRef := rctx.NutanixMachine.Spec.BootstrapRef
+	if bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindImage {
+		bootstrapDisk, err := getBootstrapDisk(rctx)
+		if err != nil {
+			return nil, err
+		}
+
+		diskList = append(diskList, bootstrapDisk)
+	}
+
+	return diskList, nil
+}
+
+func getSystemDisk(rctx *nctx.MachineContext) (*nutanixClientV3.VMDisk, error) {
+	nodeOSImageName := rctx.NutanixMachine.Spec.Image.Name
+	nodeOSImageUUID, err := GetImageUUID(rctx.Context, rctx.NutanixClient, nodeOSImageName, rctx.NutanixMachine.Spec.Image.UUID)
+	if err != nil {
+		errorMsg := fmt.Errorf("failed to get the image UUID for image named %q: %w", *nodeOSImageName, err)
+		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		return nil, err
+	}
+
+	systemDiskSizeMib := GetMibValueOfQuantity(rctx.NutanixMachine.Spec.SystemDiskSize)
+	systemDisk, err := CreateSystemDiskSpec(nodeOSImageUUID, systemDiskSizeMib)
+	if err != nil {
+		errorMsg := fmt.Errorf("error occurred while creating system disk spec: %w", err)
+		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		return nil, err
+	}
+
+	return systemDisk, nil
+}
+
+func getBootstrapDisk(rctx *nctx.MachineContext) (*nutanixClientV3.VMDisk, error) {
+	bootstrapImageName := rctx.NutanixMachine.Spec.BootstrapRef.Name
+	bootstrapImageUUID, err := GetImageUUID(rctx.Context, rctx.NutanixClient, &bootstrapImageName, nil)
+	if err != nil {
+		errorMsg := fmt.Errorf("failed to get the image UUID for image named %q: %w", bootstrapImageName, err)
+		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		return nil, err
+	}
+
+	bootstrapDisk := &nutanixClientV3.VMDisk{
+		DeviceProperties: &nutanixClientV3.VMDiskDeviceProperties{
+			DeviceType: ptr.To(deviceTypeCDROM),
+			DiskAddress: &nutanixClientV3.DiskAddress{
+				AdapterType: ptr.To(adapterTypeIDE),
+				DeviceIndex: ptr.To(int64(0)),
+			},
+		},
+		DataSourceReference: &nutanixClientV3.Reference{
+			Kind: ptr.To(strings.ToLower(infrav1.NutanixMachineBootstrapRefKindImage)),
+			UUID: ptr.To(bootstrapImageUUID),
+		},
+	}
+
+	return bootstrapDisk, nil
 }
 
 // getBootstrapData returns the Bootstrap data from the ref secret
