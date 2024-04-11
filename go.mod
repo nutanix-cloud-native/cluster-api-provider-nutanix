@@ -1,6 +1,6 @@
 module github.com/nutanix-cloud-native/cluster-api-provider-nutanix
 
-go 1.21
+go 1.22.1
 
 toolchain go1.22.2
 

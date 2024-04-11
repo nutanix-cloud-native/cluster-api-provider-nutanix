@@ -84,9 +84,10 @@ func setupTestEnvironment() (client.Client, error) {
 	}
 
 	clusterctllog.SetLogger(textlogger.NewLogger(textlogger.NewConfig()))
+	// TODO: make this generic so that we dont need to update this every release
 	clusterctl.Init(context.Background(), clusterctl.InitInput{
 		KubeconfigPath:          tmpKubeconfig.Name(),
-		InfrastructureProviders: []string{"nutanix:v1.4.0-alpha.1"},
+		InfrastructureProviders: []string{"nutanix:v1.4.0-alpha.2"},
 		ClusterctlConfigPath:    "testdata/clusterctl-init.yaml",
 	})
 
