@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
+	github.com/blang/semver/v4 v4.0.0
 	github.com/google/uuid v1.3.0
 	github.com/nutanix-cloud-native/prism-go-client v0.3.4
 	github.com/onsi/ginkgo/v2 v2.6.0
@@ -15,7 +16,7 @@ require (
 	k8s.io/apiextensions-apiserver v0.25.2
 	k8s.io/apimachinery v0.25.2
 	k8s.io/client-go v0.25.2
-	k8s.io/utils v0.0.0-20220823124924-e9cbc92d1a73
+	k8s.io/utils v0.0.0-20240310230437-4693a0247e57
 	sigs.k8s.io/cluster-api v1.3.5
 	sigs.k8s.io/cluster-api/test v1.3.5
 	sigs.k8s.io/controller-runtime v0.13.1
@@ -43,7 +44,6 @@ require (
 	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220418222510-f25a4f6275ed // indirect
 	github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/coredns/caddy v1.1.0 // indirect
 	github.com/coredns/corefile-migration v1.0.20 // indirect
