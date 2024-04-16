@@ -83,6 +83,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 					UID:       utilruntime.NewUUID(),
 				},
 				Spec: infrav1.NutanixClusterSpec{
+					ControlPlaneEndpoint: capiv1.APIEndpoint{},
 					PrismCentral: &credentialTypes.NutanixPrismEndpoint{
 						// Adding port info to override default value (0)
 						Port: 9440,
@@ -245,6 +246,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 						Namespace: corev1.NamespaceDefault,
 					},
 					Spec: infrav1.NutanixClusterSpec{
+						ControlPlaneEndpoint: capiv1.APIEndpoint{},
 						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
 							// Adding port info to override default value (0)
 							Port: 9440,
@@ -409,6 +411,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 						Namespace: "default",
 					},
 					Spec: infrav1.NutanixClusterSpec{
+						ControlPlaneEndpoint: capiv1.APIEndpoint{},
 						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
 							// Adding port info to override default value (0)
 							Port: 9440,
@@ -471,6 +474,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 						Namespace: "default",
 					},
 					Spec: infrav1.NutanixClusterSpec{
+						ControlPlaneEndpoint: capiv1.APIEndpoint{},
 						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
 							// Adding port info to override default value (0)
 							Port: 9440,
@@ -505,6 +509,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 						Namespace: "default",
 					},
 					Spec: infrav1.NutanixClusterSpec{
+						ControlPlaneEndpoint: capiv1.APIEndpoint{},
 						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
 							// Adding port info to override default value (0)
 							Port: 9440,
@@ -530,13 +535,9 @@ func TestNutanixClusterReconciler(t *testing.T) {
 			})
 		})
 
-		Context("Delete credentials ref reconcile failed: PrismCentral Info is null", func() {
+		Context("NutanixCluster creation failed: PrismCentral Info is null", func() {
 			It("Should not return error", func() {
 				ctx := context.Background()
-				reconciler := &NutanixClusterReconciler{
-					Client: k8sClient,
-					Scheme: runtime.NewScheme(),
-				}
 
 				ntnxCluster := &infrav1.NutanixCluster{
 					ObjectMeta: metav1.ObjectMeta{
@@ -544,20 +545,13 @@ func TestNutanixClusterReconciler(t *testing.T) {
 						Namespace: "default",
 					},
 					Spec: infrav1.NutanixClusterSpec{
-						PrismCentral: nil,
+						ControlPlaneEndpoint: capiv1.APIEndpoint{},
+						PrismCentral:         nil,
 					},
 				}
 
 				// Create the NutanixCluster object
-				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
-				defer func() {
-					err := k8sClient.Delete(ctx, ntnxCluster)
-					Expect(err).NotTo(HaveOccurred())
-				}()
-
-				// Reconile Delete credential ref
-				err := reconciler.reconcileCredentialRefDelete(ctx, ntnxCluster)
-				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(k8sClient.Create(ctx, ntnxCluster)).NotTo(Succeed())
 			})
 		})
 	})
