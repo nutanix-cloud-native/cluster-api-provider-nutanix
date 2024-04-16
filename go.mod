@@ -1,6 +1,11 @@
 module github.com/nutanix-cloud-native/cluster-api-provider-nutanix
 
-go 1.22.1
+// Based on https://endoflife.date/go go 1.21 is the lowest still supported version of go.
+// Go EOL policy is basically supporting two recent minor versions. Using latest go version is fine as long as
+// only we build it but is a problem when someone tries to build our repo with a supported but not latest version
+// of go. We should keep our go version set to the lowest supported version of go.
+// e.g. we should stick to 1.21 until 1.23 is released and then move to 1.22 once 1.23 gets released
+go 1.21
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
