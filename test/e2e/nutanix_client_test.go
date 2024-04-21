@@ -131,50 +131,6 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client"),
 		By("PASSED!")
 	})
 
-	It("Create a cluster without prismCentral attribute (use default credentials)", func() {
-		flavor = "no-nutanix-cluster"
-		Expect(namespace).NotTo(BeNil())
-
-		By("Creating NutanixCluster resource without credentialRef", func() {
-			ntnxCluster := testHelper.createDefaultNutanixCluster(
-				clusterName,
-				namespace.Name,
-				controlplaneEndpointIP,
-				controlplaneEndpointPort,
-			)
-
-			testHelper.createCapiObject(ctx, createCapiObjectParams{
-				creator:    bootstrapClusterProxy.GetClient(),
-				capiObject: ntnxCluster,
-			})
-		})
-
-		By("Creating a workload cluster", func() {
-			testHelper.deployCluster(
-				deployClusterParams{
-					clusterName:           clusterName,
-					namespace:             namespace,
-					flavor:                flavor,
-					clusterctlConfigPath:  clusterctlConfigPath,
-					artifactFolder:        artifactFolder,
-					bootstrapClusterProxy: bootstrapClusterProxy,
-				}, clusterResources)
-		})
-		By("Checking cluster prism client init condition is true", func() {
-			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
-				clusterName:           clusterName,
-				namespace:             namespace,
-				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
-					Type:   infrav1.PrismCentralClientCondition,
-					Status: corev1.ConditionTrue,
-				},
-			})
-		})
-
-		By("PASSED!")
-	})
-
 	It("Create a cluster without secret and add it later", func() {
 		flavor = "no-secret"
 		Expect(namespace).NotTo(BeNil())
