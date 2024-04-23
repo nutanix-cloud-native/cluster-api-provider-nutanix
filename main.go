@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -26,6 +27,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
@@ -35,6 +37,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	capiflags "sigs.k8s.io/cluster-api/util/flags"
@@ -75,8 +78,54 @@ type managerConfig struct {
 	concurrentReconcilesNutanixMachine int
 	diagnosticsOptions                 capiflags.DiagnosticsOptions
 
-	logger     logr.Logger
-	restConfig *rest.Config
+	logger      logr.Logger
+	restConfig  *rest.Config
+	rateLimiter workqueue.RateLimiter
+}
+
+// compositeRateLimiter will build a limiter similar to the default from DefaultControllerRateLimiter but with custom values.
+func compositeRateLimiter(baseDelay, maxDelay time.Duration, bucketSize, qps int) (workqueue.RateLimiter, error) {
+	// Validate the rate limiter configuration
+	if err := validateRateLimiterConfig(baseDelay, maxDelay, bucketSize, qps); err != nil {
+		return nil, err
+	}
+	exponentialBackoffLimiter := workqueue.NewItemExponentialFailureRateLimiter(baseDelay, maxDelay)
+	bucketLimiter := &workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(qps), bucketSize)}
+	return workqueue.NewMaxOfRateLimiter(exponentialBackoffLimiter, bucketLimiter), nil
+}
+
+// validateRateLimiterConfig validates the rate limiter configuration parameters
+func validateRateLimiterConfig(baseDelay, maxDelay time.Duration, bucketSize, qps int) error {
+	// Check if baseDelay is a non-negative value
+	if baseDelay < 0 {
+		return errors.New("baseDelay cannot be negative")
+	}
+
+	// Check if maxDelay is non-negative and greater than or equal to baseDelay
+	if maxDelay < 0 {
+		return errors.New("maxDelay cannot be negative")
+	}
+
+	if maxDelay < baseDelay {
+		return errors.New("maxDelay should be greater than or equal to baseDelay")
+	}
+
+	// Check if bucketSize is a positive number
+	if bucketSize <= 0 {
+		return errors.New("bucketSize must be positive")
+	}
+
+	// Check if qps is a positive number
+	if qps <= 0 {
+		return errors.New("minimum QPS must be positive")
+	}
+
+	// Check if bucketSize is at least as large as the QPS
+	if bucketSize < qps {
+		return errors.New("bucketSize must be at least as large as the QPS to handle bursts effectively")
+	}
+
+	return nil
 }
 
 func parseFlags(config *managerConfig) {
@@ -87,6 +136,13 @@ func parseFlags(config *managerConfig) {
 	var maxConcurrentReconciles int
 	pflag.IntVar(&maxConcurrentReconciles, "max-concurrent-reconciles", defaultMaxConcurrentReconciles,
 		"The maximum number of allowed, concurrent reconciles.")
+
+	var baseDelay, maxDelay time.Duration
+	var bucketSize, qps int
+	pflag.DurationVar(&baseDelay, "rate-limiter-base-delay", 500*time.Millisecond, "The base delay for the rate limiter.")
+	pflag.DurationVar(&maxDelay, "rate-limiter-max-delay", 15*time.Minute, "The maximum delay for the rate limiter.")
+	pflag.IntVar(&bucketSize, "rate-limiter-bucket-size", 100, "The bucket size for the rate limiter.")
+	pflag.IntVar(&qps, "rate-limiter-qps", 10, "The QPS for the rate limiter.")
 
 	opts := zap.Options{
 		TimeEncoder: zapcore.RFC3339TimeEncoder,
@@ -100,6 +156,14 @@ func parseFlags(config *managerConfig) {
 
 	config.concurrentReconcilesNutanixCluster = maxConcurrentReconciles
 	config.concurrentReconcilesNutanixMachine = maxConcurrentReconciles
+
+	rateLimiter, err := compositeRateLimiter(baseDelay, maxDelay, bucketSize, qps)
+	if err != nil {
+		config.logger.Error(err, "unable to create composite rate limiter")
+		os.Exit(1)
+	}
+
+	config.rateLimiter = rateLimiter
 }
 
 func setupLogger() logr.Logger {
@@ -189,6 +253,7 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 
 	clusterControllerOpts := []controllers.ControllerConfigOpts{
 		controllers.WithMaxConcurrentReconciles(config.concurrentReconcilesNutanixCluster),
+		controllers.WithRateLimiter(config.rateLimiter),
 	}
 
 	if err := setupNutanixClusterController(ctx, mgr, secretInformer, configMapInformer, clusterControllerOpts...); err != nil {
@@ -197,6 +262,7 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 
 	machineControllerOpts := []controllers.ControllerConfigOpts{
 		controllers.WithMaxConcurrentReconciles(config.concurrentReconcilesNutanixMachine),
+		controllers.WithRateLimiter(config.rateLimiter),
 	}
 
 	if err := setupNutanixMachineController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
