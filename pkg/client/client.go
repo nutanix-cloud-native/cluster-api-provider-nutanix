@@ -81,11 +81,12 @@ func (n *NutanixClientHelper) BuildClientForNutanixClusterWithFallback(ctx conte
 		return nil, err
 	}
 	creds := prismgoclient.Credentials{
-		URL:      me.Address.Host,
-		Endpoint: me.Address.Host,
-		Insecure: me.Insecure,
-		Username: me.ApiCredentials.Username,
-		Password: me.ApiCredentials.Password,
+		URL:         me.Address.Host,
+		Endpoint:    me.Address.Host,
+		Insecure:    me.Insecure,
+		Username:    me.ApiCredentials.Username,
+		Password:    me.ApiCredentials.Password,
+		SessionAuth: true,
 	}
 	return Build(creds, me.AdditionalTrustBundle)
 }
@@ -191,16 +192,7 @@ func (n *NutanixClientHelper) buildProviderFromFile() (envTypes.Provider, error)
 }
 
 func Build(creds prismgoclient.Credentials, additionalTrustBundle string) (*nutanixClientV3.Client, error) {
-	cli, err := buildClientFromCredentials(creds, additionalTrustBundle)
-	if err != nil {
-		return nil, err
-	}
-	// Check if the client is working
-	_, err = cli.V3.GetCurrentLoggedInUser(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current logged in user with client: %w", err)
-	}
-	return cli, nil
+	return buildClientFromCredentials(creds, additionalTrustBundle)
 }
 
 func buildClientFromCredentials(creds prismgoclient.Credentials, additionalTrustBundle string) (*nutanixClientV3.Client, error) {
