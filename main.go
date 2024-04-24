@@ -232,7 +232,6 @@ func initializeManager(config *managerConfig) (manager.Manager, error) {
 
 func main() {
 	logger := setupLogger()
-	_ = setupLogger()
 
 	restConfig := ctrl.GetConfigOrDie()
 
