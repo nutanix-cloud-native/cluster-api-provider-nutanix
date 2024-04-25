@@ -17,20 +17,13 @@ limitations under the License.
 package main
 
 import (
+	"errors"
 	"flag"
 	"os"
 	"time"
 
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	// to ensure that exec-entrypoint and run can make use of them.
-
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
@@ -38,16 +31,17 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	//+kubebuilder:scaffold:imports
 
 	infrav1alpha4 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1alpha4"
 	infrav1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
-	//+kubebuilder:scaffold:imports
 )
 
 var (
@@ -82,6 +76,10 @@ func main() {
 		enableLeaderElection    bool
 		probeAddr               string
 		maxConcurrentReconciles int
+		baseDelay               time.Duration
+		maxDelay                time.Duration
+		bucketSize              int
+		qps                     int
 	)
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -99,6 +97,11 @@ func main() {
 		TimeEncoder: zapcore.RFC3339TimeEncoder,
 	}
 	opts.BindFlags(flag.CommandLine)
+
+	flag.DurationVar(&baseDelay, "rate-limiter-base-delay", 500*time.Millisecond, "The base delay for the rate limiter.")
+	flag.DurationVar(&maxDelay, "rate-limiter-max-delay", 15*time.Minute, "The maximum delay for the rate limiter.")
+	flag.IntVar(&bucketSize, "rate-limiter-bucket-size", 100, "The bucket size for the rate limiter.")
+	flag.IntVar(&qps, "rate-limiter-qps", 10, "The QPS for the rate limiter.")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
@@ -117,7 +120,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Set up the context that's going to be used in controllers and for the manager.
+	rateLimiter, err := compositeRateLimiter(baseDelay, maxDelay, bucketSize, qps)
+	if err != nil {
+		setupLog.Error(err, "unable to create composite rate limiter")
+		os.Exit(1)
+	}
+
+	// Setup the context that's going to be used in controllers and for the manager.
 	ctx := ctrl.SetupSignalHandler()
 
 	// Create a secret informer for the Nutanix client
@@ -143,6 +152,7 @@ func main() {
 		configMapInformer,
 		mgr.GetScheme(),
 		controllers.WithMaxConcurrentReconciles(maxConcurrentReconciles),
+		controllers.WithRateLimiter(rateLimiter),
 	)
 	if err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NutanixCluster")
@@ -159,6 +169,7 @@ func main() {
 		configMapInformer,
 		mgr.GetScheme(),
 		controllers.WithMaxConcurrentReconciles(maxConcurrentReconciles),
+		controllers.WithRateLimiter(rateLimiter),
 	)
 	if err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NutanixMachine")
@@ -184,4 +195,49 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+// compositeRateLimiter will build a limiter similar to the default from DefaultControllerRateLimiter but with custom values.
+func compositeRateLimiter(baseDelay, maxDelay time.Duration, bucketSize, qps int) (workqueue.RateLimiter, error) {
+	// Validate the rate limiter configuration
+	if err := validateRateLimiterConfig(baseDelay, maxDelay, bucketSize, qps); err != nil {
+		return nil, err
+	}
+	exponentialBackoffLimiter := workqueue.NewItemExponentialFailureRateLimiter(baseDelay, maxDelay)
+	bucketLimiter := &workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(qps), bucketSize)}
+	return workqueue.NewMaxOfRateLimiter(exponentialBackoffLimiter, bucketLimiter), nil
+}
+
+// validateRateLimiterConfig validates the rate limiter configuration parameters
+func validateRateLimiterConfig(baseDelay, maxDelay time.Duration, bucketSize, qps int) error {
+	// Check if baseDelay is a non-negative value
+	if baseDelay < 0 {
+		return errors.New("baseDelay cannot be negative")
+	}
+
+	// Check if maxDelay is non-negative and greater than or equal to baseDelay
+	if maxDelay < 0 {
+		return errors.New("maxDelay cannot be negative")
+	}
+
+	if maxDelay < baseDelay {
+		return errors.New("maxDelay should be greater than or equal to baseDelay")
+	}
+
+	// Check if bucketSize is a positive number
+	if bucketSize <= 0 {
+		return errors.New("bucketSize must be positive")
+	}
+
+	// Check if qps is a positive number
+	if qps <= 0 {
+		return errors.New("minimum QPS must be positive")
+	}
+
+	// Check if bucketSize is at least as large as the QPS
+	if bucketSize < qps {
+		return errors.New("bucketSize must be at least as large as the QPS to handle bursts effectively")
+	}
+
+	return nil
 }
