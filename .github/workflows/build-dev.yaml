@@ -20,7 +20,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: "^1.21"
+          go-version: "1.21"
 
       - name: Test build
         run: make manifests generate fmt vet build
@@ -33,6 +33,8 @@ jobs:
 
       - name: Codecov
         uses: codecov/codecov-action@v3.1.4
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
           file: ./coverage.xml  # Replace with the path to your coverage report
           fail_ci_if_error: true
