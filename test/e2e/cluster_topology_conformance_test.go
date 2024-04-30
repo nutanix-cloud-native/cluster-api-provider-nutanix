@@ -20,6 +20,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -62,7 +63,13 @@ var _ = Describe("When creating a cluster with topology and running kubetest/con
 		)
 	})
 
-	conformanceWorkflow := func(targetKubeVer, targetImageName string) {
+	conformanceWorkflow := func(targetKube *E2eConfigK8SVersion) {
+		clusterName = testHelper.generateTestClusterName(specName)
+		Expect(clusterName).NotTo(BeNil())
+
+		targetKubeVer := testHelper.getVariableFromE2eConfig(targetKube.E2eConfigK8sVersionEnvVar)
+		targetImageName := testHelper.getVariableFromE2eConfig(targetKube.E2eConfigK8sVersionImageEnvVar)
+
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
@@ -93,30 +100,13 @@ var _ = Describe("When creating a cluster with topology and running kubetest/con
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	It("Create a cluster with topology with version Kube127", Label("Kube127", "cluster-topology-conformance"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
-		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
-		conformanceWorkflow(kube127, kube127Image)
-	})
-
-	It("Create a cluster with topology with version Kube128", Label("Kube128", "cluster-topology-conformance"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
-		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
-		conformanceWorkflow(kube128, kube128Image)
-	})
-
-	It("Create a cluster with topology with version Kube129", Label("Kube129", "cluster-topology-conformance"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
-		kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
-		conformanceWorkflow(kube129, kube129Image)
-	})
+	// Conformance tests
+	for _, targetTestConfig := range SupportedK8STargetConfigs {
+		labels := []string{"cluster-topology-conformance"}
+		labels = append(labels, targetTestConfig.targetLabels...)
+		It(fmt.Sprintf("Create a cluster with topology with %s", targetTestConfig.targetLabels[0]),
+			Label(labels...), func() {
+				conformanceWorkflow(targetTestConfig.targetKube)
+			})
+	}
 })
