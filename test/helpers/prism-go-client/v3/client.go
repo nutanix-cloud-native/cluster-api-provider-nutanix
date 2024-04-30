@@ -18,7 +18,6 @@ package v3
 
 import (
 	"fmt"
-
 	"net/http"
 	"net/http/httptest"
 	"path"

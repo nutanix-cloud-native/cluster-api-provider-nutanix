@@ -23,10 +23,10 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/client-go/informers/core/v1"
+	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -157,7 +157,7 @@ func FindVMByName(ctx context.Context, client *prismclientv3.Client, vmName stri
 	log.Info(fmt.Sprintf("Checking if VM with name %s exists.", vmName))
 
 	res, err := client.V3.ListVM(ctx, &prismclientv3.DSMetadata{
-		Filter: utils.StringPtr(fmt.Sprintf("vm_name==%s", vmName)),
+		Filter: ptr.To(fmt.Sprintf("vm_name==%s", vmName)),
 	})
 	if err != nil {
 		return nil, err
@@ -230,10 +230,10 @@ func CreateSystemDiskSpec(imageUUID string, systemDiskSize int64) (*prismclientv
 	}
 	systemDisk := &prismclientv3.VMDisk{
 		DataSourceReference: &prismclientv3.Reference{
-			Kind: utils.StringPtr("image"),
-			UUID: utils.StringPtr(imageUUID),
+			Kind: ptr.To("image"),
+			UUID: ptr.To(imageUUID),
 		},
-		DiskSizeMib: utils.Int64Ptr(systemDiskSize),
+		DiskSizeMib: ptr.To(systemDiskSize),
 	}
 	return systemDisk, nil
 }
@@ -560,8 +560,8 @@ func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, cate
 	if categoryKey == nil {
 		log.V(1).Info(fmt.Sprintf("Category with key %s did not exist.", categoryIdentifier.Key))
 		categoryKey, err = client.V3.CreateOrUpdateCategoryKey(ctx, &prismclientv3.CategoryKey{
-			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
-			Name:        utils.StringPtr(categoryIdentifier.Key),
+			Description: ptr.To(infrav1.DefaultCAPICategoryDescription),
+			Name:        ptr.To(categoryIdentifier.Key),
 		})
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to create category with key %s. error: %v", categoryIdentifier.Key, err)
@@ -577,8 +577,8 @@ func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, cate
 	}
 	if categoryValue == nil {
 		categoryValue, err = client.V3.CreateOrUpdateCategoryValue(ctx, *categoryKey.Name, &prismclientv3.CategoryValue{
-			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
-			Value:       utils.StringPtr(categoryIdentifier.Value),
+			Description: ptr.To(infrav1.DefaultCAPICategoryDescription),
+			Value:       ptr.To(categoryIdentifier.Value),
 		})
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to create category value %s in category key %s: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)

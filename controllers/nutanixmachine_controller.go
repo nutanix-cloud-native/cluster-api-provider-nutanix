@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -48,6 +47,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
@@ -104,13 +104,13 @@ func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctr
 		For(&infrav1.NutanixMachine{}).
 		// Watch the CAPI resource that owns this infrastructure resource.
 		Watches(
-			&capiv1.Machine{},
+			&source.Kind{Type: &capiv1.Machine{}},
 			handler.EnqueueRequestsFromMapFunc(
 				capiutil.MachineToInfrastructureMapFunc(
 					infrav1.GroupVersion.WithKind("NutanixMachine"))),
 		).
 		Watches(
-			&infrav1.NutanixCluster{},
+			&source.Kind{Type: &infrav1.NutanixCluster{}},
 			handler.EnqueueRequestsFromMapFunc(r.mapNutanixClusterToNutanixMachines(ctx)),
 		).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.controllerConfig.MaxConcurrentReconciles}).
@@ -118,7 +118,7 @@ func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctr
 }
 
 func (r *NutanixMachineReconciler) mapNutanixClusterToNutanixMachines(ctx context.Context) handler.MapFunc {
-	return func(ctx context.Context, o client.Object) []ctrl.Request {
+	return func(o client.Object) []ctrl.Request {
 		log := ctrl.LoggerFrom(ctx)
 		nutanixCluster, ok := o.(*infrav1.NutanixCluster)
 		if !ok {
@@ -595,14 +595,14 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	}
 
 	vmInput := &prismclientv3.VMIntentInput{}
-	vmSpec := &prismclientv3.VM{Name: utils.StringPtr(vmName)}
+	vmSpec := &prismclientv3.VM{Name: ptr.To(vmName)}
 
 	nicList := make([]*prismclientv3.VMNic, len(subnetUUIDs))
 	for idx, subnetUUID := range subnetUUIDs {
 		nicList[idx] = &prismclientv3.VMNic{
 			SubnetReference: &prismclientv3.Reference{
-				UUID: utils.StringPtr(subnetUUID),
-				Kind: utils.StringPtr("subnet"),
+				UUID: ptr.To(subnetUUID),
+				Kind: ptr.To("subnet"),
 			},
 		}
 	}
@@ -656,8 +656,8 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	}
 
 	vmSpec.ClusterReference = &prismclientv3.Reference{
-		Kind: utils.StringPtr("cluster"),
-		UUID: utils.StringPtr(peUUID),
+		Kind: ptr.To("cluster"),
+		UUID: ptr.To(peUUID),
 	}
 
 	if err := r.addGuestCustomizationToVM(rctx, vmSpec); err != nil {
@@ -744,10 +744,10 @@ func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineC
 		metadataEncoded := base64.StdEncoding.EncodeToString([]byte(metadata))
 
 		vmSpec.Resources.GuestCustomization = &prismclientv3.GuestCustomization{
-			IsOverridable: utils.BoolPtr(true),
+			IsOverridable: ptr.To(true),
 			CloudInit: &prismclientv3.GuestCustomizationCloudInit{
-				UserData: utils.StringPtr(bsdataEncoded),
-				MetaData: utils.StringPtr(metadataEncoded),
+				UserData: ptr.To(bsdataEncoded),
+				MetaData: ptr.To(metadataEncoded),
 			},
 		}
 	}
@@ -925,7 +925,7 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 		// Only modify VM spec if boot type is UEFI. Otherwise, assume default Legacy mode
 		if bootType == infrav1.NutanixBootTypeUEFI {
 			vmSpec.Resources.BootConfig = &prismclientv3.VMBootConfig{
-				BootType: utils.StringPtr(strings.ToUpper(string(bootType))),
+				BootType: ptr.To(strings.ToUpper(string(bootType))),
 			}
 		}
 	}

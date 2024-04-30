@@ -86,7 +86,7 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 
 	if err = c.Watch(
 		// Watch the CAPI resource that owns this infrastructure resource.
-		source.Kind(mgr.GetCache(), &capiv1.Cluster{}),
+		&source.Kind{Type: &capiv1.Cluster{}},
 		handler.EnqueueRequestsFromMapFunc(
 			capiutil.ClusterToInfrastructureMapFunc(
 				ctx,
@@ -364,35 +364,44 @@ func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, n
 		Name:      credentialRef.Name,
 	}
 
+	log.V(1).Info(fmt.Sprintf("fetching secret for cluster %s", nutanixCluster.Name))
 	if err := r.Client.Get(ctx, secretKey, secret); err != nil {
 		errorMsg := fmt.Errorf("error occurred while fetching cluster %s secret for credential ref: %v", nutanixCluster.Name, err)
 		log.Error(errorMsg, "error occurred fetching cluster")
 		return errorMsg
 	}
 
+	log.V(1).Info(fmt.Sprintf("fetched secret for cluster %s", nutanixCluster.Name))
 	// Check if ownerRef is already set on nutanixCluster object
 	if !capiutil.IsOwnedByObject(secret, nutanixCluster) {
-		if len(secret.GetOwnerReferences()) > 0 {
-			return fmt.Errorf("secret for cluster %s already has other owners set", nutanixCluster.Name)
+		// Check if another nutanixCluster already has set ownerRef. Secret can only be owned by one nutanixCluster object
+		if capiutil.HasOwner(secret.OwnerReferences, infrav1.GroupVersion.String(), []string{
+			nutanixCluster.Kind,
+		}) {
+			log.V(1).Info(fmt.Sprintf("fetched secret has owner reference for cluster %s: %+v", nutanixCluster.Name, secret.GetOwnerReferences()))
+			return fmt.Errorf("secret %s already owned by another nutanixCluster object", secret.Name)
 		}
-		secret.SetOwnerReferences([]metav1.OwnerReference{{
+		// Set nutanixCluster ownerRef on the secret
+		secret.OwnerReferences = capiutil.EnsureOwnerRef(secret.OwnerReferences, metav1.OwnerReference{
 			APIVersion: infrav1.GroupVersion.String(),
 			Kind:       nutanixCluster.Kind,
 			UID:        nutanixCluster.UID,
 			Name:       nutanixCluster.Name,
-		}})
+		})
 	}
 
 	if !ctrlutil.ContainsFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer) {
 		ctrlutil.AddFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer)
 	}
 
+	log.V(1).Info(fmt.Sprintf("updating secret for cluster %s", nutanixCluster.Name))
 	err = r.Client.Update(ctx, secret)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to update secret for cluster %s: %v", nutanixCluster.Name, err)
 		log.Error(errorMsg, "failed to update secret")
 		return errorMsg
 	}
+	log.V(1).Info(fmt.Sprintf("updated secret for cluster %s", nutanixCluster.Name))
 
 	return nil
 }

@@ -45,6 +45,10 @@ func TestNutanixClusterReconciler(t *testing.T) {
 	g := NewWithT(t)
 
 	_ = Describe("NutanixClusterReconciler", func() {
+		const (
+			// To be replaced with capiv1.ClusterKind
+			clusterKind = "Cluster"
+		)
 		var (
 			ntnxCluster *infrav1.NutanixCluster
 			ctx         context.Context
@@ -276,7 +280,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				ntnxSecret.OwnerReferences = []metav1.OwnerReference{
 					{
 						APIVersion: capiv1.GroupVersion.String(),
-						Kind:       capiv1.ClusterKind,
+						Kind:       clusterKind,
 						UID:        ntnxCluster.UID,
 						Name:       r,
 					},
@@ -296,7 +300,6 @@ func TestNutanixClusterReconciler(t *testing.T) {
 
 				// Check if secret is owned by the NutanixCluster
 				g.Expect(capiutil.IsOwnedByObject(ntnxSecret, ntnxCluster)).To(BeTrue())
-
 				g.Expect(len(ntnxSecret.OwnerReferences)).To(Equal(2))
 			})
 			It("should error if secret does not exist", func() {

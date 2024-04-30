@@ -27,7 +27,7 @@ PLATFORMS_E2E ?= linux/amd64
 KIND_CLUSTER_NAME ?= capi-test
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.23
+ENVTEST_K8S_VERSION = 1.26
 
 #
 # Directories.
@@ -365,7 +365,7 @@ GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
 .PHONY: unit-test
 unit-test: setup-envtest ## Run unit tests.
 ifeq ($(EXPORT_RESULT), true)
-	GO111MODULE=off $(GOGET) -u github.com/jstemmer/go-junit-report
+	$(GOCMD) install github.com/jstemmer/go-junit-report
 	$(eval OUTPUT_OPTIONS = | go-junit-report -set-exit-code > junit-report.xml)
 endif
 	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) $(GOTESTPKGS) $(OUTPUT_OPTIONS)
@@ -375,8 +375,8 @@ coverage: setup-envtest ## Run the tests of the project and export the coverage
 	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) -cover -covermode=count -coverprofile=profile.cov $(GOTESTPKGS)
 	$(GOTOOL) cover -func profile.cov
 ifeq ($(EXPORT_RESULT), true)
-	GO111MODULE=off $(GOGET) -u github.com/AlekSi/gocov-xml
-	GO111MODULE=off $(GOGET) -u github.com/axw/gocov/gocov
+	$(GOCMD) install github.com/AlekSi/gocov-xml
+	$(GOCMD) install github.com/axw/gocov/gocov
 	gocov convert profile.cov | gocov-xml > coverage.xml
 endif
 

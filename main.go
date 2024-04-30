@@ -54,11 +54,8 @@ var gitCommitHash string
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	utilruntime.Must(capiv1.AddToScheme(scheme))
-
 	utilruntime.Must(bootstrapv1.AddToScheme(scheme))
-
 	utilruntime.Must(infrav1alpha4.AddToScheme(scheme))
 	utilruntime.Must(infrav1beta1.AddToScheme(scheme))
 
@@ -163,6 +160,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "NutanixCluster")
 		os.Exit(1)
 	}
+
 	machineCtrl, err := controllers.NewNutanixMachineReconciler(
 		mgr.GetClient(),
 		secretInformer,
@@ -175,6 +173,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "NutanixMachine")
 		os.Exit(1)
 	}
+
 	if err = machineCtrl.SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NutanixMachine")
 		os.Exit(1)
@@ -185,6 +184,7 @@ func main() {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
 	}
+
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
