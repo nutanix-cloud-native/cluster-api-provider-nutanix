@@ -23,7 +23,7 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
+	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
@@ -60,7 +61,8 @@ func TestControllerHelpers(t *testing.T) {
 					Namespace: "default",
 				},
 				Spec: infrav1.NutanixClusterSpec{
-					PrismCentral: &credentialtypes.NutanixPrismEndpoint{
+					ControlPlaneEndpoint: capiv1.APIEndpoint{},
+					PrismCentral: &credentialTypes.NutanixPrismEndpoint{
 						// Adding port info to override default value (0)
 						Port: 9440,
 					},
@@ -134,11 +136,11 @@ func TestGetPrismCentralClientForCluster(t *testing.T) {
 	ctx := context.Background()
 	cluster := &infrav1.NutanixCluster{
 		Spec: infrav1.NutanixClusterSpec{
-			PrismCentral: &credentialtypes.NutanixPrismEndpoint{
+			PrismCentral: &credentialTypes.NutanixPrismEndpoint{
 				Address: "prismcentral.nutanix.com",
 				Port:    9440,
-				CredentialRef: &credentialtypes.NutanixCredentialReference{
-					Kind:      credentialtypes.SecretKind,
+				CredentialRef: &credentialTypes.NutanixCredentialReference{
+					Kind:      credentialTypes.SecretKind,
 					Name:      "test-credential",
 					Namespace: "test-ns",
 				},
@@ -164,9 +166,9 @@ func TestGetPrismCentralClientForCluster(t *testing.T) {
 	t.Run("GetOrCreate Fails", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 
-		creds := []credentialtypes.Credential{
+		creds := []credentialTypes.Credential{
 			{
-				Type: credentialtypes.BasicAuthCredentialType,
+				Type: credentialTypes.BasicAuthCredentialType,
 				Data: []byte(`{"prismCentral":{"username":"user","password":"password"}}`),
 			},
 		}
@@ -175,7 +177,7 @@ func TestGetPrismCentralClientForCluster(t *testing.T) {
 
 		secret := &corev1.Secret{
 			Data: map[string][]byte{
-				credentialtypes.KeyName: credsMarshal,
+				credentialTypes.KeyName: credsMarshal,
 			},
 		}
 
@@ -202,9 +204,9 @@ func TestGetPrismCentralClientForCluster(t *testing.T) {
 		// Create a new client cache with session auth disabled to avoid network calls in tests
 		nutanixclient.NutanixClientCache = prismclientv3.NewClientCache()
 
-		creds := []credentialtypes.Credential{
+		creds := []credentialTypes.Credential{
 			{
-				Type: credentialtypes.BasicAuthCredentialType,
+				Type: credentialTypes.BasicAuthCredentialType,
 				Data: []byte(`{"prismCentral":{"username":"user","password":"password"}}`),
 			},
 		}
@@ -213,7 +215,7 @@ func TestGetPrismCentralClientForCluster(t *testing.T) {
 		require.NoError(t, err)
 		secret := &corev1.Secret{
 			Data: map[string][]byte{
-				credentialtypes.KeyName: credsMarshal,
+				credentialTypes.KeyName: credsMarshal,
 			},
 		}
 

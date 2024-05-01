@@ -375,7 +375,7 @@ func Test_buildProviderFromNutanixCluster(t *testing.T) {
 			expectedErr:           ErrPrismPortNotSet,
 		},
 		{
-			name:   "CredentialRef is not set, should fail",
+			name:   "CredentialRef is not set, should not fail assuming not overriden and user wanted to use default from controller",
 			helper: testHelper(),
 			nutanixCluster: &infrav1.NutanixCluster{
 				ObjectMeta: metav1.ObjectMeta{
@@ -394,8 +394,7 @@ func Test_buildProviderFromNutanixCluster(t *testing.T) {
 					},
 				},
 			},
-			expectProviderToBeNil: true,
-			expectedErr:           fmt.Errorf("credentialRef must be set on prismCentral attribute for cluster %s in namespace %s", "test", corev1.NamespaceDefault),
+			expectProviderToBeNil: false,
 		},
 	}
 	for _, tt := range tests {

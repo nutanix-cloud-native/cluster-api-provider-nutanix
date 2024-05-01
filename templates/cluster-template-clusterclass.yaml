@@ -699,7 +699,17 @@ metadata:
 spec:
   template:
     spec:
+      controlPlaneEndpoint:
+        host: PLACEHOLDER
+        port: 6443
       failureDomains: []
+      prismCentral:
+        address: PLACEHOLDER
+        credentialRef:
+          kind: Secret
+          name: PLACEHOLDER
+          namespace: default
+        port: 9440
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: NutanixMachineTemplate

@@ -336,11 +336,12 @@ func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Cont
 	log := ctrl.LoggerFrom(ctx)
 	credentialRef, err := getPrismCentralCredentialRefForCluster(nutanixCluster)
 	if err != nil {
-		log.Error(err, fmt.Sprintf("error occurred while getting credential ref for cluster %s", nutanixCluster.Name))
+		// do not use nutanixCluster in error case as it might be nil
+		log.Error(err, "Failed to get PC Creds")
 		return err
 	}
 	if credentialRef == nil {
-		log.V(1).Info(fmt.Sprintf("Credential ref is nil for cluster %s. Ignoring since object must be deleted", nutanixCluster.Name))
+		log.V(1).Info(fmt.Sprintf("Credential ref is nil for cluster %s. Ignoring since object must be deleted or was not overriden", nutanixCluster.Name))
 		return nil
 	}
 	log.V(1).Info(fmt.Sprintf("Credential ref is kind Secret for cluster %s. Continue with deletion of secret", nutanixCluster.Name))
@@ -377,6 +378,8 @@ func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, n
 	log := ctrl.LoggerFrom(ctx)
 	credentialRef, err := getPrismCentralCredentialRefForCluster(nutanixCluster)
 	if err != nil {
+		// do not use nutanixCluster in error case as it might be nil
+		log.Error(err, "Failed to get PC Creds")
 		return err
 	}
 

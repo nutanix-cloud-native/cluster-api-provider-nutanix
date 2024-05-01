@@ -122,6 +122,7 @@ type testHelperInterface interface {
 	createDefaultNMT(clusterName, namespace string) *infrav1.NutanixMachineTemplate
 	createDefaultNutanixCluster(clusterName, namespace, controlPlaneEndpointIP string, controlPlanePort int32) *infrav1.NutanixCluster
 	createNameGPUNMT(ctx context.Context, clusterName, namespace string, params createGPUNMTParams) *infrav1.NutanixMachineTemplate
+	createObject(ctx context.Context, params createCapiObjectParams) error
 	createCapiObject(ctx context.Context, params createCapiObjectParams)
 	createDeviceIDGPUNMT(ctx context.Context, clusterName, namespace string, params createGPUNMTParams) *infrav1.NutanixMachineTemplate
 	createSecret(params createSecretParams)
@@ -362,9 +363,13 @@ type createCapiObjectParams struct {
 	capiObject client.Object
 }
 
+func (t testHelper) createObject(ctx context.Context, params createCapiObjectParams) error {
+	return params.creator.Create(ctx, params.capiObject)
+}
+
 func (t testHelper) createCapiObject(ctx context.Context, params createCapiObjectParams) {
 	Eventually(func() error {
-		return params.creator.Create(ctx, params.capiObject)
+		return t.createObject(ctx, params)
 	}, defaultTimeout, defaultInterval).Should(Succeed())
 }
 

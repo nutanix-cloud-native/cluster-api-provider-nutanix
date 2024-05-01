@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 
 	"github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 )
@@ -43,6 +44,10 @@ func TestGetCredentialRefForCluster(t *testing.T) {
 					Namespace: corev1.NamespaceDefault,
 				},
 				Spec: NutanixClusterSpec{
+					ControlPlaneEndpoint: capiv1.APIEndpoint{
+						Host: "host",
+						Port: 6443,
+					},
 					PrismCentral: &credentials.NutanixPrismEndpoint{
 						Address: "address",
 						Port:    9440,
@@ -61,7 +66,7 @@ func TestGetCredentialRefForCluster(t *testing.T) {
 			},
 		},
 		{
-			name: "prismCentralInfo is nil, should not fail",
+			name: "prismCentralInfo is nil, should fail",
 			nutanixCluster: &NutanixCluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
@@ -69,15 +74,20 @@ func TestGetCredentialRefForCluster(t *testing.T) {
 				},
 				Spec: NutanixClusterSpec{},
 			},
+			expectedErr: fmt.Errorf("prismCentral info is not provided."),
 		},
 		{
-			name: "CredentialRef kind is not kind Secret, should not fail",
+			name: "CredentialRef kind is not kind Secret, should fail",
 			nutanixCluster: &NutanixCluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: corev1.NamespaceDefault,
 				},
 				Spec: NutanixClusterSpec{
+					ControlPlaneEndpoint: capiv1.APIEndpoint{
+						Host: "host",
+						Port: 6443,
+					},
 					PrismCentral: &credentials.NutanixPrismEndpoint{
 						CredentialRef: &credentials.NutanixCredentialReference{
 							Kind: "unknown",
@@ -85,21 +95,25 @@ func TestGetCredentialRefForCluster(t *testing.T) {
 					},
 				},
 			},
+			expectedErr: fmt.Errorf("credentialRef should be of kind Secret"),
 		},
 		{
-			name: "prismCentralInfo is not nil but CredentialRef is nil, should fail",
+			name: "prismCentralInfo is not nil but CredentialRef is nil, should not fail",
 			nutanixCluster: &NutanixCluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: corev1.NamespaceDefault,
 				},
 				Spec: NutanixClusterSpec{
+					ControlPlaneEndpoint: capiv1.APIEndpoint{
+						Host: "host",
+						Port: 6443,
+					},
 					PrismCentral: &credentials.NutanixPrismEndpoint{
 						Address: "address",
 					},
 				},
 			},
-			expectedErr: fmt.Errorf("credentialRef must be set on prismCentral attribute for cluster test in namespace default"),
 		},
 	}
 	for _, tt := range tests {
