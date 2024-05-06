@@ -24,20 +24,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
-	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
-	corev1 "k8s.io/api/core/v1"
+	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/informers/core/v1"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	capiutil "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 )
 
 const (
@@ -52,7 +47,7 @@ const (
 )
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
-func DeleteVM(ctx context.Context, client *nutanixClientV3.Client, vmName, vmUUID string) (string, error) {
+func DeleteVM(ctx context.Context, client *prismclientv3.Client, vmName, vmUUID string) (string, error) {
 	log := ctrl.LoggerFrom(ctx)
 	var err error
 
@@ -73,7 +68,7 @@ func DeleteVM(ctx context.Context, client *nutanixClientV3.Client, vmName, vmUUI
 }
 
 // FindVMByUUID retrieves the VM with the given vm UUID. Returns nil if not found
-func FindVMByUUID(ctx context.Context, client *nutanixClientV3.Client, uuid string) (*nutanixClientV3.VMIntentResponse, error) {
+func FindVMByUUID(ctx context.Context, client *prismclientv3.Client, uuid string) (*prismclientv3.VMIntentResponse, error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.V(1).Info(fmt.Sprintf("Checking if VM with UUID %s exists.", uuid))
 
@@ -119,7 +114,7 @@ func GetVMUUID(nutanixMachine *infrav1.NutanixMachine) (string, error) {
 }
 
 // FindVM retrieves the VM with the given uuid or name
-func FindVM(ctx context.Context, client *nutanixClientV3.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*nutanixClientV3.VMIntentResponse, error) {
+func FindVM(ctx context.Context, client *prismclientv3.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*prismclientv3.VMIntentResponse, error) {
 	log := ctrl.LoggerFrom(ctx)
 	vmUUID, err := GetVMUUID(nutanixMachine)
 	if err != nil {
@@ -157,11 +152,11 @@ func FindVM(ctx context.Context, client *nutanixClientV3.Client, nutanixMachine 
 }
 
 // FindVMByName retrieves the VM with the given vm name
-func FindVMByName(ctx context.Context, client *nutanixClientV3.Client, vmName string) (*nutanixClientV3.VMIntentResponse, error) {
+func FindVMByName(ctx context.Context, client *prismclientv3.Client, vmName string) (*prismclientv3.VMIntentResponse, error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.Info(fmt.Sprintf("Checking if VM with name %s exists.", vmName))
 
-	res, err := client.V3.ListVM(ctx, &nutanixClientV3.DSMetadata{
+	res, err := client.V3.ListVM(ctx, &prismclientv3.DSMetadata{
 		Filter: utils.StringPtr(fmt.Sprintf("vm_name==%s", vmName)),
 	})
 	if err != nil {
@@ -180,7 +175,7 @@ func FindVMByName(ctx context.Context, client *nutanixClientV3.Client, vmName st
 }
 
 // GetPEUUID returns the UUID of the Prism Element cluster with the given name
-func GetPEUUID(ctx context.Context, client *nutanixClientV3.Client, peName, peUUID *string) (string, error) {
+func GetPEUUID(ctx context.Context, client *prismclientv3.Client, peName, peUUID *string) (string, error) {
 	if client == nil {
 		return "", fmt.Errorf("cannot retrieve Prism Element UUID if nutanix client is nil")
 	}
@@ -202,7 +197,7 @@ func GetPEUUID(ctx context.Context, client *nutanixClientV3.Client, peName, peUU
 			return "", err
 		}
 		// Validate filtered PEs
-		foundPEs := make([]*nutanixClientV3.ClusterIntentResponse, 0)
+		foundPEs := make([]*prismclientv3.ClusterIntentResponse, 0)
 		for _, s := range responsePEs.Entities {
 			peSpec := s.Spec
 			if *peSpec.Name == *peName && hasPEClusterServiceEnabled(s, serviceNamePECluster) {
@@ -226,15 +221,15 @@ func GetMibValueOfQuantity(quantity resource.Quantity) int64 {
 	return quantity.Value() / (1024 * 1024)
 }
 
-func CreateSystemDiskSpec(imageUUID string, systemDiskSize int64) (*nutanixClientV3.VMDisk, error) {
+func CreateSystemDiskSpec(imageUUID string, systemDiskSize int64) (*prismclientv3.VMDisk, error) {
 	if imageUUID == "" {
 		return nil, fmt.Errorf("image UUID must be set when creating system disk")
 	}
 	if systemDiskSize <= 0 {
 		return nil, fmt.Errorf("invalid system disk size: %d. Provide in XXGi (for example 70Gi) format instead", systemDiskSize)
 	}
-	systemDisk := &nutanixClientV3.VMDisk{
-		DataSourceReference: &nutanixClientV3.Reference{
+	systemDisk := &prismclientv3.VMDisk{
+		DataSourceReference: &prismclientv3.Reference{
 			Kind: utils.StringPtr("image"),
 			UUID: utils.StringPtr(imageUUID),
 		},
@@ -244,7 +239,7 @@ func CreateSystemDiskSpec(imageUUID string, systemDiskSize int64) (*nutanixClien
 }
 
 // GetSubnetUUID returns the UUID of the subnet with the given name
-func GetSubnetUUID(ctx context.Context, client *nutanixClientV3.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
+func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
 	var foundSubnetUUID string
 	if subnetUUID == nil && subnetName == nil {
 		return "", fmt.Errorf("subnet name or subnet uuid must be passed in order to retrieve the subnet")
@@ -265,7 +260,7 @@ func GetSubnetUUID(ctx context.Context, client *nutanixClientV3.Client, peUUID s
 			return "", err
 		}
 		// Validate filtered Subnets
-		foundSubnets := make([]*nutanixClientV3.SubnetIntentResponse, 0)
+		foundSubnets := make([]*prismclientv3.SubnetIntentResponse, 0)
 		for _, subnet := range responseSubnets.Entities {
 			if subnet == nil || subnet.Spec == nil || subnet.Spec.Name == nil || subnet.Spec.Resources == nil || subnet.Spec.Resources.SubnetType == nil {
 				continue
@@ -297,7 +292,7 @@ func GetSubnetUUID(ctx context.Context, client *nutanixClientV3.Client, peUUID s
 }
 
 // GetImageUUID returns the UUID of the image with the given name
-func GetImageUUID(ctx context.Context, client *nutanixClientV3.Client, imageName, imageUUID *string) (string, error) {
+func GetImageUUID(ctx context.Context, client *prismclientv3.Client, imageName, imageUUID *string) (string, error) {
 	var foundImageUUID string
 
 	if imageUUID == nil && imageName == nil {
@@ -318,7 +313,7 @@ func GetImageUUID(ctx context.Context, client *nutanixClientV3.Client, imageName
 			return "", err
 		}
 		// Validate filtered Images
-		foundImages := make([]*nutanixClientV3.ImageIntentResponse, 0)
+		foundImages := make([]*prismclientv3.ImageIntentResponse, 0)
 		for _, s := range responseImages.Entities {
 			imageSpec := s.Spec
 			if *imageSpec.Name == *imageName {
@@ -340,9 +335,9 @@ func GetImageUUID(ctx context.Context, client *nutanixClientV3.Client, imageName
 }
 
 // HasTaskInProgress returns true if the given task is in progress
-func HasTaskInProgress(ctx context.Context, client *nutanixClientV3.Client, taskUUID string) (bool, error) {
+func HasTaskInProgress(ctx context.Context, client *prismclientv3.Client, taskUUID string) (bool, error) {
 	log := ctrl.LoggerFrom(ctx)
-	taskStatus, err := nutanixClient.GetTaskStatus(ctx, client, taskUUID)
+	taskStatus, err := nutanixclient.GetTaskStatus(ctx, client, taskUUID)
 	if err != nil {
 		return false, err
 	}
@@ -354,7 +349,7 @@ func HasTaskInProgress(ctx context.Context, client *nutanixClientV3.Client, task
 }
 
 // GetTaskUUIDFromVM returns the UUID of the task that created the VM with the given UUID
-func GetTaskUUIDFromVM(vm *nutanixClientV3.VMIntentResponse) (string, error) {
+func GetTaskUUIDFromVM(vm *prismclientv3.VMIntentResponse) (string, error) {
 	if vm == nil {
 		return "", fmt.Errorf("cannot extract task uuid from empty vm object")
 	}
@@ -379,7 +374,7 @@ func GetTaskUUIDFromVM(vm *nutanixClientV3.VMIntentResponse) (string, error) {
 }
 
 // GetSubnetUUIDList returns a list of subnet UUIDs for the given list of subnet names
-func GetSubnetUUIDList(ctx context.Context, client *nutanixClientV3.Client, machineSubnets []infrav1.NutanixResourceIdentifier, peUUID string) ([]string, error) {
+func GetSubnetUUIDList(ctx context.Context, client *prismclientv3.Client, machineSubnets []infrav1.NutanixResourceIdentifier, peUUID string) ([]string, error) {
 	subnetUUIDs := make([]string, 0)
 	for _, machineSubnet := range machineSubnets {
 		subnetUUID, err := GetSubnetUUID(
@@ -418,8 +413,8 @@ func GetObsoleteDefaultCAPICategoryIdentifiers(clusterName string) []*infrav1.Nu
 }
 
 // GetOrCreateCategories returns the list of category UUIDs for the given list of category names
-func GetOrCreateCategories(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) ([]*nutanixClientV3.CategoryValueStatus, error) {
-	categories := make([]*nutanixClientV3.CategoryValueStatus, 0)
+func GetOrCreateCategories(ctx context.Context, client *prismclientv3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) ([]*prismclientv3.CategoryValueStatus, error) {
+	categories := make([]*prismclientv3.CategoryValueStatus, 0)
 	for _, ci := range categoryIdentifiers {
 		if ci == nil {
 			return categories, fmt.Errorf("cannot get or create nil category")
@@ -433,7 +428,7 @@ func GetOrCreateCategories(ctx context.Context, client *nutanixClientV3.Client, 
 	return categories, nil
 }
 
-func getCategoryKey(ctx context.Context, client *nutanixClientV3.Client, key string) (*nutanixClientV3.CategoryKeyStatus, error) {
+func getCategoryKey(ctx context.Context, client *prismclientv3.Client, key string) (*prismclientv3.CategoryKeyStatus, error) {
 	categoryKey, err := client.V3.GetCategoryKey(ctx, key)
 	if err != nil {
 		if !strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
@@ -445,7 +440,7 @@ func getCategoryKey(ctx context.Context, client *nutanixClientV3.Client, key str
 	return categoryKey, nil
 }
 
-func getCategoryValue(ctx context.Context, client *nutanixClientV3.Client, key, value string) (*nutanixClientV3.CategoryValueStatus, error) {
+func getCategoryValue(ctx context.Context, client *prismclientv3.Client, key, value string) (*prismclientv3.CategoryValueStatus, error) {
 	categoryValue, err := client.V3.GetCategoryValue(ctx, key, value)
 	if err != nil {
 		if !strings.Contains(fmt.Sprint(err), "CATEGORY_NAME_VALUE_MISMATCH") {
@@ -457,7 +452,7 @@ func getCategoryValue(ctx context.Context, client *nutanixClientV3.Client, key, 
 	return categoryValue, nil
 }
 
-func deleteCategoryKeyValues(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier, ignoreKeyDeletion bool) error {
+func deleteCategoryKeyValues(ctx context.Context, client *prismclientv3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier, ignoreKeyDeletion bool) error {
 	log := ctrl.LoggerFrom(ctx)
 	groupCategoriesByKey := make(map[string][]string, 0)
 	for _, ci := range categoryIdentifiers {
@@ -505,7 +500,7 @@ func deleteCategoryKeyValues(ctx context.Context, client *nutanixClientV3.Client
 
 		if !ignoreKeyDeletion {
 			// check if there are remaining category values
-			categoryKeyValues, err := client.V3.ListCategoryValues(ctx, key, &nutanixClientV3.CategoryListMetadata{})
+			categoryKeyValues, err := client.V3.ListCategoryValues(ctx, key, &prismclientv3.CategoryListMetadata{})
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to get values of category with key %s: %v", key, err)
 				log.Error(errorMsg, "failed to get values of category")
@@ -529,7 +524,7 @@ func deleteCategoryKeyValues(ctx context.Context, client *nutanixClientV3.Client
 }
 
 // DeleteCategories deletes the given list of categories
-func DeleteCategories(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers, obsoleteCategoryIdentifiers []*infrav1.NutanixCategoryIdentifier) error {
+func DeleteCategories(ctx context.Context, client *prismclientv3.Client, categoryIdentifiers, obsoleteCategoryIdentifiers []*infrav1.NutanixCategoryIdentifier) error {
 	// Dont delete keys with newer format as key is constant string
 	err := deleteCategoryKeyValues(ctx, client, categoryIdentifiers, true)
 	if err != nil {
@@ -544,7 +539,7 @@ func DeleteCategories(ctx context.Context, client *nutanixClientV3.Client, categ
 	return nil
 }
 
-func getOrCreateCategory(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifier *infrav1.NutanixCategoryIdentifier) (*nutanixClientV3.CategoryValueStatus, error) {
+func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, categoryIdentifier *infrav1.NutanixCategoryIdentifier) (*prismclientv3.CategoryValueStatus, error) {
 	log := ctrl.LoggerFrom(ctx)
 	if categoryIdentifier == nil {
 		return nil, fmt.Errorf("category identifier cannot be nil when getting or creating categories")
@@ -564,7 +559,7 @@ func getOrCreateCategory(ctx context.Context, client *nutanixClientV3.Client, ca
 	}
 	if categoryKey == nil {
 		log.V(1).Info(fmt.Sprintf("Category with key %s did not exist.", categoryIdentifier.Key))
-		categoryKey, err = client.V3.CreateOrUpdateCategoryKey(ctx, &nutanixClientV3.CategoryKey{
+		categoryKey, err = client.V3.CreateOrUpdateCategoryKey(ctx, &prismclientv3.CategoryKey{
 			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
 			Name:        utils.StringPtr(categoryIdentifier.Key),
 		})
@@ -581,7 +576,7 @@ func getOrCreateCategory(ctx context.Context, client *nutanixClientV3.Client, ca
 		return nil, errorMsg
 	}
 	if categoryValue == nil {
-		categoryValue, err = client.V3.CreateOrUpdateCategoryValue(ctx, *categoryKey.Name, &nutanixClientV3.CategoryValue{
+		categoryValue, err = client.V3.CreateOrUpdateCategoryValue(ctx, *categoryKey.Name, &prismclientv3.CategoryValue{
 			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
 			Value:       utils.StringPtr(categoryIdentifier.Value),
 		})
@@ -595,7 +590,7 @@ func getOrCreateCategory(ctx context.Context, client *nutanixClientV3.Client, ca
 }
 
 // GetCategoryVMSpec returns a flatmap of categories and their values
-func GetCategoryVMSpec(ctx context.Context, client *nutanixClientV3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) (map[string]string, error) {
+func GetCategoryVMSpec(ctx context.Context, client *prismclientv3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) (map[string]string, error) {
 	log := ctrl.LoggerFrom(ctx)
 	categorySpec := map[string]string{}
 	for _, ci := range categoryIdentifiers {
@@ -616,7 +611,7 @@ func GetCategoryVMSpec(ctx context.Context, client *nutanixClientV3.Client, cate
 }
 
 // GetProjectUUID returns the UUID of the project with the given name
-func GetProjectUUID(ctx context.Context, client *nutanixClientV3.Client, projectName, projectUUID *string) (string, error) {
+func GetProjectUUID(ctx context.Context, client *prismclientv3.Client, projectName, projectUUID *string) (string, error) {
 	var foundProjectUUID string
 	if projectUUID == nil && projectName == nil {
 		return "", fmt.Errorf("name or uuid must be passed in order to retrieve the project")
@@ -635,7 +630,7 @@ func GetProjectUUID(ctx context.Context, client *nutanixClientV3.Client, project
 		if err != nil {
 			return "", err
 		}
-		foundProjects := make([]*nutanixClientV3.Project, 0)
+		foundProjects := make([]*prismclientv3.Project, 0)
 		for _, s := range responseProjects.Entities {
 			projectSpec := s.Spec
 			if projectSpec.Name == *projectName {
@@ -660,7 +655,7 @@ func getFilterForName(name string) string {
 	return fmt.Sprintf("name==%s", name)
 }
 
-func hasPEClusterServiceEnabled(peCluster *nutanixClientV3.ClusterIntentResponse, serviceName string) bool {
+func hasPEClusterServiceEnabled(peCluster *prismclientv3.ClusterIntentResponse, serviceName string) bool {
 	if peCluster.Status == nil ||
 		peCluster.Status.Resources == nil ||
 		peCluster.Status.Resources.Config == nil {
@@ -676,8 +671,8 @@ func hasPEClusterServiceEnabled(peCluster *nutanixClientV3.ClusterIntentResponse
 }
 
 // GetGPUList returns a list of GPU device IDs for the given list of GPUs
-func GetGPUList(ctx context.Context, client *nutanixClientV3.Client, gpus []infrav1.NutanixGPU, peUUID string) ([]*nutanixClientV3.VMGpu, error) {
-	resultGPUs := make([]*nutanixClientV3.VMGpu, 0)
+func GetGPUList(ctx context.Context, client *prismclientv3.Client, gpus []infrav1.NutanixGPU, peUUID string) ([]*prismclientv3.VMGpu, error) {
+	resultGPUs := make([]*prismclientv3.VMGpu, 0)
 	for _, gpu := range gpus {
 		foundGPU, err := GetGPU(ctx, client, peUUID, gpu)
 		if err != nil {
@@ -689,7 +684,7 @@ func GetGPUList(ctx context.Context, client *nutanixClientV3.Client, gpus []infr
 }
 
 // GetGPUDeviceID returns the device ID of a GPU with the given name
-func GetGPU(ctx context.Context, client *nutanixClientV3.Client, peUUID string, gpu infrav1.NutanixGPU) (*nutanixClientV3.VMGpu, error) {
+func GetGPU(ctx context.Context, client *prismclientv3.Client, peUUID string, gpu infrav1.NutanixGPU) (*prismclientv3.VMGpu, error) {
 	gpuDeviceID := gpu.DeviceID
 	gpuDeviceName := gpu.Name
 	if gpuDeviceID == nil && gpuDeviceName == nil {
@@ -707,7 +702,7 @@ func GetGPU(ctx context.Context, client *nutanixClientV3.Client, peUUID string, 
 			continue
 		}
 		if (gpuDeviceID != nil && *peGPU.DeviceID == *gpuDeviceID) || (gpuDeviceName != nil && *gpuDeviceName == peGPU.Name) {
-			return &nutanixClientV3.VMGpu{
+			return &prismclientv3.VMGpu{
 				DeviceID: peGPU.DeviceID,
 				Mode:     &peGPU.Mode,
 				Vendor:   &peGPU.Vendor,
@@ -717,8 +712,8 @@ func GetGPU(ctx context.Context, client *nutanixClientV3.Client, peUUID string, 
 	return nil, fmt.Errorf("no available GPU found in Prism Element that matches required GPU inputs")
 }
 
-func GetGPUsForPE(ctx context.Context, client *nutanixClientV3.Client, peUUID string) ([]*nutanixClientV3.GPU, error) {
-	gpus := make([]*nutanixClientV3.GPU, 0)
+func GetGPUsForPE(ctx context.Context, client *prismclientv3.Client, peUUID string) ([]*prismclientv3.GPU, error) {
+	gpus := make([]*prismclientv3.GPU, 0)
 	hosts, err := client.V3.ListAllHost(ctx)
 	if err != nil {
 		return gpus, err
@@ -760,84 +755,20 @@ func GetFailureDomain(failureDomainName string, nutanixCluster *infrav1.NutanixC
 	return nil, fmt.Errorf("failed to find failure domain %s on nutanix cluster object", failureDomainName)
 }
 
-func reconcileCredentialRef(ctx context.Context, k8sClient client.Client, nutanixCluster *infrav1.NutanixCluster) error {
-	log := ctrl.LoggerFrom(ctx)
-	credentialRef, err := getPrismCentralCredentialRefForCluster(nutanixCluster)
-	if err != nil {
-		return err
-	}
-
-	secret := &corev1.Secret{}
-	if credentialRef == nil {
-		return nil
-	}
-
-	log.V(1).Info(fmt.Sprintf("credential ref is kind Secret for cluster %s", nutanixCluster.Name))
-	secretKey := client.ObjectKey{
-		Namespace: nutanixCluster.Namespace,
-		Name:      credentialRef.Name,
-	}
-
-	if err := k8sClient.Get(ctx, secretKey, secret); err != nil {
-		errorMsg := fmt.Errorf("error occurred while fetching cluster %s secret for credential ref: %v", nutanixCluster.Name, err)
-		log.Error(errorMsg, "error occurred fetching cluster")
-		return errorMsg
-	}
-
-	// Check if ownerRef is already set on nutanixCluster object
-	if !capiutil.IsOwnedByObject(secret, nutanixCluster) {
-		// Check if another nutanixCluster already has set ownerRef. Secret can only be owned by one nutanixCluster object
-		if capiutil.HasOwner(secret.OwnerReferences, infrav1.GroupVersion.String(), []string{
-			nutanixCluster.Kind,
-		}) {
-			return fmt.Errorf("secret %s already owned by another nutanixCluster object", secret.Name)
-		}
-		// Set nutanixCluster ownerRef on the secret
-		secret.OwnerReferences = capiutil.EnsureOwnerRef(secret.OwnerReferences, metav1.OwnerReference{
-			APIVersion: infrav1.GroupVersion.String(),
-			Kind:       nutanixCluster.Kind,
-			UID:        nutanixCluster.UID,
-			Name:       nutanixCluster.Name,
-		})
-	}
-
-	if !ctrlutil.ContainsFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer) {
-		ctrlutil.AddFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer)
-	}
-
-	err = k8sClient.Update(ctx, secret)
-	if err != nil {
-		errorMsg := fmt.Errorf("failed to update secret for cluster %s: %v", nutanixCluster.Name, err)
-		log.Error(errorMsg, "failed to update secret")
-		return errorMsg
-	}
-
-	return nil
-}
-
-func getPrismCentralClientForCluster(ctx context.Context, k8sClient client.Client, cluster *infrav1.NutanixCluster, capiCluster *capiv1.Cluster,
-	secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer,
-) (*nutanixClientV3.Client, error) {
+func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*prismclientv3.Client, error) {
 	log := ctrl.LoggerFrom(ctx)
 
-	if err := reconcileCredentialRef(ctx, k8sClient, cluster); err != nil {
-		log.Error(err, fmt.Sprintf("error occurred while reconciling credential ref for cluster %s", capiCluster.Name))
-		conditions.MarkFalse(cluster, infrav1.CredentialRefSecretOwnerSetCondition, infrav1.CredentialRefSecretOwnerSetFailed, capiv1.ConditionSeverityError, err.Error())
-		return nil, err
-	}
-	conditions.MarkTrue(cluster, infrav1.CredentialRefSecretOwnerSetCondition)
-
-	clientHelper := nutanixClient.NewHelper(secretInformer, mapInformer)
-	mep, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
+	clientHelper := nutanixclient.NewHelper(secretInformer, mapInformer)
+	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
 		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
 		return nil, err
 	}
 
-	v3Client, err := nutanixClient.NutanixClientCache.GetOrCreate(&nutanixClient.CacheParams{
+	v3Client, err := nutanixclient.NutanixClientCache.GetOrCreate(&nutanixclient.CacheParams{
 		NutanixCluster:          cluster,
-		PrismManagementEndpoint: mep,
+		PrismManagementEndpoint: managementEndpoint,
 	})
 	if err != nil {
 		log.Error(err, "error occurred while getting nutanix prism client from cache")

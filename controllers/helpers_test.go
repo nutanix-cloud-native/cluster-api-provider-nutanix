@@ -23,22 +23,19 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
-	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
+	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
-	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	mockctlclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/ctlclient"
 	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
-	nutanixClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 )
 
 func TestControllerHelpers(t *testing.T) {
@@ -63,7 +60,7 @@ func TestControllerHelpers(t *testing.T) {
 					Namespace: "default",
 				},
 				Spec: infrav1.NutanixClusterSpec{
-					PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+					PrismCentral: &credentialtypes.NutanixPrismEndpoint{
 						// Adding port info to override default value (0)
 						Port: 9440,
 					},
@@ -133,113 +130,25 @@ func TestControllerHelpers(t *testing.T) {
 	})
 }
 
-func TestReconcileCredentialRefWithPrismCentralNotSetOnCluster(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	ctx := context.Background()
-	fakeClient := mockctlclient.NewMockClient(ctrl)
-	nutanixCluster := &infrav1.NutanixCluster{
-		Spec: infrav1.NutanixClusterSpec{},
-	}
-
-	err := reconcileCredentialRef(ctx, fakeClient, nutanixCluster)
-	assert.NoError(t, err)
-}
-
-func TestReconcileCredentialRefWithValidCredentialRef(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	ctx := context.Background()
-	fakeClient := mockctlclient.NewMockClient(ctrl)
-	nutanixCluster := &infrav1.NutanixCluster{
-		Spec: infrav1.NutanixClusterSpec{
-			PrismCentral: &credentialTypes.NutanixPrismEndpoint{
-				CredentialRef: &credentialTypes.NutanixCredentialReference{
-					Kind:      credentialTypes.SecretKind,
-					Name:      "test-credential",
-					Namespace: "test-ns",
-				},
-			},
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-cluster",
-			Namespace: "test-ns",
-		},
-	}
-	secret := ctlclient.ObjectKey{
-		Name:      "test-credential",
-		Namespace: "test-ns",
-	}
-	//
-	fakeClient.EXPECT().Get(ctx, secret, gomock.Any()).Return(nil)
-	fakeClient.EXPECT().Update(ctx, gomock.Any()).Return(nil)
-
-	err := reconcileCredentialRef(ctx, fakeClient, nutanixCluster)
-	assert.NoError(t, err)
-}
-
-func TestReconcileCredentialRefWithValidCredentialRefFailedUpdate(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	ctx := context.Background()
-	fakeClient := mockctlclient.NewMockClient(ctrl)
-	nutanixCluster := &infrav1.NutanixCluster{
-		Spec: infrav1.NutanixClusterSpec{
-			PrismCentral: &credentialTypes.NutanixPrismEndpoint{
-				CredentialRef: &credentialTypes.NutanixCredentialReference{
-					Kind:      credentialTypes.SecretKind,
-					Name:      "test-credential",
-					Namespace: "test-ns",
-				},
-			},
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-cluster",
-			Namespace: "test-ns",
-		},
-	}
-	secret := ctlclient.ObjectKey{
-		Name:      "test-credential",
-		Namespace: "test-ns",
-	}
-	//
-	fakeClient.EXPECT().Get(ctx, secret, gomock.Any()).Return(nil)
-	fakeClient.EXPECT().Update(ctx, gomock.Any()).Return(errors.New("failed to update secret"))
-
-	err := reconcileCredentialRef(ctx, fakeClient, nutanixCluster)
-	assert.Error(t, err)
-}
-
 func TestGetPrismCentralClientForCluster(t *testing.T) {
 	ctx := context.Background()
-	capiCluster := &v1beta1.Cluster{}
 	cluster := &infrav1.NutanixCluster{
 		Spec: infrav1.NutanixClusterSpec{
-			PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+			PrismCentral: &credentialtypes.NutanixPrismEndpoint{
 				Address: "prismcentral.nutanix.com",
 				Port:    9440,
-				CredentialRef: &credentialTypes.NutanixCredentialReference{
-					Kind:      credentialTypes.SecretKind,
+				CredentialRef: &credentialtypes.NutanixCredentialReference{
+					Kind:      credentialtypes.SecretKind,
 					Name:      "test-credential",
 					Namespace: "test-ns",
 				},
 			},
 		},
 	}
-
-	t.Run("reconcileCredentialRef Fails", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		fakeClient := mockctlclient.NewMockClient(ctrl)
-		fakeClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(errors.New("failed to get secret"))
-		secretInformer := mockk8sclient.NewMockSecretInformer(ctrl)
-		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
-
-		_, err := getPrismCentralClientForCluster(ctx, fakeClient, cluster, capiCluster, secretInformer, mapInformer)
-		assert.Error(t, err)
-	})
 
 	t.Run("BuildManagementEndpoint Fails", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		fakeClient := mockctlclient.NewMockClient(ctrl)
-		fakeClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(nil)
-		fakeClient.EXPECT().Update(ctx, gomock.Any()).Return(nil)
+
 		secretNamespaceLister := mockk8sclient.NewMockSecretNamespaceLister(ctrl)
 		secretNamespaceLister.EXPECT().Get("test-credential").Return(nil, errors.New("failed to get secret"))
 		secretLister := mockk8sclient.NewMockSecretLister(ctrl)
@@ -248,29 +157,28 @@ func TestGetPrismCentralClientForCluster(t *testing.T) {
 		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
 		secretInformer.EXPECT().Lister().Return(secretLister)
 
-		_, err := getPrismCentralClientForCluster(ctx, fakeClient, cluster, capiCluster, secretInformer, mapInformer)
+		_, err := getPrismCentralClientForCluster(ctx, cluster, secretInformer, mapInformer)
 		assert.Error(t, err)
 	})
 
 	t.Run("GetOrCreate Fails", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		fakeClient := mockctlclient.NewMockClient(ctrl)
-		fakeClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(nil)
-		fakeClient.EXPECT().Update(ctx, gomock.Any()).Return(nil)
 
-		creds := []credentialTypes.Credential{
+		creds := []credentialtypes.Credential{
 			{
-				Type: credentialTypes.BasicAuthCredentialType,
+				Type: credentialtypes.BasicAuthCredentialType,
 				Data: []byte(`{"prismCentral":{"username":"user","password":"password"}}`),
 			},
 		}
 		credsMarshal, err := json.Marshal(creds)
 		require.NoError(t, err)
+
 		secret := &corev1.Secret{
 			Data: map[string][]byte{
-				credentialTypes.KeyName: credsMarshal,
+				credentialtypes.KeyName: credsMarshal,
 			},
 		}
+
 		secretNamespaceLister := mockk8sclient.NewMockSecretNamespaceLister(ctrl)
 		secretNamespaceLister.EXPECT().Get("test-credential").Return(secret, nil)
 		secretLister := mockk8sclient.NewMockSecretLister(ctrl)
@@ -279,36 +187,36 @@ func TestGetPrismCentralClientForCluster(t *testing.T) {
 		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
 		secretInformer.EXPECT().Lister().Return(secretLister)
 
-		_, err = getPrismCentralClientForCluster(ctx, fakeClient, cluster, capiCluster, secretInformer, mapInformer)
+		_, err = getPrismCentralClientForCluster(ctx, cluster, secretInformer, mapInformer)
 		assert.Error(t, err)
 	})
 
 	t.Run("GetOrCreate succeeds", func(t *testing.T) {
-		oldNutanixClientCache := nutanixClient.NutanixClientCache
-		defer func() {
-			nutanixClient.NutanixClientCache = oldNutanixClientCache
-		}()
-		// Create a new client cache with session auth disabled to avoid network calls in tests
-		nutanixClient.NutanixClientCache = nutanixClientV3.NewClientCache()
-
 		ctrl := gomock.NewController(t)
-		fakeClient := mockctlclient.NewMockClient(ctrl)
-		fakeClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(nil)
-		fakeClient.EXPECT().Update(ctx, gomock.Any()).Return(nil)
 
-		creds := []credentialTypes.Credential{
+		oldNutanixClientCache := nutanixclient.NutanixClientCache
+		defer func() {
+			nutanixclient.NutanixClientCache = oldNutanixClientCache
+		}()
+
+		// Create a new client cache with session auth disabled to avoid network calls in tests
+		nutanixclient.NutanixClientCache = prismclientv3.NewClientCache()
+
+		creds := []credentialtypes.Credential{
 			{
-				Type: credentialTypes.BasicAuthCredentialType,
+				Type: credentialtypes.BasicAuthCredentialType,
 				Data: []byte(`{"prismCentral":{"username":"user","password":"password"}}`),
 			},
 		}
+
 		credsMarshal, err := json.Marshal(creds)
 		require.NoError(t, err)
 		secret := &corev1.Secret{
 			Data: map[string][]byte{
-				credentialTypes.KeyName: credsMarshal,
+				credentialtypes.KeyName: credsMarshal,
 			},
 		}
+
 		secretNamespaceLister := mockk8sclient.NewMockSecretNamespaceLister(ctrl)
 		secretNamespaceLister.EXPECT().Get("test-credential").Return(secret, nil)
 		secretLister := mockk8sclient.NewMockSecretLister(ctrl)
@@ -317,7 +225,7 @@ func TestGetPrismCentralClientForCluster(t *testing.T) {
 		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
 		secretInformer.EXPECT().Lister().Return(secretLister)
 
-		_, err = getPrismCentralClientForCluster(ctx, fakeClient, cluster, capiCluster, secretInformer, mapInformer)
+		_, err = getPrismCentralClientForCluster(ctx, cluster, secretInformer, mapInformer)
 		assert.NoError(t, err)
 	})
 }
