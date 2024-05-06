@@ -369,6 +369,18 @@ prepare-local-clusterctl: manifests kustomize cluster-templates envsubst ## Prep
 	env LOCAL_PROVIDER_VERSION=$(LOCAL_PROVIDER_VERSION) \
 		$(ENVSUBST) -no-unset -no-empty -no-digit < ./clusterctl.yaml > ~/.cluster-api/clusterctl.yaml
 
+GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
+
+.PHONY: mocks
+mocks: ## Generate mocks for the project
+	mockgen -destination=mocks/ctlclient/client_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/client Client
+	mockgen -destination=mocks/ctlclient/manager_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/manager Manager
+	mockgen -destination=mocks/ctlclient/cache_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/cache Cache
+	mockgen -destination=mocks/k8sclient/cm_informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 ConfigMapInformer
+	mockgen -destination=mocks/k8sclient/secret_informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 SecretInformer
+	mockgen -destination=mocks/k8sclient/secret_lister.go -package=mockk8sclient k8s.io/client-go/listers/core/v1 SecretLister
+	mockgen -destination=mocks/k8sclient/secret_namespace_lister.go -package=mockk8sclient k8s.io/client-go/listers/core/v1 SecretNamespaceLister
+
 .PHONY: unit-test
 unit-test: setup-envtest ## Run unit tests.
 ifeq ($(EXPORT_RESULT), true)

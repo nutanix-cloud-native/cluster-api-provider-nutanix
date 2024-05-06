@@ -25,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	prismgoclient "github.com/nutanix-cloud-native/prism-go-client"
 	"github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	envTypes "github.com/nutanix-cloud-native/prism-go-client/environment/types"
 	"github.com/stretchr/testify/assert"
@@ -256,73 +255,8 @@ func Test_buildManagementEndpoint(t *testing.T) {
 		tt := tt // Capture range variable.
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			me, err := tt.helper.buildManagementEndpoint(context.TODO(), tt.nutanixCluster)
+			me, err := tt.helper.BuildManagementEndpoint(context.TODO(), tt.nutanixCluster)
 			assert.Equal(t, tt.expectedManagementEndpoint, me)
-			assert.Equal(t, tt.expectedErr, err)
-		})
-	}
-}
-
-func Test_buildClientFromCredentials(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name                  string
-		creds                 prismgoclient.Credentials
-		additionalTrustBundle string
-		expectClientToBeNil   bool
-		expectedErr           error
-	}{
-		{
-			name: "all information set",
-			creds: prismgoclient.Credentials{
-				Endpoint: "cluster-endpoint",
-				Port:     "9440",
-				Username: "user",
-				Password: "password",
-			},
-			additionalTrustBundle: validTestCA,
-		},
-		{
-			name: "some information set, expect defaults",
-			creds: prismgoclient.Credentials{
-				Endpoint: "cluster-endpoint",
-				Username: "user",
-				Password: "password",
-			},
-		},
-		{
-			name: "missing username",
-			creds: prismgoclient.Credentials{
-				Endpoint: "cluster-endpoint",
-				Port:     "9440",
-				Password: "password",
-			},
-			additionalTrustBundle: validTestCA,
-			expectClientToBeNil:   true,
-			expectedErr:           ErrPrismIUsernameNotSet,
-		},
-		{
-			name: "missing password",
-			creds: prismgoclient.Credentials{
-				Endpoint: "cluster-endpoint",
-				Port:     "9440",
-				Username: "user",
-			},
-			additionalTrustBundle: validTestCA,
-			expectClientToBeNil:   true,
-			expectedErr:           ErrPrismIPasswordNotSet,
-		},
-	}
-	for _, tt := range tests {
-		tt := tt // Capture range variable.
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			client, err := buildClientFromCredentials(tt.creds, tt.additionalTrustBundle)
-			if tt.expectClientToBeNil {
-				assert.Nil(t, client)
-			} else {
-				assert.NotNil(t, client)
-			}
 			assert.Equal(t, tt.expectedErr, err)
 		})
 	}

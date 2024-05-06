@@ -18,9 +18,15 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"testing"
 
-	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
+	"github.com/golang/mock/gomock"
+	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gstruct"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,15 +35,12 @@ import (
 	"sigs.k8s.io/cluster-api/util"
 	capiutil "sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	mockctlclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/ctlclient"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/gstruct"
 )
 
 func TestNutanixClusterReconciler(t *testing.T) {
@@ -83,7 +86,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 					UID:       utilruntime.NewUUID(),
 				},
 				Spec: infrav1.NutanixClusterSpec{
-					PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+					PrismCentral: &credentialtypes.NutanixPrismEndpoint{
 						// Adding port info to override default value (0)
 						Port: 9440,
 					},
@@ -110,7 +113,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 
 		AfterEach(func() {
 			// Delete ntnxCluster if exists.
-			k8sClient.Delete(ctx, ntnxCluster)
+			_ = k8sClient.Delete(ctx, ntnxCluster)
 		})
 
 		Context("Reconcile an NutanixCluster", func() {
@@ -119,7 +122,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
 
 				result, err := reconciler.Reconcile(ctx, ctrl.Request{
-					NamespacedName: client.ObjectKey{
+					NamespacedName: ctlclient.ObjectKey{
 						Namespace: ntnxCluster.Namespace,
 						Name:      ntnxCluster.Name,
 					},
@@ -179,7 +182,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
 				// Retrieve the applied nutanix cluster objects
 				appliedNtnxCluster := &infrav1.NutanixCluster{}
-				k8sClient.Get(ctx, client.ObjectKey{
+				_ = k8sClient.Get(ctx, ctlclient.ObjectKey{
 					Namespace: ntnxCluster.Namespace,
 					Name:      ntnxCluster.Name,
 				}, appliedNtnxCluster)
@@ -213,7 +216,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
 				// Retrieve the applied nutanix cluster objects
 				appliedNtnxCluster := &infrav1.NutanixCluster{}
-				k8sClient.Get(ctx, client.ObjectKey{
+				_ = k8sClient.Get(ctx, ctlclient.ObjectKey{
 					Namespace: ntnxCluster.Namespace,
 					Name:      ntnxCluster.Name,
 				}, appliedNtnxCluster)
@@ -245,7 +248,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 						Namespace: corev1.NamespaceDefault,
 					},
 					Spec: infrav1.NutanixClusterSpec{
-						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+						PrismCentral: &credentialtypes.NutanixPrismEndpoint{
 							// Adding port info to override default value (0)
 							Port: 9440,
 						},
@@ -254,8 +257,8 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(k8sClient.Create(ctx, additionalNtnxCluster)).To(Succeed())
 
 				// Add credential ref to the ntnxCluster resource
-				ntnxCluster.Spec.PrismCentral.CredentialRef = &credentialTypes.NutanixCredentialReference{
-					Kind:      credentialTypes.SecretKind,
+				ntnxCluster.Spec.PrismCentral.CredentialRef = &credentialtypes.NutanixCredentialReference{
+					Kind:      credentialtypes.SecretKind,
 					Name:      ntnxSecret.Name,
 					Namespace: ntnxSecret.Namespace,
 				}
@@ -277,8 +280,8 @@ func TestNutanixClusterReconciler(t *testing.T) {
 			})
 			It("should add credentialRef and finalizer if not owned by other cluster", func() {
 				// Add credential ref to the ntnxCluster resource
-				ntnxCluster.Spec.PrismCentral.CredentialRef = &credentialTypes.NutanixCredentialReference{
-					Kind:      credentialTypes.SecretKind,
+				ntnxCluster.Spec.PrismCentral.CredentialRef = &credentialtypes.NutanixCredentialReference{
+					Kind:      credentialtypes.SecretKind,
 					Name:      ntnxSecret.Name,
 					Namespace: ntnxSecret.Namespace,
 				}
@@ -291,7 +294,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 
 				// Get latest secret status
-				g.Expect(k8sClient.Get(ctx, client.ObjectKey{
+				g.Expect(k8sClient.Get(ctx, ctlclient.ObjectKey{
 					Namespace: ntnxSecret.Namespace,
 					Name:      ntnxSecret.Name,
 				}, ntnxSecret)).To(Succeed())
@@ -304,8 +307,8 @@ func TestNutanixClusterReconciler(t *testing.T) {
 			})
 			It("does not add another credentialRef if it is already set", func() {
 				// Add credential ref to the ntnxCluster resource
-				ntnxCluster.Spec.PrismCentral.CredentialRef = &credentialTypes.NutanixCredentialReference{
-					Kind:      credentialTypes.SecretKind,
+				ntnxCluster.Spec.PrismCentral.CredentialRef = &credentialtypes.NutanixCredentialReference{
+					Kind:      credentialtypes.SecretKind,
 					Name:      ntnxSecret.Name,
 					Namespace: ntnxSecret.Namespace,
 				}
@@ -327,7 +330,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 
 				// Get latest secret status
-				g.Expect(k8sClient.Get(ctx, client.ObjectKey{
+				g.Expect(k8sClient.Get(ctx, ctlclient.ObjectKey{
 					Namespace: ntnxSecret.Namespace,
 					Name:      ntnxSecret.Name,
 				}, ntnxSecret)).To(Succeed())
@@ -341,8 +344,8 @@ func TestNutanixClusterReconciler(t *testing.T) {
 
 			It("allows multiple ownerReferences with different kinds", func() {
 				// Add credential ref to the ntnxCluster resource
-				ntnxCluster.Spec.PrismCentral.CredentialRef = &credentialTypes.NutanixCredentialReference{
-					Kind:      credentialTypes.SecretKind,
+				ntnxCluster.Spec.PrismCentral.CredentialRef = &credentialtypes.NutanixCredentialReference{
+					Kind:      credentialtypes.SecretKind,
 					Name:      ntnxSecret.Name,
 					Namespace: ntnxSecret.Namespace,
 				}
@@ -364,7 +367,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 
 				// Get latest secret status
-				g.Expect(k8sClient.Get(ctx, client.ObjectKey{
+				g.Expect(k8sClient.Get(ctx, ctlclient.ObjectKey{
 					Namespace: ntnxSecret.Namespace,
 					Name:      ntnxSecret.Name,
 				}, ntnxSecret)).To(Succeed())
@@ -376,8 +379,8 @@ func TestNutanixClusterReconciler(t *testing.T) {
 			})
 			It("should error if secret does not exist", func() {
 				// Add credential ref to the ntnxCluster resource
-				ntnxCluster.Spec.PrismCentral.CredentialRef = &credentialTypes.NutanixCredentialReference{
-					Kind:      credentialTypes.SecretKind,
+				ntnxCluster.Spec.PrismCentral.CredentialRef = &credentialtypes.NutanixCredentialReference{
+					Kind:      credentialtypes.SecretKind,
 					Name:      ntnxSecret.Name,
 					Namespace: ntnxSecret.Namespace,
 				}
@@ -409,10 +412,10 @@ func TestNutanixClusterReconciler(t *testing.T) {
 						Namespace: "default",
 					},
 					Spec: infrav1.NutanixClusterSpec{
-						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+						PrismCentral: &credentialtypes.NutanixPrismEndpoint{
 							// Adding port info to override default value (0)
 							Port: 9440,
-							CredentialRef: &credentialTypes.NutanixCredentialReference{
+							CredentialRef: &credentialtypes.NutanixCredentialReference{
 								Name:      "test",
 								Namespace: "default",
 								Kind:      "Secret",
@@ -450,7 +453,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(err).NotTo(HaveOccurred())
 
 				// Check that Nutanix Secret is deleted
-				g.Expect(k8sClient.Get(ctx, client.ObjectKey{
+				g.Expect(k8sClient.Get(ctx, ctlclient.ObjectKey{
 					Namespace: ntnxSecret.Namespace,
 					Name:      ntnxSecret.Name,
 				}, ntnxSecret)).ToNot(Succeed())
@@ -471,7 +474,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 						Namespace: "default",
 					},
 					Spec: infrav1.NutanixClusterSpec{
-						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+						PrismCentral: &credentialtypes.NutanixPrismEndpoint{
 							// Adding port info to override default value (0)
 							Port: 9440,
 						},
@@ -505,10 +508,10 @@ func TestNutanixClusterReconciler(t *testing.T) {
 						Namespace: "default",
 					},
 					Spec: infrav1.NutanixClusterSpec{
-						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+						PrismCentral: &credentialtypes.NutanixPrismEndpoint{
 							// Adding port info to override default value (0)
 							Port: 9440,
-							CredentialRef: &credentialTypes.NutanixCredentialReference{
+							CredentialRef: &credentialtypes.NutanixCredentialReference{
 								Name:      "test",
 								Namespace: "default",
 								Kind:      "Secret",
@@ -561,4 +564,92 @@ func TestNutanixClusterReconciler(t *testing.T) {
 			})
 		})
 	})
+}
+
+func TestReconcileCredentialRefWithPrismCentralNotSetOnCluster(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	ctx := context.Background()
+	fakeClient := mockctlclient.NewMockClient(mockCtrl)
+	nutanixCluster := &infrav1.NutanixCluster{
+		Spec: infrav1.NutanixClusterSpec{},
+	}
+
+	reconciler := &NutanixClusterReconciler{
+		Client: fakeClient,
+	}
+
+	err := reconciler.reconcileCredentialRef(ctx, nutanixCluster)
+	assert.NoError(t, err)
+}
+
+func TestReconcileCredentialRefWithValidCredentialRef(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+
+	nutanixCluster := &infrav1.NutanixCluster{
+		Spec: infrav1.NutanixClusterSpec{
+			PrismCentral: &credentialtypes.NutanixPrismEndpoint{
+				CredentialRef: &credentialtypes.NutanixCredentialReference{
+					Kind:      credentialtypes.SecretKind,
+					Name:      "test-credential",
+					Namespace: "test-ns",
+				},
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cluster",
+			Namespace: "test-ns",
+		},
+	}
+
+	secret := ctlclient.ObjectKey{
+		Name:      "test-credential",
+		Namespace: "test-ns",
+	}
+
+	ctx := context.Background()
+	fakeClient := mockctlclient.NewMockClient(mockCtrl)
+	fakeClient.EXPECT().Get(ctx, secret, gomock.Any()).Return(nil)
+	fakeClient.EXPECT().Update(ctx, gomock.Any()).Return(nil)
+
+	reconciler := &NutanixClusterReconciler{
+		Client: fakeClient,
+	}
+
+	err := reconciler.reconcileCredentialRef(ctx, nutanixCluster)
+	assert.NoError(t, err)
+}
+
+func TestReconcileCredentialRefWithValidCredentialRefFailedUpdate(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	ctx := context.Background()
+	fakeClient := mockctlclient.NewMockClient(mockCtrl)
+	nutanixCluster := &infrav1.NutanixCluster{
+		Spec: infrav1.NutanixClusterSpec{
+			PrismCentral: &credentialtypes.NutanixPrismEndpoint{
+				CredentialRef: &credentialtypes.NutanixCredentialReference{
+					Kind:      credentialtypes.SecretKind,
+					Name:      "test-credential",
+					Namespace: "test-ns",
+				},
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cluster",
+			Namespace: "test-ns",
+		},
+	}
+	secret := ctlclient.ObjectKey{
+		Name:      "test-credential",
+		Namespace: "test-ns",
+	}
+
+	fakeClient.EXPECT().Get(ctx, secret, gomock.Any()).Return(nil)
+	fakeClient.EXPECT().Update(ctx, gomock.Any()).Return(errors.New("failed to update secret"))
+
+	reconciler := &NutanixClusterReconciler{
+		Client: fakeClient,
+	}
+
+	err := reconciler.reconcileCredentialRef(ctx, nutanixCluster)
+	assert.Error(t, err)
 }

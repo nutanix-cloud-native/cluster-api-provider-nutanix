@@ -17,12 +17,13 @@ limitations under the License.
 package v1alpha4
 
 import (
-	infrav1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	apiconversion "k8s.io/apimachinery/pkg/conversion"
-	capiv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	capiv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4" //nolint:staticcheck // we know v1alpha4 is deprecated: release-v1.3 branch is not an active development branch
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	utilconversion "sigs.k8s.io/cluster-api/util/conversion"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
+
+	infrav1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
 // ConvertTo converts this NutanixMachineTemplate to the Hub version (v1beta1).
