@@ -112,3 +112,39 @@ func TestGetCredentialRefForCluster(t *testing.T) {
 		})
 	}
 }
+
+func TestGetNamespacedName(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name             string
+		nutanixCluster   *NutanixCluster
+		expectedFullName string
+	}{
+		{
+			name: "namespace and name are set",
+			nutanixCluster: &NutanixCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test-namespace",
+				},
+			},
+			expectedFullName: "test-namespace/test",
+		},
+		{
+			name: "namespace is not set, should use default",
+			nutanixCluster: &NutanixCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test",
+				},
+			},
+			expectedFullName: "default/test",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fullName := tt.nutanixCluster.GetNamespacedName()
+			assert.Equal(t, tt.expectedFullName, fullName)
+		})
+	}
+}

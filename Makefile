@@ -122,6 +122,11 @@ GOLANGCI_LINT_VER := v1.55.2
 GOLANGCI_LINT_BIN := golangci-lint
 GOLANGCI_LINT := $(abspath $(TOOLS_BIN_DIR)/$(GOLANGCI_LINT_BIN))
 
+MOCKGEN_VER := v1.6.0
+MOCKGEN_BIN := mockgen
+MOCKGEN_PKG := github.com/golang/mock/mockgen
+MOCKGEN := $(abspath $(TOOLS_BIN_DIR)/$(MOCKGEN_BIN)-$(MOCKGEN_VER))
+
 # CRD_OPTIONS define options to add to the CONTROLLER_GEN
 CRD_OPTIONS ?= "crd:crdVersions=v1"
 
@@ -342,7 +347,20 @@ prepare-local-clusterctl: manifests kustomize cluster-templates ## Prepare overi
 	$(KUSTOMIZE) build config/default > ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/infrastructure-components.yaml
 	cp ./metadata.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/
 	cp ./templates/cluster-template*.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/
-	cp ./clusterctl.yaml ~/.cluster-api/clusterctl.yaml
+	env LOCAL_PROVIDER_VERSION=$(LOCAL_PROVIDER_VERSION) \
+		envsubst -no-unset -no-empty -no-digit < ./clusterctl.yaml > ~/.cluster-api/clusterctl.yaml
+
+.PHONY: mocks
+mocks: $(MOCKGEN) ## Generate mocks for the project
+	$(MOCKGEN) -destination=mocks/ctlclient/client_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/client Client
+	$(MOCKGEN) -destination=mocks/ctlclient/manager_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/manager Manager
+	$(MOCKGEN) -destination=mocks/ctlclient/cache_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/cache Cache
+	$(MOCKGEN) -destination=mocks/k8sclient/cm_informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 ConfigMapInformer
+	$(MOCKGEN) -destination=mocks/k8sclient/secret_informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 SecretInformer
+	$(MOCKGEN) -destination=mocks/k8sclient/secret_lister.go -package=mockk8sclient k8s.io/client-go/listers/core/v1 SecretLister
+	$(MOCKGEN) -destination=mocks/k8sclient/secret_namespace_lister.go -package=mockk8sclient k8s.io/client-go/listers/core/v1 SecretNamespaceLister
+
+GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
 
 .PHONY: unit-test
 unit-test: setup-envtest ## Run unit tests.
@@ -350,11 +368,11 @@ ifeq ($(EXPORT_RESULT), true)
 	GO111MODULE=off $(GOGET) -u github.com/jstemmer/go-junit-report
 	$(eval OUTPUT_OPTIONS = | go-junit-report -set-exit-code > junit-report.xml)
 endif
-	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) ./... $(OUTPUT_OPTIONS)
+	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) $(GOTESTPKGS) $(OUTPUT_OPTIONS)
 
 .PHONY: coverage
 coverage: setup-envtest ## Run the tests of the project and export the coverage
-	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) -cover -covermode=count -coverprofile=profile.cov ./...
+	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) -cover -covermode=count -coverprofile=profile.cov $(GOTESTPKGS)
 	$(GOTOOL) cover -func profile.cov
 ifeq ($(EXPORT_RESULT), true)
 	GO111MODULE=off $(GOGET) -u github.com/AlekSi/gocov-xml
@@ -512,6 +530,9 @@ $(KO): # Build ko from tools folder.
 
 $(KUSTOMIZE): # Build kustomize from tools folder.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(KUSTOMIZE_PKG) $(KUSTOMIZE_BIN) $(KUSTOMIZE_VER)
+
+$(MOCKGEN): # Build mockgen from tools folder.
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) $(MOCKGEN_PKG) $(MOCKGEN_BIN) $(MOCKGEN_VER)
 
 .PHONY: $(KO_BIN)
 $(KO_BIN): $(KO) ## Build a local copy of ko

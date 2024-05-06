@@ -28,6 +28,9 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 const (
+	// NutanixMachineKind represents the Kind of NutanixMachine
+	NutanixMachineKind = "NutanixMachine"
+
 	// NutanixMachineFinalizer allows NutanixMachineReconciler to clean up AHV
 	// resources associated with NutanixMachine before removing it from the
 	// API Server.

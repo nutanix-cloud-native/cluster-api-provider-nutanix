@@ -17,15 +17,20 @@ limitations under the License.
 package v1beta1
 
 import (
+	"cmp"
 	"fmt"
 
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/errors"
 )
 
 const (
+	// NutanixClusterKind represents the Kind of NutanixCluster
+	NutanixClusterKind = "NutanixCluster"
+
 	// NutanixClusterFinalizer allows NutanixClusterReconciler to clean up AHV
 	// resources associated with NutanixCluster before removing it from the
 	// API Server.
@@ -116,6 +121,12 @@ func (ncl *NutanixCluster) GetPrismCentralCredentialRef() (*credentialTypes.Nuta
 	}
 
 	return prismCentralInfo.CredentialRef, nil
+}
+
+// GetNamespacedName returns the namespaced name of the NutanixCluster.
+func (ncl *NutanixCluster) GetNamespacedName() string {
+	namespace := cmp.Or(ncl.Namespace, corev1.NamespaceDefault)
+	return fmt.Sprintf("%s/%s", namespace, ncl.Name)
 }
 
 // +kubebuilder:object:root=true
