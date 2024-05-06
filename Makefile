@@ -306,8 +306,10 @@ mocks: ## Generate mocks for the project
 	mockgen -destination=mocks/ctlclient/cache_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/cache Cache
 	mockgen -destination=mocks/k8sclient/cm_informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 ConfigMapInformer
 	mockgen -destination=mocks/k8sclient/secret_informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 SecretInformer
+	mockgen -destination=mocks/k8sclient/secret_lister.go -package=mockk8sclient k8s.io/client-go/listers/core/v1 SecretLister
+	mockgen -destination=mocks/k8sclient/secret_namespace_lister.go -package=mockk8sclient k8s.io/client-go/listers/core/v1 SecretNamespaceLister
 
-GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
+GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates | grep -v /v1alpha4)
 
 .PHONY: unit-test
 unit-test: mocks  ## Run unit tests.
