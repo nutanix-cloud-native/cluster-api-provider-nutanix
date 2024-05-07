@@ -20,6 +20,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -61,7 +62,15 @@ var _ = Describe("When scaling in cluster with topology ", Label("clusterclass",
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	scaleOutWorkflow := func(targetKubeVer, targetImageName string, fromCPNodeCount, fromWorkerNodeCount, toCPNodeCount, toWorkerNodeCount int) {
+	scaleInWorkflow := func(targetKube *E2eConfigK8SVersion,
+		fromCPNodeCount, fromWorkerNodeCount, toCPNodeCount, toWorkerNodeCount int,
+	) {
+		clusterName = testHelper.generateTestClusterName(specName)
+		Expect(clusterName).NotTo(BeNil())
+
+		targetKubeVer := testHelper.getVariableFromE2eConfig(targetKube.E2eConfigK8sVersionEnvVar)
+		targetImageName := testHelper.getVariableFromE2eConfig(targetKube.E2eConfigK8sVersionImageEnvVar)
+
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
@@ -105,84 +114,33 @@ var _ = Describe("When scaling in cluster with topology ", Label("clusterclass",
 		By("PASSED!")
 	}
 
-	It("Scale in a cluster with topology from 3 CP node to 1 CP nodes with Kube127", Label("Kube127", "cluster-topology-scale-in"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
+	// CP scale in tests
+	for _, targetTestConfig := range SupportedK8STargetConfigs {
+		labels := []string{"cluster-topology-scale-in", "cluster-topology-scale-in-cp"}
+		labels = append(labels, targetTestConfig.targetLabels...)
+		It(fmt.Sprintf("Scale in a cluster with topology from 3 CP node to 1 CP nodes with %s", targetTestConfig.targetLabels[0]),
+			Label(labels...), func() {
+				scaleInWorkflow(targetTestConfig.targetKube, 3, 1, 1, 1)
+			})
+	}
 
-		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
-		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
-		scaleOutWorkflow(kube127, kube127Image, 3, 1, 1, 1)
-	})
+	// Worker scale in tests
+	for _, targetTestConfig := range SupportedK8STargetConfigs {
+		labels := []string{"cluster-topology-scale-in", "cluster-topology-scale-in-worker"}
+		labels = append(labels, targetTestConfig.targetLabels...)
+		It(fmt.Sprintf("Scale in a cluster with topology from 3 Worker node to 1 Worker nodes with %s", targetTestConfig.targetLabels[0]),
+			Label(labels...), func() {
+				scaleInWorkflow(targetTestConfig.targetKube, 1, 3, 1, 1)
+			})
+	}
 
-	It("Scale in a cluster with topology from 3 Worker node to 1 Worker nodes with Kube127", Label("Kube127", "cluster-topology-scale-in"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
-		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
-		scaleOutWorkflow(kube127, kube127Image, 1, 3, 1, 1)
-	})
-
-	It("Scale in a cluster with topology from 3 CP and Worker node to 1 CP and Worker nodes with Kube127", Label("Kube127", "cluster-topology-scale-in"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
-		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
-		scaleOutWorkflow(kube127, kube127Image, 3, 3, 1, 1)
-	})
-
-	It("Scale in a cluster with topology from 3 CP node to 1 CP nodes with Kube128", Label("Kube128", "cluster-topology-scale-in"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
-		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
-		scaleOutWorkflow(kube128, kube128Image, 3, 1, 1, 1)
-	})
-
-	It("Scale in a cluster with topology from 3 Worker node to 1 Worker nodes with Kube128", Label("Kube128", "cluster-topology-scale-in"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
-		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
-		scaleOutWorkflow(kube128, kube128Image, 1, 3, 1, 1)
-	})
-
-	It("Scale in a cluster with topology from 3 CP and Worker node to 1 CP and Worker nodes with Kube128", Label("Kube128", "cluster-topology-scale-in"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
-		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
-		scaleOutWorkflow(kube128, kube128Image, 3, 3, 1, 1)
-	})
-
-	It("Scale in a cluster with topology from 3 CP node to 1 CP nodes with Kube129", Label("Kube129", "cluster-topology-scale-in"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
-		kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
-		scaleOutWorkflow(kube129, kube129Image, 3, 1, 1, 1)
-	})
-
-	It("Scale in a cluster with topology from 3 Worker node to 1 Worker nodes with Kube129", Label("Kube129", "cluster-topology-scale-in"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
-		kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
-		scaleOutWorkflow(kube129, kube129Image, 1, 3, 1, 1)
-	})
-
-	It("Scale in a cluster with topology from 3 CP and Worker node to 1 CP and Worker nodes with Kube129", Label("Kube129", "cluster-topology-scale-in"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
-		kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
-		scaleOutWorkflow(kube129, kube129Image, 3, 3, 1, 1)
-	})
+	// CP and Worker scale in tests
+	for _, targetTestConfig := range SupportedK8STargetConfigs {
+		labels := []string{"cluster-topology-scale-in", "cluster-topology-scale-in-cp-worker"}
+		labels = append(labels, targetTestConfig.targetLabels...)
+		It(fmt.Sprintf("Scale in a cluster with topology from 3 CP and Worker node to 1 CP and Worker nodes with %s", targetTestConfig.targetLabels[0]),
+			Label(labels...), func() {
+				scaleInWorkflow(targetTestConfig.targetKube, 3, 3, 1, 1)
+			})
+	}
 })

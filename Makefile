@@ -286,7 +286,7 @@ cluster-templates: ## Generate cluster templates for all flavors
 .PHONY: docker-build-e2e
 docker-build-e2e: ## Build docker image with the manager with e2e tag.
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
-	KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS_E2E} -t ${IMG_TAG} -L .
+	KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS_E2E} -t ${IMG_TAG} .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:e2e
 
 .PHONY: prepare-local-clusterctl

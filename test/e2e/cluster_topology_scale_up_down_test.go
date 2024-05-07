@@ -63,8 +63,7 @@ var _ = Describe("When scaling up/down cluster with topology ", Label("clustercl
 	})
 
 	scaleUpDownWorkflow := func(
-		targetKubeVer,
-		targetImageName,
+		targetKube *E2eConfigK8SVersion,
 		fromMachineMemorySizeGibStr,
 		toMachineMemorySizeGibStr,
 		fromMachineSystemDiskSizeGibStr,
@@ -74,6 +73,12 @@ var _ = Describe("When scaling up/down cluster with topology ", Label("clustercl
 		fromMachineVCPUsPerSocket,
 		toMachineVCPUsPerSocket int64,
 	) {
+		clusterName = testHelper.generateTestClusterName(specName)
+		Expect(clusterName).NotTo(BeNil())
+
+		targetKubeVer := testHelper.getVariableFromE2eConfig(targetKube.E2eConfigK8sVersionEnvVar)
+		targetImageName := testHelper.getVariableFromE2eConfig(targetKube.E2eConfigK8sVersionImageEnvVar)
+
 		By("Creating a workload cluster with topology")
 		clusterTopologyConfig := NewClusterTopologyConfig(
 			WithName(clusterName),
@@ -141,172 +146,73 @@ var _ = Describe("When scaling up/down cluster with topology ", Label("clustercl
 	}
 
 	// Scale Down Test Start
-	It("Scale down a cluster with CP and Worker node machine memory size from 4Gi to 3Gi with Kube127", Label("Kube127", "cluster-topology-scale-down"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
 
-		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
-		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
-		scaleUpDownWorkflow(kube127, kube127Image, "4Gi", "3Gi", "40Gi", "40Gi", 2, 2, 1, 1)
-	})
+	// Memory Size scale down tests
+	for _, targetTestConfig := range SupportedK8STargetConfigs {
+		labels := []string{"cluster-topology-scale-down", "cluster-topology-scale-down-memory-size"}
+		labels = append(labels, targetTestConfig.targetLabels...)
+		It(fmt.Sprintf("Scale down a cluster with CP and Worker node machine memory size from 4Gi to 3Gi with %s", targetTestConfig.targetLabels[0]),
+			Label(labels...), func() {
+				scaleUpDownWorkflow(targetTestConfig.targetKube, "4Gi", "3Gi", "40Gi", "40Gi", 2, 2, 1, 1)
+			})
+	}
 
-	It("Scale down a cluster with CP and Worker node machine memory size from 4Gi to 3Gi with Kube128", Label("Kube128", "cluster-topology-scale-down"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
+	// VCPUSocket scale down tests
+	for _, targetTestConfig := range SupportedK8STargetConfigs {
+		labels := []string{"cluster-topology-scale-down", "cluster-topology-scale-down-vcpusockets"}
+		labels = append(labels, targetTestConfig.targetLabels...)
+		It(fmt.Sprintf("Scale down a cluster with CP and Worker node VCPUSockets from 3 to 2 with %s", targetTestConfig.targetLabels[0]),
+			Label(labels...), func() {
+				scaleUpDownWorkflow(targetTestConfig.targetKube, "4Gi", "4Gi", "40Gi", "40Gi", 3, 2, 1, 1)
+			})
+	}
 
-		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
-		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
-		scaleUpDownWorkflow(kube128, kube128Image, "4Gi", "3Gi", "40Gi", "40Gi", 2, 2, 1, 1)
-	})
+	// VCPUPerSocket scale down tests
+	for _, targetTestConfig := range SupportedK8STargetConfigs {
+		labels := []string{"cluster-topology-scale-down", "cluster-topology-scale-down-vcpupersocket"}
+		labels = append(labels, targetTestConfig.targetLabels...)
+		It(fmt.Sprintf("Scale down a cluster with CP and Worker node vcpu per socket from 2 to 1 with %s", targetTestConfig.targetLabels[0]),
+			Label(labels...), func() {
+				scaleUpDownWorkflow(targetTestConfig.targetKube, "4Gi", "4Gi", "40Gi", "40Gi", 3, 3, 2, 1)
+			})
+	}
 
-	It("Scale down a cluster with CP and Worker node machine memory size from 4Gi to 3Gi with Kube129", Label("Kube129", "cluster-topology-scale-down"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
+	// TODO:deepakm-ntnx system disk scale down tests
 
-		Kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
-		Kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
-		scaleUpDownWorkflow(Kube129, Kube129Image, "4Gi", "3Gi", "40Gi", "40Gi", 2, 2, 1, 1)
-	})
-
-	It("Scale down a cluster with CP and Worker node VCPUSockets from 3 to 2 with Kube127", Label("Kube127", "cluster-topology-scale-down"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
-		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
-		scaleUpDownWorkflow(kube127, kube127Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 2, 1, 1)
-	})
-
-	It("Scale down a cluster with CP and Worker node VCPUSockets from 3 to 2 with Kube128", Label("Kube128", "cluster-topology-scale-down"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
-		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
-		scaleUpDownWorkflow(kube128, kube128Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 2, 1, 1)
-	})
-
-	It("Scale down a cluster with CP and Worker node machine VCPUSockets from 3 to 2 with Kube129", Label("Kube129", "cluster-topology-scale-down"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		Kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
-		Kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
-		scaleUpDownWorkflow(Kube129, Kube129Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 2, 1, 1)
-	})
-
-	It("Scale down a cluster with CP and Worker node vcpu per socket from 2 to 1 with Kube127", Label("Kube127", "cluster-topology-scale-down"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
-		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
-		scaleUpDownWorkflow(kube127, kube127Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 3, 2, 1)
-	})
-
-	It("Scale down a cluster with CP and Worker node vcpu per socket from 2 to 1 with Kube128", Label("Kube128", "cluster-topology-scale-down"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
-		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
-		scaleUpDownWorkflow(kube128, kube128Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 3, 2, 1)
-	})
-
-	It("Scale down a cluster with CP and Worker node machine vcpu per socket from 2 to 1 with Kube129", Label("Kube129", "cluster-topology-scale-down"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		Kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
-		Kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
-		scaleUpDownWorkflow(Kube129, Kube129Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 3, 2, 1)
-	})
-
-	// TODO add system disk scale down tests
 	// Scale Down Test End
 
 	// Scale Up Test Start
-	It("Scale up a cluster with CP and Worker node machine memory size from 3Gi to 4Gi with Kube127", Label("Kube127", "cluster-topology-scale-up"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
 
-		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
-		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
-		scaleUpDownWorkflow(kube127, kube127Image, "3Gi", "4Gi", "40Gi", "40Gi", 2, 2, 1, 1)
-	})
+	// Memory Size scale up tests
+	for _, targetTestConfig := range SupportedK8STargetConfigs {
+		labels := []string{"cluster-topology-scale-up", "cluster-topology-scale-up-memory-size"}
+		labels = append(labels, targetTestConfig.targetLabels...)
+		It(fmt.Sprintf("Scale up a cluster with CP and Worker node machine memory size from 3Gi to 4Gi with %s", targetTestConfig.targetLabels[0]),
+			Label(labels...), func() {
+				scaleUpDownWorkflow(targetTestConfig.targetKube, "3Gi", "4Gi", "40Gi", "40Gi", 2, 2, 1, 1)
+			})
+	}
 
-	It("Scale up a cluster with CP and Worker node machine memory size from 3Gi to 4Gi with Kube128", Label("Kube128", "cluster-topology-scale-up"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
+	// VCPUSocket scale up tests
+	for _, targetTestConfig := range SupportedK8STargetConfigs {
+		labels := []string{"cluster-topology-scale-up", "cluster-topology-scale-up-vcpusocket"}
+		labels = append(labels, targetTestConfig.targetLabels...)
+		It(fmt.Sprintf("Scale up a cluster with CP and Worker node VCPUSockets from 2 to 3 with %s", targetTestConfig.targetLabels[0]),
+			Label(labels...), func() {
+				scaleUpDownWorkflow(targetTestConfig.targetKube, "4Gi", "4Gi", "40Gi", "40Gi", 2, 3, 1, 1)
+			})
+	}
 
-		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
-		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
-		scaleUpDownWorkflow(kube128, kube128Image, "3Gi", "4Gi", "40Gi", "40Gi", 2, 2, 1, 1)
-	})
+	// VCPUPerSocket scale up tests
+	for _, targetTestConfig := range SupportedK8STargetConfigs {
+		labels := []string{"cluster-topology-scale-up", "cluster-topology-scale-up-vcpupersocket"}
+		labels = append(labels, targetTestConfig.targetLabels...)
+		It(fmt.Sprintf("Scale up a cluster with CP and Worker node vcpu per socket from 1 to 2 with %s", targetTestConfig.targetLabels[0]),
+			Label(labels...), func() {
+				scaleUpDownWorkflow(targetTestConfig.targetKube, "4Gi", "4Gi", "40Gi", "40Gi", 3, 3, 1, 2)
+			})
+	}
 
-	It("Scale up a cluster with CP and Worker node machine memory size from 3Gi to 4Gi with Kube129", Label("Kube129", "cluster-topology-scale-up"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		Kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
-		Kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
-		scaleUpDownWorkflow(Kube129, Kube129Image, "3Gi", "4Gi", "40Gi", "40Gi", 2, 2, 1, 1)
-	})
-
-	It("Scale up a cluster with CP and Worker node VCPUSockets from 2 to 3 with Kube127", Label("Kube127", "cluster-topology-scale-up"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
-		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
-		scaleUpDownWorkflow(kube127, kube127Image, "4Gi", "4Gi", "40Gi", "40Gi", 2, 3, 1, 1)
-	})
-
-	It("Scale up a cluster with CP and Worker node VCPUSockets from 2 to 3 with Kube128", Label("Kube128", "cluster-topology-scale-up"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
-		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
-		scaleUpDownWorkflow(kube128, kube128Image, "4Gi", "4Gi", "40Gi", "40Gi", 2, 3, 1, 1)
-	})
-
-	It("Scale up a cluster with CP and Worker node machine VCPUSockets from 2 to 3 with Kube129", Label("Kube129", "cluster-topology-scale-up"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		Kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
-		Kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
-		scaleUpDownWorkflow(Kube129, Kube129Image, "4Gi", "4Gi", "40Gi", "40Gi", 2, 3, 1, 1)
-	})
-
-	It("Scale up a cluster with CP and Worker node vcpu per socket from 1 to 2 with Kube127", Label("Kube127", "cluster-topology-scale-up"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube127 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_27")
-		kube127Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_27")
-		scaleUpDownWorkflow(kube127, kube127Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 3, 1, 2)
-	})
-
-	It("Scale up a cluster with CP and Worker node vcpu per socket from 1 to 2 with Kube128", Label("Kube128", "cluster-topology-scale-up"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		kube128 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_28")
-		kube128Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_28")
-		scaleUpDownWorkflow(kube128, kube128Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 3, 1, 2)
-	})
-
-	It("Scale up a cluster with CP and Worker node machine vcpu per socket from 1 to 2 with Kube129", Label("Kube129", "cluster-topology-scale-up"), func() {
-		clusterName = testHelper.generateTestClusterName(specName)
-		Expect(clusterName).NotTo(BeNil())
-
-		Kube129 := testHelper.getVariableFromE2eConfig("KUBERNETES_VERSION_v1_29")
-		Kube129Image := testHelper.getVariableFromE2eConfig("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_29")
-		scaleUpDownWorkflow(Kube129, Kube129Image, "4Gi", "4Gi", "40Gi", "40Gi", 3, 3, 1, 2)
-	})
-
-	// TODO add system disk scale up tests
+	// TODO:deepakm-ntnx system disk scale up tests
 	// Scale Up Test End
 })
