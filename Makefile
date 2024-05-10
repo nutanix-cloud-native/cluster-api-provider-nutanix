@@ -387,11 +387,11 @@ ifeq ($(EXPORT_RESULT), true)
 	$(GOINSTALL) github.com/jstemmer/go-junit-report/v2@latest
 	$(eval OUTPUT_OPTIONS = | go-junit-report -set-exit-code > junit-report.xml)
 endif
-	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) ./... $(OUTPUT_OPTIONS)
+	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) $(GOTESTPKGS) $(OUTPUT_OPTIONS)
 
 .PHONY: coverage
 coverage: setup-envtest ## Run the tests of the project and export the coverage
-	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --arch=amd64 -p path)" $(GOTEST) -cover -covermode=count -coverprofile=profile.cov -coverpkg=./... ./...
+	KUBEBUILDER_ASSETS="$(shell $(SETUP_ENVTEST) use $(ENVTEST_K8S_VERSION) --arch=amd64 -p path)" $(GOTEST) -cover -covermode=count -coverprofile=profile.cov $(GOTESTPKGS)
 	$(GOTOOL) cover -func profile.cov
 ifeq ($(EXPORT_RESULT), true)
 	$(GOINSTALL) github.com/AlekSi/gocov-xml@latest

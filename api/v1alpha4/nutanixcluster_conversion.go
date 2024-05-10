@@ -18,7 +18,7 @@ package v1alpha4
 
 import (
 	apiconversion "k8s.io/apimachinery/pkg/conversion"
-	capiv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4" //nolint:staticcheck // we know v1alpha4 is deprecated: release-v1.3 branch is not an active development branch
+	capiv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4" //nolint:staticcheck // Ignoring v1alpha4 deprecation linter warnings due to inactive dev branch
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 

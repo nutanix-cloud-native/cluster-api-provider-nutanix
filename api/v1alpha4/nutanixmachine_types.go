@@ -20,7 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1alpha4" //nolint:staticcheck // we know v1alpha4 is deprecated: release-v1.3 branch is not an active development branch
+	capiv1 "sigs.k8s.io/cluster-api/api/v1alpha4" //nolint:staticcheck // Ignoring v1alpha4 deprecation linter warnings due to inactive dev branch
 	"sigs.k8s.io/cluster-api/errors"
 )
 

@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -132,7 +131,7 @@ func createPreWaitForClusterFunc(testInputFunc func() capi_e2e.ClusterctlUpgrade
 		Byf("Replacing image in %s", latestVersionComponentsYamlFile)
 
 		// load the components.yaml file
-		componentsYaml, err := ioutil.ReadFile(latestVersionComponentsYamlFile)
+		componentsYaml, err := os.ReadFile(latestVersionComponentsYamlFile)
 		Expect(err).NotTo(HaveOccurred())
 
 		gitCommitHash := os.Getenv("GIT_COMMIT")
@@ -146,7 +145,7 @@ func createPreWaitForClusterFunc(testInputFunc func() capi_e2e.ClusterctlUpgrade
 		)
 
 		// write the file back
-		err = ioutil.WriteFile(latestVersionComponentsYamlFile, componentsYaml, 0o644)
+		err = os.WriteFile(latestVersionComponentsYamlFile, componentsYaml, 0o644)
 		Expect(err).NotTo(HaveOccurred())
 
 		Byf("Successfully replaced image in components.yaml with the image from the current commit: %s", currentCommitImage)

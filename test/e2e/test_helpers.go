@@ -35,7 +35,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/test/framework"
@@ -254,16 +254,16 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 					MemorySize:     resource.MustParse(defaultMemorySize),
 					Image: infrav1.NutanixResourceIdentifier{
 						Type: infrav1.NutanixIdentifierUUID,
-						UUID: pointer.StringPtr(imageUUID),
+						UUID: ptr.To(imageUUID),
 					},
 					Cluster: infrav1.NutanixResourceIdentifier{
 						Type: infrav1.NutanixIdentifierUUID,
-						UUID: pointer.StringPtr(clusterUUID),
+						UUID: ptr.To(clusterUUID),
 					},
 					Subnets: []infrav1.NutanixResourceIdentifier{
 						{
 							Type: infrav1.NutanixIdentifierUUID,
-							UUID: pointer.StringPtr(subnetUUID),
+							UUID: ptr.To(subnetUUID),
 						},
 					},
 					SystemDiskSize: resource.MustParse(defaultSystemDiskSize),
@@ -426,8 +426,8 @@ func (t testHelper) deployCluster(params deployClusterParams, clusterResources *
 		Namespace:                params.namespace.Name,
 		ClusterName:              params.clusterName,
 		KubernetesVersion:        t.e2eConfig.GetVariable(KubernetesVersion),
-		ControlPlaneMachineCount: pointer.Int64Ptr(1),
-		WorkerMachineCount:       pointer.Int64Ptr(1),
+		ControlPlaneMachineCount: ptr.To(int64(1)),
+		WorkerMachineCount:       ptr.To(int64(1)),
 	}
 
 	t.createClusterFromConfig(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
@@ -449,8 +449,8 @@ func (t testHelper) deployClusterAndWait(params deployClusterParams, clusterReso
 		Namespace:                params.namespace.Name,
 		ClusterName:              params.clusterName,
 		KubernetesVersion:        t.e2eConfig.GetVariable(KubernetesVersion),
-		ControlPlaneMachineCount: pointer.Int64Ptr(1),
-		WorkerMachineCount:       pointer.Int64Ptr(1),
+		ControlPlaneMachineCount: ptr.To(int64(1)),
+		WorkerMachineCount:       ptr.To(int64(1)),
 	}
 
 	clusterctl.ApplyClusterTemplateAndWait(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
@@ -537,7 +537,7 @@ func (t testHelper) getNutanixResourceIdentifierFromEnv(envVarKey string) infrav
 	Expect(envVarValue).ToNot(BeEmpty(), "expected environment variable %s to be set", envVarKey)
 	return infrav1.NutanixResourceIdentifier{
 		Type: nameType,
-		Name: pointer.StringPtr(envVarValue),
+		Name: ptr.To(envVarValue),
 	}
 }
 
@@ -545,7 +545,7 @@ func (t testHelper) getNutanixResourceIdentifierFromE2eConfig(variableKey string
 	variableValue := t.getVariableFromE2eConfig(variableKey)
 	return infrav1.NutanixResourceIdentifier{
 		Type: nameType,
-		Name: pointer.StringPtr(variableValue),
+		Name: ptr.To(variableValue),
 	}
 }
 
