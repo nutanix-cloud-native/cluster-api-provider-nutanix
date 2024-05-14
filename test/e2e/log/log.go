@@ -26,16 +26,16 @@ import (
 )
 
 const (
-	//Debug log level
+	// Debug log level
 	LogDebug = "DEBUG"
 
-	//Info log level
-	LogInfo  = "INFO"
+	// Info log level
+	LogInfo = "INFO"
 
-	//Warn log level
-	LogWarn  = "WARN"
+	// Warn log level
+	LogWarn = "WARN"
 
-	//Error log level
+	// Error log level
 	LogError = "ERROR"
 )
 

@@ -20,6 +20,9 @@ import (
 	"context"
 	"testing"
 
+	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -29,9 +32,6 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
-	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 func TestNutanixMachineReconciler(t *testing.T) {
@@ -78,7 +78,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 					Namespace: "default",
 				},
 				Spec: infrav1.NutanixClusterSpec{
-					PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+					PrismCentral: &credentialtypes.NutanixPrismEndpoint{
 						// Adding port info to override default value (0)
 						Port: 9440,
 					},

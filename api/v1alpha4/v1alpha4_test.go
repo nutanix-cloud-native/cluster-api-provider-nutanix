@@ -4,10 +4,9 @@ import (
 	"testing"
 
 	"github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
-
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	"github.com/stretchr/testify/assert"
-	"sigs.k8s.io/cluster-api/api/v1alpha4"
+	"sigs.k8s.io/cluster-api/api/v1alpha4" //nolint:staticcheck // Ignoring v1alpha4 deprecation linter warnings due to inactive dev branch
 )
 
 func TestNutanixCluster(t *testing.T) {

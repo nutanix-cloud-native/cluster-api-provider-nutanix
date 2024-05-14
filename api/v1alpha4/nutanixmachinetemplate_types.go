@@ -18,7 +18,7 @@ package v1alpha4
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	capiv1 "sigs.k8s.io/cluster-api/api/v1alpha4" //nolint:staticcheck // Ignoring v1alpha4 deprecation linter warnings due to inactive dev branch
 )
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.

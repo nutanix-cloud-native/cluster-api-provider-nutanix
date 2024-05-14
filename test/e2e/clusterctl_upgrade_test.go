@@ -22,17 +22,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"github.com/blang/semver/v4"
-	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/test/e2e/log"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -41,6 +37,8 @@ import (
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/test/e2e/log"
 )
 
 var kubernetesVersion = getKubernetesVersion()
@@ -60,7 +58,6 @@ func getKubernetesVersion() string {
 }
 
 var _ = Describe("[clusterctl-Upgrade] Upgrade CAPX (v1.2.4 => current) K8S "+kubernetesVersion, Label("clusterctl-upgrade", "slow", "network"), func() {
-
 	preWaitForCluster := createPreWaitForClusterFunc(func() capi_e2e.ClusterctlUpgradeSpecInput {
 		return capi_e2e.ClusterctlUpgradeSpecInput{
 			E2EConfig:             e2eConfig,
@@ -114,7 +111,7 @@ func createPreWaitForClusterFunc(testInputFunc func() capi_e2e.ClusterctlUpgrade
 		nutanixProviderRepository := filepath.Join(testInput.ArtifactFolder, "repository", "infrastructure-nutanix")
 
 		// Find the latest version of the CAPX provider defined for test
-		filepath.WalkDir(nutanixProviderRepository, func(path string, d os.DirEntry, err error) error {
+		_ = filepath.WalkDir(nutanixProviderRepository, func(path string, d os.DirEntry, err error) error {
 			if d.IsDir() {
 				version, err := semver.ParseTolerant(d.Name())
 				if err == nil {
@@ -133,31 +130,30 @@ func createPreWaitForClusterFunc(testInputFunc func() capi_e2e.ClusterctlUpgrade
 
 		Byf("Replacing image in %s", latestVersionComponentsYamlFile)
 
-		//load the components.yaml file
-		componentsYaml, err := ioutil.ReadFile(latestVersionComponentsYamlFile)
+		// load the components.yaml file
+		componentsYaml, err := os.ReadFile(latestVersionComponentsYamlFile)
 		Expect(err).NotTo(HaveOccurred())
 
 		gitCommitHash := os.Getenv("GIT_COMMIT")
 		localImageRegistry := os.Getenv("LOCAL_IMAGE_REGISTRY")
 		currentCommitImage := fmt.Sprintf("image: %s/controller:e2e-%s", localImageRegistry, gitCommitHash)
 
-		//replace the image
+		// replace the image
 		componentsYaml = bytes.ReplaceAll(componentsYaml,
 			[]byte("image: ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:e2e"),
 			[]byte(currentCommitImage),
 		)
 
-		//write the file back
-		err = ioutil.WriteFile(latestVersionComponentsYamlFile, componentsYaml, 0644)
+		// write the file back
+		err = os.WriteFile(latestVersionComponentsYamlFile, componentsYaml, 0o644)
 		Expect(err).NotTo(HaveOccurred())
 
 		Byf("Successfully replaced image in components.yaml with the image from the current commit: %s", currentCommitImage)
-
 	}
 }
 
-func createPostUpgradeFunc(testInputFunc func() capi_e2e.ClusterctlUpgradeSpecInput) func(framework.ClusterProxy) {
-	return func(managementClusterProxy framework.ClusterProxy) {
+func createPostUpgradeFunc(testInputFunc func() capi_e2e.ClusterctlUpgradeSpecInput) func(framework.ClusterProxy, string, string) {
+	return func(managementClusterProxy framework.ClusterProxy, clusterNamespace string, clusterName string) {
 		testInput := testInputFunc()
 		Expect(testInput.E2EConfig).NotTo(BeNil(), "Invalid argument. testInput.E2EConfig can't be nil when calling createPostUpgradeFunc")
 		Expect(testInput.ArtifactFolder).NotTo(BeEmpty(), "Invalid argument. testInput.ArtifactFolder can't be empty when calling createPostUpgradeFunc")
@@ -174,7 +170,7 @@ func createPostUpgradeFunc(testInputFunc func() capi_e2e.ClusterctlUpgradeSpecIn
 		nutanixProviderRepository := filepath.Join(testInput.ArtifactFolder, "repository", "infrastructure-nutanix")
 
 		// Find the latest version of the CAPX provider defined for test
-		filepath.WalkDir(nutanixProviderRepository, func(path string, d os.DirEntry, err error) error {
+		_ = filepath.WalkDir(nutanixProviderRepository, func(path string, d os.DirEntry, err error) error {
 			if d.IsDir() {
 				version, err := semver.ParseTolerant(d.Name())
 				if err == nil {
@@ -274,6 +270,6 @@ func createPostUpgradeFunc(testInputFunc func() capi_e2e.ClusterctlUpgradeSpecIn
 			log.Debugf("Updated KubeadmConfigTemplate %s/%s with kubeletExtraArgs cloud-provider: external", kubeadmConfigTemplate.Namespace, kubeadmConfigTemplate.Name)
 		}
 
-		//TODO: KubeadmControlPlane extraArgs and kubeletExtraArgs changes test (maybe in a separate test)
+		// TODO: KubeadmControlPlane extraArgs and kubeletExtraArgs changes test (maybe in a separate test)
 	}
 }
