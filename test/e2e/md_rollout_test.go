@@ -24,7 +24,7 @@ import (
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 )
 
-var _ = Describe("When testing MachineDeployment rolling upgrades", Label("md-rolling-upgrades", "slow", "network"), func() {
+var _ = Describe("When testing MachineDeployment rolling upgrades", Label("scaling", "md-rolling-upgrades", "slow", "network"), func() {
 	capi_e2e.MachineDeploymentRolloutSpec(ctx, func() capi_e2e.MachineDeploymentRolloutSpecInput {
 		return capi_e2e.MachineDeploymentRolloutSpecInput{
 			E2EConfig:             e2eConfig,

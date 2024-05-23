@@ -24,7 +24,7 @@ import (
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 )
 
-var _ = Describe("When testing unhealthy machines remediation", Label("machine-health-remediation", "slow", "network"), func() {
+var _ = Describe("When testing unhealthy machines remediation", Label("scaling", "machine-health-remediation", "slow", "network"), func() {
 	capi_e2e.MachineDeploymentRemediationSpec(ctx, func() capi_e2e.MachineDeploymentRemediationSpecInput {
 		return capi_e2e.MachineDeploymentRemediationSpecInput{
 			E2EConfig:             e2eConfig,
