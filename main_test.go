@@ -11,6 +11,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
 	mockctlclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/ctlclient"
+	mockmeta "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sapimachinery"
 	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
 )
 
@@ -131,8 +133,15 @@ func testRunManagerCommon(t *testing.T, ctrl *gomock.Controller) (*mockctlclient
 		rateLimiter:                        rateLimiter,
 	}
 
+	restScope := mockmeta.NewMockRESTScope(ctrl)
+	restScope.EXPECT().Name().Return(meta.RESTScopeNameNamespace).AnyTimes()
+
+	restMapper := mockmeta.NewMockRESTMapper(ctrl)
+	restMapper.EXPECT().RESTMapping(gomock.Any()).Return(&meta.RESTMapping{Scope: restScope}, nil).AnyTimes()
+
 	client := mockctlclient.NewMockClient(ctrl)
 	client.EXPECT().Scheme().Return(scheme).AnyTimes()
+	client.EXPECT().RESTMapper().Return(restMapper).AnyTimes()
 
 	cache := mockctlclient.NewMockCache(ctrl)
 
