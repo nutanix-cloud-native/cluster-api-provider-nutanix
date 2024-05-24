@@ -384,7 +384,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	if !rctx.Cluster.Status.InfrastructureReady {
 		log.Info("The cluster infrastructure is not ready yet")
 		conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.ClusterInfrastructureNotReady, capiv1.ConditionSeverityInfo, "")
-		return reconcile.Result{}, nil
+		return reconcile.Result{}, fmt.Errorf("cluster infrastructure is not ready yet for Cluster %s", rctx.Cluster.Name)
 	}
 
 	// Make sure bootstrap data is available and populated.
