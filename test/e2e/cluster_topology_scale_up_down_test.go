@@ -128,9 +128,13 @@ var _ = Describe("When scaling up/down cluster with topology ", Label("clustercl
 		nutanixE2ETest.WaitForNodesReady(ctx, targetKubeVer, clusterResources)
 
 		var toMachineMemorySizeGib int64
-		fmt.Sscan(toMachineMemorySizeGibStr, &toMachineMemorySizeGib)
+		_, err = fmt.Sscan(toMachineMemorySizeGibStr, &toMachineMemorySizeGib)
+		Expect(err).ToNot(HaveOccurred())
+
 		var toMachineSystemDiskSizeGib int64
-		fmt.Sscan(toMachineSystemDiskSizeGibStr, &toMachineSystemDiskSizeGib)
+		_, err = fmt.Sscan(toMachineSystemDiskSizeGibStr, &toMachineSystemDiskSizeGib)
+		Expect(err).ToNot(HaveOccurred())
+
 		By("Check if all the machines have scaled down resource config (memory size, VCPUSockets, vcpusPerSocket)")
 		testHelper.verifyResourceConfigOnNutanixMachines(ctx, verifyResourceConfigOnNutanixMachinesParams{
 			clusterName:                clusterName,
