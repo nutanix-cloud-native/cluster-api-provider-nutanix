@@ -4,18 +4,17 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOTOOL=$(GOCMD) tool
 EXPORT_RESULT?=false # for CI please set EXPORT_RESULT to true
-# Image URL to use all building/pushing image targets
-IMG ?= ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:latest
+
+GIT_COMMIT_HASH=$(shell git rev-parse HEAD)
+LOCAL_IMAGE_REGISTRY ?= localhost:5000
+IMG_REPO=${LOCAL_IMAGE_REGISTRY}/cluster-api-provider-nutanix
+IMG_TAG=e2e-${GIT_COMMIT_HASH}
+MANAGER_IMAGE=${IMG_REPO}:${IMG_TAG}
 
 # Extract base and tag from IMG
-IMG_REPO ?= $(word 1,$(subst :, ,${IMG}))
-IMG_TAG ?= $(word 2,$(subst :, ,${IMG}))
 LOCAL_PROVIDER_VERSION ?= ${IMG_TAG}
-ifeq (${IMG_TAG},)
-IMG_TAG := latest
-endif
 
-ifeq (${LOCAL_PROVIDER_VERSION},latest)
+ifeq (${LOCAL_PROVIDER_VERSION},${IMG_TAG})
 # TODO(release-blocker): Change this versions after release when required here and in e2e config (test/e2e/config/nutanix.yaml)
 LOCAL_PROVIDER_VERSION := v1.4.99
 endif
@@ -62,21 +61,6 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
-# Get latest git hash
-GIT_COMMIT_HASH=$(shell git rev-parse HEAD)
-
-# Get the local image registry required for clusterctl upgrade tests
-LOCAL_IMAGE_REGISTRY ?= localhost:5000
-
-ifeq (${MAKECMDGOALS},test-e2e-clusterctl-upgrade)
-	IMG_TAG=e2e-${GIT_COMMIT_HASH}
-	IMG_REPO=${LOCAL_IMAGE_REGISTRY}/controller
-endif
-
-ifeq (${MAKECMDGOALS},docker-build-e2e)
-	IMG_TAG=e2e-${GIT_COMMIT_HASH}
-endif
-
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -94,10 +78,11 @@ ifneq ($(LABEL_FILTERS),)
 		LABEL_FILTER_ARGS := "$(LABEL_FILTER_ARGS) && $(LABEL_FILTERS)"
 endif
 JUNIT_REPORT_FILE ?= "junit.e2e_suite.1.xml"
-GINKGO_SKIP ?= "clusterctl-Upgrade"
+GINKGO_SKIP ?= ""
 GINKGO_FOCUS ?= ""
 GINKGO_NODES  ?= 1
 E2E_CONF_FILE  ?= ${E2E_DIR}/config/nutanix.yaml
+E2E_CONF_FILE_TMP = ${E2E_CONF_FILE}.tmp
 ARTIFACTS ?= ${REPO_ROOT}/_artifacts
 SKIP_RESOURCE_CLEANUP ?= false
 USE_EXISTING_CLUSTER ?= false
@@ -287,7 +272,7 @@ cluster-templates: ## Generate cluster templates for all flavors
 docker-build-e2e: ## Build docker image with the manager with e2e tag.
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
 	KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS_E2E} -t ${IMG_TAG} .
-	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:e2e
+	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:${IMG_TAG}
 
 .PHONY: prepare-local-clusterctl
 prepare-local-clusterctl: manifests cluster-templates  ## Prepare overide file for local clusterctl.
@@ -332,6 +317,10 @@ template-test: cluster-templates ## Run the template tests
 
 .PHONY: test-e2e
 test-e2e: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the end-to-end tests
+	echo "Image tag for E2E test is ${IMG_TAG}"
+	MANAGER_IMAGE=$(MANAGER_IMAGE) envsubst < ${E2E_CONF_FILE} > ${E2E_CONF_FILE_TMP}
+	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:${IMG_TAG}
+	docker push ${IMG_REPO}:${IMG_TAG}
 	mkdir -p $(ARTIFACTS)
 	NUTANIX_LOG_LEVEL=debug ginkgo -v \
 		--trace \
@@ -348,12 +337,16 @@ test-e2e: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the en
 		--always-emit-ginkgo-writer \
 		$(GINKGO_ARGS) ./test/e2e -- \
 		-e2e.artifacts-folder="$(ARTIFACTS)" \
-		-e2e.config="$(E2E_CONF_FILE)" \
+		-e2e.config="$(E2E_CONF_FILE_TMP)" \
 		-e2e.skip-resource-cleanup=$(SKIP_RESOURCE_CLEANUP) \
 		-e2e.use-existing-cluster=$(USE_EXISTING_CLUSTER)
 
 .PHONY: test-e2e-no-kubeproxy
 test-e2e-no-kubeproxy: docker-build-e2e cluster-e2e-templates-no-kubeproxy cluster-templates ## Run the end-to-end tests without kubeproxy
+	echo "Image tag for E2E test is ${IMG_TAG}"
+	MANAGER_IMAGE=$(MANAGER_IMAGE) envsubst < ${E2E_CONF_FILE} > ${E2E_CONF_FILE_TMP}
+	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:${IMG_TAG}
+	docker push ${IMG_REPO}:${IMG_TAG}
 	mkdir -p $(ARTIFACTS)
 	NUTANIX_LOG_LEVEL=debug ginkgo -v \
 		--trace \
@@ -385,15 +378,15 @@ list-e2e: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the en
 
 .PHONY: test-e2e-calico
 test-e2e-calico:
-	CNI=$(CNI_PATH_CALICO) $(MAKE) test-e2e
+	CNI=$(CNI_PATH_CALICO) GIT_COMMIT="${GIT_COMMIT_HASH}" $(MAKE) test-e2e
 
 .PHONY: test-e2e-flannel
 test-e2e-flannel:
-	CNI=$(CNI_PATH_FLANNEL) $(MAKE) test-e2e
+	CNI=$(CNI_PATH_FLANNEL) GIT_COMMIT="${GIT_COMMIT_HASH}" $(MAKE) test-e2e
 
 .PHONY: test-e2e-cilium
 test-e2e-cilium:
-	CNI=$(CNI_PATH_CILIUM) $(MAKE) test-e2e
+	CNI=$(CNI_PATH_CILIUM) GIT_COMMIT="${GIT_COMMIT_HASH}" $(MAKE) test-e2e
 
 .PHONY: test-e2e-cilium-no-kubeproxy
 test-e2e-cilium-no-kubeproxy:
@@ -401,13 +394,6 @@ test-e2e-cilium-no-kubeproxy:
 
 .PHONY: test-e2e-all-cni
 test-e2e-all-cni: test-e2e test-e2e-calico test-e2e-flannel test-e2e-cilium test-e2e-cilium-no-kubeproxy
-
-.PHONY: test-e2e-clusterctl-upgrade
-test-e2e-clusterctl-upgrade: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the end-to-end tests
-	echo "Image tag for E2E test is ${IMG_TAG}"
-	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:${IMG_TAG}
-	docker push ${IMG_REPO}:${IMG_TAG}
-	GINKGO_SKIP="" GIT_COMMIT="${GIT_COMMIT_HASH}" $(MAKE) test-e2e-calico
 
 ##@ Lint and Verify
 

@@ -9,7 +9,7 @@
 
 images:
   # Use local dev images built source tree;
-  - name: ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:e2e
+  - name: ${MANAGER_IMAGE}
     loadBehavior: mustLoad
   # ## PLEASE KEEP THESE UP TO DATE WITH THE COMPONENTS
   # Cluster API v1beta1 Preloads
@@ -193,10 +193,10 @@ providers:
         value: "../../../config/default"
         contract: v1beta1
         replacements:
-          - old: ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:latest
-            new: ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:e2e
           - old: "imagePullPolicy: Always"
             new: "imagePullPolicy: IfNotPresent"
+          - old: "image: ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller:latest"
+            new: "image: ${MANAGER_IMAGE}"
         files:
           - sourcePath: "../../../metadata.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template.yaml"

@@ -17,6 +17,7 @@ limitations under the License.
 package controllers
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"time"
@@ -177,6 +178,11 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return reconcile.Result{}, err
 	}
 	conditions.MarkTrue(cluster, infrav1.CredentialRefSecretOwnerSetCondition)
+
+	if err := r.reconcileTrustBundleRef(ctx, cluster); err != nil {
+		log.Error(err, fmt.Sprintf("error occurred while reconciling trust bundle ref for cluster %s", capiCluster.Name))
+		return reconcile.Result{}, err
+	}
 
 	v3Client, err := getPrismCentralClientForCluster(ctx, cluster, r.SecretInformer, r.ConfigMapInformer)
 	if err != nil {
@@ -370,6 +376,50 @@ func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Cont
 		}
 	}
 
+	return nil
+}
+
+func (r *NutanixClusterReconciler) reconcileTrustBundleRef(ctx context.Context, nutanixCluster *infrav1.NutanixCluster) error {
+	log := ctrl.LoggerFrom(ctx)
+	trustBundleRef := nutanixCluster.GetPrismCentralTrustBundle()
+	if trustBundleRef == nil {
+		log.Info(fmt.Sprintf("trust bundle ref is nil for cluster %s", nutanixCluster.Name))
+		return nil
+	}
+
+	// get the trust bundle configmap
+	configMap := &corev1.ConfigMap{}
+	configMapKey := client.ObjectKey{
+		Namespace: cmp.Or(trustBundleRef.Namespace, nutanixCluster.Namespace),
+		Name:      trustBundleRef.Name,
+	}
+	if err := r.Client.Get(ctx, configMapKey, configMap); err != nil {
+		log.Error(err, "error occurred while fetching trust bundle configmap", "nutanixCluster", nutanixCluster.Name)
+		conditions.MarkFalse(nutanixCluster, infrav1.TrustBundleSecretOwnerSetCondition, infrav1.TrustBundleSecretOwnerSetFailed, capiv1.ConditionSeverityError, err.Error())
+		return err
+	}
+
+	if !capiutil.IsOwnedByObject(configMap, nutanixCluster) {
+		// Check if another nutanixCluster already has set ownerRef. Secret can only be owned by one nutanixCluster object
+		if capiutil.HasOwner(configMap.OwnerReferences, infrav1.GroupVersion.String(), []string{nutanixCluster.Kind}) {
+			return fmt.Errorf("configmap %s/%s already owned by another nutanixCluster object", configMap.Namespace, configMap.Name)
+		}
+
+		configMap.OwnerReferences = capiutil.EnsureOwnerRef(configMap.OwnerReferences, metav1.OwnerReference{
+			APIVersion: infrav1.GroupVersion.String(),
+			Kind:       nutanixCluster.Kind,
+			UID:        nutanixCluster.UID,
+			Name:       nutanixCluster.Name,
+		})
+	}
+
+	if err := r.Client.Update(ctx, configMap); err != nil {
+		log.Error(err, "error occurred while updating trust bundle configmap", "nutanixCluster", nutanixCluster)
+		conditions.MarkFalse(nutanixCluster, infrav1.TrustBundleSecretOwnerSetCondition, infrav1.TrustBundleSecretOwnerSetFailed, capiv1.ConditionSeverityError, err.Error())
+		return err
+	}
+
+	conditions.MarkTrue(nutanixCluster, infrav1.TrustBundleSecretOwnerSetCondition)
 	return nil
 }
 

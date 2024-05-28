@@ -70,6 +70,8 @@ const (
 	nameType = "name"
 
 	nutanixProjectNameEnv = "NUTANIX_PROJECT_NAME"
+
+	flavorTopology = "topology"
 )
 
 // Test suite global vars.

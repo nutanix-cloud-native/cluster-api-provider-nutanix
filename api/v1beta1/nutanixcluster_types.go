@@ -164,6 +164,18 @@ func (ncl *NutanixCluster) GetPrismCentralCredentialRef() (*credentialTypes.Nuta
 	return prismCentralInfo.CredentialRef, nil
 }
 
+// GetPrismCentralTrustBundle returns the trust bundle reference for the Nutanix Prism Central.
+func (ncl *NutanixCluster) GetPrismCentralTrustBundle() *credentialTypes.NutanixTrustBundleReference {
+	prismCentralInfo := ncl.Spec.PrismCentral
+	if prismCentralInfo == nil ||
+		prismCentralInfo.AdditionalTrustBundle == nil ||
+		prismCentralInfo.AdditionalTrustBundle.Kind == credentialTypes.NutanixTrustBundleKindString {
+		return nil
+	}
+
+	return prismCentralInfo.AdditionalTrustBundle
+}
+
 // GetNamespacedName returns the namespaced name of the NutanixCluster.
 func (ncl *NutanixCluster) GetNamespacedName() string {
 	namespace := cmp.Or(ncl.Namespace, corev1.NamespaceDefault)
