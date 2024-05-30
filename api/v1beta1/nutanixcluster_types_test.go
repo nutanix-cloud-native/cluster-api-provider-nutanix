@@ -148,3 +148,68 @@ func TestGetNamespacedName(t *testing.T) {
 		})
 	}
 }
+
+func TestGetPrismCentralTrustBundle(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name                string
+		nutanixCluster      *NutanixCluster
+		expectedTrustBundle *credentials.NutanixTrustBundleReference
+	}{
+		{
+			name: "PrismCentral and AdditionalTrustBundle are nil",
+			nutanixCluster: &NutanixCluster{
+				Spec: NutanixClusterSpec{},
+			},
+			expectedTrustBundle: nil,
+		},
+		{
+			name: "AdditionalTrustBundle is nil",
+			nutanixCluster: &NutanixCluster{
+				Spec: NutanixClusterSpec{
+					PrismCentral: &credentials.NutanixPrismEndpoint{},
+				},
+			},
+			expectedTrustBundle: nil,
+		},
+		{
+			name: "AdditionalTrustBundle Kind is NutanixTrustBundleKindString",
+			nutanixCluster: &NutanixCluster{
+				Spec: NutanixClusterSpec{
+					PrismCentral: &credentials.NutanixPrismEndpoint{
+						AdditionalTrustBundle: &credentials.NutanixTrustBundleReference{
+							Kind: credentials.NutanixTrustBundleKindString,
+						},
+					},
+				},
+			},
+			expectedTrustBundle: nil,
+		},
+		{
+			name: "AdditionalTrustBundle is not nil and Kind is not NutanixTrustBundleKindString",
+			nutanixCluster: &NutanixCluster{
+				Spec: NutanixClusterSpec{
+					PrismCentral: &credentials.NutanixPrismEndpoint{
+						AdditionalTrustBundle: &credentials.NutanixTrustBundleReference{
+							Kind:      credentials.NutanixTrustBundleKindConfigMap,
+							Name:      "test",
+							Namespace: "test-namespace",
+						},
+					},
+				},
+			},
+			expectedTrustBundle: &credentials.NutanixTrustBundleReference{
+				Kind:      credentials.NutanixTrustBundleKindConfigMap,
+				Name:      "test",
+				Namespace: "test-namespace",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			trustBundle := tt.nutanixCluster.GetPrismCentralTrustBundle()
+			assert.Equal(t, tt.expectedTrustBundle, trustBundle)
+		})
+	}
+}
