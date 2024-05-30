@@ -653,3 +653,173 @@ func TestReconcileCredentialRefWithValidCredentialRefFailedUpdate(t *testing.T) 
 	err := reconciler.reconcileCredentialRef(ctx, nutanixCluster)
 	assert.Error(t, err)
 }
+
+func TestReconcileTrustBundleRefWithNilTrustBundleRef(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	ctx := context.Background()
+	fakeClient := mockctlclient.NewMockClient(mockCtrl)
+	nutanixCluster := &infrav1.NutanixCluster{
+		Spec: infrav1.NutanixClusterSpec{},
+	}
+
+	reconciler := &NutanixClusterReconciler{
+		Client: fakeClient,
+	}
+
+	err := reconciler.reconcileTrustBundleRef(ctx, nutanixCluster)
+	assert.NoError(t, err)
+}
+
+func TestReconcileTrustBundleRefWithValidTrustBundleRef(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	ctx := context.Background()
+	fakeClient := mockctlclient.NewMockClient(mockCtrl)
+	nutanixCluster := &infrav1.NutanixCluster{
+		Spec: infrav1.NutanixClusterSpec{
+			PrismCentral: &credentialtypes.NutanixPrismEndpoint{
+				AdditionalTrustBundle: &credentialtypes.NutanixTrustBundleReference{
+					Name: "test-trustbundle",
+				},
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cluster",
+			Namespace: "test-ns",
+		},
+	}
+
+	configMap := &corev1.ConfigMap{}
+	configMapKey := ctlclient.ObjectKey{
+		Namespace: nutanixCluster.Namespace,
+		Name:      nutanixCluster.Spec.PrismCentral.AdditionalTrustBundle.Name,
+	}
+
+	fakeClient.EXPECT().Get(ctx, configMapKey, configMap).Return(nil)
+	fakeClient.EXPECT().Update(ctx, gomock.Any()).Return(nil)
+
+	reconciler := &NutanixClusterReconciler{
+		Client: fakeClient,
+	}
+
+	err := reconciler.reconcileTrustBundleRef(ctx, nutanixCluster)
+	assert.NoError(t, err)
+}
+
+func TestReconcileTrustBundleRefWithFailedGet(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	ctx := context.Background()
+	fakeClient := mockctlclient.NewMockClient(mockCtrl)
+	nutanixCluster := &infrav1.NutanixCluster{
+		Spec: infrav1.NutanixClusterSpec{
+			PrismCentral: &credentialtypes.NutanixPrismEndpoint{
+				AdditionalTrustBundle: &credentialtypes.NutanixTrustBundleReference{
+					Name: "test-trustbundle",
+				},
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cluster",
+			Namespace: "test-ns",
+		},
+	}
+
+	configMap := &corev1.ConfigMap{}
+	configMapKey := ctlclient.ObjectKey{
+		Namespace: nutanixCluster.Namespace,
+		Name:      nutanixCluster.Spec.PrismCentral.AdditionalTrustBundle.Name,
+	}
+
+	fakeClient.EXPECT().Get(ctx, configMapKey, configMap).Return(errors.New("failed to get configmap"))
+
+	reconciler := &NutanixClusterReconciler{
+		Client: fakeClient,
+	}
+
+	err := reconciler.reconcileTrustBundleRef(ctx, nutanixCluster)
+	assert.Error(t, err)
+}
+
+func TestReconcileTrustBundleRefWithFailedUpdate(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	ctx := context.Background()
+	fakeClient := mockctlclient.NewMockClient(mockCtrl)
+	nutanixCluster := &infrav1.NutanixCluster{
+		Spec: infrav1.NutanixClusterSpec{
+			PrismCentral: &credentialtypes.NutanixPrismEndpoint{
+				AdditionalTrustBundle: &credentialtypes.NutanixTrustBundleReference{
+					Name: "test-trustbundle",
+				},
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cluster",
+			Namespace: "test-ns",
+		},
+	}
+
+	configMap := &corev1.ConfigMap{}
+	configMapKey := ctlclient.ObjectKey{
+		Namespace: nutanixCluster.Namespace,
+		Name:      nutanixCluster.Spec.PrismCentral.AdditionalTrustBundle.Name,
+	}
+
+	fakeClient.EXPECT().Get(ctx, configMapKey, configMap).Return(nil)
+	fakeClient.EXPECT().Update(ctx, gomock.Any()).Return(errors.New("failed to update configmap"))
+
+	reconciler := &NutanixClusterReconciler{
+		Client: fakeClient,
+	}
+
+	err := reconciler.reconcileTrustBundleRef(ctx, nutanixCluster)
+	assert.Error(t, err)
+}
+
+func TestReconcileTrustBundleRefWithExistingOwner(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	ctx := context.Background()
+	fakeClient := mockctlclient.NewMockClient(mockCtrl)
+	nutanixCluster := &infrav1.NutanixCluster{
+		Spec: infrav1.NutanixClusterSpec{
+			PrismCentral: &credentialtypes.NutanixPrismEndpoint{
+				AdditionalTrustBundle: &credentialtypes.NutanixTrustBundleReference{
+					Name: "test-trustbundle",
+				},
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cluster",
+			Namespace: "test-ns",
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind: infrav1.NutanixClusterKind,
+		},
+	}
+
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: infrav1.GroupVersion.String(),
+					Kind:       infrav1.NutanixClusterKind,
+					Name:       "another-cluster",
+				},
+			},
+		},
+	}
+	configMapKey := ctlclient.ObjectKey{
+		Namespace: nutanixCluster.Namespace,
+		Name:      nutanixCluster.Spec.PrismCentral.AdditionalTrustBundle.Name,
+	}
+
+	fakeClient.EXPECT().Get(ctx, configMapKey, gomock.Any()).DoAndReturn(func(_ context.Context, _ ctlclient.ObjectKey, obj runtime.Object, _ ...ctlclient.GetOption) error {
+		configMap.DeepCopyInto(obj.(*corev1.ConfigMap))
+		return nil
+	})
+
+	reconciler := &NutanixClusterReconciler{
+		Client: fakeClient,
+	}
+
+	err := reconciler.reconcileTrustBundleRef(ctx, nutanixCluster)
+	assert.Error(t, err)
+}
