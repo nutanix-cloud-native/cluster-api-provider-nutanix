@@ -41,6 +41,7 @@ import (
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
+	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -101,22 +102,44 @@ func NewNutanixMachineReconciler(client client.Client, secretInformer coreinform
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, copts ...ControllerConfigOpts) error {
-	return ctrl.NewControllerManagedBy(mgr).
+func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+	copts := controller.Options{
+		MaxConcurrentReconciles: r.controllerConfig.MaxConcurrentReconciles,
+		RateLimiter:             r.controllerConfig.RateLimiter,
+	}
+
+	c, err := ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.NutanixMachine{}).
 		// Watch the CAPI resource that owns this infrastructure resource.
 		Watches(
 			&source.Kind{Type: &capiv1.Machine{}},
-			handler.EnqueueRequestsFromMapFunc(
-				capiutil.MachineToInfrastructureMapFunc(
-					infrav1.GroupVersion.WithKind("NutanixMachine"))),
+			handler.EnqueueRequestsFromMapFunc(capiutil.MachineToInfrastructureMapFunc(infrav1.GroupVersion.WithKind("NutanixMachine"))),
 		).
 		Watches(
 			&source.Kind{Type: &infrav1.NutanixCluster{}},
 			handler.EnqueueRequestsFromMapFunc(r.mapNutanixClusterToNutanixMachines(ctx)),
 		).
-		WithOptions(controller.Options{MaxConcurrentReconciles: r.controllerConfig.MaxConcurrentReconciles}).
-		Complete(r)
+		WithOptions(copts).
+		Build(r)
+	if err != nil {
+		return err
+	}
+
+	clusterToObjectFunc, err := capiutil.ClusterToObjectsMapper(r.Client, &infrav1.NutanixMachineList{}, mgr.GetScheme())
+	if err != nil {
+		return fmt.Errorf("failed to create mapper for Cluster to NutanixMachine: %s", err)
+	}
+
+	if err := c.Watch(
+		// Watch the CAPI resource that owns this infrastructure resource.
+		&source.Kind{Type: &capiv1.Cluster{}},
+		handler.EnqueueRequestsFromMapFunc(clusterToObjectFunc),
+		predicates.ClusterUnpausedAndInfrastructureReady(ctrl.LoggerFrom(ctx)),
+	); err != nil {
+		return fmt.Errorf("failed adding a watch for ready clusters: %w", err)
+	}
+
+	return nil
 }
 
 func (r *NutanixMachineReconciler) mapNutanixClusterToNutanixMachines(ctx context.Context) handler.MapFunc {

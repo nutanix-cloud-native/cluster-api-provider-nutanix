@@ -77,9 +77,14 @@ func NewNutanixClusterReconciler(client client.Client, secretInformer coreinform
 // SetupWithManager sets up the NutanixCluster controller with the Manager.
 func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	log := ctrl.LoggerFrom(ctx)
+	copts := controller.Options{
+		MaxConcurrentReconciles: r.controllerConfig.MaxConcurrentReconciles,
+		RateLimiter:             r.controllerConfig.RateLimiter,
+	}
+
 	c, err := ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.NutanixCluster{}). // Watch the controlled, infrastructure resource.
-		WithOptions(controller.Options{MaxConcurrentReconciles: r.controllerConfig.MaxConcurrentReconciles}).
+		WithOptions(copts).
 		Build(r)
 	if err != nil {
 		return err
