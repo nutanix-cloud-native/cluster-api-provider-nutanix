@@ -124,7 +124,7 @@ func (n *NutanixClientHelper) buildProviderFromNutanixCluster(nutanixCluster *in
 		return nil, err
 	}
 	// If namespace is empty, use the cluster namespace
-	if credentialRef.Namespace == "" {
+	if credentialRef != nil && credentialRef.Namespace == "" {
 		credentialRef.Namespace = nutanixCluster.Namespace
 	}
 	additionalTrustBundleRef := prismCentralInfo.AdditionalTrustBundle

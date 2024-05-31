@@ -72,8 +72,8 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client"),
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, clusterResources.Cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	// credentialRef is a mandatory parameters for the prismCentral attribute
-	It("Create a cluster without credentialRef (should fail)", func() {
+	// credentialRef is a optaional parameters for the prismCentral attribute
+	It("Create a cluster without credentialRef (should not fail as it will use default creds of controller)", Label("cluster-without-credref"), func() {
 		flavor = "no-nutanix-cluster"
 		Expect(namespace).NotTo(BeNil())
 
@@ -114,59 +114,13 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client"),
 				}, clusterResources)
 		})
 
-		By("Checking CredentialRefSecretOwnerSet condition is false", func() {
+		By("Checking CredentialRefSecretOwnerSet condition is true", func() {
 			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
 				expectedCondition: clusterv1.Condition{
-					Type:     infrav1.CredentialRefSecretOwnerSetCondition,
-					Status:   corev1.ConditionFalse,
-					Reason:   infrav1.CredentialRefSecretOwnerSetFailed,
-					Severity: clusterv1.ConditionSeverityError,
-				},
-			})
-		})
-
-		By("PASSED!")
-	})
-
-	It("Create a cluster without prismCentral attribute (use default credentials)", func() {
-		flavor = "no-nutanix-cluster"
-		Expect(namespace).NotTo(BeNil())
-
-		By("Creating NutanixCluster resource without credentialRef", func() {
-			ntnxCluster := testHelper.createDefaultNutanixCluster(
-				clusterName,
-				namespace.Name,
-				controlplaneEndpointIP,
-				controlplaneEndpointPort,
-			)
-
-			testHelper.createCapiObject(ctx, createCapiObjectParams{
-				creator:    bootstrapClusterProxy.GetClient(),
-				capiObject: ntnxCluster,
-			})
-		})
-
-		By("Creating a workload cluster", func() {
-			testHelper.deployCluster(
-				deployClusterParams{
-					clusterName:           clusterName,
-					namespace:             namespace,
-					flavor:                flavor,
-					clusterctlConfigPath:  clusterctlConfigPath,
-					artifactFolder:        artifactFolder,
-					bootstrapClusterProxy: bootstrapClusterProxy,
-				}, clusterResources)
-		})
-		By("Checking cluster prism client init condition is true", func() {
-			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
-				clusterName:           clusterName,
-				namespace:             namespace,
-				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
-					Type:   infrav1.PrismCentralClientCondition,
+					Type:   infrav1.CredentialRefSecretOwnerSetCondition,
 					Status: corev1.ConditionTrue,
 				},
 			})
@@ -175,7 +129,32 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client"),
 		By("PASSED!")
 	})
 
-	It("Create a cluster without secret and add it later", func() {
+	It("Create a cluster without prismCentral attribute", Label("cluster-without-prism-central"), func() {
+		flavor = "no-nutanix-cluster"
+		Expect(namespace).NotTo(BeNil())
+
+		By("Creating NutanixCluster resource without prismCentral", func() {
+			ntnxCluster := testHelper.createDefaultNutanixCluster(
+				clusterName,
+				namespace.Name,
+				controlplaneEndpointIP,
+				controlplaneEndpointPort,
+			)
+
+			// Creating NutanixCluster without PrismCentral set should not succeed
+			// as its a required parameter
+			Eventually(func() error {
+				return testHelper.createObject(ctx, createCapiObjectParams{
+					creator:    bootstrapClusterProxy.GetClient(),
+					capiObject: ntnxCluster,
+				})
+			}, defaultTimeout, defaultInterval).ShouldNot(Succeed())
+		})
+
+		By("PASSED!")
+	})
+
+	It("Create a cluster without secret and add it later", Label("cluster-without-secret-add-later"), func() {
 		flavor = "no-secret"
 		Expect(namespace).NotTo(BeNil())
 
@@ -242,7 +221,7 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client"),
 		By("PASSED!")
 	})
 
-	It("Create a cluster with invalid credentials (should fail)", func() {
+	It("Create a cluster with invalid credentials (should fail)", Label("cluster-wit-invalid-creds"), func() {
 		const (
 			flavor = "no-secret"
 		)
