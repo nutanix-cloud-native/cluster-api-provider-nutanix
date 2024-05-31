@@ -27,7 +27,9 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gstruct"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/uuid"
@@ -36,10 +38,12 @@ import (
 	capiutil "sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/config"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	mockctlclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/ctlclient"
+	mockmeta "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sapimachinery"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
@@ -822,4 +826,48 @@ func TestReconcileTrustBundleRefWithExistingOwner(t *testing.T) {
 
 	err := reconciler.reconcileTrustBundleRef(ctx, nutanixCluster)
 	assert.Error(t, err)
+}
+
+func TestNutanixClusterReconciler_SetupWithManager(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	ctx := context.Background()
+	log := ctrl.Log.WithName("controller")
+	scheme := runtime.NewScheme()
+	err := infrav1.AddToScheme(scheme)
+	require.NoError(t, err)
+	err = capiv1.AddToScheme(scheme)
+	require.NoError(t, err)
+
+	restScope := mockmeta.NewMockRESTScope(mockCtrl)
+	restScope.EXPECT().Name().Return(meta.RESTScopeNameNamespace).AnyTimes()
+
+	restMapper := mockmeta.NewMockRESTMapper(mockCtrl)
+	restMapper.EXPECT().RESTMapping(gomock.Any()).Return(&meta.RESTMapping{Scope: restScope}, nil).AnyTimes()
+
+	mockClient := mockctlclient.NewMockClient(mockCtrl)
+	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockClient.EXPECT().RESTMapper().Return(restMapper).AnyTimes()
+
+	cache := mockctlclient.NewMockCache(mockCtrl)
+
+	mgr := mockctlclient.NewMockManager(mockCtrl)
+	mgr.EXPECT().GetCache().Return(cache).AnyTimes()
+	mgr.EXPECT().GetScheme().Return(scheme).AnyTimes()
+	mgr.EXPECT().GetControllerOptions().Return(config.Controller{MaxConcurrentReconciles: 1}).AnyTimes()
+	mgr.EXPECT().GetLogger().Return(log).AnyTimes()
+	mgr.EXPECT().Add(gomock.Any()).Return(nil).AnyTimes()
+	mgr.EXPECT().GetClient().Return(mockClient).AnyTimes()
+
+	reconciler := &NutanixClusterReconciler{
+		Client: mockClient,
+		Scheme: scheme,
+		controllerConfig: &ControllerConfig{
+			MaxConcurrentReconciles: 1,
+		},
+	}
+
+	err = reconciler.SetupWithManager(ctx, mgr)
+	assert.NoError(t, err)
 }

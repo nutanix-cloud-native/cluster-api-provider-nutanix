@@ -289,10 +289,9 @@ mocks: ## Generate mocks for the project
 	mockgen -destination=mocks/ctlclient/client_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/client Client
 	mockgen -destination=mocks/ctlclient/manager_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/manager Manager
 	mockgen -destination=mocks/ctlclient/cache_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/cache Cache
-	mockgen -destination=mocks/k8sclient/cm_informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 ConfigMapInformer
-	mockgen -destination=mocks/k8sclient/secret_informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 SecretInformer
-	mockgen -destination=mocks/k8sclient/secret_lister.go -package=mockk8sclient k8s.io/client-go/listers/core/v1 SecretLister
-	mockgen -destination=mocks/k8sclient/secret_namespace_lister.go -package=mockk8sclient k8s.io/client-go/listers/core/v1 SecretNamespaceLister
+	mockgen -destination=mocks/k8sclient/informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 ConfigMapInformer,SecretInformer
+	mockgen -destination=mocks/k8sclient/lister.go -package=mockk8sclient k8s.io/client-go/listers/core/v1 SecretLister,SecretNamespaceLister
+	mockgen -destination=mocks/k8sapimachinery/interfaces.go -package=mockmeta k8s.io/apimachinery/pkg/api/meta RESTMapper,RESTScope
 
 GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates | grep -v /v1alpha4)
 

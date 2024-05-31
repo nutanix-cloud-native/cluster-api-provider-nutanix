@@ -18,20 +18,28 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/config"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	mockctlclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/ctlclient"
+	mockmeta "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sapimachinery"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
-	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 func TestNutanixMachineReconciler(t *testing.T) {
@@ -227,4 +235,134 @@ func TestNutanixMachineReconciler(t *testing.T) {
 			})
 		})
 	})
+}
+
+func TestNutanixMachineReconciler_SetupWithManager(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	ctx := context.Background()
+	log := ctrl.Log.WithName("controller")
+	scheme := runtime.NewScheme()
+	err := infrav1.AddToScheme(scheme)
+	require.NoError(t, err)
+	err = capiv1.AddToScheme(scheme)
+	require.NoError(t, err)
+
+	cache := mockctlclient.NewMockCache(mockCtrl)
+
+	mgr := mockctlclient.NewMockManager(mockCtrl)
+	mgr.EXPECT().GetCache().Return(cache).AnyTimes()
+	mgr.EXPECT().GetScheme().Return(scheme).AnyTimes()
+	mgr.EXPECT().GetControllerOptions().Return(config.Controller{MaxConcurrentReconciles: 1}).AnyTimes()
+	mgr.EXPECT().GetLogger().Return(log).AnyTimes()
+	mgr.EXPECT().Add(gomock.Any()).Return(nil).AnyTimes()
+
+	restScope := mockmeta.NewMockRESTScope(mockCtrl)
+	restScope.EXPECT().Name().Return(meta.RESTScopeNameNamespace).AnyTimes()
+
+	restMapper := mockmeta.NewMockRESTMapper(mockCtrl)
+	restMapper.EXPECT().RESTMapping(gomock.Any()).Return(&meta.RESTMapping{Scope: restScope}, nil).AnyTimes()
+
+	mockClient := mockctlclient.NewMockClient(mockCtrl)
+	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockClient.EXPECT().RESTMapper().Return(restMapper).AnyTimes()
+
+	reconciler := &NutanixMachineReconciler{
+		Client: mockClient,
+		Scheme: scheme,
+		controllerConfig: &ControllerConfig{
+			MaxConcurrentReconciles: 1,
+		},
+	}
+
+	err = reconciler.SetupWithManager(ctx, mgr)
+	assert.NoError(t, err)
+}
+
+func TestNutanixMachineReconciler_SetupWithManager_BuildError(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	ctx := context.Background()
+	log := ctrl.Log.WithName("controller")
+	scheme := runtime.NewScheme()
+	err := infrav1.AddToScheme(scheme)
+	require.NoError(t, err)
+	err = capiv1.AddToScheme(scheme)
+	require.NoError(t, err)
+
+	cache := mockctlclient.NewMockCache(mockCtrl)
+
+	mgr := mockctlclient.NewMockManager(mockCtrl)
+	mgr.EXPECT().GetCache().Return(cache).AnyTimes()
+	mgr.EXPECT().GetScheme().Return(scheme).AnyTimes()
+	mgr.EXPECT().GetControllerOptions().Return(config.Controller{MaxConcurrentReconciles: 1}).AnyTimes()
+	mgr.EXPECT().GetLogger().Return(log).AnyTimes()
+	mgr.EXPECT().Add(gomock.Any()).Return(errors.New("error")).AnyTimes()
+
+	restScope := mockmeta.NewMockRESTScope(mockCtrl)
+	restScope.EXPECT().Name().Return(meta.RESTScopeNameNamespace).AnyTimes()
+
+	restMapper := mockmeta.NewMockRESTMapper(mockCtrl)
+	restMapper.EXPECT().RESTMapping(gomock.Any()).Return(&meta.RESTMapping{Scope: restScope}, nil).AnyTimes()
+
+	mockClient := mockctlclient.NewMockClient(mockCtrl)
+	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockClient.EXPECT().RESTMapper().Return(restMapper).AnyTimes()
+
+	reconciler := &NutanixMachineReconciler{
+		Client: mockClient,
+		Scheme: scheme,
+		controllerConfig: &ControllerConfig{
+			MaxConcurrentReconciles: 1,
+		},
+	}
+
+	err = reconciler.SetupWithManager(ctx, mgr)
+	assert.Error(t, err)
+}
+
+func TestNutanixMachineReconciler_SetupWithManager_ClusterToTypedObjectsMapperError(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	ctx := context.Background()
+	log := ctrl.Log.WithName("controller")
+	scheme := runtime.NewScheme()
+	err := infrav1.AddToScheme(scheme)
+	require.NoError(t, err)
+	err = capiv1.AddToScheme(scheme)
+	require.NoError(t, err)
+
+	cache := mockctlclient.NewMockCache(mockCtrl)
+
+	mgr := mockctlclient.NewMockManager(mockCtrl)
+	mgr.EXPECT().GetCache().Return(cache).AnyTimes()
+	mgr.EXPECT().GetScheme().Return(scheme).AnyTimes()
+	mgr.EXPECT().GetControllerOptions().Return(config.Controller{MaxConcurrentReconciles: 1}).AnyTimes()
+	mgr.EXPECT().GetLogger().Return(log).AnyTimes()
+	mgr.EXPECT().Add(gomock.Any()).Return(nil).AnyTimes()
+
+	restScope := mockmeta.NewMockRESTScope(mockCtrl)
+	restScope.EXPECT().Name().Return(meta.RESTScopeName("")).AnyTimes()
+
+	restMapper := mockmeta.NewMockRESTMapper(mockCtrl)
+	restMapper.EXPECT().RESTMapping(gomock.Any()).Return(&meta.RESTMapping{Scope: restScope}, nil).AnyTimes()
+
+	mockClient := mockctlclient.NewMockClient(mockCtrl)
+	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockClient.EXPECT().RESTMapper().Return(restMapper).AnyTimes()
+
+	reconciler := &NutanixMachineReconciler{
+		Client: mockClient,
+		Scheme: scheme,
+		controllerConfig: &ControllerConfig{
+			MaxConcurrentReconciles: 1,
+		},
+	}
+
+	err = reconciler.SetupWithManager(ctx, mgr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create mapper for Cluster to NutanixMachine")
 }
