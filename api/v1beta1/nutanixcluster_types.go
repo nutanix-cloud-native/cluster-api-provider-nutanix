@@ -130,8 +130,6 @@ type NutanixFailureDomain struct {
 	// obtained from the Prism Central console or using the prism_central API.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
-	// +listType=map
-	// +listMapKey=type
 	Subnets []NutanixResourceIdentifier `json:"subnets"`
 
 	// indicates if a failure domain is suited for control plane nodes

@@ -427,9 +427,6 @@ spec:
                         type: object
                       minItems: 1
                       type: array
-                      x-kubernetes-list-map-keys:
-                      - type
-                      x-kubernetes-list-type: map
                   required:
                   - cluster
                   - name
