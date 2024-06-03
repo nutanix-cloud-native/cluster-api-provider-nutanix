@@ -238,9 +238,13 @@ func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (r
 	log.Info(fmt.Sprintf("deleting nutanix prism client for cluster %s from cache", rctx.NutanixCluster.GetNamespacedName()))
 	nutanixClient.NutanixClientCache.Delete(&nutanixClient.CacheParams{NutanixCluster: rctx.NutanixCluster})
 
-	err = r.reconcileCredentialRefDelete(rctx.Context, rctx.NutanixCluster)
-	if err != nil {
+	if err := r.reconcileCredentialRefDelete(rctx.Context, rctx.NutanixCluster); err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while reconciling credential ref deletion for cluster %s", rctx.Cluster.Name))
+		return reconcile.Result{}, err
+	}
+
+	if err := r.reconcileTrustBundleRefDelete(rctx.Context, rctx.NutanixCluster); err != nil {
+		log.Error(err, fmt.Sprintf("error occurred while reconciling trust bundle ref deletion for cluster %s", rctx.Cluster.Name))
 		return reconcile.Result{}, err
 	}
 
@@ -418,6 +422,10 @@ func (r *NutanixClusterReconciler) reconcileTrustBundleRef(ctx context.Context, 
 		})
 	}
 
+	if !ctrlutil.ContainsFinalizer(configMap, infrav1.NutanixClusterCredentialFinalizer) {
+		ctrlutil.AddFinalizer(configMap, infrav1.NutanixClusterCredentialFinalizer)
+	}
+
 	if err := r.Client.Update(ctx, configMap); err != nil {
 		log.Error(err, "error occurred while updating trust bundle configmap", "nutanixCluster", nutanixCluster)
 		conditions.MarkFalse(nutanixCluster, infrav1.TrustBundleSecretOwnerSetCondition, infrav1.TrustBundleSecretOwnerSetFailed, capiv1.ConditionSeverityError, err.Error())
@@ -425,6 +433,45 @@ func (r *NutanixClusterReconciler) reconcileTrustBundleRef(ctx context.Context, 
 	}
 
 	conditions.MarkTrue(nutanixCluster, infrav1.TrustBundleSecretOwnerSetCondition)
+	return nil
+}
+
+func (r *NutanixClusterReconciler) reconcileTrustBundleRefDelete(ctx context.Context, nutanixCluster *infrav1.NutanixCluster) error {
+	log := ctrl.LoggerFrom(ctx)
+	trustBundleRef := nutanixCluster.GetPrismCentralTrustBundle()
+	if trustBundleRef == nil {
+		log.Info(fmt.Sprintf("trust bundle ref is nil for cluster %s", nutanixCluster.Name))
+		return nil
+	}
+
+	configMapKey := client.ObjectKey{
+		Namespace: cmp.Or(trustBundleRef.Namespace, nutanixCluster.Namespace),
+		Name:      trustBundleRef.Name,
+	}
+
+	configMap := &corev1.ConfigMap{}
+	if err := r.Client.Get(ctx, configMapKey, configMap); err != nil {
+		if errors.IsNotFound(err) {
+			log.Info(fmt.Sprintf("configmap %s/%s for cluster %s not found. Ignoring since object must be deleted", configMapKey.Namespace, configMapKey.Name, nutanixCluster.Name))
+			return nil
+		}
+
+		return err
+	}
+
+	ctrlutil.RemoveFinalizer(configMap, infrav1.NutanixClusterCredentialFinalizer)
+	log.V(1).Info(fmt.Sprintf("removing finalizers from configmap %s/%s for cluster %s", configMap.Namespace, configMap.Name, nutanixCluster.Name))
+	if err := r.Client.Update(ctx, configMap); err != nil {
+		return err
+	}
+
+	if configMap.DeletionTimestamp.IsZero() {
+		log.Info(fmt.Sprintf("removing configmap %s/%s for cluster %s", configMap.Namespace, configMap.Name, nutanixCluster.Name))
+		if err := r.Client.Delete(ctx, configMap); err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+	}
+
 	return nil
 }
 

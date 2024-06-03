@@ -29,9 +29,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/uuid"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
@@ -870,4 +872,151 @@ func TestNutanixClusterReconciler_SetupWithManager(t *testing.T) {
 
 	err = reconciler.SetupWithManager(ctx, mgr)
 	assert.NoError(t, err)
+}
+
+func TestReconcileTrustBundleRefDelete(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	ctx := context.Background()
+	fakeClient := mockctlclient.NewMockClient(mockCtrl)
+
+	reconciler := &NutanixClusterReconciler{
+		Client: fakeClient,
+	}
+
+	nutanixCluster := &infrav1.NutanixCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cluster",
+			Namespace: "test-ns",
+		},
+	}
+
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-configmap",
+			Namespace:  "test-ns",
+			Finalizers: []string{infrav1.NutanixClusterCredentialFinalizer},
+		},
+	}
+
+	configMapKey := ctlclient.ObjectKey{
+		Namespace: configMap.Namespace,
+		Name:      configMap.Name,
+	}
+
+	t.Run("should not return error if prism central or trust bundle is not set or trust bundle is of kind string", func(t *testing.T) {
+		nutanixCluster.Spec.PrismCentral = nil
+		err := reconciler.reconcileTrustBundleRefDelete(ctx, nutanixCluster)
+		assert.NoError(t, err)
+
+		nutanixCluster.Spec.PrismCentral = &credentialtypes.NutanixPrismEndpoint{}
+		err = reconciler.reconcileTrustBundleRefDelete(ctx, nutanixCluster)
+		assert.NoError(t, err)
+
+		nutanixCluster.Spec.PrismCentral = &credentialtypes.NutanixPrismEndpoint{
+			AdditionalTrustBundle: &credentialtypes.NutanixTrustBundleReference{
+				Kind: credentialtypes.NutanixTrustBundleKindString,
+			},
+		}
+
+		err = reconciler.reconcileTrustBundleRefDelete(ctx, nutanixCluster)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return nil if GET error is not found", func(t *testing.T) {
+		nutanixCluster.Spec.PrismCentral = &credentialtypes.NutanixPrismEndpoint{
+			AdditionalTrustBundle: &credentialtypes.NutanixTrustBundleReference{
+				Kind:      credentialtypes.NutanixTrustBundleKindConfigMap,
+				Name:      configMap.Name,
+				Namespace: configMap.Namespace,
+			},
+		}
+
+		fakeClient.EXPECT().Get(ctx, configMapKey, gomock.Any()).DoAndReturn(func(_ context.Context, _ ctlclient.ObjectKey, obj runtime.Object, _ ...ctlclient.GetOption) error {
+			return apierrors.NewNotFound(schema.GroupResource{}, "not found")
+		})
+
+		err := reconciler.reconcileTrustBundleRefDelete(ctx, nutanixCluster)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return error if GET error is different that not found", func(t *testing.T) {
+		nutanixCluster.Spec.PrismCentral = &credentialtypes.NutanixPrismEndpoint{
+			AdditionalTrustBundle: &credentialtypes.NutanixTrustBundleReference{
+				Kind:      credentialtypes.NutanixTrustBundleKindConfigMap,
+				Name:      configMap.Name,
+				Namespace: configMap.Namespace,
+			},
+		}
+
+		fakeClient.EXPECT().Get(ctx, configMapKey, gomock.Any()).DoAndReturn(func(_ context.Context, _ ctlclient.ObjectKey, obj runtime.Object, _ ...ctlclient.GetOption) error {
+			return apierrors.NewBadRequest("bad request")
+		})
+
+		err := reconciler.reconcileTrustBundleRefDelete(ctx, nutanixCluster)
+		assert.Error(t, err)
+	})
+
+	t.Run("should return error if Update returns error after removing finalizers", func(t *testing.T) {
+		nutanixCluster.Spec.PrismCentral = &credentialtypes.NutanixPrismEndpoint{
+			AdditionalTrustBundle: &credentialtypes.NutanixTrustBundleReference{
+				Kind:      credentialtypes.NutanixTrustBundleKindConfigMap,
+				Name:      configMap.Name,
+				Namespace: configMap.Namespace,
+			},
+		}
+
+		fakeClient.EXPECT().Get(ctx, configMapKey, gomock.Any()).DoAndReturn(func(_ context.Context, _ ctlclient.ObjectKey, obj runtime.Object, _ ...ctlclient.GetOption) error {
+			configMap.DeepCopyInto(obj.(*corev1.ConfigMap))
+			return nil
+		})
+
+		fakeClient.EXPECT().Update(ctx, gomock.Any()).Return(errors.New("failed to update configmap"))
+
+		err := reconciler.reconcileTrustBundleRefDelete(ctx, nutanixCluster)
+		assert.Error(t, err)
+	})
+
+	t.Run("should return error if Delete returns error other than not found", func(t *testing.T) {
+		nutanixCluster.Spec.PrismCentral = &credentialtypes.NutanixPrismEndpoint{
+			AdditionalTrustBundle: &credentialtypes.NutanixTrustBundleReference{
+				Kind:      credentialtypes.NutanixTrustBundleKindConfigMap,
+				Name:      configMap.Name,
+				Namespace: configMap.Namespace,
+			},
+		}
+
+		fakeClient.EXPECT().Get(ctx, configMapKey, gomock.Any()).DoAndReturn(func(_ context.Context, _ ctlclient.ObjectKey, obj runtime.Object, _ ...ctlclient.GetOption) error {
+			configMap.DeepCopyInto(obj.(*corev1.ConfigMap))
+			return nil
+		})
+
+		fakeClient.EXPECT().Update(ctx, gomock.Any()).Return(nil)
+		fakeClient.EXPECT().Delete(ctx, gomock.Any()).Return(apierrors.NewBadRequest("bad request"))
+
+		err := reconciler.reconcileTrustBundleRefDelete(ctx, nutanixCluster)
+		assert.Error(t, err)
+	})
+
+	t.Run("should return no errors if configmap already deleted", func(t *testing.T) {
+		nutanixCluster.Spec.PrismCentral = &credentialtypes.NutanixPrismEndpoint{
+			AdditionalTrustBundle: &credentialtypes.NutanixTrustBundleReference{
+				Kind:      credentialtypes.NutanixTrustBundleKindConfigMap,
+				Name:      configMap.Name,
+				Namespace: configMap.Namespace,
+			},
+		}
+
+		fakeClient.EXPECT().Get(ctx, configMapKey, gomock.Any()).DoAndReturn(func(_ context.Context, _ ctlclient.ObjectKey, obj runtime.Object, _ ...ctlclient.GetOption) error {
+			configMap.DeepCopyInto(obj.(*corev1.ConfigMap))
+			return nil
+		})
+
+		fakeClient.EXPECT().Update(ctx, gomock.Any()).Return(nil)
+		fakeClient.EXPECT().Delete(ctx, gomock.Any()).Return(apierrors.NewNotFound(schema.GroupResource{}, "configmap not found"))
+
+		err := reconciler.reconcileTrustBundleRefDelete(ctx, nutanixCluster)
+		assert.NoError(t, err)
+	})
 }
