@@ -121,3 +121,4 @@ cluster.yaml
 *.workload.kubeconfig
 /.local/
 /.devbox/
+mycluster-without-topology.yaml
