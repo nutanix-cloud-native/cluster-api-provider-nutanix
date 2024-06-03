@@ -179,8 +179,8 @@ docker-push:  ## Push docker image with the manager.
 .PHONY: docker-push-kind
 docker-push-kind:  ## Make docker image available to kind cluster.
 	GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local ko build -B -t ${IMG_TAG} .
-	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG}
-	kind load docker-image --name ${KIND_CLUSTER_NAME} ${IMG}
+	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${MANAGER_IMAGE}
+	kind load docker-image --name ${KIND_CLUSTER_NAME} ${MANAGER_IMAGE}
 
 ##@ Deployment
 
@@ -201,8 +201,6 @@ uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube
 deploy: manifests docker-push-kind ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	clusterctl delete --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} --include-crd || true
 	clusterctl init --infrastructure nutanix:${LOCAL_PROVIDER_VERSION} -v 9
-	# cd config/manager && kustomize edit set image controller=${IMG}
-	# kustomize build config/default | kubectl apply -f -
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
@@ -277,7 +275,7 @@ docker-build-e2e: ## Build docker image with the manager with e2e tag.
 .PHONY: prepare-local-clusterctl
 prepare-local-clusterctl: manifests cluster-templates  ## Prepare overide file for local clusterctl.
 	mkdir -p ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}
-	cd config/manager && kustomize edit set image controller=${IMG}
+	cd config/manager && kustomize edit set image controller=${MANAGER_IMAGE}
 	kustomize build config/default > ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/infrastructure-components.yaml
 	cp ./metadata.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/
 	cp ./templates/cluster-template*.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/
