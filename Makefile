@@ -6,7 +6,7 @@ GOTOOL=$(GOCMD) tool
 EXPORT_RESULT?=false # for CI please set EXPORT_RESULT to true
 
 GIT_COMMIT_HASH=$(shell git rev-parse HEAD)
-LOCAL_IMAGE_REGISTRY ?= localhost:5000
+LOCAL_IMAGE_REGISTRY ?= ko.local
 IMG_REPO=${LOCAL_IMAGE_REGISTRY}/cluster-api-provider-nutanix
 IMG_TAG=e2e-${GIT_COMMIT_HASH}
 MANAGER_IMAGE=${IMG_REPO}:${IMG_TAG}
@@ -279,6 +279,7 @@ prepare-local-clusterctl: manifests cluster-templates  ## Prepare overide file f
 	kustomize build config/default > ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/infrastructure-components.yaml
 	cp ./metadata.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/
 	cp ./templates/cluster-template*.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/
+	cp ./clusterctl.yaml.tmpl ./clusterctl.yaml
 	env LOCAL_PROVIDER_VERSION=$(LOCAL_PROVIDER_VERSION) \
 		envsubst -no-unset -no-empty -no-digit < ./clusterctl.yaml > ~/.cluster-api/clusterctl.yaml
 
@@ -309,7 +310,7 @@ ifeq ($(EXPORT_RESULT), true)
 endif
 
 .PHONY: template-test
-template-test: cluster-templates ## Run the template tests
+template-test: docker-build prepare-local-clusterctl ## Run the template tests
 	GOPROXY=off ginkgo --trace --v run templates
 
 .PHONY: test-e2e

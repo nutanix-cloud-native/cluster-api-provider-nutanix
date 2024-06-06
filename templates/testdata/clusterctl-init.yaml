@@ -1,7 +1,12 @@
----
 CLUSTERCTL_LOG_LEVEL: 10
 EXP_CLUSTER_RESOURCE_SET: 'true'
 CLUSTER_TOPOLOGY: 'true'
 NUTANIX_ENDPOINT: ''  # IP or FQDN of Prism Central
 NUTANIX_USER: ''  # Prism Central user
 NUTANIX_PASSWORD: ''  # Prism Central password
+providers:
+  # add a custom provider
+  # TODO(release-blocker): modify the version to the latest release
+  - name: "nutanix"
+    url: "file://${HOME}/.cluster-api/overrides/infrastructure-nutanix/v1.4.99/infrastructure-components.yaml"
+    type: "InfrastructureProvider"
