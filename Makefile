@@ -311,12 +311,16 @@ endif
 
 .PHONY: template-test
 template-test: docker-build prepare-local-clusterctl ## Run the template tests
-	GOPROXY=off ginkgo --trace --v run templates
+	GOPROXY=off \
+	LOCAL_PROVIDER_VERSION=$(LOCAL_PROVIDER_VERSION) \
+		ginkgo --trace --v run templates
 
 .PHONY: test-e2e
 test-e2e: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the end-to-end tests
 	echo "Image tag for E2E test is ${IMG_TAG}"
-	MANAGER_IMAGE=$(MANAGER_IMAGE) envsubst < ${E2E_CONF_FILE} > ${E2E_CONF_FILE_TMP}
+	LOCAL_PROVIDER_VERSION=$(LOCAL_PROVIDER_VERSION) \
+		MANAGER_IMAGE=$(MANAGER_IMAGE) \
+		envsubst < ${E2E_CONF_FILE} > ${E2E_CONF_FILE_TMP}
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:${IMG_TAG}
 	docker push ${IMG_REPO}:${IMG_TAG}
 	mkdir -p $(ARTIFACTS)

@@ -188,7 +188,7 @@ providers:
           - sourcePath: "../../../metadata.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1.3.0/cluster-template.yaml"
           - sourcePath: "../data/infrastructure-nutanix/ccm-update.yaml"
-      - name: v1.4.99 # # TODO(release-blocker): update this when you make a new release and change the version to higher than the latest release
+      - name: ${LOCAL_PROVIDER_VERSION}
         type: kustomize
         value: "../../../config/default"
         contract: v1beta1
