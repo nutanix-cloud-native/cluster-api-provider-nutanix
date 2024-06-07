@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -33,8 +34,12 @@ import (
 )
 
 const (
-	defaultNamespace = "default"
-	kindClusterName  = "test-cluster"
+	defaultNamespace           = "default"
+	kindClusterName            = "capi-test"
+	localImageRegistryEnv      = "LOCAL_IMAGE_REGISTRY"
+	defaultLocalImageRegistry  = "ko.local"
+	defaultLocalImageTagFormat = "e2e-%s"
+	defaultImageRepo           = "cluster-api-provider-nutanix"
 )
 
 var clnt client.Client
@@ -51,6 +56,53 @@ func init() {
 func teardownTestEnvironment() error {
 	provider := cluster.NewProvider(cluster.ProviderWithDocker())
 	return provider.Delete(kindClusterName, "")
+}
+
+// getGitCommitHash retrieves the current git commit hash.
+func getGitCommitHash() (string, error) {
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to get git commit hash: %v", err)
+	}
+
+	return strings.TrimSpace(string(output)), nil
+}
+
+// getEnv retrieves the value of the environment variable or returns a default value if not set.
+func getEnv(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+
+	return defaultValue
+}
+
+// buildImageName constructs the image name
+func buildImageName() (string, error) {
+	gitCommitHash, err := getGitCommitHash()
+	if err != nil {
+		return "", err
+	}
+
+	localImageRegistry := getEnv(localImageRegistryEnv, defaultLocalImageRegistry)
+	imgRepo := fmt.Sprintf("%s/%s", localImageRegistry, defaultImageRepo)
+	imgTag := fmt.Sprintf(defaultLocalImageTagFormat, gitCommitHash)
+	managerImage := fmt.Sprintf("%s:%s", imgRepo, imgTag)
+
+	return managerImage, nil
+}
+
+// loadImageIntoKindCluster loads a Docker image tarball into a kind cluster.
+func loadImageIntoKindCluster(imageName string) error {
+	cmd := exec.Command("kind", "load", "docker-image", "--name", kindClusterName, imageName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to load image into kind cluster: %s, %v", string(output), err)
+	}
+
+	fmt.Println("Image loaded successfully into kind cluster")
+	return nil
 }
 
 func setupTestEnvironment() (client.Client, error) {
@@ -83,11 +135,20 @@ func setupTestEnvironment() (client.Client, error) {
 		return nil, fmt.Errorf("failed to get restconfig: %w", err)
 	}
 
+	// Load the Nutanix image into the Kind cluster
+	imageTarPath, err := buildImageName()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build image tar path: %w", err)
+	}
+
+	if err := loadImageIntoKindCluster(imageTarPath); err != nil {
+		return nil, fmt.Errorf("failed to load image into Kind cluster: %w", err)
+	}
+
 	clusterctllog.SetLogger(textlogger.NewLogger(textlogger.NewConfig()))
-	// TODO: make this generic so that we dont need to update this every release
 	clusterctl.Init(context.Background(), clusterctl.InitInput{
 		KubeconfigPath:          tmpKubeconfig.Name(),
-		InfrastructureProviders: []string{"nutanix:v1.4.0-alpha.2"},
+		InfrastructureProviders: []string{"nutanix"},
 		ClusterctlConfigPath:    "testdata/clusterctl-init.yaml",
 	})
 
