@@ -5,7 +5,6 @@ metadata:
 spec:
   template:
     spec:
-      providerID: "nutanix://vm-uuid"
       # Supported options for boot type: legacy and uefi
       # Defaults to legacy if not set
       bootType: legacy

@@ -539,6 +539,8 @@ spec:
                 - type
                 type: object
               providerID:
+                description: ProviderID is the unique identifier as specified by the
+                  cloud provider.
                 type: string
               subnet:
                 description: subnet is to identify the cluster's network subnet to
@@ -587,7 +589,6 @@ spec:
             required:
             - image
             - memorySize
-            - providerID
             - systemDiskSize
             - vcpuSockets
             - vcpusPerSocket
