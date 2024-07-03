@@ -1,0 +1,91 @@
+on:
+  workflow_call:
+    inputs:
+      e2e-labels:
+        description: Labels to filter e2e tests
+        type: string
+        required: true
+
+jobs:
+  e2e-test:
+    runs-on:
+      - self-hosted-ncn-dind
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Install nix using cachix/install-nix-action if running on ARC runners
+      # See: https://github.com/DeterminateSystems/nix-installer-action/issues/68
+      - name: Install Nix on self-hosted ARC runners
+        uses: cachix/install-nix-action@V27
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install devbox
+        uses: jetify-com/devbox-install-action@v0.11.0
+        with:
+          enable-cache: "false"
+          skip-nix-installation: "true"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/golangci-lint
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Get Control Plane endpoint IP
+        id: get-control-plane-endpoint-ip
+        run: |
+          export CONTROL_PLANE_ENDPOINT_RANGE_START="${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_START }}"
+          export CONTROL_PLANE_ENDPOINT_RANGE_END="${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_END }}"
+          control_plane_endpoint_ip="$(devbox run -- make nutanix-cp-endpoint-ip)"
+          echo "control_plane_endpoint_ip=${control_plane_endpoint_ip}" >> "${GITHUB_OUTPUT}"
+
+      - name: Check Control Plane endpoint IP
+        run: |
+          if [[ -z "${{ steps.get-control-plane-endpoint-ip.outputs.control_plane_endpoint_ip }}" ]]; then
+            echo "control_plane_endpoint_ip is empty; cannot proceed with e2e tests"
+            exit 1
+          fi
+
+      - name: Get Control Plane endpoint IP for clusterctl upgrade test
+        id: get-control-plane-endpoint-ip-clusterctl-upgrade
+        if: inputs.e2e-labels == 'clusterctl-upgrade'
+        run: |
+          export CONTROL_PLANE_ENDPOINT_RANGE_START="${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_START }}"
+          export CONTROL_PLANE_ENDPOINT_RANGE_END="${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_END }}"
+          control_plane_endpoint_ip="$(devbox run -- make nutanix-cp-endpoint-ip)"
+          echo "control_plane_endpoint_ip_clusterctl_upgrade=${control_plane_endpoint_ip}" >> "${GITHUB_OUTPUT}"
+
+      - name: Check Control Plane endpoint IP for clusterctl upgrade
+        if: inputs.e2e-labels == 'clusterctl-upgrade'
+        run: |
+          if [[ -z "${{ steps.get-control-plane-endpoint-ip-clusterctl-upgrade.outputs.control_plane_endpoint_ip_clusterctl_upgrade }}" ]]; then
+            echo "control_plane_endpoint_ip_clusterctl_upgrade is empty; cannot proceed with e2e tests"
+            exit 1
+          fi
+
+      - name: Test build
+        run: devbox run -- make test-e2e-calico LABEL_FILTERS='${{ inputs.e2e-labels }}'
+        env:
+          NUTANIX_USER: ${{ secrets.NUTANIX_USER }}
+          NUTANIX_PASSWORD: ${{ secrets.NUTANIX_PASSWORD }}
+          NUTANIX_ENDPOINT: ${{ secrets.NUTANIX_ENDPOINT }}
+          NUTANIX_PRISM_ELEMENT_CLUSTER_IP: ${{ secrets.NUTANIX_PRISM_ELEMENT_CLUSTER_IP }}
+          NUTANIX_PRISM_ELEMENT_CLUSTER_USERNAME: ${{ secrets.NUTANIX_PRISM_ELEMENT_CLUSTER_USERNAME }}
+          NUTANIX_PRISM_ELEMENT_CLUSTER_PASSWORD: ${{ secrets.NUTANIX_PRISM_ELEMENT_CLUSTER_PASSWORD }}
+          LOCAL_IMAGE_REGISTRY: ${{ secrets.LOCAL_IMAGE_REGISTRY }}
+          WEBHOOK_KEY: ${{ secrets.WEBHOOK_KEY }}
+          WEBHOOK_CERT: ${{ secrets.WEBHOOK_CERT }}
+          WEBHOOK_CA: ${{ secrets.WEBHOOK_CA }}
+          NUTANIX_SSH_AUTHORIZED_KEY: ${{ secrets.NUTANIX_SSH_AUTHORIZED_KEY }}
+          NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ${{ vars.NUTANIX_PRISM_ELEMENT_CLUSTER_NAME }}
+          NUTANIX_SUBNET_NAME: ${{ vars.NUTANIX_SUBNET_NAME }}
+          NUTANIX_ADDITIONAL_SUBNET_NAME: ${{ vars.NUTANIX_ADDITIONAL_SUBNET_NAME }}
+          NUTANIX_PROJECT_NAME: ${{ vars.NUTANIX_PROJECT_NAME }}
+          CONTROL_PLANE_ENDPOINT_IP: ${{ steps.get-control-plane-endpoint-ip.outputs.control_plane_endpoint_ip }}
+          CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER: ${{ steps.get-control-plane-endpoint-ip-clusterctl-upgrade.outputs.control_plane_endpoint_ip_clusterctl_upgrade }}

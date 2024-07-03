@@ -58,7 +58,7 @@ func getKubernetesVersion() string {
 	return "undefined"
 }
 
-var _ = Describe("[clusterctl-Upgrade] Upgrade CAPX (v1.2.4 => current) K8S "+kubernetesVersion, Label("clusterctl-upgrade"), func() {
+var _ = Describe("[clusterctl-Upgrade] Upgrade CAPX (v1.3.5 => current) K8S "+kubernetesVersion, Label("clusterctl-upgrade"), func() {
 	preWaitForCluster := createPreWaitForClusterFunc(func() capi_e2e.ClusterctlUpgradeSpecInput {
 		return capi_e2e.ClusterctlUpgradeSpecInput{
 			E2EConfig:             e2eConfig,
@@ -84,12 +84,12 @@ var _ = Describe("[clusterctl-Upgrade] Upgrade CAPX (v1.2.4 => current) K8S "+ku
 			BootstrapClusterProxy:           bootstrapClusterProxy,
 			ArtifactFolder:                  artifactFolder,
 			SkipCleanup:                     skipCleanup,
-			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.3.10/clusterctl-{OS}-{ARCH}",
+			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.6.2/clusterctl-{OS}-{ARCH}",
 			InitWithKubernetesVersion:       e2eConfig.GetVariable("KUBERNETES_VERSION"),
-			InitWithCoreProvider:            "cluster-api:v1.3.10",
-			InitWithBootstrapProviders:      []string{"kubeadm:v1.3.10"},
-			InitWithControlPlaneProviders:   []string{"kubeadm:v1.3.10"},
-			InitWithInfrastructureProviders: []string{"nutanix:v1.2.4"},
+			InitWithCoreProvider:            "cluster-api:v1.6.2",
+			InitWithBootstrapProviders:      []string{"kubeadm:v1.6.2"},
+			InitWithControlPlaneProviders:   []string{"kubeadm:v1.6.2"},
+			InitWithInfrastructureProviders: []string{"nutanix:v1.3.5"},
 			PreWaitForCluster:               preWaitForCluster,
 			PostUpgrade:                     postUpgradeFunc,
 		}
@@ -105,7 +105,7 @@ func createPreWaitForClusterFunc(testInputFunc func() capi_e2e.ClusterctlUpgrade
 
 		By("Get latest version of CAPX provider")
 
-		latestVersionString := "v1.2.4"
+		latestVersionString := "v1.3.5"
 		latestVersion, err := semver.ParseTolerant(latestVersionString)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -137,7 +137,7 @@ func createPreWaitForClusterFunc(testInputFunc func() capi_e2e.ClusterctlUpgrade
 
 		gitCommitHash := os.Getenv("GIT_COMMIT")
 		localImageRegistry := os.Getenv("LOCAL_IMAGE_REGISTRY")
-		currentCommitImage := fmt.Sprintf("image: %s/controller:e2e-%s", localImageRegistry, gitCommitHash)
+		currentCommitImage := fmt.Sprintf("image: %s/cluster-api-provider-nutanix:e2e-%s", localImageRegistry, gitCommitHash)
 
 		// replace the image
 		componentsYaml = bytes.ReplaceAll(componentsYaml,
@@ -164,7 +164,7 @@ func createPostUpgradeFunc(testInputFunc func() capi_e2e.ClusterctlUpgradeSpecIn
 
 		yamlProc := yaml.NewSimpleProcessor()
 
-		latestVersionString := "v1.2.4"
+		latestVersionString := "v1.3.5"
 		latestVersion, err := semver.ParseTolerant(latestVersionString)
 		Expect(err).NotTo(HaveOccurred())
 
