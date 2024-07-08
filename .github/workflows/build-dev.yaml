@@ -79,8 +79,6 @@ jobs:
         e2e-labels:
           - "clusterctl-upgrade"
           - "clusterclass"
-          - "conformance"
-          - "cluster-upgrade-conformance"
           - "capx-feature-test"
           - "scaling"
       fail-fast: false
