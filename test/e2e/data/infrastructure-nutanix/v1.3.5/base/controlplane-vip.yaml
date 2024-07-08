@@ -1,0 +1,82 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixCluster
+metadata:
+  name: "${CLUSTER_NAME}"
+  namespace: "${NAMESPACE}"
+spec:
+  controlPlaneEndpoint:
+    host: ${CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER}
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: KubeadmControlPlane
+metadata:
+  name: "${CLUSTER_NAME}-kcp"
+  namespace: "${NAMESPACE}"
+spec:
+  kubeadmConfigSpec:
+    files:
+      - content: |
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: kube-vip
+            namespace: kube-system
+          spec:
+            containers:
+              - name: kube-vip
+                image: ghcr.io/kube-vip/kube-vip:v0.6.4
+                imagePullPolicy: IfNotPresent
+                args:
+                  - manager
+                env:
+                  - name: vip_arp
+                    value: "true"
+                  - name: address
+                    value: "${CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER}"
+                  - name: port
+                    value: "${CONTROL_PLANE_ENDPOINT_PORT=6443}"
+                  - name: vip_cidr
+                    value: "32"
+                  - name: cp_enable
+                    value: "true"
+                  - name: cp_namespace
+                    value: kube-system
+                  - name: vip_ddns
+                    value: "false"
+                  - name: vip_leaderelection
+                    value: "true"
+                  - name: vip_leaseduration
+                    value: "15"
+                  - name: vip_renewdeadline
+                    value: "10"
+                  - name: vip_retryperiod
+                    value: "2"
+                  - name: svc_enable
+                    value: "${KUBEVIP_SVC_ENABLE=false}"
+                  - name: lb_enable
+                    value: "${KUBEVIP_LB_ENABLE=false}"
+                  - name: enableServicesElection
+                    value: "${KUBEVIP_SVC_ELECTION=false}"
+                securityContext:
+                  capabilities:
+                    add:
+                      - NET_ADMIN
+                      - SYS_TIME
+                      - NET_RAW
+                volumeMounts:
+                  - mountPath: /etc/kubernetes/admin.conf
+                    name: kubeconfig
+                resources: {}
+            hostNetwork: true
+            hostAliases:
+              - hostnames:
+                  - kubernetes
+                ip: 127.0.0.1
+            volumes:
+              - name: kubeconfig
+                hostPath:
+                  type: FileOrCreate
+                  path: /etc/kubernetes/admin.conf
+          status: {}
+        owner: root:root
+        path: /etc/kubernetes/manifests/kube-vip.yaml

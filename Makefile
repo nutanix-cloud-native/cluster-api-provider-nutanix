@@ -156,6 +156,10 @@ kind-create: ## Create a kind cluster and deploy the latest supported cluster AP
 kind-delete: ## Delete the kind cluster
 	kind delete cluster --name=${KIND_CLUSTER_NAME}
 
+.PHONY: nutanix-cp-endpoint-ip
+nutanix-cp-endpoint-ip: ## Gets a random free IP from the control plane endpoint range set in the environment.
+	@shuf --head-count=1 < <(fping -g -u "$(CONTROL_PLANE_ENDPOINT_RANGE_START)" "$(CONTROL_PLANE_ENDPOINT_RANGE_END)")
+
 ##@ Build
 
 .PHONY: build
@@ -209,13 +213,10 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 ##@ Templates
 
 .PHONY: cluster-e2e-templates
-cluster-e2e-templates: cluster-e2e-templates-v1beta1 cluster-e2e-templates-v1alpha4 cluster-e2e-templates-v124 cluster-e2e-templates-v130 ## Generate cluster templates for all versions
+cluster-e2e-templates: cluster-e2e-templates-v1beta1 cluster-e2e-templates-v1alpha4 cluster-e2e-templates-v135 ## Generate cluster templates for all versions
 
-cluster-e2e-templates-v124: ## Generate cluster templates for CAPX v1.2.4
-	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1.2.4/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1.2.4/cluster-template.yaml
-
-cluster-e2e-templates-v130: ## Generate cluster templates for CAPX v1.3.0
-	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1.3.0/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1.3.0/cluster-template.yaml
+cluster-e2e-templates-v135: ## Generate cluster templates for CAPX v1.3.0
+	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1.3.5/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1.3.5/cluster-template.yaml
 
 cluster-e2e-templates-v1alpha4:  ## Generate cluster templates for v1alpha4
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1alpha4/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1alpha4/cluster-template.yaml
