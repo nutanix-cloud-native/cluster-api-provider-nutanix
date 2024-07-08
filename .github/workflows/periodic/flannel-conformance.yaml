@@ -1,0 +1,14 @@
+name: Periodic Conformance Test with Flannel
+on:
+  schedule:
+    - cron: "0 12 * * *" # Noon
+jobs:
+  e2e:
+    uses: ./.github/workflows/e2e.yaml
+    with:
+      e2e-labels: "conformance || cluster-upgrade-conformance"
+      make-target: "test-e2e-flannel"
+    secrets: inherit
+    permissions:
+      contents: read
+      checks: write

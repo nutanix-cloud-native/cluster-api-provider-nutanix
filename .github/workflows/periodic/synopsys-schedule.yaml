@@ -1,8 +1,7 @@
 name: Black Duck Daily Policy Check
 on:
   schedule:
-    - cron: "0 0 * * *"
-
+    - cron: "0 0 * * *" # Midnight
 jobs:
   security:
     if: github.repository == 'nutanix-cloud-native/cluster-api-provider-nutanix'
