@@ -85,6 +85,7 @@ jobs:
     uses: ./.github/workflows/e2e.yaml
     with:
       e2e-labels: ${{ matrix.e2e-labels }}
+      make-target: test-e2e-calico
     secrets: inherit
     permissions:
       contents: read

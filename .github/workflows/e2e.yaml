@@ -5,7 +5,10 @@ on:
         description: Labels to filter e2e tests
         type: string
         required: true
-
+      make-target:
+        description: Make target to run
+        type: string
+        required: true
 jobs:
   e2e-test:
     runs-on:
@@ -54,7 +57,6 @@ jobs:
 
       - name: Get Control Plane endpoint IP for clusterctl upgrade test
         id: get-control-plane-endpoint-ip-clusterctl-upgrade
-        if: inputs.e2e-labels == 'clusterctl-upgrade'
         run: |
           export CONTROL_PLANE_ENDPOINT_RANGE_START="${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_START }}"
           export CONTROL_PLANE_ENDPOINT_RANGE_END="${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_END }}"
@@ -62,7 +64,6 @@ jobs:
           echo "control_plane_endpoint_ip_clusterctl_upgrade=${control_plane_endpoint_ip}" >> "${GITHUB_OUTPUT}"
 
       - name: Check Control Plane endpoint IP for clusterctl upgrade
-        if: inputs.e2e-labels == 'clusterctl-upgrade'
         run: |
           if [[ -z "${{ steps.get-control-plane-endpoint-ip-clusterctl-upgrade.outputs.control_plane_endpoint_ip_clusterctl_upgrade }}" ]]; then
             echo "control_plane_endpoint_ip_clusterctl_upgrade is empty; cannot proceed with e2e tests"
@@ -70,7 +71,7 @@ jobs:
           fi
 
       - name: Test build
-        run: devbox run -- make test-e2e-calico LABEL_FILTERS='${{ inputs.e2e-labels }}'
+        run: devbox run -- make ${{ inputs.make-target }} LABEL_FILTERS='${{ inputs.e2e-labels }}'
         env:
           NUTANIX_USER: ${{ secrets.NUTANIX_USER }}
           NUTANIX_PASSWORD: ${{ secrets.NUTANIX_PASSWORD }}

@@ -1,0 +1,14 @@
+name: Periodic Conformance Test with Cilium without KubeProxy
+on:
+  schedule:
+    - cron: "0 18 * * *" # 6 PM
+jobs:
+  e2e:
+    uses: ./.github/workflows/e2e.yaml
+    with:
+      e2e-labels: "conformance || cluster-upgrade-conformance"
+      make-target: "test-e2e-cilium-no-kubeproxy"
+    secrets: inherit
+    permissions:
+      contents: read
+      checks: write
