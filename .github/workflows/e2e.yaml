@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.merge_commit_sha }}"
 
       # Install nix using cachix/install-nix-action if running on ARC runners
       # See: https://github.com/DeterminateSystems/nix-installer-action/issues/68
