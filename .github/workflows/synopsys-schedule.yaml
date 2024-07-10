@@ -20,7 +20,7 @@ jobs:
         run: devbox run -- make build
 
       - name: Black Duck Full Scan
-        uses: synopsys-sig/synopsys-action@v1.7.0
+        uses: synopsys-sig/synopsys-action@v1.10.0
         with:
           blackduck_url: ${{ secrets.BLACKDUCK_URL }}
           blackduck_token: ${{ secrets.BLACKDUCK_API_TOKEN }}
