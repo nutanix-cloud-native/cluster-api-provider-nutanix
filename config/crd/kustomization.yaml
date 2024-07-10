@@ -48,12 +48,6 @@ patches:
         - format: hostname
         - format: ipv4
         - format: ipv6
-    - op: add
-      path: /spec/versions/1/schema/openAPIV3Schema/properties/spec/properties/prismCentral/properties/address/anyOf
-      value:
-        - format: hostname
-        - format: ipv4
-        - format: ipv6
   target:
     group: apiextensions.k8s.io
     kind: CustomResourceDefinition
