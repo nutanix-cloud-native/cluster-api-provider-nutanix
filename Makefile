@@ -320,7 +320,7 @@ test-e2e: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the en
 	mkdir -p $(ARTIFACTS)
 	NUTANIX_LOG_LEVEL=debug ginkgo -v \
 		--trace \
-		--progress \
+		--show-node-events \
 		--tags=e2e \
 		--label-filter=$(LABEL_FILTER_ARGS) \
 		$(_SKIP_ARGS) \
@@ -330,7 +330,7 @@ test-e2e: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the en
 		--output-dir="$(ARTIFACTS)" \
 		--junit-report=${JUNIT_REPORT_FILE} \
 		--timeout="24h" \
-		--always-emit-ginkgo-writer \
+		-v \
 		$(GINKGO_ARGS) ./test/e2e -- \
 		-e2e.artifacts-folder="$(ARTIFACTS)" \
 		-e2e.config="$(E2E_CONF_FILE_TMP)" \
@@ -346,7 +346,7 @@ test-e2e-no-kubeproxy: docker-build-e2e cluster-e2e-templates-no-kubeproxy clust
 	mkdir -p $(ARTIFACTS)
 	NUTANIX_LOG_LEVEL=debug ginkgo -v \
 		--trace \
-		--progress \
+		--show-node-events \
 		--tags=e2e \
 		--label-filter=$(LABEL_FILTER_ARGS) \
 		$(_SKIP_ARGS) \
@@ -355,7 +355,7 @@ test-e2e-no-kubeproxy: docker-build-e2e cluster-e2e-templates-no-kubeproxy clust
 		--output-dir="$(ARTIFACTS)" \
 		--junit-report=${JUNIT_REPORT_FILE} \
 		--timeout="24h" \
-		--always-emit-ginkgo-writer \
+		-v \
 		$(GINKGO_ARGS) ./test/e2e -- \
 		-e2e.artifacts-folder="$(ARTIFACTS)" \
 		-e2e.config="$(E2E_CONF_FILE)" \

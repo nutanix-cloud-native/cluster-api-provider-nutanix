@@ -5,4 +5,14 @@ metadata:
 spec:
   template:
     spec:
+      controlPlaneEndpoint:
+        host: PLACEHOLDER
+        port: 6443
+      prismCentral:
+        address: PLACEHOLDER
+        port: 9440
+        credentialRef:
+          name: PLACEHOLDER
+          kind: Secret
+          namespace: default
       failureDomains: []
