@@ -122,3 +122,4 @@ cluster.yaml
 /.local/
 /.devbox/
 mycluster-without-topology.yaml
+yamllint-checkstyle.xml
