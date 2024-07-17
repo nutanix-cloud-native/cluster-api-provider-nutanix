@@ -9,6 +9,7 @@
     "ginkgo@2.17.0",
     "go@1.22.1",
     "gotestsum@1.6.4",
+    "kubernetes-helm@latest",
     "kind@0.22.0",
     "ko@0.15.2",
     "kubectl@latest",
