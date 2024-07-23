@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/nutanix-cloud-native/prism-go-client/environment/types"
-	"github.com/nutanix-cloud-native/prism-go-client/v3"
+	v3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -44,6 +44,6 @@ func TestCacheParamsManagementEndpoint(t *testing.T) {
 }
 
 func TestNutanixClientCache(t *testing.T) {
-	assert.NotNil(t, NutanixClientCache)
-	assert.IsType(t, &v3.ClientCache{}, NutanixClientCache)
+	assert.NotNil(t, NutanixClientCacheV3)
+	assert.IsType(t, &v3.ClientCache{}, NutanixClientCacheV3)
 }

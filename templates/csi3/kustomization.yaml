@@ -1,0 +1,27 @@
+# Copyright 2023 Nutanix. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: nutanix-csi-kustomize
+
+namespace: kube-system
+
+configMapGenerator:
+  - behavior: merge
+    files:
+      - nutanix-storage-csi.yaml
+      - nutanix-csi-snapshot.yaml
+      - nutanix-csi-webhook.yaml
+    name: nutanix-csi
+
+resources:
+  - ../base/
+  - nutanix-csi.yaml
+  - nutanix-csi-crs.yaml
+  - nutanix-csi-secret.yaml
+
+patches:
+  - path: csi-patch.yaml

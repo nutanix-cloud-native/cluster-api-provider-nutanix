@@ -45,7 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
@@ -189,17 +189,32 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return reconcile.Result{}, err
 	}
 
-	v3Client, err := getPrismCentralClientForCluster(ctx, cluster, r.SecretInformer, r.ConfigMapInformer)
+	v3Client, err := getPrismCentralV3ClientForCluster(ctx, cluster, r.SecretInformer, r.ConfigMapInformer)
 	if err != nil {
 		log.Error(err, "error occurred while fetching prism central client")
 		return reconcile.Result{}, err
 	}
 
 	rctx := &nctx.ClusterContext{
-		Context:        ctx,
-		Cluster:        capiCluster,
-		NutanixCluster: cluster,
-		NutanixClient:  v3Client,
+		Context:         ctx,
+		Cluster:         capiCluster,
+		NutanixCluster:  cluster,
+		NutanixClientV3: v3Client,
+	}
+
+	createV4Client, err := isPrismCentralV4Compatible(ctx, v3Client)
+	if err != nil {
+		log.Error(err, "error occurred while checking environment compatibility for Prism Central v4 APIs")
+	} else {
+		if createV4Client {
+			v4Client, err := getPrismCentralV4ClientForCluster(ctx, cluster, r.SecretInformer, r.ConfigMapInformer)
+			if err != nil {
+				log.Error(err, "error occurred while fetching Prism Central v4 client")
+				return reconcile.Result{}, err
+			}
+
+			rctx.NutanixClientV4 = v4Client
+		}
 	}
 
 	// Check for request action
@@ -236,7 +251,7 @@ func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (r
 
 	// delete the client from the cache
 	log.Info(fmt.Sprintf("deleting nutanix prism client for cluster %s from cache", rctx.NutanixCluster.GetNamespacedName()))
-	nutanixClient.NutanixClientCache.Delete(&nutanixClient.CacheParams{NutanixCluster: rctx.NutanixCluster})
+	nutanixclient.NutanixClientCacheV3.Delete(&nutanixclient.CacheParams{NutanixCluster: rctx.NutanixCluster})
 
 	if err := r.reconcileCredentialRefDelete(rctx.Context, rctx.NutanixCluster); err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while reconciling credential ref deletion for cluster %s", rctx.Cluster.Name))
@@ -319,7 +334,7 @@ func (r *NutanixClusterReconciler) reconcileCategories(rctx *nctx.ClusterContext
 	log := ctrl.LoggerFrom(rctx.Context)
 	log.Info("Reconciling categories for cluster")
 	defaultCategories := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-	_, err := GetOrCreateCategories(rctx.Context, rctx.NutanixClient, defaultCategories)
+	_, err := GetOrCreateCategories(rctx.Context, rctx.NutanixClientV3, defaultCategories)
 	if err != nil {
 		conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.ClusterCategoryCreationFailed, capiv1.ConditionSeverityError, err.Error())
 		return err
@@ -335,7 +350,7 @@ func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterC
 		conditions.GetReason(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) == infrav1.DeletionFailed {
 		defaultCategories := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
 		obsoleteCategories := GetObsoleteDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-		err := DeleteCategories(rctx.Context, rctx.NutanixClient, defaultCategories, obsoleteCategories)
+		err := DeleteCategories(rctx.Context, rctx.NutanixClientV3, defaultCategories, obsoleteCategories)
 		if err != nil {
 			conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, err.Error())
 			return err
