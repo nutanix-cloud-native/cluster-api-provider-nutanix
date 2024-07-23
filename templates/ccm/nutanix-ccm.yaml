@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ${CLUSTER_NAME}-pc-trusted-ca-bundle
+  name: nutanix-ccm-pc-trusted-ca-bundle
   namespace: kube-system
 binaryData:
   ca.crt: ${NUTANIX_ADDITIONAL_TRUST_BUNDLE=""}
@@ -34,7 +34,7 @@ data:
         },
         "additionalTrustBundle": {
           "kind": "ConfigMap",
-          "name": "${CLUSTER_NAME}-pc-trusted-ca-bundle",
+          "name": "nutanix-ccm-pc-trusted-ca-bundle",
           "namespace": "kube-system"
         }
       },
@@ -186,7 +186,7 @@ spec:
           key: node.kubernetes.io/not-ready
           operator: Exists
       containers:
-        - image: "${CCM_REPO=ghcr.io/nutanix-cloud-native/cloud-provider-nutanix/controller}:${CCM_TAG=v0.3.2}"
+        - image: "${CCM_REPO=ghcr.io/nutanix-cloud-native/cloud-provider-nutanix/controller}:${CCM_TAG=v0.4.0}"
           imagePullPolicy: IfNotPresent
           name: nutanix-cloud-controller-manager
           env:
