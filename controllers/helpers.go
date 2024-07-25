@@ -817,6 +817,8 @@ func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.Nut
 
 // isPrismCentralV4Compatible checks if the Prism Central is v4 API compatible
 func isPrismCentralV4Compatible(ctx context.Context, v3Client *prismclientv3.Client) (bool, error) {
+	log := ctrl.LoggerFrom(ctx)
+	internalPCNames := []string{"master", "fraser"}
 	pcVersion, err := getPrismCentralVersion(ctx, v3Client)
 	if err != nil {
 		return false, fmt.Errorf("failed to get Prism Central version: %w", err)
@@ -828,6 +830,15 @@ func isPrismCentralV4Compatible(ctx context.Context, v3Client *prismclientv3.Cli
 
 	if pcVersion == "" {
 		return false, errors.New("version is empty")
+	}
+
+	for _, internalPCName := range internalPCNames {
+		// TODO(sid): This is a naive check to see if the PC version is an internal build. This can potentially lead to failures
+		// if internal fraser build is not v4 compatible.
+		if strings.Contains(pcVersion, internalPCName) {
+			log.Info(fmt.Sprintf("Prism Central version %s is an internal build; assuming it is v4 compatible", pcVersion))
+			return true, nil
+		}
 	}
 
 	// Remove the prefix "pc."
