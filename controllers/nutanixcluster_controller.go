@@ -205,16 +205,16 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	createV4Client, err := isPrismCentralV4Compatible(ctx, v3Client)
 	if err != nil {
 		log.Error(err, "error occurred while checking environment compatibility for Prism Central v4 APIs")
-	} else {
-		if createV4Client {
-			v4Client, err := getPrismCentralV4ClientForCluster(ctx, cluster, r.SecretInformer, r.ConfigMapInformer)
-			if err != nil {
-				log.Error(err, "error occurred while fetching Prism Central v4 client")
-				return reconcile.Result{}, err
-			}
+	}
 
-			rctx.NutanixClientV4 = v4Client
+	if createV4Client {
+		v4Client, err := getPrismCentralV4ClientForCluster(ctx, cluster, r.SecretInformer, r.ConfigMapInformer)
+		if err != nil {
+			log.Error(err, "error occurred while fetching Prism Central v4 client")
+			return reconcile.Result{}, err
 		}
+
+		rctx.NutanixClientV4 = v4Client
 	}
 
 	// Check for request action
@@ -252,6 +252,7 @@ func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (r
 	// delete the client from the cache
 	log.Info(fmt.Sprintf("deleting nutanix prism client for cluster %s from cache", rctx.NutanixCluster.GetNamespacedName()))
 	nutanixclient.NutanixClientCache.Delete(&nutanixclient.CacheParams{NutanixCluster: rctx.NutanixCluster})
+	nutanixclient.NutanixClientCacheV4.Delete(&nutanixclient.CacheParams{NutanixCluster: rctx.NutanixCluster})
 
 	if err := r.reconcileCredentialRefDelete(rctx.Context, rctx.NutanixCluster); err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while reconciling credential ref deletion for cluster %s", rctx.Cluster.Name))

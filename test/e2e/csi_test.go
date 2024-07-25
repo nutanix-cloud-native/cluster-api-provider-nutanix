@@ -379,8 +379,6 @@ var _ = Describe("Nutanix flavor CSI", Label("capx-feature-test", "csi"), func()
 
 		By("Deleting CSI PVC")
 		Expect(workloadClient.Delete(ctx, csiPvc)).To(Succeed())
-
-		By("PASSED!")
 	})
 
 	It("Create a cluster with Nutanix CSI 3.0 and use Nutanix Volumes to create PV and delete cluster without deleting PVC", Label("csi3"), func() {
@@ -535,7 +533,5 @@ var _ = Describe("Nutanix flavor CSI", Label("capx-feature-test", "csi"), func()
 			g.Expect(workloadClient.Get(ctx, csiPvcKey, csiPvc)).To(Succeed())
 			g.Expect(csiPvc.Status.Phase).To(Equal(corev1.ClaimBound))
 		}, defaultTimeout, defaultInterval).Should(Succeed())
-
-		By("PASSED!")
 	})
 })

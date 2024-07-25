@@ -278,17 +278,17 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	createV4Client, err := isPrismCentralV4Compatible(ctx, v3Client)
 	if err != nil {
 		log.Error(err, "error occurred while checking compatibility for Prism Central v4 APIs")
-	} else {
-		if createV4Client {
-			log.Info("Creating Prism Central v4 client for cluster", "cluster", ntxCluster.Name)
-			v4Client, err := getPrismCentralV4ClientForCluster(ctx, ntxCluster, r.SecretInformer, r.ConfigMapInformer)
-			if err != nil {
-				log.Error(err, "error occurred while fetching Prism Central v4 client")
-				return reconcile.Result{}, err
-			}
+	}
 
-			rctx.NutanixClientV4 = v4Client
+	if createV4Client {
+		log.Info("Creating Prism Central v4 client for cluster", "cluster", ntxCluster.Name)
+		v4Client, err := getPrismCentralV4ClientForCluster(ctx, ntxCluster, r.SecretInformer, r.ConfigMapInformer)
+		if err != nil {
+			log.Error(err, "error occurred while fetching Prism Central v4 client")
+			return reconcile.Result{}, err
 		}
+
+		rctx.NutanixClientV4 = v4Client
 	}
 
 	defer func() {
@@ -378,7 +378,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 			if rctx.NutanixClientV4 != nil {
 				if err := detachVolumeGroupsFromVM(ctx, rctx.NutanixClientV4, vmUUID); err != nil {
 					errorMsg := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %v", vmName, vmUUID, err)
-					conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, errorMsg.Error())
+					conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VolumeGroupDetachFailed, capiv1.ConditionSeverityWarning, errorMsg.Error())
 					log.Error(errorMsg, "failed to detach volume groups", "cluster", rctx.NutanixCluster.Name)
 					return reconcile.Result{}, err
 				}
