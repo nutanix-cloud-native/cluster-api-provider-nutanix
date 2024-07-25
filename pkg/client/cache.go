@@ -8,8 +8,8 @@ import (
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
-// NutanixClientCacheV3 is the cache of prism clients to be shared across the different controllers
-var NutanixClientCacheV3 = v3.NewClientCache(v3.WithSessionAuth(true))
+// NutanixClientCache is the cache of prism clients to be shared across the different controllers
+var NutanixClientCache = v3.NewClientCache(v3.WithSessionAuth(true))
 
 // NutanixClientCacheV4 is the cache of prism clients to be shared across the different controllers
 var NutanixClientCacheV4 = v4.NewClientCache(v4.WithSessionAuth(true))

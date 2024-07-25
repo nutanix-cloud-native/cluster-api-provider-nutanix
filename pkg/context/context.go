@@ -41,7 +41,7 @@ var (
 // ClusterContext is a context used with a NutanixCluster reconciler
 type ClusterContext struct {
 	Context         context.Context
-	NutanixClientV3 *prismclientv3.Client
+	NutanixClient   *prismclientv3.Client
 	NutanixClientV4 *prismclientv4.Client
 
 	Cluster        *capiv1.Cluster
@@ -51,7 +51,7 @@ type ClusterContext struct {
 // MachineContext is a context used with a NutanixMachine reconciler
 type MachineContext struct {
 	Context         context.Context
-	NutanixClientV3 *prismclientv3.Client
+	NutanixClient   *prismclientv3.Client
 	NutanixClientV4 *prismclientv4.Client
 
 	Cluster        *capiv1.Cluster

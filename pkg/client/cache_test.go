@@ -44,6 +44,6 @@ func TestCacheParamsManagementEndpoint(t *testing.T) {
 }
 
 func TestNutanixClientCache(t *testing.T) {
-	assert.NotNil(t, NutanixClientCacheV3)
-	assert.IsType(t, &v3.ClientCache{}, NutanixClientCacheV3)
+	assert.NotNil(t, NutanixClientCache)
+	assert.IsType(t, &v3.ClientCache{}, NutanixClientCache)
 }

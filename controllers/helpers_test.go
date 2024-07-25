@@ -157,7 +157,7 @@ func TestGetPrismCentralClientForCluster(t *testing.T) {
 		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
 		secretInformer.EXPECT().Lister().Return(secretLister)
 
-		_, err := getPrismCentralV3ClientForCluster(ctx, cluster, secretInformer, mapInformer)
+		_, err := getPrismCentralClientForCluster(ctx, cluster, secretInformer, mapInformer)
 		assert.Error(t, err)
 	})
 
@@ -187,20 +187,20 @@ func TestGetPrismCentralClientForCluster(t *testing.T) {
 		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
 		secretInformer.EXPECT().Lister().Return(secretLister)
 
-		_, err = getPrismCentralV3ClientForCluster(ctx, cluster, secretInformer, mapInformer)
+		_, err = getPrismCentralClientForCluster(ctx, cluster, secretInformer, mapInformer)
 		assert.Error(t, err)
 	})
 
 	t.Run("GetOrCreate succeeds", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 
-		oldNutanixClientCache := nutanixclient.NutanixClientCacheV3
+		oldNutanixClientCache := nutanixclient.NutanixClientCache
 		defer func() {
-			nutanixclient.NutanixClientCacheV3 = oldNutanixClientCache
+			nutanixclient.NutanixClientCache = oldNutanixClientCache
 		}()
 
 		// Create a new client cache with session auth disabled to avoid network calls in tests
-		nutanixclient.NutanixClientCacheV3 = prismclientv3.NewClientCache()
+		nutanixclient.NutanixClientCache = prismclientv3.NewClientCache()
 
 		creds := []credentialtypes.Credential{
 			{
@@ -225,7 +225,7 @@ func TestGetPrismCentralClientForCluster(t *testing.T) {
 		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
 		secretInformer.EXPECT().Lister().Return(secretLister)
 
-		_, err = getPrismCentralV3ClientForCluster(ctx, cluster, secretInformer, mapInformer)
+		_, err = getPrismCentralClientForCluster(ctx, cluster, secretInformer, mapInformer)
 		assert.NoError(t, err)
 	})
 }

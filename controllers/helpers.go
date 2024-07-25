@@ -54,6 +54,8 @@ const (
 	subnetTypeOverlay = "OVERLAY"
 
 	gpuUnused = "UNUSED"
+
+	pollingInterval = time.Second * 2
 )
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
@@ -765,7 +767,7 @@ func GetFailureDomain(failureDomainName string, nutanixCluster *infrav1.NutanixC
 	return nil, fmt.Errorf("failed to find failure domain %s on nutanix cluster object", failureDomainName)
 }
 
-func getPrismCentralV3ClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*prismclientv3.Client, error) {
+func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*prismclientv3.Client, error) {
 	log := ctrl.LoggerFrom(ctx)
 
 	clientHelper := nutanixclient.NewHelper(secretInformer, mapInformer)
@@ -776,18 +778,18 @@ func getPrismCentralV3ClientForCluster(ctx context.Context, cluster *infrav1.Nut
 		return nil, err
 	}
 
-	client, err := nutanixclient.NutanixClientCacheV3.GetOrCreate(&nutanixclient.CacheParams{
+	v3Client, err := nutanixclient.NutanixClientCache.GetOrCreate(&nutanixclient.CacheParams{
 		NutanixCluster:          cluster,
 		PrismManagementEndpoint: managementEndpoint,
 	})
 	if err != nil {
-		log.Error(err, "error occurred while getting nutanix prism client from cache")
+		log.Error(err, "error occurred while getting nutanix prism v3 Client from cache")
 		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
-		return nil, fmt.Errorf("nutanix prism client error: %w", err)
+		return nil, fmt.Errorf("nutanix prism v3 Client error: %w", err)
 	}
 
 	conditions.MarkTrue(cluster, infrav1.PrismCentralClientCondition)
-	return client, nil
+	return v3Client, nil
 }
 
 func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*prismclientv4.Client, error) {
@@ -797,7 +799,7 @@ func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.Nut
 	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
-		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
 		return nil, err
 	}
 
@@ -806,12 +808,12 @@ func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.Nut
 		PrismManagementEndpoint: managementEndpoint,
 	})
 	if err != nil {
-		log.Error(err, "error occurred while getting nutanix prism client from cache")
-		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
-		return nil, fmt.Errorf("nutanix prism client error: %w", err)
+		log.Error(err, "error occurred while getting nutanix prism v4 client from cache")
+		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+		return nil, fmt.Errorf("nutanix prism v4 client error: %w", err)
 	}
 
-	conditions.MarkTrue(cluster, infrav1.PrismCentralClientCondition)
+	conditions.MarkTrue(cluster, infrav1.PrismCentralV4ClientCondition)
 	return client, nil
 }
 
@@ -829,7 +831,7 @@ func isPrismCentralV4Compatible(ctx context.Context, v3Client *prismclientv3.Cli
 	// We can check if the version is greater than or equal to 2024
 
 	if pcVersion == "" {
-		return false, errors.New("version is empty")
+		return false, errors.New("prism central version is empty")
 	}
 
 	for _, internalPCName := range internalPCNames {
@@ -899,8 +901,6 @@ func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Clien
 		volumeGroupsToDetach = append(volumeGroupsToDetach, *backingInfo.VolumeGroupExtId)
 	}
 
-	log.Info(fmt.Sprintf("detaching %d volume groups from virtual machine %s", len(volumeGroupsToDetach), vmUUID))
-
 	// Detach the volume groups from the virtual machine
 	for _, volumeGroup := range volumeGroupsToDetach {
 		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroup, vmUUID))
@@ -935,7 +935,7 @@ func waitForTaskCompletionV4(ctx context.Context, v4Client *prismclientv4.Client
 
 	if err := wait.PollUntilContextCancel(
 		ctx,
-		100*time.Millisecond,
+		pollingInterval,
 		true,
 		func(ctx context.Context) (done bool, err error) {
 			task, err := v4Client.TasksApiInstance.GetTaskById(utils.StringPtr(taskID))
