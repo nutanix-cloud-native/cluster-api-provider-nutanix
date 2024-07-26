@@ -129,6 +129,7 @@ providers:
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-kcp-remediation.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-kcp-scale-in.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-csi.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-csi3.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-failure-domains.yaml"
           - sourcePath: "../data/infrastructure-nutanix/ccm-update.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-clusterclass.yaml"

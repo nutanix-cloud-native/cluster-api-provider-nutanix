@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/nutanix-cloud-native/prism-go-client/environment/types"
-	"github.com/nutanix-cloud-native/prism-go-client/v3"
+	v3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 

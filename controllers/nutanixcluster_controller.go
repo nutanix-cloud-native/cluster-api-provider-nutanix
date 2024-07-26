@@ -45,7 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixClient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
@@ -202,6 +202,21 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		NutanixClient:  v3Client,
 	}
 
+	createV4Client, err := isPrismCentralV4Compatible(ctx, v3Client)
+	if err != nil {
+		log.Error(err, "error occurred while checking environment compatibility for Prism Central v4 APIs")
+	}
+
+	if createV4Client {
+		v4Client, err := getPrismCentralV4ClientForCluster(ctx, cluster, r.SecretInformer, r.ConfigMapInformer)
+		if err != nil {
+			log.Error(err, "error occurred while fetching Prism Central v4 client")
+			return reconcile.Result{}, err
+		}
+
+		rctx.NutanixClientV4 = v4Client
+	}
+
 	// Check for request action
 	if !cluster.DeletionTimestamp.IsZero() {
 		// NutanixCluster is being deleted
@@ -236,7 +251,8 @@ func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (r
 
 	// delete the client from the cache
 	log.Info(fmt.Sprintf("deleting nutanix prism client for cluster %s from cache", rctx.NutanixCluster.GetNamespacedName()))
-	nutanixClient.NutanixClientCache.Delete(&nutanixClient.CacheParams{NutanixCluster: rctx.NutanixCluster})
+	nutanixclient.NutanixClientCache.Delete(&nutanixclient.CacheParams{NutanixCluster: rctx.NutanixCluster})
+	nutanixclient.NutanixClientCacheV4.Delete(&nutanixclient.CacheParams{NutanixCluster: rctx.NutanixCluster})
 
 	if err := r.reconcileCredentialRefDelete(rctx.Context, rctx.NutanixCluster); err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while reconciling credential ref deletion for cluster %s", rctx.Cluster.Name))

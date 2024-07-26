@@ -18,14 +18,24 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
+	prismcommonconfig "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/common/v1/config"
+	prismapi "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
+	vmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
+	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
+	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/wait"
 	v1 "k8s.io/client-go/informers/core/v1"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -44,6 +54,8 @@ const (
 	subnetTypeOverlay = "OVERLAY"
 
 	gpuUnused = "UNUSED"
+
+	pollingInterval = time.Second * 2
 )
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
@@ -771,11 +783,186 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 		PrismManagementEndpoint: managementEndpoint,
 	})
 	if err != nil {
-		log.Error(err, "error occurred while getting nutanix prism client from cache")
+		log.Error(err, "error occurred while getting nutanix prism v3 Client from cache")
 		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
-		return nil, fmt.Errorf("nutanix prism client error: %w", err)
+		return nil, fmt.Errorf("nutanix prism v3 Client error: %w", err)
 	}
 
 	conditions.MarkTrue(cluster, infrav1.PrismCentralClientCondition)
 	return v3Client, nil
+}
+
+func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*prismclientv4.Client, error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	clientHelper := nutanixclient.NewHelper(secretInformer, mapInformer)
+	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
+	if err != nil {
+		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
+		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+		return nil, err
+	}
+
+	client, err := nutanixclient.NutanixClientCacheV4.GetOrCreate(&nutanixclient.CacheParams{
+		NutanixCluster:          cluster,
+		PrismManagementEndpoint: managementEndpoint,
+	})
+	if err != nil {
+		log.Error(err, "error occurred while getting nutanix prism v4 client from cache")
+		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+		return nil, fmt.Errorf("nutanix prism v4 client error: %w", err)
+	}
+
+	conditions.MarkTrue(cluster, infrav1.PrismCentralV4ClientCondition)
+	return client, nil
+}
+
+// isPrismCentralV4Compatible checks if the Prism Central is v4 API compatible
+func isPrismCentralV4Compatible(ctx context.Context, v3Client *prismclientv3.Client) (bool, error) {
+	log := ctrl.LoggerFrom(ctx)
+	internalPCNames := []string{"master", "fraser"}
+	pcVersion, err := getPrismCentralVersion(ctx, v3Client)
+	if err != nil {
+		return false, fmt.Errorf("failed to get Prism Central version: %w", err)
+	}
+
+	// Check if the version is v4 compatible
+	// PC versions look like pc.2024.1.0.1
+	// We can check if the version is greater than or equal to 2024
+
+	if pcVersion == "" {
+		return false, errors.New("prism central version is empty")
+	}
+
+	for _, internalPCName := range internalPCNames {
+		// TODO(sid): This is a naive check to see if the PC version is an internal build. This can potentially lead to failures
+		// if internal fraser build is not v4 compatible.
+		if strings.Contains(pcVersion, internalPCName) {
+			log.Info(fmt.Sprintf("Prism Central version %s is an internal build; assuming it is v4 compatible", pcVersion))
+			return true, nil
+		}
+	}
+
+	// Remove the prefix "pc."
+	version := strings.TrimPrefix(pcVersion, "pc.")
+	// Split the version string by "." to extract the year part
+	parts := strings.Split(version, ".")
+	if len(parts) < 1 {
+		return false, errors.New("invalid version format")
+	}
+
+	// Convert the year part to an integer
+	year, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return false, errors.New("invalid version: failed to parse year from PC version")
+	}
+
+	if year >= 2024 {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// getPrismCentralVersion returns the version of the Prism Central instance
+func getPrismCentralVersion(ctx context.Context, v3Client *prismclientv3.Client) (string, error) {
+	pcInfo, err := v3Client.V3.GetPrismCentral(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	if pcInfo.Resources == nil || pcInfo.Resources.Version == nil {
+		return "", fmt.Errorf("failed to get Prism Central version")
+	}
+
+	return *pcInfo.Resources.Version, nil
+}
+
+func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Client, vmUUID string) error {
+	log := ctrl.LoggerFrom(ctx)
+	vmResp, err := v4Client.VmApiInstance.GetVmById(&vmUUID)
+	if err != nil {
+		return fmt.Errorf("failed to get virtual machine: %w", err)
+	}
+
+	data := vmResp.GetData()
+	vm, ok := data.(vmconfig.Vm)
+	if !ok {
+		return fmt.Errorf("failed to cast response to VM")
+	}
+
+	volumeGroupsToDetach := make([]string, 0)
+	for _, disk := range vm.Disks {
+		backingInfo, ok := disk.GetBackingInfo().(vmconfig.ADSFVolumeGroupReference)
+		if !ok {
+			continue
+		}
+
+		volumeGroupsToDetach = append(volumeGroupsToDetach, *backingInfo.VolumeGroupExtId)
+	}
+
+	// Detach the volume groups from the virtual machine
+	for _, volumeGroup := range volumeGroupsToDetach {
+		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroup, vmUUID))
+		body := &volumesconfig.VmAttachment{
+			ExtId: &vmUUID,
+		}
+		resp, err := v4Client.VolumeGroupsApiInstance.DetachVm(&volumeGroup, body)
+		if err != nil {
+			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroup, vmUUID, err)
+		}
+
+		data := resp.GetData()
+		task, ok := data.(prismconfig.TaskReference)
+		if !ok {
+			return fmt.Errorf("failed to cast response to TaskReference")
+		}
+
+		// Wait for the task to complete
+		if _, err := waitForTaskCompletionV4(ctx, v4Client, *task.ExtId); err != nil {
+			return fmt.Errorf("failed to wait for task %s to complete: %w", *task.ExtId, err)
+		}
+	}
+
+	return nil
+}
+
+// waitForTaskCompletionV4 waits for a task to complete and returns the completion details
+// of the task. The function will poll the task status every 100ms until the task is
+// completed or the context is cancelled.
+func waitForTaskCompletionV4(ctx context.Context, v4Client *prismclientv4.Client, taskID string) ([]prismcommonconfig.KVPair, error) {
+	var data []prismcommonconfig.KVPair
+
+	if err := wait.PollUntilContextCancel(
+		ctx,
+		pollingInterval,
+		true,
+		func(ctx context.Context) (done bool, err error) {
+			task, err := v4Client.TasksApiInstance.GetTaskById(utils.StringPtr(taskID))
+			if err != nil {
+				return false, fmt.Errorf("failed to get task %s: %w", taskID, err)
+			}
+
+			taskData, ok := task.GetData().(prismapi.Task)
+			if !ok {
+				return false, fmt.Errorf("unexpected task data type %[1]T: %+[1]v", task.GetData())
+			}
+
+			if taskData.Status == nil {
+				return false, nil
+			}
+
+			if *taskData.Status != prismapi.TASKSTATUS_SUCCEEDED {
+				return false, nil
+			}
+
+			data = taskData.CompletionDetails
+
+			return true, nil
+		},
+	); err != nil {
+		return nil, fmt.Errorf("failed to wait for task %s to complete: %w", taskID, err)
+	}
+
+	return data, nil
 }
