@@ -327,7 +327,7 @@ var _ = Describe("Nutanix flavor CSI", Label("capx-feature-test", "csi"), func()
 				Containers: []corev1.Container{
 					{
 						Name:            "busybox",
-						Image:           "busybox",
+						Image:           "cgr.dev/chainguard/busybox:latest",
 						Command:         []string{"sleep", "3600"},
 						ImagePullPolicy: "IfNotPresent",
 						VolumeMounts: []corev1.VolumeMount{
@@ -487,7 +487,7 @@ var _ = Describe("Nutanix flavor CSI", Label("capx-feature-test", "csi"), func()
 				Containers: []corev1.Container{
 					{
 						Name:            "busybox",
-						Image:           "busybox",
+						Image:           "cgr.dev/chainguard/busybox:latest",
 						Command:         []string{"sleep", "3600"},
 						ImagePullPolicy: "IfNotPresent",
 						VolumeMounts: []corev1.VolumeMount{
