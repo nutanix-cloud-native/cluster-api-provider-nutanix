@@ -314,26 +314,23 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 
 	// Check if VMUUID is absent
 	if vmUUID == "" {
-		log.Info(fmt.Sprintf("VMUUID was not found in spec for VM %s. Skipping delete", vmName))
+		log.Info(fmt.Sprintf("VM UUID was not found in spec for VM %s. Skipping delete", vmName))
 		log.Info(fmt.Sprintf("Removing finalizers for VM %s during delete reconciliation", vmName))
 		ctrlutil.RemoveFinalizer(rctx.NutanixMachine, infrav1.NutanixMachineFinalizer)
 		return reconcile.Result{}, nil
 	}
 
-	// Search for VM by UUID
 	vm, err := FindVMByUUID(ctx, v3Client, vmUUID)
-	// Error while finding VM
 	if err != nil {
-		errorMsg := fmt.Errorf("error finding vm %s with uuid %s: %v", vmName, vmUUID, err)
-		log.Error(errorMsg, "error finding vm")
+		errorMsg := fmt.Errorf("error finding VM %s with UUID %s: %v", vmName, vmUUID, err)
+		log.Error(errorMsg, "error finding VM")
 		conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, errorMsg.Error())
 		return reconcile.Result{}, errorMsg
 	}
 
-	// Vm not found
 	if vm == nil {
-		log.Info(fmt.Sprintf("no vm found with UUID %s ... Already deleted? Skipping delete", vmUUID))
-		log.Info(fmt.Sprintf("Removing finalizers for VM %s during delete reconciliation", vmName))
+		log.Info(fmt.Sprintf("no VM found with UUID %s: assuming it is already deleted; skipping delete", vmUUID))
+		log.Info(fmt.Sprintf("removing finalizers for VM %s during delete reconciliation", vmName))
 		ctrlutil.RemoveFinalizer(rctx.NutanixMachine, infrav1.NutanixMachineFinalizer)
 		return reconcile.Result{}, nil
 	}
@@ -350,7 +347,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	log.V(1).Info(fmt.Sprintf("VM %s with UUID %s was found.", *vm.Spec.Name, vmUUID))
 	lastTaskUUID, err := GetTaskUUIDFromVM(vm)
 	if err != nil {
-		errorMsg := fmt.Errorf("error occurred fetching task UUID from vm: %v", err)
+		errorMsg := fmt.Errorf("error occurred fetching task UUID from VM: %v", err)
 		log.Error(errorMsg, "error fetching task UUID")
 		conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, errorMsg.Error())
 		return reconcile.Result{}, errorMsg
@@ -366,7 +363,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 			log.Info(fmt.Sprintf("VM %s task with UUID %s still in progress. Requeuing", vmName, vmUUID))
 			return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
 		}
-		log.V(1).Info(fmt.Sprintf("No running tasks anymore... Initiating delete for vm %s with UUID %s", vmName, vmUUID))
+		log.V(1).Info(fmt.Sprintf("no running tasks anymore... Initiating delete for VM %s with UUID %s", vmName, vmUUID))
 	} else {
 		log.V(1).Info(fmt.Sprintf("no task UUID found on VM %s. Starting delete.", *vm.Spec.Name))
 	}
@@ -382,25 +379,8 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	}
 
 	if vgDetachNeeded {
-		createV4Client, err := isPrismCentralV4Compatible(ctx, v3Client)
-		if err != nil {
-			log.Info("error occurred while checking compatibility for Prism Central v4 APIs", "error", err.Error())
-		}
-
-		if createV4Client {
-			log.Info("Creating Prism Central v4 client for cluster", "cluster", rctx.NutanixCluster.Name)
-			v4Client, err := getPrismCentralV4ClientForCluster(ctx, rctx.NutanixCluster, r.SecretInformer, r.ConfigMapInformer)
-			if err != nil {
-				log.Error(err, "error occurred while fetching Prism Central v4 client")
-				return reconcile.Result{}, err
-			}
-
-			if err := detachVolumeGroupsFromVM(ctx, v4Client, vmUUID); err != nil {
-				errorMsg := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %v", vmName, vmUUID, err)
-				conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VolumeGroupDetachFailed, capiv1.ConditionSeverityWarning, errorMsg.Error())
-				log.Error(errorMsg, "failed to detach volume groups", "cluster", rctx.NutanixCluster.Name)
-				return reconcile.Result{}, err
-			}
+		if err := r.detachVolumeGroups(rctx, vmUUID); err != nil {
+			return reconcile.Result{}, err
 		}
 	}
 
@@ -414,6 +394,29 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	}
 	log.Info(fmt.Sprintf("Deletion task with UUID %s received for vm %s with UUID %s. Requeueing", deleteTaskUUID, vmName, vmUUID))
 	return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+}
+
+func (r *NutanixMachineReconciler) detachVolumeGroups(rctx *nctx.MachineContext, vmUUID string) error {
+	createV4Client, err := isPrismCentralV4Compatible(rctx.Context, rctx.NutanixClient)
+	if err != nil {
+		err := fmt.Errorf("error occurred while checking compatibility for Prism Central v4 APIs: %w", err)
+		return err
+	}
+
+	if createV4Client {
+		v4Client, err := getPrismCentralV4ClientForCluster(rctx.Context, rctx.NutanixCluster, r.SecretInformer, r.ConfigMapInformer)
+		if err != nil {
+			err := fmt.Errorf("error occurred while fetching Prism Central v4 client: %w", err)
+			return err
+		}
+
+		if err := detachVolumeGroupsFromVM(rctx.Context, v4Client, vmUUID); err != nil {
+			err := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %w", rctx.Machine.Name, vmUUID, err)
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (reconcile.Result, error) {
