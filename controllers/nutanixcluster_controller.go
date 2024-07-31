@@ -201,22 +201,6 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		NutanixCluster: cluster,
 		NutanixClient:  v3Client,
 	}
-
-	createV4Client, err := isPrismCentralV4Compatible(ctx, v3Client)
-	if err != nil {
-		log.Error(err, "error occurred while checking environment compatibility for Prism Central v4 APIs")
-	}
-
-	if createV4Client {
-		v4Client, err := getPrismCentralV4ClientForCluster(ctx, cluster, r.SecretInformer, r.ConfigMapInformer)
-		if err != nil {
-			log.Error(err, "error occurred while fetching Prism Central v4 client")
-			return reconcile.Result{}, err
-		}
-
-		rctx.NutanixClientV4 = v4Client
-	}
-
 	// Check for request action
 	if !cluster.DeletionTimestamp.IsZero() {
 		// NutanixCluster is being deleted

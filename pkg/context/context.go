@@ -23,7 +23,6 @@ import (
 
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
-	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -40,9 +39,8 @@ var (
 
 // ClusterContext is a context used with a NutanixCluster reconciler
 type ClusterContext struct {
-	Context         context.Context
-	NutanixClient   *prismclientv3.Client
-	NutanixClientV4 *prismclientv4.Client
+	Context       context.Context
+	NutanixClient *prismclientv3.Client
 
 	Cluster        *capiv1.Cluster
 	NutanixCluster *infrav1.NutanixCluster
@@ -50,9 +48,8 @@ type ClusterContext struct {
 
 // MachineContext is a context used with a NutanixMachine reconciler
 type MachineContext struct {
-	Context         context.Context
-	NutanixClient   *prismclientv3.Client
-	NutanixClientV4 *prismclientv4.Client
+	Context       context.Context
+	NutanixClient *prismclientv3.Client
 
 	Cluster        *capiv1.Cluster
 	Machine        *capiv1.Machine
