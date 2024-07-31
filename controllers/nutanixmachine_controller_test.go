@@ -19,7 +19,6 @@ package controllers
 import (
 	"context"
 	"errors"
-	"k8s.io/utils/ptr"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -33,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
