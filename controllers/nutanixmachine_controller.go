@@ -380,6 +380,10 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 
 	if vgDetachNeeded {
 		if err := r.detachVolumeGroups(rctx, vmUUID); err != nil {
+			err := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %v", vmName, vmUUID, err)
+			log.Error(err, "failed to detach volume groups from VM")
+			conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VolumeGroupDetachFailed, capiv1.ConditionSeverityWarning, err.Error())
+
 			return reconcile.Result{}, err
 		}
 	}
@@ -387,9 +391,11 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	// Delete the VM since the VM was found (err was nil)
 	deleteTaskUUID, err := DeleteVM(ctx, v3Client, vmName, vmUUID)
 	if err != nil {
-		errorMsg := fmt.Errorf("failed to delete VM %s with UUID %s: %v", vmName, vmUUID, err)
-		conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, errorMsg.Error())
-		log.Error(errorMsg, "failed to delete VM")
+		err := fmt.Errorf("failed to delete VM %s with UUID %s: %v", vmName, vmUUID, err)
+		log.Error(err, "failed to delete VM")
+
+		conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, err.Error())
+
 		return reconcile.Result{}, err
 	}
 	log.Info(fmt.Sprintf("Deletion task with UUID %s received for vm %s with UUID %s. Requeueing", deleteTaskUUID, vmName, vmUUID))
@@ -399,8 +405,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 func (r *NutanixMachineReconciler) detachVolumeGroups(rctx *nctx.MachineContext, vmUUID string) error {
 	createV4Client, err := isPrismCentralV4Compatible(rctx.Context, rctx.NutanixClient)
 	if err != nil {
-		err := fmt.Errorf("error occurred while checking compatibility for Prism Central v4 APIs: %w", err)
-		return err
+		return fmt.Errorf("error occurred while checking compatibility for Prism Central v4 APIs: %w", err)
 	}
 
 	if !createV4Client {
