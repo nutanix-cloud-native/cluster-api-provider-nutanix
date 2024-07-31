@@ -19,10 +19,13 @@ package controllers
 import (
 	"context"
 	"errors"
+	"k8s.io/utils/ptr"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
+	v3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+	"github.com/nutanix-cloud-native/prism-go-client/v3/models"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
@@ -39,6 +42,7 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	mockctlclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/ctlclient"
 	mockmeta "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sapimachinery"
+	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
@@ -108,6 +112,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				g.Expect(result.Requeue).To(BeFalse())
 			})
 		})
+
 		Context("Validates machine config", func() {
 			It("should error if no failure domain is present on machine and no subnets are passed", func() {
 				err := reconciler.validateMachineConfig(&nctx.MachineContext{
@@ -232,6 +237,86 @@ func TestNutanixMachineReconciler(t *testing.T) {
 					NutanixCluster: ntnxCluster,
 				})
 				g.Expect(err).To(HaveOccurred())
+			})
+		})
+
+		Context("Detaches a volume group on deletion", func() {
+			It("should error if get prism central returns error", func() {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockv3Service.EXPECT().GetPrismCentral(gomock.Any()).Return(nil, errors.New("error"))
+
+				v3Client := &v3.Client{
+					V3: mockv3Service,
+				}
+				err := reconciler.detachVolumeGroups(&nctx.MachineContext{
+					NutanixClient: v3Client,
+				}, ntnxMachine.Status.VmUUID)
+				g.Expect(err).To(HaveOccurred())
+			})
+
+			It("should error if prism central version is empty", func() {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockv3Service.EXPECT().GetPrismCentral(gomock.Any()).Return(&models.PrismCentral{Resources: &models.PrismCentralResources{
+					Version: ptr.To(""),
+				}}, nil)
+
+				v3Client := &v3.Client{
+					V3: mockv3Service,
+				}
+				err := reconciler.detachVolumeGroups(&nctx.MachineContext{
+					NutanixClient: v3Client,
+				}, ntnxMachine.Status.VmUUID)
+				g.Expect(err).To(HaveOccurred())
+			})
+
+			It("should error if prism central version value is absent", func() {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockv3Service.EXPECT().GetPrismCentral(gomock.Any()).Return(&models.PrismCentral{Resources: &models.PrismCentralResources{
+					Version: ptr.To("pc."),
+				}}, nil)
+
+				v3Client := &v3.Client{
+					V3: mockv3Service,
+				}
+				err := reconciler.detachVolumeGroups(&nctx.MachineContext{
+					NutanixClient: v3Client,
+				}, ntnxMachine.Status.VmUUID)
+				g.Expect(err).To(HaveOccurred())
+			})
+
+			It("should error if prism central version is invalid", func() {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockv3Service.EXPECT().GetPrismCentral(gomock.Any()).Return(&models.PrismCentral{Resources: &models.PrismCentralResources{
+					Version: ptr.To("not.a.valid.version"),
+				}}, nil)
+
+				v3Client := &v3.Client{
+					V3: mockv3Service,
+				}
+				err := reconciler.detachVolumeGroups(&nctx.MachineContext{
+					NutanixClient: v3Client,
+				}, ntnxMachine.Status.VmUUID)
+				g.Expect(err).To(HaveOccurred())
+			})
+
+			It("should not error if prism central is not v4 compatible", func() {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockv3Service.EXPECT().GetPrismCentral(gomock.Any()).Return(&models.PrismCentral{Resources: &models.PrismCentralResources{
+					Version: ptr.To("pc.2023.4.0.1"),
+				}}, nil)
+
+				v3Client := &v3.Client{
+					V3: mockv3Service,
+				}
+				err := reconciler.detachVolumeGroups(&nctx.MachineContext{
+					NutanixClient: v3Client,
+				}, ntnxMachine.Status.VmUUID)
+				g.Expect(err).To(Not(HaveOccurred()))
 			})
 		})
 	})
