@@ -403,17 +403,17 @@ func (r *NutanixMachineReconciler) detachVolumeGroups(rctx *nctx.MachineContext,
 		return err
 	}
 
-	if createV4Client {
-		v4Client, err := getPrismCentralV4ClientForCluster(rctx.Context, rctx.NutanixCluster, r.SecretInformer, r.ConfigMapInformer)
-		if err != nil {
-			err := fmt.Errorf("error occurred while fetching Prism Central v4 client: %w", err)
-			return err
-		}
+	if !createV4Client {
+		return nil
+	}
 
-		if err := detachVolumeGroupsFromVM(rctx.Context, v4Client, vmUUID); err != nil {
-			err := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %w", rctx.Machine.Name, vmUUID, err)
-			return err
-		}
+	v4Client, err := getPrismCentralV4ClientForCluster(rctx.Context, rctx.NutanixCluster, r.SecretInformer, r.ConfigMapInformer)
+	if err != nil {
+		return fmt.Errorf("error occurred while fetching Prism Central v4 client: %w", err)
+	}
+
+	if err := detachVolumeGroupsFromVM(rctx.Context, v4Client, vmUUID); err != nil {
+		return fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %w", rctx.Machine.Name, vmUUID, err)
 	}
 
 	return nil
