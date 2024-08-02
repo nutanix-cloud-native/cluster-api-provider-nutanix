@@ -59,7 +59,7 @@ const (
 	defaultVCPUSockets    = int32(2)
 	defaultMemorySize     = "4Gi"
 	defaultSystemDiskSize = "40Gi"
-	defaultBootType       = "legacy"
+	defaultBootType       = "uefi"
 
 	categoryKeyVarKey   = "NUTANIX_ADDITIONAL_CATEGORY_KEY"
 	categoryValueVarKey = "NUTANIX_ADDITIONAL_CATEGORY_VALUE"

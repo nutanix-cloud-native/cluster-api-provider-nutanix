@@ -92,6 +92,7 @@ type NutanixMachineSpec struct {
 	// Defines the boot type of the virtual machine. Only supports UEFI and Legacy
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum:=legacy;uefi
+	// +kubebuilder:default:=uefi
 	BootType NutanixBootType `json:"bootType,omitempty"`
 
 	// systemDiskSize is size (in Quantity format) of the system disk of the VM

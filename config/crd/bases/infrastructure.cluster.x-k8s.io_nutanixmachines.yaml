@@ -66,6 +66,7 @@ spec:
                   type: object
                 type: array
               bootType:
+                default: uefi
                 description: Defines the boot type of the virtual machine. Only supports
                   UEFI and Legacy
                 enum:

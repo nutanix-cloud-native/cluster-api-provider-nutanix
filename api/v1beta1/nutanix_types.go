@@ -22,6 +22,9 @@ type NutanixIdentifierType string
 // NutanixBootType is an enumeration of different boot types.
 type NutanixBootType string
 
+// BootDeviceType is an enumeration of different boot device types.
+type BootDeviceType string
+
 // NutanixGPUIdentifierType is an enumeration of different resource identifier types for GPU entities.
 type NutanixGPUIdentifierType string
 
@@ -37,6 +40,9 @@ const (
 
 	// NutanixBootTypeUEFI is a resource identifier identifying the UEFI boot type for virtual machines.
 	NutanixBootTypeUEFI NutanixBootType = "uefi"
+
+	// NutanixBootTypeSecureBoot is a resource identifier identifying the Secure Boot type for virtual machines.
+	NutanixBootTypeSecureBoot NutanixBootType = "SecureBoot"
 
 	// NutanixGPUIdentifierName is a resource identifier identifying a GPU by Name.
 	NutanixGPUIdentifierName NutanixGPUIdentifierType = "name"
@@ -55,6 +61,15 @@ const (
 
 	// ObsoleteDefaultCAPICategoryOwnedValue is the obsolete default category value used for CAPI clusters.
 	ObsoleteDefaultCAPICategoryOwnedValue = "owned"
+
+	// BootDeviceTypeDisk is a boot device type identifying the disk as the boot device.
+	BootDeviceTypeDisk BootDeviceType = "DISK"
+
+	// BootDeviceTypeCDROM is a boot device type identifying the CD-ROM as the boot device.
+	BootDeviceTypeCDROM BootDeviceType = "CDROM"
+
+	// BootDeviceTypeNetwork is a boot device type identifying the network as the boot device.
+	BootDeviceTypeNetwork BootDeviceType = "NETWORK"
 )
 
 // NutanixResourceIdentifier holds the identity of a Nutanix PC resource (cluster, image, subnet, etc.)
