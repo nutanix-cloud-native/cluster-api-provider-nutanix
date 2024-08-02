@@ -909,19 +909,26 @@ func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.Mach
 
 func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vmSpec *prismclientv3.VM) error {
 	bootType := rctx.NutanixMachine.Spec.BootType
-	// Defaults to legacy if boot type is not set.
-	if bootType != "" {
-		if bootType != infrav1.NutanixBootTypeLegacy && bootType != infrav1.NutanixBootTypeUEFI {
-			errorMsg := fmt.Errorf("boot type must be %s or %s but was %s", string(infrav1.NutanixBootTypeLegacy), string(infrav1.NutanixBootTypeUEFI), bootType)
-			conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VMBootTypeInvalid, capiv1.ConditionSeverityError, errorMsg.Error())
-			return errorMsg
-		}
+	if bootType == "" {
+		bootType = infrav1.NutanixBootTypeUEFI
+	}
 
-		// Only modify VM spec if boot type is UEFI. Otherwise, assume default Legacy mode
-		if bootType == infrav1.NutanixBootTypeUEFI {
-			vmSpec.Resources.BootConfig = &prismclientv3.VMBootConfig{
-				BootType: utils.StringPtr(strings.ToUpper(string(bootType))),
-			}
+	if bootType != infrav1.NutanixBootTypeLegacy && bootType != infrav1.NutanixBootTypeUEFI && bootType != infrav1.NutanixBootTypeSecureBoot {
+		err := fmt.Errorf("boot type must be %s, %s or %s but was %s", infrav1.NutanixBootTypeLegacy, infrav1.NutanixBootTypeUEFI, infrav1.NutanixBootTypeSecureBoot, bootType)
+		conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VMBootTypeInvalid, capiv1.ConditionSeverityError, err.Error())
+		return err
+	}
+
+	vmSpec.Resources.BootConfig = &prismclientv3.VMBootConfig{
+		BootType: ptr.To(strings.ToUpper(string(bootType))),
+	}
+
+	if bootType == infrav1.NutanixBootTypeLegacy {
+		// if bootType is legacy, we also need to specify the boot order
+		vmSpec.Resources.BootConfig.BootDeviceOrderList = []*string{
+			ptr.To(string(infrav1.BootDeviceTypeCDROM)),
+			ptr.To(string(infrav1.BootDeviceTypeDisk)),
+			ptr.To(string(infrav1.BootDeviceTypeNetwork)),
 		}
 	}
 

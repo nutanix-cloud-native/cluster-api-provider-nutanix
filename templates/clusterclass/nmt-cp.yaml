@@ -6,8 +6,8 @@ spec:
   template:
     spec:
       # Supported options for boot type: legacy and uefi
-      # Defaults to legacy if not set
-      bootType: legacy
+      # Defaults to uefi if not set
+      bootType: uefi
       vcpusPerSocket: 1
       vcpuSockets: 2
       memorySize: 4Gi

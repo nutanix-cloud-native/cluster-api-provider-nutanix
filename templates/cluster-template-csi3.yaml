@@ -2653,7 +2653,7 @@ metadata:
 spec:
   template:
     spec:
-      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=uefi}
       cluster:
         name: ${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}
         type: name

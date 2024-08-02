@@ -708,7 +708,7 @@ metadata:
 spec:
   template:
     spec:
-      bootType: legacy
+      bootType: uefi
       cluster:
         name: ""
         type: name
@@ -730,7 +730,7 @@ metadata:
 spec:
   template:
     spec:
-      bootType: legacy
+      bootType: uefi
       cluster:
         name: ""
         type: name
