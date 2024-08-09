@@ -404,54 +404,6 @@ func GetSubnetUUIDList(ctx context.Context, client *prismclientv3.Client, machin
 	return subnetUUIDs, nil
 }
 
-// GetDefaultCAPICategoryIdentifiers returns the default CAPI category identifiers
-func GetDefaultCAPICategoryIdentifiers(clusterName string) []*infrav1.NutanixCategoryIdentifier {
-	return []*infrav1.NutanixCategoryIdentifier{
-		{
-			Key:   infrav1.DefaultCAPICategoryKeyForName,
-			Value: clusterName,
-		},
-	}
-}
-
-// GetObsoleteDefaultCAPICategoryIdentifiers returns the default CAPI category identifiers
-func GetObsoleteDefaultCAPICategoryIdentifiers(clusterName string) []*infrav1.NutanixCategoryIdentifier {
-	return []*infrav1.NutanixCategoryIdentifier{
-		{
-			Key:   fmt.Sprintf("%s%s", infrav1.ObsoleteDefaultCAPICategoryPrefix, clusterName),
-			Value: infrav1.ObsoleteDefaultCAPICategoryOwnedValue,
-		},
-	}
-}
-
-// GetOrCreateCategories returns the list of category UUIDs for the given list of category names
-func GetOrCreateCategories(ctx context.Context, client *prismclientv3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) ([]*prismclientv3.CategoryValueStatus, error) {
-	categories := make([]*prismclientv3.CategoryValueStatus, 0)
-	for _, ci := range categoryIdentifiers {
-		if ci == nil {
-			return categories, fmt.Errorf("cannot get or create nil category")
-		}
-		category, err := getOrCreateCategory(ctx, client, ci)
-		if err != nil {
-			return categories, err
-		}
-		categories = append(categories, category)
-	}
-	return categories, nil
-}
-
-func getCategoryKey(ctx context.Context, client *prismclientv3.Client, key string) (*prismclientv3.CategoryKeyStatus, error) {
-	categoryKey, err := client.V3.GetCategoryKey(ctx, key)
-	if err != nil {
-		if !strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-			return nil, fmt.Errorf("failed to retrieve category with key %s. error: %v", key, err)
-		} else {
-			return nil, nil
-		}
-	}
-	return categoryKey, nil
-}
-
 func getCategoryValue(ctx context.Context, client *prismclientv3.Client, key, value string) (*prismclientv3.CategoryValueStatus, error) {
 	categoryValue, err := client.V3.GetCategoryValue(ctx, key, value)
 	if err != nil {
@@ -459,143 +411,6 @@ func getCategoryValue(ctx context.Context, client *prismclientv3.Client, key, va
 			return nil, fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
 		} else {
 			return nil, nil
-		}
-	}
-	return categoryValue, nil
-}
-
-func deleteCategoryKeyValues(ctx context.Context, client *prismclientv3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier, ignoreKeyDeletion bool) error {
-	log := ctrl.LoggerFrom(ctx)
-	groupCategoriesByKey := make(map[string][]string, 0)
-	for _, ci := range categoryIdentifiers {
-		ciKey := ci.Key
-		ciValue := ci.Value
-		if gck, ok := groupCategoriesByKey[ciKey]; ok {
-			groupCategoriesByKey[ciKey] = append(gck, ciValue)
-		} else {
-			groupCategoriesByKey[ciKey] = []string{ciValue}
-		}
-	}
-
-	for key, values := range groupCategoriesByKey {
-		log.V(1).Info(fmt.Sprintf("Retrieving category with key %s", key))
-		categoryKey, err := getCategoryKey(ctx, client, key)
-		if err != nil {
-			errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", key, err)
-			log.Error(errorMsg, "failed to retrieve category")
-			return errorMsg
-		}
-		log.V(1).Info(fmt.Sprintf("Category with key %s found. Starting deletion of values", key))
-		if categoryKey == nil {
-			log.V(1).Info(fmt.Sprintf("Category with key %s not found. Already deleted?", key))
-			continue
-		}
-		for _, value := range values {
-			categoryValue, err := getCategoryValue(ctx, client, key, value)
-			if err != nil {
-				errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
-				log.Error(errorMsg, "failed to retrieve category value")
-				return errorMsg
-			}
-			if categoryValue == nil {
-				log.V(1).Info(fmt.Sprintf("Category with value %s in category %s not found. Already deleted?", value, key))
-				continue
-			}
-
-			err = client.V3.DeleteCategoryValue(ctx, key, value)
-			if err != nil {
-				errorMsg := fmt.Errorf("failed to delete category with key %s. error: %v", key, err)
-				log.Error(errorMsg, "failed to delete category")
-				return errorMsg
-			}
-		}
-
-		if !ignoreKeyDeletion {
-			// check if there are remaining category values
-			categoryKeyValues, err := client.V3.ListCategoryValues(ctx, key, &prismclientv3.CategoryListMetadata{})
-			if err != nil {
-				errorMsg := fmt.Errorf("failed to get values of category with key %s: %v", key, err)
-				log.Error(errorMsg, "failed to get values of category")
-				return errorMsg
-			}
-			if len(categoryKeyValues.Entities) > 0 {
-				errorMsg := fmt.Errorf("cannot remove category with key %s because it still has category values assigned", key)
-				log.Error(errorMsg, "cannot remove category")
-				return errorMsg
-			}
-			log.V(1).Info(fmt.Sprintf("No values assigned to category. Removing category with key %s", key))
-			err = client.V3.DeleteCategoryKey(ctx, key)
-			if err != nil {
-				errorMsg := fmt.Errorf("failed to delete category with key %s: %v", key, err)
-				log.Error(errorMsg, "failed to delete category")
-				return errorMsg
-			}
-		}
-	}
-	return nil
-}
-
-// DeleteCategories deletes the given list of categories
-func DeleteCategories(ctx context.Context, client *prismclientv3.Client, categoryIdentifiers, obsoleteCategoryIdentifiers []*infrav1.NutanixCategoryIdentifier) error {
-	// Dont delete keys with newer format as key is constant string
-	err := deleteCategoryKeyValues(ctx, client, categoryIdentifiers, true)
-	if err != nil {
-		return err
-	}
-	// Delete obsolete keys with older format to cleanup brownfield setups
-	err = deleteCategoryKeyValues(ctx, client, obsoleteCategoryIdentifiers, false)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, categoryIdentifier *infrav1.NutanixCategoryIdentifier) (*prismclientv3.CategoryValueStatus, error) {
-	log := ctrl.LoggerFrom(ctx)
-	if categoryIdentifier == nil {
-		return nil, fmt.Errorf("category identifier cannot be nil when getting or creating categories")
-	}
-	if categoryIdentifier.Key == "" {
-		return nil, fmt.Errorf("category identifier key must be set when when getting or creating categories")
-	}
-	if categoryIdentifier.Value == "" {
-		return nil, fmt.Errorf("category identifier key must be set when when getting or creating categories")
-	}
-	log.V(1).Info(fmt.Sprintf("Checking existence of category with key %s", categoryIdentifier.Key))
-	categoryKey, err := getCategoryKey(ctx, client, categoryIdentifier.Key)
-	if err != nil {
-		errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", categoryIdentifier.Key, err)
-		log.Error(errorMsg, "failed to retrieve category")
-		return nil, errorMsg
-	}
-	if categoryKey == nil {
-		log.V(1).Info(fmt.Sprintf("Category with key %s did not exist.", categoryIdentifier.Key))
-		categoryKey, err = client.V3.CreateOrUpdateCategoryKey(ctx, &prismclientv3.CategoryKey{
-			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
-			Name:        utils.StringPtr(categoryIdentifier.Key),
-		})
-		if err != nil {
-			errorMsg := fmt.Errorf("failed to create category with key %s. error: %v", categoryIdentifier.Key, err)
-			log.Error(errorMsg, "failed to create category")
-			return nil, errorMsg
-		}
-	}
-	categoryValue, err := getCategoryValue(ctx, client, *categoryKey.Name, categoryIdentifier.Value)
-	if err != nil {
-		errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
-		log.Error(errorMsg, "failed to retrieve category")
-		return nil, errorMsg
-	}
-	if categoryValue == nil {
-		categoryValue, err = client.V3.CreateOrUpdateCategoryValue(ctx, *categoryKey.Name, &prismclientv3.CategoryValue{
-			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
-			Value:       utils.StringPtr(categoryIdentifier.Value),
-		})
-		if err != nil {
-			errorMsg := fmt.Errorf("failed to create category value %s in category key %s: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
-			log.Error(errorMsg, "failed to create category value")
-			return nil, errorMsg
 		}
 	}
 	return categoryValue, nil
@@ -612,13 +427,16 @@ func GetCategoryVMSpec(ctx context.Context, client *prismclientv3.Client, catego
 			log.Error(errorMsg, "failed to retrieve category")
 			return nil, errorMsg
 		}
+
 		if categoryValue == nil {
 			errorMsg := fmt.Errorf("category value %s not found in category %s. error", ci.Value, ci.Key)
 			log.Error(errorMsg, "category value not found")
 			return nil, errorMsg
 		}
+
 		categorySpec[ci.Key] = ci.Value
 	}
+
 	return categorySpec, nil
 }
 

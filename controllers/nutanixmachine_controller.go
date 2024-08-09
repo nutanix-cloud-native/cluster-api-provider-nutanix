@@ -887,21 +887,11 @@ func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineCo
 }
 
 func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.MachineContext) []*infrav1.NutanixCategoryIdentifier {
-	log := ctrl.LoggerFrom(rctx.Context)
-	categoryIdentifiers := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
+	categoryIdentifiers := make([]*infrav1.NutanixCategoryIdentifier, 0, len(rctx.NutanixMachine.Spec.AdditionalCategories))
 	// Only try to create default categories. ignoring error so that we can return all including
 	// additionalCategories as well
-	_, err := GetOrCreateCategories(rctx.Context, rctx.NutanixClient, categoryIdentifiers)
-	if err != nil {
-		log.Error(err, "Failed to getOrCreateCategories")
-	}
-
-	additionalCategories := rctx.NutanixMachine.Spec.AdditionalCategories
-	if len(additionalCategories) > 0 {
-		for _, at := range additionalCategories {
-			additionalCat := at
-			categoryIdentifiers = append(categoryIdentifiers, &additionalCat)
-		}
+	for _, category := range rctx.NutanixMachine.Spec.AdditionalCategories {
+		categoryIdentifiers = append(categoryIdentifiers, &category)
 	}
 
 	return categoryIdentifiers

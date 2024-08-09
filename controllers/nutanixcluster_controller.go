@@ -227,12 +227,6 @@ func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (r
 
 	log.V(1).Info("no existing nutanixMachine resources found. Continuing with deleting cluster")
 
-	err = r.reconcileCategoriesDelete(rctx)
-	if err != nil {
-		log.Error(err, "error occurred while running deletion of categories")
-		return reconcile.Result{}, err
-	}
-
 	// delete the client from the cache
 	log.Info(fmt.Sprintf("deleting nutanix prism client for cluster %s from cache", rctx.NutanixCluster.GetNamespacedName()))
 	nutanixclient.NutanixClientCache.Delete(&nutanixclient.CacheParams{NutanixCluster: rctx.NutanixCluster})
@@ -285,13 +279,6 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 		return reconcile.Result{}, nil
 	}
 
-	err := r.reconcileCategories(rctx)
-	if err != nil {
-		log.Error(err, "error occurred while reconciling categories")
-		// Don't return fatal error but keep retrying until categories are created.
-		return reconcile.Result{}, err
-	}
-
 	rctx.NutanixCluster.Status.Ready = true
 	return reconcile.Result{}, nil
 }
@@ -312,38 +299,6 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 		rctx.NutanixCluster.Status.FailureDomains[fd.Name] = capiv1.FailureDomainSpec{ControlPlane: fd.ControlPlane}
 	}
 	conditions.MarkTrue(rctx.NutanixCluster, infrav1.FailureDomainsReconciled)
-	return nil
-}
-
-func (r *NutanixClusterReconciler) reconcileCategories(rctx *nctx.ClusterContext) error {
-	log := ctrl.LoggerFrom(rctx.Context)
-	log.Info("Reconciling categories for cluster")
-	defaultCategories := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-	_, err := GetOrCreateCategories(rctx.Context, rctx.NutanixClient, defaultCategories)
-	if err != nil {
-		conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.ClusterCategoryCreationFailed, capiv1.ConditionSeverityError, err.Error())
-		return err
-	}
-	conditions.MarkTrue(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition)
-	return nil
-}
-
-func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterContext) error {
-	log := ctrl.LoggerFrom(rctx.Context)
-	log.Info(fmt.Sprintf("Reconciling deletion of categories for cluster %s", rctx.Cluster.Name))
-	if conditions.IsTrue(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) ||
-		conditions.GetReason(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) == infrav1.DeletionFailed {
-		defaultCategories := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-		obsoleteCategories := GetObsoleteDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-		err := DeleteCategories(rctx.Context, rctx.NutanixClient, defaultCategories, obsoleteCategories)
-		if err != nil {
-			conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, err.Error())
-			return err
-		}
-	} else {
-		log.V(1).Info(fmt.Sprintf("skipping category deletion since they were not created for cluster %s", rctx.Cluster.Name))
-	}
-	conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, capiv1.DeletingReason, capiv1.ConditionSeverityInfo, "")
 	return nil
 }
 

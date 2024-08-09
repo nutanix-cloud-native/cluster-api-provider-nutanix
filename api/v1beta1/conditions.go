@@ -36,13 +36,6 @@ const (
 )
 
 const (
-	// ClusterCategoryCreatedCondition indicates the status of the category linked to the NutanixCluster
-	ClusterCategoryCreatedCondition capiv1.ConditionType = "ClusterCategoryCreated"
-
-	ClusterCategoryCreationFailed = "ClusterCategoryCreationFailed"
-)
-
-const (
 	// PrismCentralClientCondition indicates the status of the client used to connect to Prism Central
 	PrismCentralClientCondition   capiv1.ConditionType = "PrismClientInit"
 	PrismCentralV4ClientCondition capiv1.ConditionType = "PrismClientV4Init"
