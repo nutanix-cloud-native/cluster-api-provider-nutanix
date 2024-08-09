@@ -503,9 +503,11 @@ func deleteCategoryKeyValues(ctx context.Context, client *prismclientv3.Client, 
 
 			err = client.V3.DeleteCategoryValue(ctx, key, value)
 			if err != nil {
-				errorMsg := fmt.Errorf("failed to delete category with key %s. error: %v", key, err)
-				log.Error(errorMsg, "failed to delete category")
-				return errorMsg
+				errorMsg := fmt.Errorf("failed to delete category value with key:value %s:%s. error: %v", key, value, err)
+				log.Error(errorMsg, "failed to delete category value")
+				// NCN-101935: If the category value still has VMs assigned, do not delete the category key:value
+				// TODO:deepakmntnx Add a check for specific error mentioned in NCN-101935
+				return nil
 			}
 		}
 

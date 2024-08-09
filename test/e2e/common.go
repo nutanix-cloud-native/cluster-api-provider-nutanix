@@ -64,6 +64,14 @@ func setupSpecNamespace(ctx context.Context, specName string, clusterProxy frame
 	return namespace, cancelWatches
 }
 
+func unsetupNamespace(ctx context.Context, specName string, clusterProxy framework.ClusterProxy, namespace *corev1.Namespace) {
+	Byf("Deleting namespace used for hosting the %q test spec", specName)
+	framework.DeleteNamespace(ctx, framework.DeleteNamespaceInput{
+		Deleter: clusterProxy.GetClient(),
+		Name:    namespace.Name,
+	})
+}
+
 func dumpSpecResourcesAndCleanup(ctx context.Context, specName string, clusterProxy framework.ClusterProxy, artifactFolder string, namespace *corev1.Namespace, cancelWatches context.CancelFunc, cluster *clusterv1.Cluster, intervalsGetter func(spec, key string) []interface{}, skipCleanup bool) {
 	Byf("Dumping logs from the %q workload cluster", cluster.Name)
 
@@ -89,11 +97,7 @@ func dumpSpecResourcesAndCleanup(ctx context.Context, specName string, clusterPr
 			Namespace: namespace.Name,
 		}, intervalsGetter(specName, "wait-delete-cluster")...)
 
-		Byf("Deleting namespace used for hosting the %q test spec", specName)
-		framework.DeleteNamespace(ctx, framework.DeleteNamespaceInput{
-			Deleter: clusterProxy.GetClient(),
-			Name:    namespace.Name,
-		})
+		unsetupNamespace(ctx, specName, clusterProxy, namespace)
 	}
 	cancelWatches()
 }
