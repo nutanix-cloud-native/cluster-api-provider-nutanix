@@ -379,7 +379,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	}
 
 	if vgDetachNeeded {
-		if err := r.detachVolumeGroups(rctx, vmUUID); err != nil {
+		if err := r.detachVolumeGroups(rctx, vm); err != nil {
 			err := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %v", vmName, vmUUID, err)
 			log.Error(err, "failed to detach volume groups from VM")
 			conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VolumeGroupDetachFailed, capiv1.ConditionSeverityWarning, err.Error())
@@ -401,7 +401,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
 }
 
-func (r *NutanixMachineReconciler) detachVolumeGroups(rctx *nctx.MachineContext, vmUUID string) error {
+func (r *NutanixMachineReconciler) detachVolumeGroups(rctx *nctx.MachineContext, vm *prismclientv3.VMIntentResponse) error {
 	createV4Client, err := isPrismCentralV4Compatible(rctx.Context, rctx.NutanixClient)
 	if err != nil {
 		return fmt.Errorf("error occurred while checking compatibility for Prism Central v4 APIs: %w", err)
@@ -416,8 +416,8 @@ func (r *NutanixMachineReconciler) detachVolumeGroups(rctx *nctx.MachineContext,
 		return fmt.Errorf("error occurred while fetching Prism Central v4 client: %w", err)
 	}
 
-	if err := detachVolumeGroupsFromVM(rctx.Context, v4Client, vmUUID); err != nil {
-		return fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %w", rctx.Machine.Name, vmUUID, err)
+	if err := detachVolumeGroupsFromVM(rctx.Context, v4Client, vm); err != nil {
+		return fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %w", rctx.Machine.Name, *vm.Metadata.UUID, err)
 	}
 
 	return nil

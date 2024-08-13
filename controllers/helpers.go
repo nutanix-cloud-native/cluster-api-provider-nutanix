@@ -31,7 +31,6 @@ import (
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
 	prismcommonconfig "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/common/v1/config"
 	prismapi "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
-	vmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -878,38 +877,26 @@ func getPrismCentralVersion(ctx context.Context, v3Client *prismclientv3.Client)
 	return *pcInfo.Resources.Version, nil
 }
 
-func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Client, vmUUID string) error {
+func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Client, vm *prismclientv3.VMIntentResponse) error {
 	log := ctrl.LoggerFrom(ctx)
-	vmResp, err := v4Client.VmApiInstance.GetVmById(&vmUUID)
-	if err != nil {
-		return fmt.Errorf("failed to get virtual machine: %w", err)
-	}
-
-	data := vmResp.GetData()
-	vm, ok := data.(vmconfig.Vm)
-	if !ok {
-		return fmt.Errorf("failed to cast response to VM")
-	}
-
 	volumeGroupsToDetach := make([]string, 0)
-	for _, disk := range vm.Disks {
-		backingInfo, ok := disk.GetBackingInfo().(vmconfig.ADSFVolumeGroupReference)
-		if !ok {
+	for _, disk := range vm.Spec.Resources.DiskList {
+		if disk.VolumeGroupReference == nil {
 			continue
 		}
 
-		volumeGroupsToDetach = append(volumeGroupsToDetach, *backingInfo.VolumeGroupExtId)
+		volumeGroupsToDetach = append(volumeGroupsToDetach, *disk.VolumeGroupReference.UUID)
 	}
 
 	// Detach the volume groups from the virtual machine
 	for _, volumeGroup := range volumeGroupsToDetach {
-		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroup, vmUUID))
+		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroup, *vm.Status.Name))
 		body := &volumesconfig.VmAttachment{
-			ExtId: &vmUUID,
+			ExtId: vm.Metadata.UUID,
 		}
 		resp, err := v4Client.VolumeGroupsApiInstance.DetachVm(&volumeGroup, body)
 		if err != nil {
-			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroup, vmUUID, err)
+			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroup, *vm.Metadata.UUID, err)
 		}
 
 		data := resp.GetData()
