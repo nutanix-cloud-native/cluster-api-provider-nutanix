@@ -24,7 +24,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
@@ -60,48 +59,6 @@ var _ = Describe("Nutanix categories", Label("capx-feature-test", "categories"),
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, clusterResources.Cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	It("Create a cluster with default cluster categories (no additional categories)", func() {
-		Expect(namespace).NotTo(BeNil())
-		flavor := clusterctl.DefaultFlavor
-		expectedClusterNameCategoryKey := infrav1.DefaultCAPICategoryKeyForName
-		By("Creating a workload cluster (no additional categories)", func() {
-			testHelper.deployClusterAndWait(
-				deployClusterParams{
-					clusterName:           clusterName,
-					namespace:             namespace,
-					flavor:                flavor,
-					clusterctlConfigPath:  clusterctlConfigPath,
-					artifactFolder:        artifactFolder,
-					bootstrapClusterProxy: bootstrapClusterProxy,
-				}, clusterResources)
-		})
-
-		By("Checking cluster category condition is true", func() {
-			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
-				clusterName:           clusterName,
-				namespace:             namespace,
-				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
-					Type:   infrav1.ClusterCategoryCreatedCondition,
-					Status: corev1.ConditionTrue,
-				},
-			})
-		})
-
-		By("Checking if a category was created", func() {
-			testHelper.verifyCategoryExists(ctx, expectedClusterNameCategoryKey, clusterName)
-		})
-
-		By("Checking if there are VMs assigned to this category", func() {
-			expectedCategories := map[string]string{
-				expectedClusterNameCategoryKey: clusterName,
-			}
-			testHelper.verifyCategoriesNutanixMachines(ctx, clusterName, namespace.Name, expectedCategories)
-		})
-
-		By("PASSED!")
-	})
-
 	It("Create a cluster with additional categories", func() {
 		Expect(namespace).NotTo(BeNil())
 		flavor := "additional-categories"
@@ -119,11 +76,9 @@ var _ = Describe("Nutanix categories", Label("capx-feature-test", "categories"),
 		})
 
 		By("Verify if additional categories are assigned to the vms", func() {
-			expectedClusterNameCategoryKey := infrav1.DefaultCAPICategoryKeyForName
 			expectedCategories := map[string]string{
-				expectedClusterNameCategoryKey: clusterName,
-				"AppType":                      "Kubernetes",
-				"Environment":                  "Dev",
+				"AppType":     "Kubernetes",
+				"Environment": "Dev",
 			}
 
 			testHelper.verifyCategoriesNutanixMachines(ctx, clusterName, namespace.Name, expectedCategories)
