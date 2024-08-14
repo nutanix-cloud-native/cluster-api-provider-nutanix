@@ -10,8 +10,6 @@
     flake-utils.lib.eachDefaultSystem (system:
       with nixpkgs.legacyPackages.${system}; rec {
         packages = rec {
-          golangci-lint = pkgs.golangci-lint.override { buildGoModule = buildGo121Module; };
-
           go-apidiff = buildGo121Module {
             name = "go-apidiff";
             src = fetchFromGitHub {
