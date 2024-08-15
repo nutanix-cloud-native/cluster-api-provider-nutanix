@@ -132,6 +132,8 @@ type testHelperInterface interface {
 	deployCluster(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult)
 	deployClusterAndWait(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult)
 	deleteSecret(params deleteSecretParams)
+	deleteAllClustersAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, namespace *corev1.Namespace, intervalsGetter func(spec, key string) []interface{})
+	deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *clusterv1.Cluster, intervalsGetter func(spec, key string) []interface{})
 	findGPU(ctx context.Context, gpuName string) *prismGoClientV3.GPU
 	generateNMTName(clusterName string) string
 	generateNMTProviderID(clusterName string) string
@@ -144,6 +146,7 @@ type testHelperInterface interface {
 	getNutanixResourceIdentifierFromEnv(envVarKey string) infrav1.NutanixResourceIdentifier
 	getNutanixResourceIdentifierFromE2eConfig(variableKey string) infrav1.NutanixResourceIdentifier
 	getVariableFromE2eConfig(variableKey string) string
+	updateVariableInE2eConfig(variableKey string, variableValue string)
 	stripNutanixIDFromProviderID(providerID string) string
 	verifyCategoryExists(ctx context.Context, categoryKey, categoyValue string)
 	verifyCategoriesNutanixMachines(ctx context.Context, clusterName, namespace string, expectedCategories map[string]string)
@@ -465,6 +468,20 @@ func (t testHelper) deployClusterAndWait(params deployClusterParams, clusterReso
 	}, clusterResources)
 }
 
+func (t testHelper) deleteAllClustersAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, namespace *corev1.Namespace, intervalsGetter func(spec, key string) []interface{}) {
+	framework.DeleteAllClustersAndWait(ctx, framework.DeleteAllClustersAndWaitInput{
+		Client:    bootstrapClusterProxy.GetClient(),
+		Namespace: namespace.Name,
+	}, intervalsGetter(specName, "wait-delete-cluster")...)
+}
+
+func (t testHelper) deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *clusterv1.Cluster, intervalsGetter func(spec, key string) []interface{}) {
+	framework.DeleteClusterAndWait(ctx, framework.DeleteClusterAndWaitInput{
+		Client:  bootstrapClusterProxy.GetClient(),
+		Cluster: cluster,
+	}, intervalsGetter(specName, "wait-delete-cluster")...)
+}
+
 func (t testHelper) generateNMTName(clusterName string) string {
 	return fmt.Sprintf("%s-mt-0", clusterName)
 }
@@ -557,6 +574,11 @@ func (t testHelper) getVariableFromE2eConfig(variableKey string) string {
 	variableValue := t.e2eConfig.GetVariable(variableKey)
 	Expect(variableValue).ToNot(BeEmpty(), "expected e2econfig variable %s to be set", variableKey)
 	return variableValue
+}
+
+func (t testHelper) updateVariableInE2eConfig(variableKey string, variableValue string) {
+	t.e2eConfig.Variables[variableKey] = variableValue
+	os.Setenv(variableKey, variableValue)
 }
 
 func (t testHelper) stripNutanixIDFromProviderID(providerID string) string {

@@ -20,6 +20,7 @@ package e2e
 
 import (
 	"context"
+	"os"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -173,5 +174,112 @@ var _ = Describe("Nutanix categories", Label("capx-feature-test", "categories"),
 		})
 
 		By("PASSED!")
+	})
+
+	It("Create and delete 2 clusters with same name with default cluster categories and should succeed", Label("same-name-clusters"), func() {
+		Expect(namespace).NotTo(BeNil())
+		flavor := clusterctl.DefaultFlavor
+		expectedClusterNameCategoryKey := infrav1.DefaultCAPICategoryKeyForName
+		By("Creating a workload cluster 1", func() {
+			testHelper.deployClusterAndWait(
+				deployClusterParams{
+					clusterName:           clusterName,
+					namespace:             namespace,
+					flavor:                flavor,
+					clusterctlConfigPath:  clusterctlConfigPath,
+					artifactFolder:        artifactFolder,
+					bootstrapClusterProxy: bootstrapClusterProxy,
+				}, clusterResources)
+		})
+
+		By("Checking cluster category condition is true", func() {
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
+				clusterName:           clusterName,
+				namespace:             namespace,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+				expectedCondition: clusterv1.Condition{
+					Type:   infrav1.ClusterCategoryCreatedCondition,
+					Status: corev1.ConditionTrue,
+				},
+			})
+		})
+
+		By("Checking if a category was created", func() {
+			testHelper.verifyCategoryExists(ctx, expectedClusterNameCategoryKey, clusterName)
+		})
+
+		By("Checking if there are VMs assigned to this category", func() {
+			expectedCategories := map[string]string{
+				expectedClusterNameCategoryKey: clusterName,
+			}
+			testHelper.verifyCategoriesNutanixMachines(ctx, clusterName, namespace.Name, expectedCategories)
+		})
+		var cp1EndpointIP string
+		By("Setting different Control plane endpoint IP for 2nd cluster", func() {
+			cp1EndpointIP = testHelper.getVariableFromE2eConfig("CONTROL_PLANE_ENDPOINT_IP")
+			cp2EndpointIP := testHelper.getVariableFromE2eConfig("CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER")
+			if cp2EndpointIP == "" {
+				cp2EndpointIP = os.Getenv("CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER")
+				if cp2EndpointIP == "" {
+					Fail("CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER not set")
+				}
+			}
+			testHelper.updateVariableInE2eConfig("CONTROL_PLANE_ENDPOINT_IP", cp2EndpointIP)
+		})
+
+		var (
+			namespace2        *corev1.Namespace
+			clusterResources2 *clusterctl.ApplyClusterTemplateAndWaitResult
+			cancelWatches2    context.CancelFunc
+		)
+		By("configure env for 2nd cluster", func() {
+			clusterResources2 = new(clusterctl.ApplyClusterTemplateAndWaitResult)
+			namespace2, cancelWatches2 = setupSpecNamespace(ctx, specName+"-2", bootstrapClusterProxy, artifactFolder)
+		})
+
+		By("Creating a workload cluster 2 with same name", func() {
+			testHelper.deployClusterAndWait(
+				deployClusterParams{
+					clusterName:           clusterName,
+					namespace:             namespace2,
+					flavor:                flavor,
+					clusterctlConfigPath:  clusterctlConfigPath,
+					artifactFolder:        artifactFolder,
+					bootstrapClusterProxy: bootstrapClusterProxy,
+				}, clusterResources2)
+		})
+
+		By("Checking cluster category condition is true", func() {
+			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
+				clusterName:           clusterName,
+				namespace:             namespace2,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+				expectedCondition: clusterv1.Condition{
+					Type:   infrav1.ClusterCategoryCreatedCondition,
+					Status: corev1.ConditionTrue,
+				},
+			})
+		})
+
+		By("Checking if a category was created", func() {
+			testHelper.verifyCategoryExists(ctx, expectedClusterNameCategoryKey, clusterName)
+		})
+
+		By("Checking if there are VMs assigned to this category", func() {
+			expectedCategories := map[string]string{
+				expectedClusterNameCategoryKey: clusterName,
+			}
+			testHelper.verifyCategoriesNutanixMachines(ctx, clusterName, namespace2.Name, expectedCategories)
+		})
+
+		By("Delete 2nd cluster and its namespace", func() {
+			dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace2, cancelWatches2, clusterResources2.Cluster, e2eConfig.GetIntervals, skipCleanup)
+		})
+
+		By("Set original Control plane endpoint IP", func() {
+			testHelper.updateVariableInE2eConfig("CONTROL_PLANE_ENDPOINT_IP", cp1EndpointIP)
+		})
+
+		// AfterEach section will take care of deleting the first cluster
 	})
 })
