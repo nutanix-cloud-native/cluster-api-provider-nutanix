@@ -8,6 +8,7 @@
     "gnumake@4.4.1",
     "ginkgo@2.19.0",
     "go@1.22.1",
+    "golangci-lint@1.59.1",
     "gotestsum@1.6.4",
     "kubernetes-helm@latest",
     "kind@0.23.0",
@@ -23,7 +24,6 @@
     "path:./hack/flakes#go-junit-report",
     "path:./hack/flakes#gocov",
     "path:./hack/flakes#gocov-xml",
-    "path:./hack/flakes#golangci-lint",
     "path:./hack/flakes#yamllint-checkstyle",
     "path:./hack/flakes#setup-envtest"
   ]
