@@ -21,9 +21,6 @@
     "yamllint@1.35.1",
     "path:./hack/flakes#go-apidiff",
     "path:./hack/flakes#go-mod-upgrade",
-    "path:./hack/flakes#go-junit-report",
-    "path:./hack/flakes#gocov",
-    "path:./hack/flakes#gocov-xml",
     "path:./hack/flakes#yamllint-checkstyle",
     "path:./hack/flakes#setup-envtest"
   ]

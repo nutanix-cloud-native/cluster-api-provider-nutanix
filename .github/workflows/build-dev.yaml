@@ -16,7 +16,12 @@ jobs:
         with:
           ref: "${{ github.event.pull_request.head.sha }}"
 
-      - uses: actions/cache@v3
+      - name: Install devbox
+        uses: jetify-com/devbox-install-action@v0.11.0
+        with:
+          enable-cache: "true"
+
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cache/golangci-lint
@@ -25,12 +30,6 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-
-      - name: Install devbox
-        run: curl -fsSL https://get.jetpack.io/devbox | bash -s -- -f
-
-      - name: Install devbox deps
-        run: devbox install
 
       - name: Verify that generated manifests committed to the repository are up to date
         run: devbox run -- make verify-manifests
@@ -52,20 +51,15 @@ jobs:
       - name: Run unit tests
         run: devbox run -- make unit-test
 
-      # gocov-xml expects things to be properly placed under go path.
-      # GHA clones into /home/runner/work/repository so we create
-      # the directory under the right path and link it
-      - run: mkdir -p /home/runner/go/src/github.com/nutanix-cloud-native/ && ln -s /home/runner/work/cluster-api-provider-nutanix/cluster-api-provider-nutanix /home/runner/go/src/github.com/nutanix-cloud-native
-
       - name: Run coverage report
-        run: devbox run -- "make coverage"
+        run: devbox run -- make coverage
 
       - name: Codecov
-        uses: codecov/codecov-action@v3.1.4
+        uses: codecov/codecov-action@v4
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
-          file: ./coverage.xml  # Replace with the path to your coverage report
+          file: ./coverage.out  # Replace with the path to your coverage report
           fail_ci_if_error: true
 
       - name: Run Trivy vulnerability scanner
