@@ -31,8 +31,8 @@ func TestParseFlags(t *testing.T) {
 	assert.Equal(t, true, config.enableLeaderElection)
 	assert.Equal(t, 5, config.concurrentReconcilesNutanixCluster)
 	assert.Equal(t, 5, config.concurrentReconcilesNutanixMachine)
-	assert.Equal(t, ":8081", config.diagnosticsOptions.DiagnosticsAddress)
-	assert.Equal(t, true, config.diagnosticsOptions.InsecureDiagnostics)
+	assert.Equal(t, ":8081", config.managerOptions.DiagnosticsAddress)
+	assert.Equal(t, true, config.managerOptions.InsecureDiagnostics)
 }
 
 func TestSetupLogger(t *testing.T) {
@@ -238,10 +238,19 @@ func TestSetupControllersFailedAddToManager(t *testing.T) {
 	defer ctrl.Finish()
 
 	mgr := mockctlclient.NewMockManager(ctrl)
-	client := mockctlclient.NewMockClient(ctrl)
 	cache := mockctlclient.NewMockCache(ctrl)
-	mgr.EXPECT().GetCache().Return(cache).AnyTimes()
+
+	restScope := mockmeta.NewMockRESTScope(ctrl)
+	restScope.EXPECT().Name().Return(meta.RESTScopeNameNamespace).AnyTimes()
+
+	restMapper := mockmeta.NewMockRESTMapper(ctrl)
+	restMapper.EXPECT().RESTMapping(gomock.Any()).Return(&meta.RESTMapping{Scope: restScope}, nil).AnyTimes()
+
+	client := mockctlclient.NewMockClient(ctrl)
+	client.EXPECT().RESTMapper().Return(restMapper).AnyTimes()
+
 	mgr.EXPECT().GetClient().Return(client).AnyTimes()
+	mgr.EXPECT().GetCache().Return(cache).AnyTimes()
 	mgr.EXPECT().GetScheme().Return(scheme).AnyTimes()
 	mgr.EXPECT().GetLogger().Return(setupLogger()).AnyTimes()
 	mgr.EXPECT().GetControllerOptions().Return(ctrlconfig.Controller{

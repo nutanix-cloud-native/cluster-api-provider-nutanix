@@ -37,12 +37,12 @@ import (
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
@@ -76,36 +76,27 @@ func NewNutanixClusterReconciler(client client.Client, secretInformer coreinform
 
 // SetupWithManager sets up the NutanixCluster controller with the Manager.
 func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
-	log := ctrl.LoggerFrom(ctx)
 	copts := controller.Options{
 		MaxConcurrentReconciles: r.controllerConfig.MaxConcurrentReconciles,
 		RateLimiter:             r.controllerConfig.RateLimiter,
 	}
 
-	c, err := ctrl.NewControllerManagedBy(mgr).
+	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.NutanixCluster{}). // Watch the controlled, infrastructure resource.
+		Watches(
+			&capiv1.Cluster{},
+			handler.EnqueueRequestsFromMapFunc(
+				capiutil.ClusterToInfrastructureMapFunc(
+					ctx,
+					infrav1.GroupVersion.WithKind(infrav1.NutanixClusterKind),
+					mgr.GetClient(),
+					&infrav1.NutanixCluster{},
+				),
+			),
+			builder.WithPredicates(predicates.ClusterUnpausedAndInfrastructureReady(ctrl.LoggerFrom(ctx))),
+		).
 		WithOptions(copts).
-		Build(r)
-	if err != nil {
-		return err
-	}
-
-	if err = c.Watch(
-		// Watch the CAPI resource that owns this infrastructure resource.
-		source.Kind(mgr.GetCache(), &capiv1.Cluster{}),
-		handler.EnqueueRequestsFromMapFunc(
-			capiutil.ClusterToInfrastructureMapFunc(
-				ctx,
-				infrav1.GroupVersion.WithKind("NutanixCluster"),
-				mgr.GetClient(),
-				&infrav1.NutanixCluster{},
-			)),
-		predicates.ClusterUnpausedAndInfrastructureReady(log),
-	); err != nil {
-		return err
-	}
-
-	return nil
+		Complete(r)
 }
 
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update;delete
