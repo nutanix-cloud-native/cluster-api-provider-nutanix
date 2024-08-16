@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.13.0
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: nutanixclustertemplates.infrastructure.cluster.x-k8s.io
 spec:
   group: infrastructure.cluster.x-k8s.io
@@ -23,14 +23,19 @@ spec:
           API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -45,9 +50,9 @@ spec:
                     description: NutanixClusterSpec defines the desired state of NutanixCluster
                     properties:
                       controlPlaneEndpoint:
-                        description: ControlPlaneEndpoint represents the endpoint
-                          used to communicate with the control plane. host can be
-                          either DNS name or ip address
+                        description: |-
+                          ControlPlaneEndpoint represents the endpoint used to communicate with the control plane.
+                          host can be either DNS name or ip address
                         properties:
                           host:
                             description: The hostname on which the API server is serving.
@@ -61,20 +66,19 @@ spec:
                         - port
                         type: object
                       failureDomains:
-                        description: failureDomains configures failure domains information
-                          for the Nutanix platform. When set, the failure domains
-                          defined here may be used to spread Machines across prism
-                          element clusters to improve fault tolerance of the cluster.
+                        description: |-
+                          failureDomains configures failure domains information for the Nutanix platform.
+                          When set, the failure domains defined here may be used to spread Machines across
+                          prism element clusters to improve fault tolerance of the cluster.
                         items:
                           description: NutanixFailureDomain configures failure domain
                             information for Nutanix.
                           properties:
                             cluster:
-                              description: cluster is to identify the cluster (the
-                                Prism Element under management of the Prism Central),
-                                in which the Machine's VM will be created. The cluster
-                                identifier (uuid or name) can be obtained from the
-                                Prism Central console or using the prism_central API.
+                              description: |-
+                                cluster is to identify the cluster (the Prism Element under management of the Prism Central),
+                                in which the Machine's VM will be created. The cluster identifier (uuid or name) can be obtained
+                                from the Prism Central console or using the prism_central API.
                               properties:
                                 name:
                                   description: name is the resource name in the PC
@@ -98,23 +102,21 @@ spec:
                                 for control plane nodes
                               type: boolean
                             name:
-                              description: name defines the unique name of a failure
-                                domain. Name is required and must be at most 64 characters
-                                in length. It must consist of only lower case alphanumeric
-                                characters and hyphens (-). It must start and end
-                                with an alphanumeric character. This value is arbitrary
-                                and is used to identify the failure domain within
-                                the platform.
+                              description: |-
+                                name defines the unique name of a failure domain.
+                                Name is required and must be at most 64 characters in length.
+                                It must consist of only lower case alphanumeric characters and hyphens (-).
+                                It must start and end with an alphanumeric character.
+                                This value is arbitrary and is used to identify the failure domain within the platform.
                               maxLength: 64
                               minLength: 1
                               pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
                               type: string
                             subnets:
-                              description: subnets holds a list of identifiers (one
-                                or more) of the cluster's network subnets for the
-                                Machine's VM to connect to. The subnet identifiers
-                                (uuid or name) can be obtained from the Prism Central
-                                console or using the prism_central API.
+                              description: |-
+                                subnets holds a list of identifiers (one or more) of the cluster's network subnets
+                                for the Machine's VM to connect to. The subnet identifiers (uuid or name) can be
+                                obtained from the Prism Central console or using the prism_central API.
                               items:
                                 description: NutanixResourceIdentifier holds the identity
                                   of a Nutanix PC resource (cluster, image, subnet,
@@ -150,20 +152,17 @@ spec:
                         - name
                         x-kubernetes-list-type: map
                       prismCentral:
-                        description: prismCentral holds the endpoint address and port
-                          to access the Nutanix Prism Central. When a cluster-wide
-                          proxy is installed, by default, this endpoint will be accessed
-                          via the proxy. Should you wish for communication with this
-                          endpoint not to be proxied, please add the endpoint to the
+                        description: |-
+                          prismCentral holds the endpoint address and port to access the Nutanix Prism Central.
+                          When a cluster-wide proxy is installed, by default, this endpoint will be accessed via the proxy.
+                          Should you wish for communication with this endpoint not to be proxied, please add the endpoint to the
                           proxy spec.noProxy list.
                         properties:
                           additionalTrustBundle:
-                            description: AdditionalTrustBundle is a PEM encoded x509
-                              cert for the RootCA that was used to create the certificate
-                              for a Prism Central that uses certificates that were
-                              issued by a non-publicly trusted RootCA. The trust bundle
-                              is added to the cert pool used to authenticate the TLS
-                              connection to the Prism Central.
+                            description: |-
+                              AdditionalTrustBundle is a PEM encoded x509 cert for the RootCA that was used to create the certificate
+                              for a Prism Central that uses certificates that were issued by a non-publicly trusted RootCA. The trust
+                              bundle is added to the cert pool used to authenticate the TLS connection to the Prism Central.
                             properties:
                               data:
                                 description: Data of the trust bundle if Kind is String.

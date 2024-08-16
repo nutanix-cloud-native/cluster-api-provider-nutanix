@@ -325,18 +325,11 @@ GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
 
 .PHONY: unit-test
 unit-test: mocks  ## Run unit tests.
-ifeq ($(EXPORT_RESULT), true)
-	$(eval OUTPUT_OPTIONS = | go-junit-report -set-exit-code > junit-report.xml)
-endif
-	KUBEBUILDER_ASSETS="$(shell setup-envtest use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) $(GOTESTPKGS) $(OUTPUT_OPTIONS)
+	KUBEBUILDER_ASSETS="$(shell setup-envtest use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) $(GOTESTPKGS)
 
 .PHONY: coverage
 coverage: mocks ## Run the tests of the project and export the coverage
-	KUBEBUILDER_ASSETS="$(shell setup-envtest use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) -cover -covermode=count -coverprofile=profile.cov $(GOTESTPKGS)
-	$(GOTOOL) cover -func profile.cov
-ifeq ($(EXPORT_RESULT), true)
-	gocov convert profile.cov | gocov-xml > coverage.xml
-endif
+	KUBEBUILDER_ASSETS="$(shell setup-envtest use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) -race -coverprofile=coverage.out -covermode=atomic $(GOTESTPKGS)
 
 .PHONY: template-test
 template-test: docker-build prepare-local-clusterctl ## Run the template tests
