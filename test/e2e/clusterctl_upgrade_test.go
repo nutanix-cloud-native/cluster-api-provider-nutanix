@@ -206,7 +206,7 @@ func createPostUpgradeFunc(testInputFunc func() capi_e2e.ClusterctlUpgradeSpecIn
 
 		// Apply the Nutanix CCM manifest
 		log.Debugf("Applying Nutanix CCM manifest")
-		err = managementClusterProxy.Apply(context.Background(), processedTemplate)
+		err = managementClusterProxy.CreateOrUpdate(context.Background(), processedTemplate)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Update Clusters with Nutanix CCM label

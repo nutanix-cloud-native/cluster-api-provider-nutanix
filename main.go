@@ -74,7 +74,7 @@ type managerConfig struct {
 	probeAddr                          string
 	concurrentReconcilesNutanixCluster int
 	concurrentReconcilesNutanixMachine int
-	diagnosticsOptions                 capiflags.DiagnosticsOptions
+	managerOptions                     capiflags.ManagerOptions
 
 	logger      logr.Logger
 	restConfig  *rest.Config
@@ -127,7 +127,7 @@ func validateRateLimiterConfig(baseDelay, maxDelay time.Duration, bucketSize, qp
 }
 
 func parseFlags(config *managerConfig) {
-	capiflags.AddDiagnosticsOptions(pflag.CommandLine, &config.diagnosticsOptions)
+	capiflags.AddManagerOptions(pflag.CommandLine, &config.managerOptions)
 	pflag.StringVar(&config.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	pflag.BoolVar(&config.enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
@@ -276,9 +276,18 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 }
 
 func initializeManager(config *managerConfig) (manager.Manager, error) {
+	_, metricsOpts, err := capiflags.GetManagerOptions(config.managerOptions)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get manager options: %w", err)
+	}
+
+	if metricsOpts == nil {
+		return nil, errors.New("parsed manager options are nil")
+	}
+
 	mgr, err := ctrl.NewManager(config.restConfig, ctrl.Options{
 		Scheme:                 scheme,
-		Metrics:                capiflags.GetDiagnosticsOptions(config.diagnosticsOptions),
+		Metrics:                *metricsOpts,
 		HealthProbeBindAddress: config.probeAddr,
 		LeaderElection:         config.enableLeaderElection,
 		LeaderElectionID:       "f265110d.cluster.x-k8s.io",

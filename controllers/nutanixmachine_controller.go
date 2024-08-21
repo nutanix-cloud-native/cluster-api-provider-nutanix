@@ -43,13 +43,13 @@ import (
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
@@ -108,38 +108,35 @@ func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctr
 		RateLimiter:             r.controllerConfig.RateLimiter,
 	}
 
-	c, err := ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1.NutanixMachine{}).
-		// Watch the CAPI resource that owns this infrastructure resource.
-		Watches(
-			&capiv1.Machine{},
-			handler.EnqueueRequestsFromMapFunc(capiutil.MachineToInfrastructureMapFunc(infrav1.GroupVersion.WithKind("NutanixMachine"))),
-		).
-		Watches(
-			&infrav1.NutanixCluster{},
-			handler.EnqueueRequestsFromMapFunc(r.mapNutanixClusterToNutanixMachines()),
-		).
-		WithOptions(copts).
-		Build(r)
-	if err != nil {
-		return err
-	}
-
 	clusterToObjectFunc, err := capiutil.ClusterToTypedObjectsMapper(r.Client, &infrav1.NutanixMachineList{}, mgr.GetScheme())
 	if err != nil {
 		return fmt.Errorf("failed to create mapper for Cluster to NutanixMachine: %s", err)
 	}
 
-	if err := c.Watch(
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&infrav1.NutanixMachine{}).
 		// Watch the CAPI resource that owns this infrastructure resource.
-		source.Kind(mgr.GetCache(), &capiv1.Cluster{}),
-		handler.EnqueueRequestsFromMapFunc(clusterToObjectFunc),
-		predicates.ClusterUnpausedAndInfrastructureReady(ctrl.LoggerFrom(ctx)),
-	); err != nil {
-		return fmt.Errorf("failed adding a watch for ready clusters: %w", err)
-	}
-
-	return nil
+		Watches(
+			&capiv1.Machine{},
+			handler.EnqueueRequestsFromMapFunc(
+				capiutil.MachineToInfrastructureMapFunc(
+					infrav1.GroupVersion.WithKind("NutanixMachine"),
+				),
+			),
+		).
+		Watches(
+			&infrav1.NutanixCluster{},
+			handler.EnqueueRequestsFromMapFunc(
+				r.mapNutanixClusterToNutanixMachines(),
+			),
+		).
+		Watches(
+			&capiv1.Cluster{},
+			handler.EnqueueRequestsFromMapFunc(clusterToObjectFunc),
+			builder.WithPredicates(predicates.ClusterUnpausedAndInfrastructureReady(ctrl.LoggerFrom(ctx))),
+		).
+		WithOptions(copts).
+		Complete(r)
 }
 
 func (r *NutanixMachineReconciler) mapNutanixClusterToNutanixMachines() handler.MapFunc {

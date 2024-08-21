@@ -194,12 +194,17 @@ update-cni-manifests: update-calico-cni update-cilium-cni update-flannel-cni upd
 ##@ Build
 
 .PHONY: build
-build: mocks generate fmt ## Build manager binary.
+build: generate ## Build manager binary.
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
 	go build -ldflags "-X main.gitCommitHash=${GIT_COMMIT_HASH}" -o bin/manager main.go
 
+.PHONY: build-e2e
+build-e2e: generate ## Build e2e binary.
+	echo "Git commit hash: ${GIT_COMMIT_HASH}"
+	go build -ldflags "-X main.gitCommitHash=${GIT_COMMIT_HASH}" -tags=e2e -o bin/e2e test/e2e/*.go
+
 .PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
+run: manifests generate ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: docker-build
