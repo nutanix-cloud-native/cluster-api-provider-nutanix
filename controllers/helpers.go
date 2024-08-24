@@ -20,9 +20,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/go-logr/logr"
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,8 +56,8 @@ const (
 
 	gpuUnused = "UNUSED"
 
-	taskPollingInterval   = time.Second * 2
-	taskCompletionTimeout = 1 * time.Minute
+	taskPollingInterval   = 10 * time.Second
+	taskCompletionTimeout = 10 * time.Minute
 )
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
@@ -891,30 +893,50 @@ func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Clien
 		volumeGroupsToDetach = append(volumeGroupsToDetach, *disk.VolumeGroupReference.UUID)
 	}
 
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(volumeGroupsToDetach))
+
 	// Detach the volume groups from the virtual machine
 	for _, volumeGroup := range volumeGroupsToDetach {
-		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroup, *vm.Status.Name))
-		body := &volumesconfig.VmAttachment{
-			ExtId: vm.Metadata.UUID,
-		}
-		resp, err := v4Client.VolumeGroupsApiInstance.DetachVm(&volumeGroup, body)
-		if err != nil {
-			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroup, *vm.Metadata.UUID, err)
-		}
+		wg.Add(1)
+		go func(v4Client *prismclientv4.Client, vg string, vm *prismclientv3.VMIntentResponse, wg *sync.WaitGroup, log logr.Logger) {
+			defer wg.Done()
+			log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", vg, *vm.Status.Name))
+			body := &volumesconfig.VmAttachment{
+				ExtId: vm.Metadata.UUID,
+			}
+			resp, err := v4Client.VolumeGroupsApiInstance.DetachVm(&vg, body)
+			if err != nil {
+				errChan <- fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", vg, *vm.Metadata.UUID, err)
+				return
+			}
 
-		data := resp.GetData()
-		task, ok := data.(prismconfig.TaskReference)
-		if !ok {
-			return fmt.Errorf("failed to cast response to TaskReference")
-		}
+			data := resp.GetData()
+			task, ok := data.(prismconfig.TaskReference)
+			if !ok {
+				errChan <- fmt.Errorf("failed to cast response to TaskReference")
+				return
+			}
 
-		// Wait for the task to complete
-		if _, err := waitForTaskCompletionV4(ctx, v4Client, *task.ExtId); err != nil {
-			return fmt.Errorf("failed to wait for task %s to complete: %w", *task.ExtId, err)
+			if _, err := waitForTaskCompletionV4(ctx, v4Client, *task.ExtId); err != nil {
+				errChan <- fmt.Errorf("failed to wait for task %s to complete: %w", *task.ExtId, err)
+			}
+		}(v4Client, volumeGroup, vm, &wg, log)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	var combinedErr error
+	for err := range errChan {
+		if combinedErr == nil {
+			combinedErr = err
+		} else {
+			combinedErr = errors.New(combinedErr.Error() + "; " + err.Error())
 		}
 	}
 
-	return nil
+	return combinedErr
 }
 
 // waitForTaskCompletionV4 waits for a task to complete and returns the completion details
