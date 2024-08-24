@@ -54,7 +54,8 @@ const (
 
 	gpuUnused = "UNUSED"
 
-	pollingInterval = time.Second * 2
+	taskPollingInterval   = time.Second * 2
+	taskCompletionTimeout = 1 * time.Minute
 )
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
@@ -921,12 +922,16 @@ func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Clien
 // completed or the context is cancelled.
 func waitForTaskCompletionV4(ctx context.Context, v4Client *prismclientv4.Client, taskID string) ([]prismcommonconfig.KVPair, error) {
 	var data []prismcommonconfig.KVPair
+	log := ctrl.LoggerFrom(ctx)
+
+	ctx, cancel := context.WithTimeout(ctx, taskCompletionTimeout)
+	defer cancel()
 
 	if err := wait.PollUntilContextCancel(
 		ctx,
-		pollingInterval,
-		true,
-		func(ctx context.Context) (done bool, err error) {
+		taskPollingInterval,
+		false,
+		func(ctx context.Context) (bool, error) {
 			task, err := v4Client.TasksApiInstance.GetTaskById(utils.StringPtr(taskID))
 			if err != nil {
 				return false, fmt.Errorf("failed to get task %s: %w", taskID, err)
@@ -938,16 +943,22 @@ func waitForTaskCompletionV4(ctx context.Context, v4Client *prismclientv4.Client
 			}
 
 			if taskData.Status == nil {
+				log.Error(fmt.Errorf("task status is nil"), "taskData status is nil")
 				return false, nil
 			}
 
-			if *taskData.Status != prismapi.TASKSTATUS_SUCCEEDED {
+			switch *taskData.Status {
+			case prismapi.TASKSTATUS_FAILED, prismapi.TASKSTATUS_CANCELED:
+				log.Error(fmt.Errorf("task %s failed: %s; task details: %+v", taskID, taskData.Status.GetName(), taskData), "task failed or cancelled")
+				return false, err
+			case prismapi.TASKSTATUS_SUCCEEDED:
+				data = taskData.CompletionDetails
+				log.Info(fmt.Sprintf("task %s completed successfully; completion details: %+v", taskID, data))
+				return true, nil
+			default:
+				log.Error(fmt.Errorf("unexpected task status %s; taks details: %+v polling again", taskData.Status.GetName(), taskData), "unexpected task status")
 				return false, nil
 			}
-
-			data = taskData.CompletionDetails
-
-			return true, nil
 		},
 	); err != nil {
 		return nil, fmt.Errorf("failed to wait for task %s to complete: %w", taskID, err)
