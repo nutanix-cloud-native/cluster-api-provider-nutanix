@@ -29,13 +29,11 @@ import (
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
-	prismcommonconfig "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/common/v1/config"
-	prismapi "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/util/wait"
 	v1 "k8s.io/client-go/informers/core/v1"
+	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -54,7 +52,7 @@ const (
 
 	gpuUnused = "UNUSED"
 
-	pollingInterval = time.Second * 2
+	detachVGRequeueAfter = 30 * time.Second
 )
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
@@ -879,10 +877,10 @@ func getPrismCentralVersion(ctx context.Context, v3Client *prismclientv3.Client)
 	return *pcInfo.Resources.Version, nil
 }
 
-func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Client, vm *prismclientv3.VMIntentResponse) error {
+func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Client, vmName string, vmUUID string, vmDiskList []*prismclientv3.VMDisk) error {
 	log := ctrl.LoggerFrom(ctx)
 	volumeGroupsToDetach := make([]string, 0)
-	for _, disk := range vm.Spec.Resources.DiskList {
+	for _, disk := range vmDiskList {
 		if disk.VolumeGroupReference == nil {
 			continue
 		}
@@ -892,66 +890,21 @@ func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Clien
 
 	// Detach the volume groups from the virtual machine
 	for _, volumeGroup := range volumeGroupsToDetach {
-		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroup, *vm.Status.Name))
+		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroup, vmName))
 		body := &volumesconfig.VmAttachment{
-			ExtId: vm.Metadata.UUID,
+			ExtId: ptr.To(vmUUID),
 		}
+
 		resp, err := v4Client.VolumeGroupsApiInstance.DetachVm(&volumeGroup, body)
 		if err != nil {
-			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroup, *vm.Metadata.UUID, err)
+			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroup, vmUUID, err)
 		}
 
 		data := resp.GetData()
-		task, ok := data.(prismconfig.TaskReference)
-		if !ok {
+		if _, ok := data.(prismconfig.TaskReference); !ok {
 			return fmt.Errorf("failed to cast response to TaskReference")
-		}
-
-		// Wait for the task to complete
-		if _, err := waitForTaskCompletionV4(ctx, v4Client, *task.ExtId); err != nil {
-			return fmt.Errorf("failed to wait for task %s to complete: %w", *task.ExtId, err)
 		}
 	}
 
 	return nil
-}
-
-// waitForTaskCompletionV4 waits for a task to complete and returns the completion details
-// of the task. The function will poll the task status every 100ms until the task is
-// completed or the context is cancelled.
-func waitForTaskCompletionV4(ctx context.Context, v4Client *prismclientv4.Client, taskID string) ([]prismcommonconfig.KVPair, error) {
-	var data []prismcommonconfig.KVPair
-
-	if err := wait.PollUntilContextCancel(
-		ctx,
-		pollingInterval,
-		true,
-		func(ctx context.Context) (done bool, err error) {
-			task, err := v4Client.TasksApiInstance.GetTaskById(utils.StringPtr(taskID))
-			if err != nil {
-				return false, fmt.Errorf("failed to get task %s: %w", taskID, err)
-			}
-
-			taskData, ok := task.GetData().(prismapi.Task)
-			if !ok {
-				return false, fmt.Errorf("unexpected task data type %[1]T: %+[1]v", task.GetData())
-			}
-
-			if taskData.Status == nil {
-				return false, nil
-			}
-
-			if *taskData.Status != prismapi.TASKSTATUS_SUCCEEDED {
-				return false, nil
-			}
-
-			data = taskData.CompletionDetails
-
-			return true, nil
-		},
-	); err != nil {
-		return nil, fmt.Errorf("failed to wait for task %s to complete: %w", taskID, err)
-	}
-
-	return data, nil
 }
