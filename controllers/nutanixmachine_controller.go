@@ -362,7 +362,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		}
 		log.V(1).Info(fmt.Sprintf("no running tasks anymore... Initiating delete for VM %s with UUID %s", vmName, vmUUID))
 	} else {
-		log.V(1).Info(fmt.Sprintf("no task UUID found on VM %s. Starting delete.", *vm.Spec.Name))
+		log.V(1).Info(fmt.Sprintf("no task UUID found on VM %s. Starting delete.", vmName))
 	}
 
 	var vgDetachNeeded bool
@@ -376,7 +376,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	}
 
 	if vgDetachNeeded {
-		if err := r.detachVolumeGroups(rctx, vm); err != nil {
+		if err := r.detachVolumeGroups(rctx, vmName, vmUUID, vm.Spec.Resources.DiskList); err != nil {
 			err := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %v", vmName, vmUUID, err)
 			log.Error(err, "failed to detach volume groups from VM")
 			conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VolumeGroupDetachFailed, capiv1.ConditionSeverityWarning, err.Error())
@@ -398,7 +398,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
 }
 
-func (r *NutanixMachineReconciler) detachVolumeGroups(rctx *nctx.MachineContext, vm *prismclientv3.VMIntentResponse) error {
+func (r *NutanixMachineReconciler) detachVolumeGroups(rctx *nctx.MachineContext, vmName string, vmUUID string, vmDiskList []*prismclientv3.VMDisk) error {
 	createV4Client, err := isPrismCentralV4Compatible(rctx.Context, rctx.NutanixClient)
 	if err != nil {
 		return fmt.Errorf("error occurred while checking compatibility for Prism Central v4 APIs: %w", err)
@@ -413,8 +413,8 @@ func (r *NutanixMachineReconciler) detachVolumeGroups(rctx *nctx.MachineContext,
 		return fmt.Errorf("error occurred while fetching Prism Central v4 client: %w", err)
 	}
 
-	if err := detachVolumeGroupsFromVM(rctx.Context, v4Client, vm); err != nil {
-		return fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %w", rctx.Machine.Name, *vm.Metadata.UUID, err)
+	if err := detachVolumeGroupsFromVM(rctx.Context, v4Client, vmName, vmUUID, vmDiskList); err != nil {
+		return fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %w", vmName, vmUUID, err)
 	}
 
 	return nil
@@ -701,9 +701,9 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
 		return nil, errorMsg
 	}
+
 	log.Info(fmt.Sprintf("Waiting for task %s to get completed for VM %s", lastTaskUUID, rctx.NutanixMachine.Name))
-	err = nutanixclient.WaitForTaskToSucceed(ctx, v3Client, lastTaskUUID)
-	if err != nil {
+	if err := nutanixclient.WaitForTaskToSucceed(ctx, v3Client, lastTaskUUID); err != nil {
 		errorMsg := fmt.Errorf("error occurred while waiting for task %s to start: %v", lastTaskUUID, err)
 		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
 		return nil, errorMsg

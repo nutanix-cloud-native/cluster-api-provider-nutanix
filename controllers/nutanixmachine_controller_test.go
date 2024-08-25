@@ -251,11 +251,11 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				}
 				err := reconciler.detachVolumeGroups(&nctx.MachineContext{
 					NutanixClient: v3Client,
-				}, &prismclientv3.VMIntentResponse{
-					Metadata: &prismclientv3.Metadata{
-						UUID: &ntnxMachine.Status.VmUUID,
-					},
-				})
+				},
+					"",
+					ntnxMachine.Status.VmUUID,
+					[]*prismclientv3.VMDisk{},
+				)
 				g.Expect(err).To(HaveOccurred())
 			})
 
@@ -271,11 +271,10 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				}
 				err := reconciler.detachVolumeGroups(&nctx.MachineContext{
 					NutanixClient: v3Client,
-				}, &prismclientv3.VMIntentResponse{
-					Metadata: &prismclientv3.Metadata{
-						UUID: &ntnxMachine.Status.VmUUID,
-					},
-				})
+				}, "",
+					ntnxMachine.Status.VmUUID,
+					[]*prismclientv3.VMDisk{},
+				)
 				g.Expect(err).To(HaveOccurred())
 			})
 
@@ -291,11 +290,10 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				}
 				err := reconciler.detachVolumeGroups(&nctx.MachineContext{
 					NutanixClient: v3Client,
-				}, &prismclientv3.VMIntentResponse{
-					Metadata: &prismclientv3.Metadata{
-						UUID: &ntnxMachine.Status.VmUUID,
-					},
-				})
+				}, "",
+					ntnxMachine.Status.VmUUID,
+					[]*prismclientv3.VMDisk{},
+				)
 				g.Expect(err).To(HaveOccurred())
 			})
 
@@ -311,11 +309,10 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				}
 				err := reconciler.detachVolumeGroups(&nctx.MachineContext{
 					NutanixClient: v3Client,
-				}, &prismclientv3.VMIntentResponse{
-					Metadata: &prismclientv3.Metadata{
-						UUID: &ntnxMachine.Status.VmUUID,
-					},
-				})
+				}, "",
+					ntnxMachine.Status.VmUUID,
+					[]*prismclientv3.VMDisk{},
+				)
 				g.Expect(err).To(HaveOccurred())
 			})
 
@@ -331,11 +328,10 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				}
 				err := reconciler.detachVolumeGroups(&nctx.MachineContext{
 					NutanixClient: v3Client,
-				}, &prismclientv3.VMIntentResponse{
-					Metadata: &prismclientv3.Metadata{
-						UUID: &ntnxMachine.Status.VmUUID,
-					},
-				})
+				}, "",
+					ntnxMachine.Status.VmUUID,
+					[]*prismclientv3.VMDisk{},
+				)
 				g.Expect(err).To(Not(HaveOccurred()))
 			})
 		})

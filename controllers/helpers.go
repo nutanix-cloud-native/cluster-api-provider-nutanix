@@ -20,24 +20,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/go-logr/logr"
 	"reflect"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
-	prismcommonconfig "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/common/v1/config"
 	prismapi "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/wait"
 	v1 "k8s.io/client-go/informers/core/v1"
+	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -56,8 +54,8 @@ const (
 
 	gpuUnused = "UNUSED"
 
-	taskPollingInterval   = 10 * time.Second
-	taskCompletionTimeout = 10 * time.Minute
+	taskPollingInterval   = 5 * time.Second
+	taskCompletionTimeout = 5 * time.Minute
 )
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
@@ -882,10 +880,10 @@ func getPrismCentralVersion(ctx context.Context, v3Client *prismclientv3.Client)
 	return *pcInfo.Resources.Version, nil
 }
 
-func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Client, vm *prismclientv3.VMIntentResponse) error {
+func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Client, vmName string, vmUUID string, vmDiskList []*prismclientv3.VMDisk) error {
 	log := ctrl.LoggerFrom(ctx)
 	volumeGroupsToDetach := make([]string, 0)
-	for _, disk := range vm.Spec.Resources.DiskList {
+	for _, disk := range vmDiskList {
 		if disk.VolumeGroupReference == nil {
 			continue
 		}
@@ -893,98 +891,94 @@ func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Clien
 		volumeGroupsToDetach = append(volumeGroupsToDetach, *disk.VolumeGroupReference.UUID)
 	}
 
-	var wg sync.WaitGroup
-	errChan := make(chan error, len(volumeGroupsToDetach))
-
+	tasks := make([]string, 0)
 	// Detach the volume groups from the virtual machine
 	for _, volumeGroup := range volumeGroupsToDetach {
-		wg.Add(1)
-		go func(v4Client *prismclientv4.Client, vg string, vm *prismclientv3.VMIntentResponse, wg *sync.WaitGroup, log logr.Logger) {
-			defer wg.Done()
-			log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", vg, *vm.Status.Name))
-			body := &volumesconfig.VmAttachment{
-				ExtId: vm.Metadata.UUID,
-			}
-			resp, err := v4Client.VolumeGroupsApiInstance.DetachVm(&vg, body)
-			if err != nil {
-				errChan <- fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", vg, *vm.Metadata.UUID, err)
-				return
-			}
-
-			data := resp.GetData()
-			task, ok := data.(prismconfig.TaskReference)
-			if !ok {
-				errChan <- fmt.Errorf("failed to cast response to TaskReference")
-				return
-			}
-
-			if _, err := waitForTaskCompletionV4(ctx, v4Client, *task.ExtId); err != nil {
-				errChan <- fmt.Errorf("failed to wait for task %s to complete: %w", *task.ExtId, err)
-			}
-		}(v4Client, volumeGroup, vm, &wg, log)
-	}
-
-	wg.Wait()
-	close(errChan)
-
-	var combinedErr error
-	for err := range errChan {
-		if combinedErr == nil {
-			combinedErr = err
-		} else {
-			combinedErr = errors.New(combinedErr.Error() + "; " + err.Error())
+		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroup, vmName))
+		body := &volumesconfig.VmAttachment{
+			ExtId: ptr.To(vmUUID),
 		}
+
+		resp, err := v4Client.VolumeGroupsApiInstance.DetachVm(&volumeGroup, body)
+		if err != nil {
+			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroup, vmUUID, err)
+		}
+
+		data := resp.GetData()
+		task, ok := data.(prismconfig.TaskReference)
+		if !ok {
+			return fmt.Errorf("failed to cast response to TaskReference")
+		}
+
+		tasks = append(tasks, *task.ExtId)
 	}
-
-	return combinedErr
-}
-
-// waitForTaskCompletionV4 waits for a task to complete and returns the completion details
-// of the task. The function will poll the task status every 100ms until the task is
-// completed or the context is cancelled.
-func waitForTaskCompletionV4(ctx context.Context, v4Client *prismclientv4.Client, taskID string) ([]prismcommonconfig.KVPair, error) {
-	var data []prismcommonconfig.KVPair
-	log := ctrl.LoggerFrom(ctx)
 
 	ctx, cancel := context.WithTimeout(ctx, taskCompletionTimeout)
 	defer cancel()
 
-	if err := wait.PollUntilContextCancel(
-		ctx,
-		taskPollingInterval,
-		false,
-		func(ctx context.Context) (bool, error) {
-			task, err := v4Client.TasksApiInstance.GetTaskById(utils.StringPtr(taskID))
-			if err != nil {
-				return false, fmt.Errorf("failed to get task %s: %w", taskID, err)
-			}
+	pendingTasks := tasks
+	if err := wait.PollUntilContextCancel(ctx, taskPollingInterval, false, func(ctx context.Context) (bool, error) {
+		pendingTasks = tasksStillPending(ctx, v4Client, pendingTasks)
+		if len(pendingTasks) == 0 {
+			log.Info("all volume group detach tasks have completed for virtual machine", "vm", vmName)
+			return true, nil
+		}
 
-			taskData, ok := task.GetData().(prismapi.Task)
-			if !ok {
-				return false, fmt.Errorf("unexpected task data type %[1]T: %+[1]v", task.GetData())
-			}
-
-			if taskData.Status == nil {
-				log.Error(fmt.Errorf("task status is nil"), "taskData status is nil")
-				return false, nil
-			}
-
-			switch *taskData.Status {
-			case prismapi.TASKSTATUS_FAILED, prismapi.TASKSTATUS_CANCELED:
-				log.Error(fmt.Errorf("task %s failed: %s; task details: %+v", taskID, taskData.Status.GetName(), taskData), "task failed or cancelled")
-				return false, err
-			case prismapi.TASKSTATUS_SUCCEEDED:
-				data = taskData.CompletionDetails
-				log.Info(fmt.Sprintf("task %s completed successfully; completion details: %+v", taskID, data))
-				return true, nil
-			default:
-				log.Error(fmt.Errorf("unexpected task status %s; taks details: %+v polling again", taskData.Status.GetName(), taskData), "unexpected task status")
-				return false, nil
-			}
-		},
-	); err != nil {
-		return nil, fmt.Errorf("failed to wait for task %s to complete: %w", taskID, err)
+		log.Info("waiting for volume group detach tasks to complete for virtual machine", "vm", vmName)
+		return false, nil
+	}); err != nil {
+		return fmt.Errorf("failed to wait for volume group detach tasks to complete: %w", err)
 	}
 
-	return data, nil
+	return nil
+}
+
+func tasksStillPending(ctx context.Context, v4Client *prismclientv4.Client, taskIDs []string) []string {
+	var pendingTasks []string
+	log := ctrl.LoggerFrom(ctx)
+
+	for _, taskID := range taskIDs {
+		task, err := v4Client.TasksApiInstance.GetTaskById(utils.StringPtr(taskID))
+		if err != nil {
+			// this could be a transient error, so we should retry
+			if strings.Contains(err.Error(), "TASK_NOT_FOUND_ERROR") {
+				log.Info("TASK_NOT_FOUND_ERROR; retrying", "taskID", taskID)
+				pendingTasks = append(pendingTasks, taskID)
+			}
+
+			log.Error(err, "failed to get task by ID; not retrying", "taskID", taskID)
+			continue
+		}
+
+		taskData, ok := task.GetData().(prismapi.Task)
+		if !ok {
+			// task data is not of type Task but of error; we should not retry
+			log.Info("task data is not of type Task; not retrying", "taskID", taskID)
+			continue
+		}
+
+		if taskData.Status == nil {
+			// task status is nil; we should retry
+			log.Info("task status is nil; retrying", "taskID", taskID)
+			pendingTasks = append(pendingTasks, taskID)
+			continue
+		}
+
+		if *taskData.Status == prismapi.TASKSTATUS_FAILED ||
+			*taskData.Status == prismapi.TASKSTATUS_CANCELED ||
+			*taskData.Status == prismapi.TASKSTATUS_SUCCEEDED {
+			// task has reached a terminal state; we should not retry
+			log.Info("task has reached a terminal state; not retrying", "taskID", taskID)
+			continue
+		}
+
+		// task is still pending; we should retry
+		pendingTasks = append(pendingTasks, taskID)
+	}
+
+	if len(pendingTasks) > 0 {
+		log.Info("tasks still pending", "taskIDs", pendingTasks)
+	}
+
+	return pendingTasks
 }
