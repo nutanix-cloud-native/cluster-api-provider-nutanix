@@ -383,6 +383,10 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 
 			return reconcile.Result{}, err
 		}
+
+		// Requeue to wait for volume group detach tasks to complete. This is done instead of blocking on task
+		// completion to avoid long-running reconcile loops.
+		return reconcile.Result{RequeueAfter: detachVGRequeueAfter}, nil
 	}
 
 	// Delete the VM since the VM was found (err was nil)

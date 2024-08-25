@@ -29,11 +29,9 @@ import (
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
-	prismapi "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/util/wait"
 	v1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -54,8 +52,7 @@ const (
 
 	gpuUnused = "UNUSED"
 
-	taskPollingInterval   = 5 * time.Second
-	taskCompletionTimeout = 5 * time.Minute
+	detachVGRequeueAfter = 30 * time.Second
 )
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
@@ -891,7 +888,6 @@ func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Clien
 		volumeGroupsToDetach = append(volumeGroupsToDetach, *disk.VolumeGroupReference.UUID)
 	}
 
-	tasks := make([]string, 0)
 	// Detach the volume groups from the virtual machine
 	for _, volumeGroup := range volumeGroupsToDetach {
 		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroup, vmName))
@@ -905,80 +901,10 @@ func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Clien
 		}
 
 		data := resp.GetData()
-		task, ok := data.(prismconfig.TaskReference)
-		if !ok {
+		if _, ok := data.(prismconfig.TaskReference); !ok {
 			return fmt.Errorf("failed to cast response to TaskReference")
 		}
-
-		tasks = append(tasks, *task.ExtId)
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, taskCompletionTimeout)
-	defer cancel()
-
-	pendingTasks := tasks
-	if err := wait.PollUntilContextCancel(ctx, taskPollingInterval, false, func(ctx context.Context) (bool, error) {
-		pendingTasks = tasksStillPending(ctx, v4Client, pendingTasks)
-		if len(pendingTasks) == 0 {
-			log.Info("all volume group detach tasks have completed for virtual machine", "vm", vmName)
-			return true, nil
-		}
-
-		log.Info("waiting for volume group detach tasks to complete for virtual machine", "vm", vmName)
-		return false, nil
-	}); err != nil {
-		return fmt.Errorf("failed to wait for volume group detach tasks to complete: %w", err)
 	}
 
 	return nil
-}
-
-func tasksStillPending(ctx context.Context, v4Client *prismclientv4.Client, taskIDs []string) []string {
-	var pendingTasks []string
-	log := ctrl.LoggerFrom(ctx)
-
-	for _, taskID := range taskIDs {
-		task, err := v4Client.TasksApiInstance.GetTaskById(utils.StringPtr(taskID))
-		if err != nil {
-			// this could be a transient error, so we should retry
-			if strings.Contains(err.Error(), "TASK_NOT_FOUND_ERROR") {
-				log.Info("TASK_NOT_FOUND_ERROR; retrying", "taskID", taskID)
-				pendingTasks = append(pendingTasks, taskID)
-			}
-
-			log.Error(err, "failed to get task by ID; not retrying", "taskID", taskID)
-			continue
-		}
-
-		taskData, ok := task.GetData().(prismapi.Task)
-		if !ok {
-			// task data is not of type Task but of error; we should not retry
-			log.Info("task data is not of type Task; not retrying", "taskID", taskID)
-			continue
-		}
-
-		if taskData.Status == nil {
-			// task status is nil; we should retry
-			log.Info("task status is nil; retrying", "taskID", taskID)
-			pendingTasks = append(pendingTasks, taskID)
-			continue
-		}
-
-		if *taskData.Status == prismapi.TASKSTATUS_FAILED ||
-			*taskData.Status == prismapi.TASKSTATUS_CANCELED ||
-			*taskData.Status == prismapi.TASKSTATUS_SUCCEEDED {
-			// task has reached a terminal state; we should not retry
-			log.Info("task has reached a terminal state; not retrying", "taskID", taskID)
-			continue
-		}
-
-		// task is still pending; we should retry
-		pendingTasks = append(pendingTasks, taskID)
-	}
-
-	if len(pendingTasks) > 0 {
-		log.Info("tasks still pending", "taskIDs", pendingTasks)
-	}
-
-	return pendingTasks
 }
