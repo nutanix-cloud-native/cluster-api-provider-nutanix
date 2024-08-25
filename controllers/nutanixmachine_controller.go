@@ -386,6 +386,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 
 		// Requeue to wait for volume group detach tasks to complete. This is done instead of blocking on task
 		// completion to avoid long-running reconcile loops.
+		log.Info(fmt.Sprintf("detaching volume groups from VM %s with UUID %s; requeueing again after %s", vmName, vmUUID, detachVGRequeueAfter))
 		return reconcile.Result{RequeueAfter: detachVGRequeueAfter}, nil
 	}
 
