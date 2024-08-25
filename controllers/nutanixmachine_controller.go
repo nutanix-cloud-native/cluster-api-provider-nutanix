@@ -377,6 +377,11 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 
 	if vgDetachNeeded {
 		if err := r.detachVolumeGroups(rctx, vmName, vmUUID, vm.Spec.Resources.DiskList); err != nil {
+			if errors.Is(err, ErrVGDetachStillPending) {
+				log.Info("Detaching volume groups is still pending - requeueing", "vm", vmName, "vmUUID", vmUUID)
+				return reconcile.Result{RequeueAfter: detachmentRequeueInterval}, nil
+			}
+
 			err := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %v", vmName, vmUUID, err)
 			log.Error(err, "failed to detach volume groups from VM")
 			conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VolumeGroupDetachFailed, capiv1.ConditionSeverityWarning, err.Error())

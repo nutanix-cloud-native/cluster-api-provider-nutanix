@@ -18,6 +18,8 @@ package controllers
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"reflect"
@@ -33,7 +35,6 @@ import (
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/util/wait"
 	v1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -54,9 +55,10 @@ const (
 
 	gpuUnused = "UNUSED"
 
-	taskPollingInterval   = 5 * time.Second
-	taskCompletionTimeout = 5 * time.Minute
+	detachmentRequeueInterval = 5 * time.Second
 )
+
+var ErrVGDetachStillPending = errors.New("volume group detachment tasks are still pending")
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
 func DeleteVM(ctx context.Context, client *prismclientv3.Client, vmName, vmUUID string) (string, error) {
@@ -882,26 +884,41 @@ func getPrismCentralVersion(ctx context.Context, v3Client *prismclientv3.Client)
 
 func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Client, vmName string, vmUUID string, vmDiskList []*prismclientv3.VMDisk) error {
 	log := ctrl.LoggerFrom(ctx)
-	volumeGroupsToDetach := make([]string, 0)
+	var volumeGroupUUIDsToDetach []string
 	for _, disk := range vmDiskList {
 		if disk.VolumeGroupReference == nil {
 			continue
 		}
 
-		volumeGroupsToDetach = append(volumeGroupsToDetach, *disk.VolumeGroupReference.UUID)
+		volumeGroupUUIDsToDetach = append(volumeGroupUUIDsToDetach, *disk.VolumeGroupReference.UUID)
 	}
 
-	tasks := make([]string, 0)
+	var taskUUIDs []string
 	// Detach the volume groups from the virtual machine
-	for _, volumeGroup := range volumeGroupsToDetach {
-		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroup, vmName))
+	for _, volumeGroupUUID := range volumeGroupUUIDsToDetach {
+		// Generate a stable request ID from a combo or VG UUID and VM UUID so that in each control loop iteration
+		// the same task will be returned for the same request as per Nutanix API semantics. This allows us to
+		// exit the control loop early and retry if tasks are still pending.
+		// Although this won't produce a UUID per se, it should be unique enough for our purposes and rom the
+		// Nutanix docs this should be acceptable as a value for the `NTNX-Requested-By` header:
+		// "A unique identifier that is associated with each request. The provided value must be opaque and preferably in
+		// Universal Unique Identifier (UUID) format."
+		requestIDBytes := sha256.Sum256(
+			[]byte(fmt.Sprintf("detach-%s-%s", volumeGroupUUID, vmUUID)),
+		)
+		requestID := hex.EncodeToString(requestIDBytes[:])[:32]
+
+		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroupUUID, vmName))
 		body := &volumesconfig.VmAttachment{
 			ExtId: ptr.To(vmUUID),
 		}
+		args := map[string]interface{}{
+			"NTNX-Request-Id": requestID,
+		}
 
-		resp, err := v4Client.VolumeGroupsApiInstance.DetachVm(&volumeGroup, body)
+		resp, err := v4Client.VolumeGroupsApiInstance.DetachVm(&volumeGroupUUID, body, args)
 		if err != nil {
-			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroup, vmUUID, err)
+			return fmt.Errorf("failed to request detachment of volume group %s from virtual machine %s: %w", volumeGroupUUID, vmUUID, err)
 		}
 
 		data := resp.GetData()
@@ -910,26 +927,18 @@ func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Clien
 			return fmt.Errorf("failed to cast response to TaskReference")
 		}
 
-		tasks = append(tasks, *task.ExtId)
+		taskUUIDs = append(taskUUIDs, *task.ExtId)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, taskCompletionTimeout)
-	defer cancel()
-
-	pendingTasks := tasks
-	if err := wait.PollUntilContextCancel(ctx, taskPollingInterval, false, func(ctx context.Context) (bool, error) {
-		pendingTasks = tasksStillPending(ctx, v4Client, pendingTasks)
-		if len(pendingTasks) == 0 {
-			log.Info("all volume group detach tasks have completed for virtual machine", "vm", vmName)
-			return true, nil
-		}
-
-		log.Info("waiting for volume group detach tasks to complete for virtual machine", "vm", vmName)
-		return false, nil
-	}); err != nil {
-		return fmt.Errorf("failed to wait for volume group detach tasks to complete: %w", err)
+	// Check the status of tasks immediately after requesting detachment for the volume groups. This will handle cases
+	// when this is not the first time this control loop is running for the same VM.
+	pendingTasks := tasksStillPending(ctx, v4Client, taskUUIDs)
+	if len(pendingTasks) > 0 {
+		log.Info("volume group detachment tasks are still pending for virtual machine", "vm", vmName)
+		return ErrVGDetachStillPending
 	}
 
+	log.Info("volume group detachment tasks have completed for virtual machine", "vm", vmName)
 	return nil
 }
 
