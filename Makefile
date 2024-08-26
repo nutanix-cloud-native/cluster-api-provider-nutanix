@@ -51,6 +51,7 @@ CNI_PATH_CILIUM ?= "${E2E_DIR}/data/cni/cilium/cilium.yaml"
 CNI_PATH_CILIUM_NO_KUBEPROXY ?= "${E2E_DIR}/data/cni/cilium/cilium-no-kubeproxy.yaml"
 CNI_PATH_FLANNEL ?= "${E2E_DIR}/data/cni/flannel/flannel.yaml"
 CNI_PATH_KINDNET ?= "${E2E_DIR}/data/cni/kindnet/kindnet.yaml"
+CCM_VERSION ?= v0.4.1
 
 # CRD_OPTIONS define options to add to the CONTROLLER_GEN
 CRD_OPTIONS ?= "crd:crdVersions=v1"
@@ -187,6 +188,12 @@ update-flannel-cni: ## Updates the flannel CNI manifests
 update-kindnet-cni: ## Updates the kindnet CNI manifests
 	@echo "Updating kindnet CNI manifest"
 	@curl -sL https://github.com/kubernetes-sigs/cluster-api/raw/main/test/e2e/data/cni/kindnet/kindnet.yaml -o $(CNI_PATH_KINDNET)
+
+.PHONY: update-ccm
+update-ccm: ## Updates the Nutanix CCM tag in all the template manifests to CCM_VERSION
+	@echo "Updating Nutanix CCM tag"
+	@find $(TEMPLATES_DIR) -type f -exec sed -i 's|CCM_TAG=[^}]*|CCM_TAG=$(CCM_VERSION)|g' {} +
+	@find $(NUTANIX_E2E_TEMPLATES) -type f -exec sed -i 's|CCM_TAG=[^}]*|CCM_TAG=$(CCM_VERSION)|g' {} +
 
 .PHONY: update-cni-manifests ## Updates all the CNI manifests to latest variants from upstream
 update-cni-manifests: update-calico-cni update-cilium-cni update-flannel-cni update-kindnet-cni  ## Updates all the CNI manifests to latest variants from upstream
