@@ -52,7 +52,10 @@ data:
           "enableCustomLabeling": ${CCM_CUSTOM_LABEL=false},
           "topologyDiscovery": {
             "type": "Prism"
-          }
+          },
+          "ignoredNodeIPs": [
+            "${CONTROL_PLANE_ENDPOINT_IP}"
+          ]
         }
     ---
     # Source: nutanix-cloud-provider/templates/rbac.yaml

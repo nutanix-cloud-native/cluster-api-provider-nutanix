@@ -44,7 +44,10 @@ data:
           "enableCustomLabeling": ${CCM_CUSTOM_LABEL=false},
           "topologyDiscovery": {
             "type": "Prism"
-          }
+          },
+          "ignoredNodeIPs": [
+            "${CONTROL_PLANE_ENDPOINT_IP}"
+          ]
         }
     ---
     # Source: nutanix-cloud-provider/templates/rbac.yaml
@@ -223,7 +226,8 @@ metadata:
   name: nutanix-ccm-secret
   namespace: ${PATCH_NAMESPACE=clusterctl-upgrade}
 stringData:
-  nutanix-ccm-secret.yaml: "apiVersion: v1\nkind: Secret\nmetadata:\n  name: nutanix-creds\n
+  nutanix-ccm-secret.yaml:
+    "apiVersion: v1\nkind: Secret\nmetadata:\n  name: nutanix-creds\n
     \ namespace: kube-system\nstringData:\n  credentials: |\n    [\n      {\n        \"type\":
     \"basic_auth\", \n        \"data\": { \n          \"prismCentral\":{\n            \"username\":
     \"${NUTANIX_USER}\",\n            \"password\": \"${NUTANIX_PASSWORD}\"\n          },\n
@@ -240,10 +244,10 @@ spec:
     matchLabels:
       ccm: nutanix
   resources:
-  - kind: ConfigMap
-    name: nutanix-ccm
-  - kind: Secret
-    name: nutanix-ccm-secret
-  - kind: ConfigMap
-    name: user-ca-bundle
+    - kind: ConfigMap
+      name: nutanix-ccm
+    - kind: Secret
+      name: nutanix-ccm-secret
+    - kind: ConfigMap
+      name: user-ca-bundle
   strategy: ApplyOnce
