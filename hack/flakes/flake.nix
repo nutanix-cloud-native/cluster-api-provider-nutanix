@@ -15,12 +15,12 @@
             src = fetchFromGitHub {
               owner = "joelanford";
               repo = "go-apidiff";
-              rev = "v0.7.0";
-              hash = "sha256-vuub9PJ68I5MOYv73NaZTiewPr+4MRdFKQGdfvMi+Dg=";
+              rev = "v0.8.2";
+              hash = "sha256-YxxOemAvseRJSeCDdwuBnzjpmK3tUXt6BJGjJx5t4zQ";
             };
             doCheck = false;
             subPackages = [ "." ];
-            vendorHash = "sha256-GF8mxSVFjaijE8ul9YgMZKaTMTSR5DkwCNY7FZCwiAU=";
+            vendorHash = "sha256-AOIOjfQldAsINbcGkpM/fnyTVEZzzOXM0JnqAVwwdm8=";
           };
 
           go-mod-upgrade = buildGo121Module {
