@@ -9,6 +9,7 @@ linters:
     - nolintlint
     - staticcheck
     - unused
+    - gocognit
 linters-settings:
   nolintlint:
     require-explanation: true
