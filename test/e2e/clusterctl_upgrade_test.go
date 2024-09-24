@@ -26,20 +26,19 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/blang/semver/v4"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"github.com/blang/semver/v4"
-	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/test/e2e/log"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	yaml "sigs.k8s.io/cluster-api/cmd/clusterctl/client/yamlprocessor"
-	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
+	capie2e "sigs.k8s.io/cluster-api/test/e2e"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/test/e2e/log"
 )
 
 var kubernetesVersion = getKubernetesVersion()
@@ -58,9 +57,9 @@ func getKubernetesVersion() string {
 	return "undefined"
 }
 
-var _ = Describe("[clusterctl-Upgrade] Upgrade CAPX (v1.3.5 => current) K8S "+kubernetesVersion, Label("clusterctl-upgrade"), func() {
-	preWaitForCluster := createPreWaitForClusterFunc(func() capi_e2e.ClusterctlUpgradeSpecInput {
-		return capi_e2e.ClusterctlUpgradeSpecInput{
+var _ = Describe("[clusterctl-Upgrade] Upgrade CAPX (v1.5.2 => current) K8S "+kubernetesVersion, Label("clusterctl-upgrade"), func() {
+	preWaitForCluster := createPreWaitForClusterFunc(func() capie2e.ClusterctlUpgradeSpecInput {
+		return capie2e.ClusterctlUpgradeSpecInput{
 			E2EConfig:             e2eConfig,
 			ClusterctlConfigPath:  clusterctlConfigPath,
 			BootstrapClusterProxy: bootstrapClusterProxy,
@@ -68,8 +67,8 @@ var _ = Describe("[clusterctl-Upgrade] Upgrade CAPX (v1.3.5 => current) K8S "+ku
 		}
 	})
 
-	postUpgradeFunc := createPostUpgradeFunc(func() capi_e2e.ClusterctlUpgradeSpecInput {
-		return capi_e2e.ClusterctlUpgradeSpecInput{
+	postUpgradeFunc := createPostUpgradeFunc(func() capie2e.ClusterctlUpgradeSpecInput {
+		return capie2e.ClusterctlUpgradeSpecInput{
 			E2EConfig:             e2eConfig,
 			ClusterctlConfigPath:  clusterctlConfigPath,
 			BootstrapClusterProxy: bootstrapClusterProxy,
@@ -77,26 +76,26 @@ var _ = Describe("[clusterctl-Upgrade] Upgrade CAPX (v1.3.5 => current) K8S "+ku
 		}
 	})
 
-	capi_e2e.ClusterctlUpgradeSpec(ctx, func() capi_e2e.ClusterctlUpgradeSpecInput {
-		return capi_e2e.ClusterctlUpgradeSpecInput{
+	capie2e.ClusterctlUpgradeSpec(ctx, func() capie2e.ClusterctlUpgradeSpecInput {
+		return capie2e.ClusterctlUpgradeSpecInput{
 			E2EConfig:                       e2eConfig,
 			ClusterctlConfigPath:            clusterctlConfigPath,
 			BootstrapClusterProxy:           bootstrapClusterProxy,
 			ArtifactFolder:                  artifactFolder,
 			SkipCleanup:                     skipCleanup,
-			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.6.2/clusterctl-{OS}-{ARCH}",
+			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.7.6/clusterctl-{OS}-{ARCH}",
 			InitWithKubernetesVersion:       e2eConfig.GetVariable("KUBERNETES_VERSION"),
-			InitWithCoreProvider:            "cluster-api:v1.6.2",
-			InitWithBootstrapProviders:      []string{"kubeadm:v1.6.2"},
-			InitWithControlPlaneProviders:   []string{"kubeadm:v1.6.2"},
-			InitWithInfrastructureProviders: []string{"nutanix:v1.3.5"},
+			InitWithCoreProvider:            "cluster-api:v1.7.6",
+			InitWithBootstrapProviders:      []string{"kubeadm:v1.7.6"},
+			InitWithControlPlaneProviders:   []string{"kubeadm:v1.7.6"},
+			InitWithInfrastructureProviders: []string{"nutanix:v1.5.2"},
 			PreWaitForCluster:               preWaitForCluster,
 			PostUpgrade:                     postUpgradeFunc,
 		}
 	})
 })
 
-func createPreWaitForClusterFunc(testInputFunc func() capi_e2e.ClusterctlUpgradeSpecInput) func(framework.ClusterProxy, string, string) {
+func createPreWaitForClusterFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInput) func(framework.ClusterProxy, string, string) {
 	return func(managementClusterProxy framework.ClusterProxy, mgmtClusterNamespace, mgmtClusterName string) {
 		testInput := testInputFunc()
 		Expect(testInput.E2EConfig).NotTo(BeNil(), "Invalid argument. testInput.E2EConfig can't be nil when calling createPreWaitForClusterFunc")
@@ -105,7 +104,7 @@ func createPreWaitForClusterFunc(testInputFunc func() capi_e2e.ClusterctlUpgrade
 
 		By("Get latest version of CAPX provider")
 
-		latestVersionString := "v1.3.5"
+		latestVersionString := "v1.5.2"
 		latestVersion, err := semver.ParseTolerant(latestVersionString)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -153,7 +152,7 @@ func createPreWaitForClusterFunc(testInputFunc func() capi_e2e.ClusterctlUpgrade
 	}
 }
 
-func createPostUpgradeFunc(testInputFunc func() capi_e2e.ClusterctlUpgradeSpecInput) func(framework.ClusterProxy, string, string) {
+func createPostUpgradeFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInput) func(framework.ClusterProxy, string, string) {
 	return func(managementClusterProxy framework.ClusterProxy, clusterNamespace string, clusterName string) {
 		testInput := testInputFunc()
 		Expect(testInput.E2EConfig).NotTo(BeNil(), "Invalid argument. testInput.E2EConfig can't be nil when calling createPostUpgradeFunc")
@@ -164,7 +163,7 @@ func createPostUpgradeFunc(testInputFunc func() capi_e2e.ClusterctlUpgradeSpecIn
 
 		yamlProc := yaml.NewSimpleProcessor()
 
-		latestVersionString := "v1.3.5"
+		latestVersionString := "v1.5.2"
 		latestVersion, err := semver.ParseTolerant(latestVersionString)
 		Expect(err).NotTo(HaveOccurred())
 
