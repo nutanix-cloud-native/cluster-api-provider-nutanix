@@ -469,9 +469,10 @@ func deleteCategoryKeyValues(ctx context.Context, client *prismclientv3.Client, 
 		ciValue := ci.Value
 		if gck, ok := groupCategoriesByKey[ciKey]; ok {
 			groupCategoriesByKey[ciKey] = append(gck, ciValue)
-		} else {
-			groupCategoriesByKey[ciKey] = []string{ciValue}
+			continue
 		}
+
+		groupCategoriesByKey[ciKey] = []string{ciValue}
 	}
 
 	for key, values := range groupCategoriesByKey {
