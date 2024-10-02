@@ -200,8 +200,7 @@ func GetPEUUID(ctx context.Context, client *prismclientv3.Client, peName, peUUID
 		}
 		return *peIntentResponse.Metadata.UUID, nil
 	} else if peName != nil && *peName != "" {
-		filter := getFilterForName(*peName)
-		responsePEs, err := client.V3.ListAllCluster(ctx, filter)
+		responsePEs, err := client.V3.ListAllCluster(ctx, "")
 		if err != nil {
 			return "", err
 		}
@@ -261,10 +260,9 @@ func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID str
 			}
 		}
 		foundSubnetUUID = *subnetIntentResponse.Metadata.UUID
-	} else if subnetName != nil {
-		filter := getFilterForName(*subnetName)
+	} else { // else search by name
 		// Not using additional filtering since we want to list overlay and vlan subnets
-		responseSubnets, err := client.V3.ListAllSubnet(ctx, filter, nil)
+		responseSubnets, err := client.V3.ListAllSubnet(ctx, "", nil)
 		if err != nil {
 			return "", err
 		}
@@ -315,9 +313,8 @@ func GetImageUUID(ctx context.Context, client *prismclientv3.Client, imageName, 
 			}
 		}
 		foundImageUUID = *imageIntentResponse.Metadata.UUID
-	} else if imageName != nil {
-		filter := getFilterForName(*imageName)
-		responseImages, err := client.V3.ListAllImage(ctx, filter)
+	} else { // else search by name
+		responseImages, err := client.V3.ListAllImage(ctx, "")
 		if err != nil {
 			return "", err
 		}
@@ -636,9 +633,8 @@ func GetProjectUUID(ctx context.Context, client *prismclientv3.Client, projectNa
 			}
 		}
 		foundProjectUUID = *projectIntentResponse.Metadata.UUID
-	} else if projectName != nil {
-		filter := getFilterForName(*projectName)
-		responseProjects, err := client.V3.ListAllProject(ctx, filter)
+	} else { // else search by name
+		responseProjects, err := client.V3.ListAllProject(ctx, "")
 		if err != nil {
 			return "", err
 		}
@@ -661,10 +657,6 @@ func GetProjectUUID(ctx context.Context, client *prismclientv3.Client, projectNa
 		}
 	}
 	return foundProjectUUID, nil
-}
-
-func getFilterForName(name string) string {
-	return fmt.Sprintf("name==%s", name)
 }
 
 func hasPEClusterServiceEnabled(peCluster *prismclientv3.ClusterIntentResponse, serviceName string) bool {
