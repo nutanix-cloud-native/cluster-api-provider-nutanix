@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
@@ -664,7 +665,8 @@ func GetProjectUUID(ctx context.Context, client *prismclientv3.Client, projectNa
 }
 
 func getFilterForName(name string) string {
-	return fmt.Sprintf("name==%s", name)
+	encodedName := url.QueryEscape(name)
+	return fmt.Sprintf("name==%s", encodedName)
 }
 
 func hasPEClusterServiceEnabled(peCluster *prismclientv3.ClusterIntentResponse, serviceName string) bool {
