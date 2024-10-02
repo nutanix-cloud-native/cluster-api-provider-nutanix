@@ -229,3 +229,39 @@ func TestGetPrismCentralClientForCluster(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func TestGetFilterForName(t *testing.T) {
+	tt := []struct {
+		name     string
+		expected string
+		testName string
+	}{
+		{
+			name:     "test-name",
+			expected: "name==test-name",
+			testName: "ReturnsCorrectFilterForValidName",
+		},
+		{
+			name:     "test name with spaces",
+			expected: "name==test+name+with+spaces",
+			testName: "ReturnsCorrectFilterForNameWithSpecialCharacters",
+		},
+		{
+			name:     "",
+			expected: "name==",
+			testName: "ReturnsCorrectFilterForEmptyName",
+		},
+		{
+			name:     "test|name=with?special#characters",
+			expected: "name==test%7Cname%3Dwith%3Fspecial%23characters",
+			testName: "ReturnsCorrectFilterForNameWithURLCharacters",
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.testName, func(t *testing.T) {
+			filter := getFilterForName(tc.name)
+			assert.Equal(t, tc.expected, filter)
+		})
+	}
+}
