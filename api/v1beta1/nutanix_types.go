@@ -74,6 +74,16 @@ type NutanixResourceIdentifier struct {
 	Name *string `json:"name,omitempty"`
 }
 
+func (i NutanixResourceIdentifier) String() string {
+	if i.Type == NutanixIdentifierUUID && i.UUID != nil {
+		return *i.UUID
+	}
+	if i.Type == NutanixIdentifierName && i.Name != nil {
+		return *i.Name
+	}
+	return ""
+}
+
 type NutanixCategoryIdentifier struct {
 	// key is the Key of category in PC.
 	// +optional
