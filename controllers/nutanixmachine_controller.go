@@ -782,6 +782,15 @@ func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 		return nil, err
 	}
 
+	// Consider this a precaution. If the image is marked for deletion after we
+	// create the "VM create" task, then that task will fail. We will handle that
+	// failure separately.
+	if ImageMarkedForDeletion(nodeOSImage) {
+		err := fmt.Errorf("system disk image %s is being deleted", *nodeOSImage.Metadata.UUID)
+		rctx.SetFailureStatus(capierrors.CreateMachineError, err)
+		return nil, err
+	}
+
 	systemDiskSizeMib := GetMibValueOfQuantity(rctx.NutanixMachine.Spec.SystemDiskSize)
 	systemDisk, err := CreateSystemDiskSpec(*nodeOSImage.Metadata.UUID, systemDiskSizeMib)
 	if err != nil {
@@ -802,6 +811,15 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) 
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get bootstrap disk image %q: %w", bootstrapImageRef, err)
 		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		return nil, err
+	}
+
+	// Consider this a precaution. If the image is marked for deletion after we
+	// create the "VM create" task, then that task will fail. We will handle that
+	// failure separately.
+	if ImageMarkedForDeletion(bootstrapImage) {
+		err := fmt.Errorf("bootstrap disk image %s is being deleted", *bootstrapImage.Metadata.UUID)
+		rctx.SetFailureStatus(capierrors.CreateMachineError, err)
 		return nil, err
 	}
 
