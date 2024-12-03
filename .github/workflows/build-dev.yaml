@@ -39,8 +39,6 @@ jobs:
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.59
 
       - name: Lint
         run: devbox run -- make lint-yaml
