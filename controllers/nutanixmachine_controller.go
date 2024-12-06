@@ -775,7 +775,23 @@ func getDiskList(rctx *nctx.MachineContext) ([]*prismclientv3.VMDisk, error) {
 }
 
 func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
-	nodeOSImage, err := GetImage(rctx.Context, rctx.NutanixClient, rctx.NutanixMachine.Spec.Image)
+	var nodeOSImage *prismclientv3.ImageIntentResponse
+	var err error
+	if rctx.NutanixMachine.Spec.Image != nil {
+		nodeOSImage, err = GetImage(
+			rctx.Context,
+			rctx.NutanixClient,
+			rctx.NutanixMachine.Spec.Image,
+		)
+	} else if rctx.NutanixMachine.Spec.ImageLookup != nil {
+		nodeOSImage, err = GetImageWithFormat(
+			rctx.Context,
+			rctx.NutanixClient,
+			rctx.NutanixMachine.Spec.ImageLookup.Format,
+			&rctx.NutanixMachine.Spec.ImageLookup.BaseOS,
+			rctx.Machine.Spec.Version,
+		)
+	}
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get system disk image %q: %w", rctx.NutanixMachine.Spec.Image, err)
 		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
@@ -803,7 +819,7 @@ func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 }
 
 func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
-	bootstrapImageRef := infrav1.NutanixResourceIdentifier{
+	bootstrapImageRef := &infrav1.NutanixResourceIdentifier{
 		Type: infrav1.NutanixIdentifierName,
 		Name: ptr.To(rctx.NutanixMachine.Spec.BootstrapRef.Name),
 	}

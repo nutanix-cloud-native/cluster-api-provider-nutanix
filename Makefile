@@ -224,7 +224,7 @@ docker-push:  ## Push docker image with the manager.
 	KO_DOCKER_REPO=${IMG_REPO} ko build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push-kind
-docker-push-kind:  ## Make docker image available to kind cluster.
+docker-push-kind:
 	GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local ko build -B -t ${IMG_TAG} .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${MANAGER_IMAGE}
 	kind load docker-image --name ${KIND_CLUSTER_NAME} ${MANAGER_IMAGE}
@@ -278,6 +278,7 @@ cluster-e2e-templates-v1beta1: ## Generate cluster templates for v1beta1
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass.yaml
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-clusterclass --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/clusterclass-nutanix-quick-start.yaml
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-topology --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-topology.yaml
+	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-image-lookup --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-image-lookup.yaml
 
 cluster-e2e-templates-no-kubeproxy: ##Generate cluster templates without kubeproxy
 	# v1beta1
@@ -303,6 +304,7 @@ cluster-templates: ## Generate cluster templates for all flavors
 	kustomize build $(TEMPLATES_DIR)/csi3 > $(TEMPLATES_DIR)/cluster-template-csi3.yaml
 	kustomize build $(TEMPLATES_DIR)/clusterclass > $(TEMPLATES_DIR)/cluster-template-clusterclass.yaml
 	kustomize build $(TEMPLATES_DIR)/topology > $(TEMPLATES_DIR)/cluster-template-topology.yaml
+	kustomize build $(TEMPLATES_DIR)/image-lookup/ > $(TEMPLATES_DIR)/cluster-template-image-lookup.yaml
 
 ##@ Testing
 

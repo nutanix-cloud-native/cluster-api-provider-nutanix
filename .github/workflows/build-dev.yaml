@@ -81,6 +81,7 @@ jobs:
           - "clusterctl-upgrade"
           - "clusterclass"
           - "capx-feature-test"
+          - "image-templating"
           - "scaling"
       fail-fast: false
     uses: ./.github/workflows/e2e.yaml
