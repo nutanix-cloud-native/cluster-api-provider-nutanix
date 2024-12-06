@@ -17,10 +17,13 @@ limitations under the License.
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"html/template"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -299,45 +302,134 @@ func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID str
 }
 
 // GetImageUUID returns the UUID of the image with the given name
-func GetImageUUID(ctx context.Context, client *prismclientv3.Client, imageName, imageUUID *string) (string, error) {
-	var foundImageUUID string
-
-	if imageUUID == nil && imageName == nil {
+func GetImageUUID(
+	ctx context.Context,
+	client *prismclientv3.Client,
+	imageName,
+	imageUUID,
+	imageLookupFormat,
+	imageLookupBaseOS,
+	k8sVersion *string,
+) (string, error) {
+	if imageLookupFormat == nil {
+		imageLookupFormat = ptr.To("nkp-{{.BaseOS}}-.*?{{.K8sVersion}}-.*")
+	}
+	if imageUUID == nil && imageName == nil && imageLookupBaseOS == nil {
 		return "", fmt.Errorf("image name or image uuid must be passed in order to retrieve the image")
 	}
-	if imageUUID != nil {
-		imageIntentResponse, err := client.V3.GetImage(ctx, *imageUUID)
-		if err != nil {
-			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-				return "", fmt.Errorf("failed to find image with UUID %s: %v", *imageUUID, err)
-			}
-		}
-		foundImageUUID = *imageIntentResponse.Metadata.UUID
-	} else { // else search by name
-		responseImages, err := client.V3.ListAllImage(ctx, "")
+	// name serves as the highest precedence
+	if imageName != nil {
+		resolvedUUID, err := getImageByName(ctx, client, *imageName)
 		if err != nil {
 			return "", err
 		}
-		// Validate filtered Images
-		foundImages := make([]*prismclientv3.ImageIntentResponse, 0)
-		for _, s := range responseImages.Entities {
-			imageSpec := s.Spec
-			if strings.EqualFold(*imageSpec.Name, *imageName) {
-				foundImages = append(foundImages, s)
-			}
+		return resolvedUUID, nil
+	}
+	if imageUUID != nil {
+		resolvedUUID, err := getImageByUUID(ctx, client, *imageUUID)
+		if err != nil {
+			return "", err
 		}
-		if len(foundImages) == 0 {
-			return "", fmt.Errorf("failed to retrieve image by name %s", *imageName)
-		} else if len(foundImages) > 1 {
-			return "", fmt.Errorf("more than one image found with name %s", *imageName)
-		} else {
-			foundImageUUID = *foundImages[0].Metadata.UUID
+		return resolvedUUID, nil
+	}
+	if imageLookupFormat != nil && imageLookupBaseOS != nil && k8sVersion != nil {
+		resolvedUUID, err := getImageWithFormat(ctx, client, imageLookupFormat, imageLookupBaseOS, k8sVersion)
+		if err != nil {
+			return "", err
 		}
-		if foundImageUUID == "" {
-			return "", fmt.Errorf("failed to retrieve image by name or uuid. Verify input parameters")
+		return resolvedUUID, nil
+	}
+	return "", fmt.Errorf("failed to retrieve image by name or uuid. Verify input parameters")
+}
+
+type ImageLookup struct {
+	BaseOS     string
+	K8sVersion string
+}
+
+func getImageWithFormat(
+	ctx context.Context,
+	client *prismclientv3.Client,
+	imageTemplate,
+	imageLookupBaseOS,
+	k8sVersion *string,
+) (string, error) {
+	log := ctrl.LoggerFrom(ctx)
+	if strings.Contains(*k8sVersion, "v") {
+		k8sVersion = ptr.To(strings.Replace(*k8sVersion, "v", "", 1))
+	}
+	params := ImageLookup{*imageLookupBaseOS, *k8sVersion}
+	t, err := template.New("k8sTemplate").Parse(*imageTemplate)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse template given %s %v", *imageTemplate, err)
+	}
+	var templateBytes bytes.Buffer
+	err = t.Execute(&templateBytes, params)
+	if err != nil {
+		return "", fmt.Errorf(
+			"failed to substitute string %s with params %v error: %w",
+			*imageTemplate,
+			params,
+			err,
+		)
+	}
+	filterString := templateBytes.String()
+	filter := fmt.Sprintf("name==^%s$", filterString)
+	responseImages, err := client.V3.ListAllImage(ctx, filter)
+	if err != nil {
+		return "", fmt.Errorf("failed to list images with error %w", err)
+	}
+	sorted := sortImages(responseImages.Entities)
+	if len(sorted) == 0 {
+		return "", fmt.Errorf("failed to find image with filter %s", filter)
+	}
+	return *sorted[0].Metadata.UUID, nil
+}
+
+func sortImages(images []*prismclientv3.ImageIntentResponse) []*prismclientv3.ImageIntentResponse {
+	sort.Slice(images, func(i, j int) bool {
+		nameI := *images[i].Spec.Name
+		nameJ := *images[j].Spec.Name
+		return nameI > nameJ
+	})
+	return images
+}
+
+func getImageByName(ctx context.Context, client *prismclientv3.Client, imageName string) (string, error) {
+	responseImages, err := client.V3.ListAllImage(ctx, "")
+	if err != nil {
+		return "", err
+	}
+	// Validate filtered Images
+	foundImages := make([]*prismclientv3.ImageIntentResponse, 0)
+	for _, s := range responseImages.Entities {
+		imageSpec := s.Spec
+		if strings.EqualFold(*imageSpec.Name, imageName) {
+			foundImages = append(foundImages, s)
 		}
 	}
-	return foundImageUUID, nil
+	if len(foundImages) == 0 {
+		return "", fmt.Errorf("failed to retrieve image by name %s", imageName)
+	}
+	if len(foundImages) > 1 {
+		return "", fmt.Errorf("more than one image found with name %s", imageName)
+	}
+	return *foundImages[0].Metadata.UUID, nil
+}
+
+func getImageByUUID(
+	ctx context.Context,
+	client *prismclientv3.Client,
+	imageUUID string,
+) (string, error) {
+	imageIntentResponse, err := client.V3.GetImage(ctx, imageUUID)
+	if err != nil {
+		if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
+			return "", fmt.Errorf("failed to find image with UUID %s: %v", imageUUID, err)
+		}
+		return "", fmt.Errorf("failed to get image by uuid %s with error %v", imageUUID, err)
+	}
+	return *imageIntentResponse.Metadata.UUID, nil
 }
 
 // HasTaskInProgress returns true if the given task is in progress

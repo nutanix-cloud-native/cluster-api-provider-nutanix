@@ -579,9 +579,8 @@ spec:
       cluster:
         name: ${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}
         type: name
-      image:
-        name: ${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}
-        type: name
+      imageLookupBaseOS: ${BASE_OS}
+      imageLookupFormat: ${LOOKUP_FORMAT}
       memorySize: ${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}
       providerID: nutanix://${CLUSTER_NAME}-m1
       subnet:
