@@ -187,6 +187,34 @@ spec:
                 required:
                 - type
                 type: object
+              imageLookup:
+                description: imageLookup is a container that holds how to look up
+                  rhcos images for the cluster.
+                properties:
+                  baseOS:
+                    description: |-
+                      BaseOS is the name of the base operating system to use for
+                      image lookup.
+                    minLength: 1
+                    type: string
+                  format:
+                    default: '{{.BaseOS}}-kube-v{{.K8sVersion}}.*'
+                    description: |-
+                      Format is the naming format to look up the image for this
+                      machine It will be ignored if an explicit image is set. Supports
+                      substitutions for {{.BaseOS}} and {{.K8sVersion}} with the base OS and
+                      kubernetes version, respectively. The BaseOS will be the value in
+                      ImageLookupBaseOS and the kubernetes version as
+                      defined by the packages produced by kubernetes/release without v as a
+                      prefix: 1.13.0, 1.12.5-mybuild.1, or 1.17.3. For example, the default
+                      image format of {{.BaseOS}}-?{{.K8sVersion}}-* and ImageLookupBaseOS as "rhel-8.10" will end up
+                      searching for images that match the pattern nkp-rhel-8.10-1.30.5-* for a
+                      Machine that is targeting kubernetes v1.30.5. See
+                      also: https://golang.org/pkg/text/template/
+                    type: string
+                required:
+                - baseOS
+                type: object
               memorySize:
                 anyOf:
                 - type: integer
@@ -264,12 +292,14 @@ spec:
                 minimum: 1
                 type: integer
             required:
-            - image
             - memorySize
             - systemDiskSize
             - vcpuSockets
             - vcpusPerSocket
             type: object
+            x-kubernetes-validations:
+            - message: Either 'image' or 'imageLookup' must be set, but not both
+              rule: has(self.image) != has(self.imageLookup)
           status:
             description: NutanixMachineStatus defines the observed state of NutanixMachine
             properties:

@@ -17,10 +17,13 @@ limitations under the License.
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"html/template"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -301,41 +304,120 @@ func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID str
 	return foundSubnetUUID, nil
 }
 
-// GetImage returns an image. If no UUID is provided, returns the unique image with the name.
+// GetImage returns an image UUID. If no UUID is provided, returns the unique image with the name.
 // Returns an error if no image has the UUID, if no image has the name, or more than one image has the name.
-func GetImage(ctx context.Context, client *prismclientv3.Client, id infrav1.NutanixResourceIdentifier) (*prismclientv3.ImageIntentResponse, error) {
+func GetImage(ctx context.Context, client *prismclientv3.Client, id *infrav1.NutanixResourceIdentifier) (*prismclientv3.ImageIntentResponse, error) {
 	switch {
 	case id.IsUUID():
-		resp, err := client.V3.GetImage(ctx, *id.UUID)
-		if err != nil {
-			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-				return nil, fmt.Errorf("failed to find image with UUID %s: %v", *id.UUID, err)
-			}
-		}
-		return resp, nil
-	case id.IsName():
-		responseImages, err := client.V3.ListAllImage(ctx, "")
+		resolvedUUIDResponse, err := getImageByUUID(ctx, client, *id.UUID)
 		if err != nil {
 			return nil, err
 		}
-		// Validate filtered Images
-		foundImages := make([]*prismclientv3.ImageIntentResponse, 0)
-		for _, s := range responseImages.Entities {
-			imageSpec := s.Spec
-			if strings.EqualFold(*imageSpec.Name, *id.Name) {
-				foundImages = append(foundImages, s)
-			}
+		return resolvedUUIDResponse, nil
+	case id.IsName():
+		resolvedUUIDResponse, err := getImageByName(ctx, client, *id.Name)
+		if err != nil {
+			return nil, err
 		}
-		if len(foundImages) == 0 {
-			return nil, fmt.Errorf("found no image with name %s", *id.Name)
-		} else if len(foundImages) > 1 {
-			return nil, fmt.Errorf("more than one image found with name %s", *id.Name)
-		} else {
-			return foundImages[0], nil
-		}
+		return resolvedUUIDResponse, nil
 	default:
-		return nil, fmt.Errorf("image identifier is missing both name and uuid")
 	}
+	return nil, fmt.Errorf("image identifier is missing both name and uuid")
+}
+
+type ImageLookup struct {
+	BaseOS     string
+	K8sVersion string
+}
+
+func GetImageWithFormat(
+	ctx context.Context,
+	client *prismclientv3.Client,
+	imageTemplate,
+	imageLookupBaseOS,
+	k8sVersion *string,
+) (*prismclientv3.ImageIntentResponse, error) {
+	if strings.Contains(*k8sVersion, "v") {
+		k8sVersion = ptr.To(strings.Replace(*k8sVersion, "v", "", 1))
+	}
+	params := ImageLookup{*imageLookupBaseOS, *k8sVersion}
+	t, err := template.New("k8sTemplate").Parse(*imageTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse template given %s %v", *imageTemplate, err)
+	}
+	var templateBytes bytes.Buffer
+	err = t.Execute(&templateBytes, params)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to substitute string %s with params %v error: %w",
+			*imageTemplate,
+			params,
+			err,
+		)
+	}
+	filterString := templateBytes.String()
+	filter := fmt.Sprintf("name==%s$", filterString)
+	responseImages, err := client.V3.ListAllImage(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list images with error %w", err)
+	}
+	sorted := sortImagesByLatestCreationTime(responseImages.Entities)
+	if len(sorted) == 0 {
+		return nil, fmt.Errorf("failed to find image with filter %s", filter)
+	}
+	return sorted[0], nil
+}
+
+// returns the images with the latest creation time first.
+func sortImagesByLatestCreationTime(
+	images []*prismclientv3.ImageIntentResponse,
+) []*prismclientv3.ImageIntentResponse {
+	sort.Slice(images, func(i, j int) bool {
+		if images[i].Metadata.CreationTime == nil || images[j].Metadata.CreationTime == nil {
+			return images[i].Metadata.CreationTime != nil
+		}
+		timeI := *images[i].Metadata.CreationTime
+		timeJ := *images[j].Metadata.CreationTime
+		return timeI.After(timeJ)
+	})
+	return images
+}
+
+func getImageByName(ctx context.Context, client *prismclientv3.Client, imageName string) (*prismclientv3.ImageIntentResponse, error) {
+	responseImages, err := client.V3.ListAllImage(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	// Validate filtered Images
+	foundImages := make([]*prismclientv3.ImageIntentResponse, 0)
+	for _, s := range responseImages.Entities {
+		imageSpec := s.Spec
+		if strings.EqualFold(*imageSpec.Name, imageName) {
+			foundImages = append(foundImages, s)
+		}
+	}
+	if len(foundImages) == 0 {
+		return nil, fmt.Errorf("failed to retrieve image by name %s", imageName)
+	}
+	if len(foundImages) > 1 {
+		return nil, fmt.Errorf("more than one image found with name %s", imageName)
+	}
+	return foundImages[0], nil
+}
+
+func getImageByUUID(
+	ctx context.Context,
+	client *prismclientv3.Client,
+	imageUUID string,
+) (*prismclientv3.ImageIntentResponse, error) {
+	imageIntentResponse, err := client.V3.GetImage(ctx, imageUUID)
+	if err != nil {
+		if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
+			return nil, fmt.Errorf("failed to find image with UUID %s: %v", imageUUID, err)
+		}
+		return nil, fmt.Errorf("failed to get image by uuid %s with error %v", imageUUID, err)
+	}
+	return imageIntentResponse, nil
 }
 
 func ImageMarkedForDeletion(image *prismclientv3.ImageIntentResponse) bool {
@@ -769,7 +851,8 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
-		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error()) //nolint:govet // error will not be a constant
+		//nolint:govet // ignore error.
+		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
 		return nil, err
 	}
 
@@ -794,7 +877,9 @@ func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.Nut
 	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
-		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, err.Error()) //nolint:govet // error will not be a constant
+		//nolint:govet // ignore error.
+		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+
 		return nil, err
 	}
 
@@ -804,7 +889,9 @@ func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.Nut
 	})
 	if err != nil {
 		log.Error(err, "error occurred while getting nutanix prism v4 client from cache")
-		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, err.Error()) //nolint:govet // error will not be a constant
+		//nolint:govet // ignore error.
+		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+
 		return nil, fmt.Errorf("nutanix prism v4 client error: %w", err)
 	}
 

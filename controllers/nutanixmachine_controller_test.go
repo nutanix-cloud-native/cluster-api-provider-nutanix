@@ -503,7 +503,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: infrav1.NutanixMachineSpec{
-			Image: infrav1.NutanixResourceIdentifier{
+			Image: &infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierUUID,
 				UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
 			},
