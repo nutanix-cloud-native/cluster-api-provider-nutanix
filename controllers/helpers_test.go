@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 
 	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
@@ -31,10 +32,12 @@ import (
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/cluster-api/util"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
+	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 )
 
@@ -228,4 +231,201 @@ func TestGetPrismCentralClientForCluster(t *testing.T) {
 		_, err = getPrismCentralClientForCluster(ctx, cluster, secretInformer, mapInformer)
 		assert.NoError(t, err)
 	})
+}
+
+func TestGetImageByNameOrUUID(t *testing.T) {
+	tests := []struct {
+		name          string
+		clientBuilder func() *prismclientv3.Client
+		image         infrav1.NutanixResourceIdentifier
+		want          *prismclientv3.ImageIntentResponse
+		wantErr       bool
+	}{
+		{
+			name: "missing name and UUID in the input",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+
+				return &prismclientv3.Client{V3: mockv3Service}
+			},
+			image:   infrav1.NutanixResourceIdentifier{},
+			wantErr: true,
+		},
+		{
+			name: "image UUID not found",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockv3Service.EXPECT().GetImage(gomock.Any(), gomock.Any()).Return(nil, errors.New("ENTITY_NOT_FOUND"))
+
+				return &prismclientv3.Client{V3: mockv3Service}
+			},
+			image: infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierUUID,
+				UUID: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "image name query fails",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(nil, errors.New("fake error"))
+
+				return &prismclientv3.Client{V3: mockv3Service}
+			},
+			image: infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierName,
+				Name: ptr.To("example"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "image UUID found",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockv3Service.EXPECT().GetImage(gomock.Any(), gomock.Any()).Return(
+					&prismclientv3.ImageIntentResponse{
+						Spec: &prismclientv3.Image{
+							Name: ptr.To("example"),
+						},
+					}, nil,
+				)
+
+				return &prismclientv3.Client{V3: mockv3Service}
+			},
+			image: infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierUUID,
+				UUID: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+			},
+			want: &prismclientv3.ImageIntentResponse{
+				Spec: &prismclientv3.Image{
+					Name: ptr.To("example"),
+				},
+			},
+		},
+		{
+			name: "image name found",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(
+					&prismclientv3.ImageListIntentResponse{
+						Entities: []*prismclientv3.ImageIntentResponse{
+							{
+								Spec: &prismclientv3.Image{
+									Name: ptr.To("example"),
+								},
+							},
+						},
+					}, nil,
+				)
+
+				return &prismclientv3.Client{V3: mockv3Service}
+			},
+			image: infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierName,
+				Name: ptr.To("example"),
+			},
+			want: &prismclientv3.ImageIntentResponse{
+				Spec: &prismclientv3.Image{
+					Name: ptr.To("example"),
+				},
+			},
+		},
+		{
+			name: "image name matches multiple images",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(
+					&prismclientv3.ImageListIntentResponse{
+						Entities: []*prismclientv3.ImageIntentResponse{
+							{
+								Spec: &prismclientv3.Image{
+									Name: ptr.To("example"),
+								},
+							},
+							{
+								Spec: &prismclientv3.Image{
+									Name: ptr.To("example"),
+								},
+							},
+						},
+					}, nil,
+				)
+
+				return &prismclientv3.Client{V3: mockv3Service}
+			},
+			image: infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierName,
+				Name: ptr.To("example"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "image name matches zero images",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(
+					&prismclientv3.ImageListIntentResponse{
+						Entities: []*prismclientv3.ImageIntentResponse{},
+					}, nil,
+				)
+
+				return &prismclientv3.Client{V3: mockv3Service}
+			},
+			image: infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierName,
+				Name: ptr.To("example"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "image name matches one image",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(
+					&prismclientv3.ImageListIntentResponse{
+						Entities: []*prismclientv3.ImageIntentResponse{
+							{
+								Spec: &prismclientv3.Image{
+									Name: ptr.To("example"),
+								},
+							},
+						},
+					}, nil,
+				)
+
+				return &prismclientv3.Client{V3: mockv3Service}
+			},
+			image: infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierName,
+				Name: ptr.To("example"),
+			},
+			want: &prismclientv3.ImageIntentResponse{
+				Spec: &prismclientv3.Image{
+					Name: ptr.To("example"),
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			got, err := GetImageByNameOrUUID(ctx, tt.clientBuilder(), tt.image)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetImageByNameOrUUID() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetImageByNameOrUUID() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
