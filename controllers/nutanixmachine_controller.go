@@ -484,17 +484,13 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	// Create or get existing VM
 	vm, err := r.getOrCreateVM(rctx)
 	if err != nil {
+		// There was an error. If the error was terminal, we set the failure message, so the next time we reconcile, we will return immediately, and not requeue.
 		log.Error(err, fmt.Sprintf("Failed to create VM %s.", rctx.Machine.Name))
 		return reconcile.Result{}, err
 	}
-	log.V(1).Info(fmt.Sprintf("Found VM with name: %s, vmUUID: %s", rctx.Machine.Name, *vm.Metadata.UUID))
-	rctx.NutanixMachine.Status.VmUUID = *vm.Metadata.UUID
-
-	log.V(1).Info(fmt.Sprintf("Patching machine post creation vmUUID: %s", rctx.NutanixMachine.Status.VmUUID))
-	if err := r.patchMachine(rctx); err != nil {
-		errorMsg := fmt.Errorf("failed to patch NutanixMachine %s after creation. %v", rctx.NutanixMachine.Name, err)
-		log.Error(errorMsg, "failed to patch")
-		return reconcile.Result{}, errorMsg
+	if vm == nil {
+		// We have created the VM, but the create task is still in progress.
+		return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
 	log.Info(fmt.Sprintf("Assigning IP addresses to VM with name: %s, vmUUID: %s", rctx.NutanixMachine.Name, rctx.NutanixMachine.Status.VmUUID))
@@ -573,9 +569,44 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 
 	// if VM exists
 	if vm != nil {
-		log.Info(fmt.Sprintf("vm %s found with UUID %s", *vm.Spec.Name, rctx.NutanixMachine.Status.VmUUID))
+		log.V(1).Info(fmt.Sprintf("Found VM with name: %s, vmUUID: %s", rctx.Machine.Name, *vm.Metadata.UUID))
+		rctx.NutanixMachine.Status.VmUUID = *vm.Metadata.UUID
 		conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
-		return vm, nil
+
+		if *vm.Status.State == "COMPLETE" {
+			return vm, nil
+		}
+		// If we are here, then the VM exists, but not completely provisioned.
+
+		// Get create task status.
+		createTaskID, err := GetTaskUUIDFromVM(vm)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get create task UUID from VM: %w", err)
+		}
+
+		taskStatus, err := nutanixclient.GetTaskStatus(ctx, v3Client, createTaskID)
+		if err != nil && taskStatus == "" {
+			return nil, fmt.Errorf("failed to check create task status: %w", err)
+		}
+
+		switch taskStatus {
+		case "INVALID_UUID":
+			// The VM references a create task that does not exist. Mark machine failed.
+			// This is not an expected error condition, and suggests a bug in Prism Central.
+			rctx.SetFailureStatus(capierrors.CreateMachineError, err)
+			return nil, fmt.Errorf("create task UUID %s is invalid", createTaskID)
+		case "FAILED":
+			// Failed or not found, mark machine failed.
+			rctx.SetFailureStatus(capierrors.CreateMachineError, err)
+			return nil, fmt.Errorf("create task %s failed", createTaskID)
+		case "SUCCEEDED":
+			// VM create suceeded. Continue.
+			return vm, nil
+		default:
+			log.V(1).Info(fmt.Sprintf("Create task in progress for VM with name: %s, vmUUID: %s", rctx.Machine.Name, *vm.Metadata.UUID))
+			// In progress, requeue without error.
+			return nil, nil
+		}
 	}
 
 	log.Info(fmt.Sprintf("No existing VM found. Starting creation process of VM %s.", vmName))
@@ -692,37 +723,6 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUuid)
 	rctx.NutanixMachine.Status.VmUUID = vmUuid
 
-	log.V(1).Info(fmt.Sprintf("Sent the post request to create VM %s. Got the vm UUID: %s, status.state: %s", vmName, vmUuid, *vmResponse.Status.State))
-	log.V(1).Info(fmt.Sprintf("Getting task vmUUID for VM %s", vmName))
-	lastTaskUUID, err := GetTaskUUIDFromVM(vmResponse)
-	if err != nil {
-		errorMsg := fmt.Errorf("error occurred fetching task UUID from vm %s after creation: %v", rctx.Machine.Name, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
-		return nil, errorMsg
-	}
-
-	if lastTaskUUID == "" {
-		errorMsg := fmt.Errorf("failed to retrieve task UUID for VM %s after creation", vmName)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
-		return nil, errorMsg
-	}
-
-	log.Info(fmt.Sprintf("Waiting for task %s to get completed for VM %s", lastTaskUUID, rctx.NutanixMachine.Name))
-	if err := nutanixclient.WaitForTaskToSucceed(ctx, v3Client, lastTaskUUID); err != nil {
-		errorMsg := fmt.Errorf("error occurred while waiting for task %s to start: %v", lastTaskUUID, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
-		return nil, errorMsg
-	}
-
-	log.Info("Fetching VM after creation")
-	vm, err = FindVMByUUID(ctx, v3Client, vmUuid)
-	if err != nil {
-		errorMsg := fmt.Errorf("error occurred while getting VM %s after creation: %v", vmName, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
-		return nil, errorMsg
-	}
-
-	conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
 	return vm, nil
 }
 
