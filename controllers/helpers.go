@@ -298,46 +298,43 @@ func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID str
 	return foundSubnetUUID, nil
 }
 
-// GetImageUUID returns the UUID of the image with the given name
-func GetImageUUID(ctx context.Context, client *prismclientv3.Client, imageName, imageUUID *string) (string, error) {
-	var foundImageUUID string
-
-	if imageUUID == nil && imageName == nil {
-		return "", fmt.Errorf("image name or image uuid must be passed in order to retrieve the image")
-	}
-	if imageUUID != nil {
-		imageIntentResponse, err := client.V3.GetImage(ctx, *imageUUID)
+// GetImageByNameOrUUID returns an image. If no UUID is provided, returns the unique image with the name.
+// Returns an error if no image has the UUID, if no image has the name, or more than one image has the name.
+func GetImageByNameOrUUID(ctx context.Context, client *prismclientv3.Client, image infrav1.NutanixResourceIdentifier) (*prismclientv3.ImageIntentResponse, error) {
+	switch {
+	case image.UUID != nil:
+		resp, err := client.V3.GetImage(ctx, *image.UUID)
 		if err != nil {
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-				return "", fmt.Errorf("failed to find image with UUID %s: %v", *imageUUID, err)
+				return nil, fmt.Errorf("failed to find image with UUID %s: %v", *image.UUID, err)
 			}
 		}
-		foundImageUUID = *imageIntentResponse.Metadata.UUID
-	} else { // else search by name
+		return resp, nil
+	case image.Name != nil:
 		responseImages, err := client.V3.ListAllImage(ctx, "")
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		// Validate filtered Images
 		foundImages := make([]*prismclientv3.ImageIntentResponse, 0)
 		for _, s := range responseImages.Entities {
 			imageSpec := s.Spec
-			if strings.EqualFold(*imageSpec.Name, *imageName) {
+			if strings.EqualFold(*imageSpec.Name, *image.Name) {
 				foundImages = append(foundImages, s)
 			}
 		}
-		if len(foundImages) == 0 {
-			return "", fmt.Errorf("failed to retrieve image by name %s", *imageName)
-		} else if len(foundImages) > 1 {
-			return "", fmt.Errorf("more than one image found with name %s", *imageName)
-		} else {
-			foundImageUUID = *foundImages[0].Metadata.UUID
+
+		switch {
+		case len(foundImages) == 1:
+			return foundImages[0], nil
+		case len(foundImages) > 1:
+			return nil, fmt.Errorf("more than one image found with name %s", *image.Name)
+		default:
+			return nil, fmt.Errorf("failed to retrieve image by name %s", *image.Name)
 		}
-		if foundImageUUID == "" {
-			return "", fmt.Errorf("failed to retrieve image by name or uuid. Verify input parameters")
-		}
+	default:
+		return nil, fmt.Errorf("input parameters must include either name or uuid")
 	}
-	return foundImageUUID, nil
 }
 
 // HasTaskInProgress returns true if the given task is in progress
