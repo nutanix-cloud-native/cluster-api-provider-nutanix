@@ -337,6 +337,11 @@ func GetImageByNameOrUUID(ctx context.Context, client *prismclientv3.Client, ima
 	}
 }
 
+func imageMarkedForDeletion(image *prismclientv3.ImageIntentResponse) bool {
+	state := *image.Status.State
+	return state == "DELETE_PENDING" || state == "DELETE_IN_PROGRESS"
+}
+
 // HasTaskInProgress returns true if the given task is in progress
 func HasTaskInProgress(ctx context.Context, client *prismclientv3.Client, taskUUID string) (bool, error) {
 	log := ctrl.LoggerFrom(ctx)
