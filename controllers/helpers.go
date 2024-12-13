@@ -337,7 +337,7 @@ func GetImageByNameOrUUID(ctx context.Context, client *prismclientv3.Client, ima
 	}
 }
 
-func ImageMarkedForDeletion(image *prismclientv3.ImageIntentResponse) bool {
+func imageMarkedForDeletion(image *prismclientv3.ImageIntentResponse) bool {
 	state := *image.Status.State
 	return state == "DELETE_PENDING" || state == "DELETE_IN_PROGRESS"
 }
