@@ -45,6 +45,33 @@ const (
 	// to Image, the NutanixMachine will be created with the image mounted
 	// as a CD-ROM.
 	NutanixMachineBootstrapRefKindImage = "Image"
+
+	// NutanixMachineDiskModeStandard represents the standard disk mode.
+	NutanixMachineDiskModeStandard NutanixMachineDiskMode = "Standard"
+
+	// NutanixMachineDiskModeFlash represents the flash disk mode.
+	NutanixMachineDiskModeFlash NutanixMachineDiskMode = "Flash"
+
+	// NutanixMachineDiskDeviceTypeDisk represents the disk device type.
+	NutanixMachineDiskDeviceTypeDisk NutanixMachineDiskDeviceType = "Disk"
+
+	// NutanixMachineDiskDeviceTypeCDRom represents the CD-ROM device type.
+	NutanixMachineDiskDeviceTypeCDRom NutanixMachineDiskDeviceType = "CDRom"
+
+	// NutanixMachineDiskAdapterTypeSCSI represents the SCSI adapter type.
+	NutanixMachineDiskAdapterTypeSCSI NutanixMachineDiskAdapterType = "SCSI"
+
+	// NutanixMachineDiskAdapterTypeIDE represents the IDE adapter type.
+	NutanixMachineDiskAdapterTypeIDE NutanixMachineDiskAdapterType = "IDE"
+
+	// NutanixMachineDiskAdapterTypePCI represents the PCI adapter type.
+	NutanixMachineDiskAdapterTypePCI NutanixMachineDiskAdapterType = "PCI"
+
+	// NutanixMachineDiskAdapterTypeSATA represents the SATA adapter type.
+	NutanixMachineDiskAdapterTypeSATA NutanixMachineDiskAdapterType = "SATA"
+
+	// NutanixMachineDiskAdapterTypeSPAPR represents the SPAPR adapter type.
+	NutanixMachineDiskAdapterTypeSPAPR NutanixMachineDiskAdapterType = "SPAPR"
 )
 
 // NutanixImageLookup defines how to fetch images for the cluster
@@ -125,6 +152,12 @@ type NutanixMachineSpec struct {
 	// The minimum systemDiskSize is 20Gi bytes
 	// +kubebuilder:validation:Required
 	SystemDiskSize resource.Quantity `json:"systemDiskSize"`
+
+	// dataDisks hold the list of data disks to be attached to the VM
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:listType=set
+	DataDisks []NutanixMachineVMDisk `json:"dataDisks,omitempty"`
+
 	// BootstrapRef is a reference to a bootstrap provider-specific resource
 	// that holds configuration details.
 	// +optional
@@ -132,6 +165,84 @@ type NutanixMachineSpec struct {
 	// List of GPU devices that need to be added to the machines.
 	// +kubebuilder:validation:Optional
 	GPUs []NutanixGPU `json:"gpus,omitempty"`
+}
+
+// NutanixMachineVMDisk defines the disk configuration for a NutanixMachine
+type NutanixMachineVMDisk struct {
+	// diskSize is the size (in Quantity format) of the disk attached to the VM.
+	// See https://pkg.go.dev/k8s.io/apimachinery/pkg/api/resource#Format for the Quantity format and example documentation.
+	// The minimum diskSize is 1GB.
+	// +kubebuilder:validation:Required
+	DiskSize resource.Quantity `json:"diskSize"`
+
+	// deviceProperties are the properties of the disk device.
+	// +optional
+	DeviceProperties *NutanixMachineVMDiskDeviceProperties `json:"deviceProperties,omitempty"`
+
+	// storageConfig are the storage configuration parameters of the VM disks.
+	// +optional
+	StorageConfig *NutanixMachineVMStorageConfig `json:"storageConfig,omitempty"`
+
+	// dataSource refers to a data source image for the VM disk.
+	// +optional
+	DataSource *NutanixResourceIdentifier `json:"dataSource,omitempty"`
+}
+
+// NutanixMachineVMDiskDeviceProperties defines the device properties for a NutanixMachineVMDisk
+type NutanixMachineVMDiskDeviceProperties struct {
+	// deviceType specifies the disk device type.
+	// The valid values are "Disk" and "CDRom", and the default is "Disk".
+	// +kubebuilder:default=Disk
+	// +kubebuilder:validation:Required
+	DeviceType NutanixMachineDiskDeviceType `json:"deviceType"`
+
+	// adapterType is the adapter type of the disk address.
+	// If the deviceType is "Disk", the valid adapterType can be "SCSI", "IDE", "PCI", "SATA" or "SPAPR".
+	// If the deviceType is "CDRom", the valid adapterType can be "IDE" or "SATA".
+	// +kubebuilder:validation:Required
+	AdapterType NutanixMachineDiskAdapterType `json:"adapterType,omitempty"`
+
+	// deviceIndex is the index of the disk address. The valid values are non-negative integers, with the default value 0.
+	// For a Machine VM, the deviceIndex for the disks with the same deviceType.adapterType combination should
+	// start from 0 and increase consecutively afterwards. Note that for each Machine VM, the Disk.SCSI.0
+	// and CDRom.IDE.0 are reserved to be used by the VM's system. So for dataDisks of Disk.SCSI and CDRom.IDE,
+	// the deviceIndex should start from 1.
+	// +kubebuilder:default=0
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	DeviceIndex int32 `json:"deviceIndex,omitempty"`
+}
+
+// NutanixMachineVMStorageConfig defines the storage configuration for a NutanixMachineVMDisk
+type NutanixMachineVMStorageConfig struct {
+	// diskMode specifies the disk mode.
+	// The valid values are Standard and Flash, and the default is Standard.
+	// +kubebuilder:default=Standard
+	DiskMode NutanixMachineDiskMode `json:"diskMode"`
+
+	// storageContainer refers to the storage_container used by the VM disk.
+	// +optional
+	StorageContainer *NutanixStorageContainerResourceIdentifier `json:"storageContainer"`
+}
+
+// NutanixMachineDiskMode is an enumeration of different disk modes.
+// +kubebuilder:validation:Enum=Standard;Flash
+type NutanixMachineDiskMode string
+
+// NutanixMachineDiskDeviceType is the VM disk device type.
+// +kubebuilder:validation:Enum=Disk;CDRom
+type NutanixMachineDiskDeviceType string
+
+// NutanixMachineDiskAdapterType is an enumeration of different disk device adapter types.
+// +kubebuilder:validation:Enum:=SCSI;IDE;PCI;SATA;SPAPR
+type NutanixMachineDiskAdapterType string
+
+type NutanixStorageContainerResourceIdentifier struct {
+	// Storage Container UUID
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=36
+	// +kubebuilder:validation:Pattern="^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+	Id *string `json:"id"`
 }
 
 // NutanixMachineStatus defines the observed state of NutanixMachine

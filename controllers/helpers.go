@@ -253,6 +253,96 @@ func CreateSystemDiskSpec(imageUUID string, systemDiskSize int64) (*prismclientv
 	return systemDisk, nil
 }
 
+// CreateDataDiskList creates a list of data disks with the given data disk specs
+func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, dataDiskSpecs []infrav1.NutanixMachineVMDisk) ([]*prismclientv3.VMDisk, error) {
+	dataDisks := make([]*prismclientv3.VMDisk, 0)
+
+	latestDeviceIndexByAdapterType := make(map[string]int64)
+	getDeviceIndex := func(adapterType string) int64 {
+		if latestDeviceIndex, ok := latestDeviceIndexByAdapterType[adapterType]; ok {
+			latestDeviceIndexByAdapterType[adapterType] = latestDeviceIndex + 1
+			return latestDeviceIndex
+		}
+
+		if adapterType == string(infrav1.NutanixMachineDiskAdapterTypeSCSI) || adapterType == string(infrav1.NutanixMachineDiskAdapterTypeIDE) {
+			latestDeviceIndexByAdapterType[adapterType] = 1
+			return 1
+		} else {
+			latestDeviceIndexByAdapterType[adapterType] = 0
+			return 0
+		}
+	}
+
+	for _, dataDiskSpec := range dataDiskSpecs {
+		dataDisk := &prismclientv3.VMDisk{
+			DiskSizeMib: utils.Int64Ptr(GetMibValueOfQuantity(dataDiskSpec.DiskSize)),
+		}
+
+		// If data source is provided, get the image UUID
+		if dataDiskSpec.DataSource != nil {
+			imageUUID, err := GetImageUUID(ctx, client, dataDiskSpec.DataSource.Name, dataDiskSpec.DataSource.UUID)
+			if err != nil {
+				return nil, err
+			}
+
+			dataSourceReference := &prismclientv3.Reference{
+				Kind: utils.StringPtr("image"),
+				UUID: utils.StringPtr(imageUUID),
+			}
+
+			dataDisk.DataSourceReference = dataSourceReference
+		}
+
+		// Set deault values for device type and adapter type
+		deviceType := infrav1.NutanixMachineDiskDeviceTypeDisk
+		adapterType := infrav1.NutanixMachineDiskAdapterTypeSCSI
+
+		// If device properties are provided, use them
+		if dataDiskSpec.DeviceProperties != nil {
+			deviceType = dataDiskSpec.DeviceProperties.DeviceType
+			adapterType = dataDiskSpec.DeviceProperties.AdapterType
+		}
+
+		// Set device properties
+		deviceProperties := &prismclientv3.VMDiskDeviceProperties{
+			DeviceType: utils.StringPtr(strings.ToUpper(string(deviceType))),
+			DiskAddress: &prismclientv3.DiskAddress{
+				AdapterType: utils.StringPtr(strings.ToUpper(string(adapterType))),
+				DeviceIndex: utils.Int64Ptr(getDeviceIndex(string(adapterType))),
+			},
+		}
+
+		if dataDiskSpec.DeviceProperties != nil && dataDiskSpec.DeviceProperties.DeviceIndex != 0 {
+			deviceProperties.DiskAddress.DeviceIndex = utils.Int64Ptr(int64(dataDiskSpec.DeviceProperties.DeviceIndex))
+		}
+
+		dataDisk.DeviceProperties = deviceProperties
+
+		if dataDiskSpec.StorageConfig != nil {
+			storageConfig := &prismclientv3.VMStorageConfig{}
+
+			flashMode := "DISABLED"
+			if dataDiskSpec.StorageConfig.DiskMode == infrav1.NutanixMachineDiskModeFlash {
+				flashMode = "ENABLED"
+			}
+
+			storageConfig.FlashMode = flashMode
+
+			if dataDiskSpec.StorageConfig.StorageContainer != nil {
+				storageConfig.StorageContainerReference = &prismclientv3.StorageContainerReference{
+					Kind: "storage_container",
+					UUID: *dataDiskSpec.StorageConfig.StorageContainer.Id,
+				}
+			}
+
+			dataDisk.StorageConfig = storageConfig
+		}
+
+		dataDisks = append(dataDisks, dataDisk)
+	}
+	return dataDisks, nil
+}
+
 // GetSubnetUUID returns the UUID of the subnet with the given name
 func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
 	var foundSubnetUUID string
@@ -833,7 +923,10 @@ func GetFailureDomain(failureDomainName string, nutanixCluster *infrav1.NutanixC
 func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*prismclientv3.Client, error) {
 	log := ctrl.LoggerFrom(ctx)
 
+	log.Info("Get client helper")
 	clientHelper := nutanixclient.NewHelper(secretInformer, mapInformer)
+
+	log.Info("Build management endpoint")
 	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
@@ -841,6 +934,7 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 		return nil, err
 	}
 
+	log.Info("Get or create prism central client v3")
 	v3Client, err := nutanixclient.NutanixClientCache.GetOrCreate(&nutanixclient.CacheParams{
 		NutanixCluster:          cluster,
 		PrismManagementEndpoint: managementEndpoint,

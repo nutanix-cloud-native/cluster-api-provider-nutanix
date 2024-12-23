@@ -65,6 +65,7 @@ const (
 
 var (
 	minMachineSystemDiskSize resource.Quantity
+	minMachineDataDiskSize   resource.Quantity
 	minMachineMemorySize     resource.Quantity
 	minVCPUsPerSocket        = 1
 	minVCPUSockets           = 1
@@ -72,6 +73,7 @@ var (
 
 func init() {
 	minMachineSystemDiskSize = resource.MustParse("20Gi")
+	minMachineDataDiskSize = resource.MustParse("1Gi")
 	minMachineMemorySize = resource.MustParse("2Gi")
 }
 
@@ -257,6 +259,8 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	log.Info(fmt.Sprintf("Reconciling NutanixMachine %s in namespace %s", ntxMachine.Name, ntxMachine.Namespace))
+	// Create a Nutanix client for the NutanixCluster.
 	v3Client, err := getPrismCentralClientForCluster(ctx, ntxCluster, r.SecretInformer, r.ConfigMapInformer)
 	if err != nil {
 		log.Error(err, "error occurred while fetching prism central client")
@@ -552,7 +556,104 @@ func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineConte
 		return fmt.Errorf("minimum vcpu sockets is %v but given %v", minVCPUSockets, vcpuSockets)
 	}
 
+	dataDisks := rctx.NutanixMachine.Spec.DataDisks
+	if dataDisks != nil {
+		if err := r.validateDataDisks(dataDisks); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func (r *NutanixMachineReconciler) validateDataDisks(dataDisks []infrav1.NutanixMachineVMDisk) error {
+	errors := []error{}
+	for _, disk := range dataDisks {
+
+		if disk.DiskSize.Cmp(minMachineDataDiskSize) < 0 {
+			diskSizeMib := GetMibValueOfQuantity(disk.DiskSize)
+			minMachineDataDiskSizeMib := GetMibValueOfQuantity(minMachineDataDiskSize)
+			errors = append(errors, fmt.Errorf("minimum data disk size is %vMib but given %vMib", minMachineDataDiskSizeMib, diskSizeMib))
+		}
+
+		if disk.DeviceProperties != nil {
+			errors = validateDataDiskDeviceProperties(disk, errors)
+		}
+
+		if disk.DataSource != nil {
+			errors = validateDataDiskDataSource(disk, errors)
+		}
+
+		if disk.StorageConfig != nil {
+			errors = validateDataDiskStorageConfig(disk, errors)
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("data disks validation errors: %v", errors)
+	}
+
+	return nil
+}
+
+func validateDataDiskStorageConfig(disk infrav1.NutanixMachineVMDisk, errors []error) []error {
+	if disk.StorageConfig.StorageContainer != nil && disk.StorageConfig.StorageContainer.Id == nil {
+		errors = append(errors, fmt.Errorf("ID is required for storage container in data disk"))
+	}
+
+	if disk.StorageConfig.StorageContainer != nil && disk.StorageConfig.StorageContainer.Id != nil {
+		if _, err := uuid.Parse(*disk.StorageConfig.StorageContainer.Id); err != nil {
+			errors = append(errors, fmt.Errorf("invalid UUID for storage container in data disk: %v", err))
+		}
+	}
+
+	if disk.StorageConfig.DiskMode != infrav1.NutanixMachineDiskModeFlash && disk.StorageConfig.DiskMode != infrav1.NutanixMachineDiskModeStandard {
+		errors = append(errors, fmt.Errorf("invalid disk mode %s for data disk", disk.StorageConfig.DiskMode))
+	}
+	return errors
+}
+
+func validateDataDiskDataSource(disk infrav1.NutanixMachineVMDisk, errors []error) []error {
+	if disk.DataSource.Type == infrav1.NutanixIdentifierUUID && disk.DataSource.UUID == nil {
+		errors = append(errors, fmt.Errorf("UUID is required for data disk with UUID source"))
+	}
+
+	if disk.DataSource.Type == infrav1.NutanixIdentifierName && disk.DataSource.Name == nil {
+		errors = append(errors, fmt.Errorf("name is required for data disk with name source"))
+	}
+	return errors
+}
+
+func validateDataDiskDeviceProperties(disk infrav1.NutanixMachineVMDisk, errors []error) []error {
+	validAdapterTypes := map[infrav1.NutanixMachineDiskAdapterType]bool{
+		infrav1.NutanixMachineDiskAdapterTypeIDE:   false,
+		infrav1.NutanixMachineDiskAdapterTypeSCSI:  false,
+		infrav1.NutanixMachineDiskAdapterTypeSATA:  false,
+		infrav1.NutanixMachineDiskAdapterTypePCI:   false,
+		infrav1.NutanixMachineDiskAdapterTypeSPAPR: false,
+	}
+
+	if disk.DeviceProperties.DeviceType == infrav1.NutanixMachineDiskDeviceTypeDisk {
+		validAdapterTypes[infrav1.NutanixMachineDiskAdapterTypeSCSI] = true
+		validAdapterTypes[infrav1.NutanixMachineDiskAdapterTypePCI] = true
+		validAdapterTypes[infrav1.NutanixMachineDiskAdapterTypeSPAPR] = true
+		validAdapterTypes[infrav1.NutanixMachineDiskAdapterTypeSATA] = true
+		validAdapterTypes[infrav1.NutanixMachineDiskAdapterTypeIDE] = true
+	} else if disk.DeviceProperties.DeviceType == infrav1.NutanixMachineDiskDeviceTypeCDRom {
+		validAdapterTypes[infrav1.NutanixMachineDiskAdapterTypeIDE] = true
+		validAdapterTypes[infrav1.NutanixMachineDiskAdapterTypePCI] = true
+	} else {
+		errors = append(errors, fmt.Errorf("invalid device type %s for data disk", disk.DeviceProperties.DeviceType))
+	}
+
+	if !validAdapterTypes[disk.DeviceProperties.AdapterType] {
+		errors = append(errors, fmt.Errorf("invalid adapter type %s for data disk", disk.DeviceProperties.AdapterType))
+	}
+
+	if disk.DeviceProperties.DeviceIndex < 0 {
+		errors = append(errors, fmt.Errorf("invalid device index %d for data disk", disk.DeviceProperties.DeviceIndex))
+	}
+	return errors
 }
 
 // GetOrCreateVM creates a VM and is invoked by the NutanixMachineReconciler
@@ -771,6 +872,12 @@ func getDiskList(rctx *nctx.MachineContext) ([]*prismclientv3.VMDisk, error) {
 		diskList = append(diskList, bootstrapDisk)
 	}
 
+	dataDisks, err := getDataDisks(rctx)
+	if err != nil {
+		return nil, err
+	}
+	diskList = append(diskList, dataDisks...)
+
 	return diskList, nil
 }
 
@@ -854,6 +961,17 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) 
 	}
 
 	return bootstrapDisk, nil
+}
+
+func getDataDisks(rctx *nctx.MachineContext) ([]*prismclientv3.VMDisk, error) {
+	dataDisks, err := CreateDataDiskList(rctx.Context, rctx.NutanixClient, rctx.NutanixMachine.Spec.DataDisks)
+	if err != nil {
+		errorMsg := fmt.Errorf("error occurred while creating data disk spec: %w", err)
+		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		return nil, err
+	}
+
+	return dataDisks, nil
 }
 
 // getBootstrapData returns the Bootstrap data from the ref secret

@@ -32,6 +32,7 @@ import (
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
@@ -470,6 +471,381 @@ func TestNutanixMachineReconciler_SetupWithManager_ClusterToTypedObjectsMapperEr
 	assert.Contains(t, err.Error(), "failed to create mapper for Cluster to NutanixMachine")
 }
 
+func TestNutanixMachineValidateDataDisks(t *testing.T) {
+	testCases := []struct {
+		name        string
+		dataDisks   func() []infrav1.NutanixMachineVMDisk
+		description string
+		stepDesc    string
+		errCheck    func(*WithT, error)
+	}{
+		{
+			name: "noErrors",
+			dataDisks: func() []infrav1.NutanixMachineVMDisk {
+				return []infrav1.NutanixMachineVMDisk{
+					{
+						DiskSize: resource.MustParse("20Gi"),
+						DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+							DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+							AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+						},
+						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+							DiskMode: infrav1.NutanixMachineDiskModeStandard,
+							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
+								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							},
+						},
+					},
+				}
+			},
+			description: "Verify an correct NutanixMachine",
+			stepDesc:    "should not error on validation",
+			errCheck: func(g *WithT, err error) {
+				g.Expect(err).ToNot(HaveOccurred())
+			},
+		},
+		{
+			name: "sizeError",
+			dataDisks: func() []infrav1.NutanixMachineVMDisk {
+				return []infrav1.NutanixMachineVMDisk{
+					{
+						DiskSize: resource.MustParse("0Gi"),
+						DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+							DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+							AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+						},
+						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+							DiskMode: infrav1.NutanixMachineDiskModeStandard,
+							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
+								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							},
+						},
+					},
+				}
+			},
+			description: "Verify NutanixMachine with data disk size error",
+			stepDesc:    "should error on validation due to disk size",
+			errCheck: func(g *WithT, err error) {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("minimum data disk size"))
+			},
+		},
+		{
+			name: "dataSourceUUIDError",
+			dataDisks: func() []infrav1.NutanixMachineVMDisk {
+				return []infrav1.NutanixMachineVMDisk{
+					{
+						DiskSize: resource.MustParse("20Gi"),
+						DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+							DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+							AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+						},
+						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+							DiskMode: infrav1.NutanixMachineDiskModeStandard,
+							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
+								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							},
+						},
+						DataSource: &infrav1.NutanixResourceIdentifier{
+							Type: infrav1.NutanixIdentifierUUID,
+							Name: ptr.To("data-source-name"),
+						},
+					},
+				}
+			},
+			description: "Verify NutanixMachine with data disk data source UUID error",
+			stepDesc:    "should error on validation due to data source UUID",
+			errCheck: func(g *WithT, err error) {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("UUID is required for data disk with UUID source"))
+			},
+		},
+		{
+			name: "dataSourceNameError",
+			dataDisks: func() []infrav1.NutanixMachineVMDisk {
+				return []infrav1.NutanixMachineVMDisk{
+					{
+						DiskSize: resource.MustParse("20Gi"),
+						DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+							DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+							AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+						},
+						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+							DiskMode: infrav1.NutanixMachineDiskModeStandard,
+							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
+								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							},
+						},
+						DataSource: &infrav1.NutanixResourceIdentifier{
+							Type: infrav1.NutanixIdentifierName,
+							UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+						},
+					},
+				}
+			},
+			description: "Verify NutanixMachine with data disk data source name error",
+			stepDesc:    "should error on validation due to data source name",
+			errCheck: func(g *WithT, err error) {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("name is required for data disk with name source"))
+			},
+		},
+		{
+			name: "storageContainerIDErrorWrongUUID",
+			dataDisks: func() []infrav1.NutanixMachineVMDisk {
+				return []infrav1.NutanixMachineVMDisk{
+					{
+						DiskSize: resource.MustParse("20Gi"),
+						DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+							DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+							AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+						},
+						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+							DiskMode: infrav1.NutanixMachineDiskModeStandard,
+							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
+								Id: ptr.To("not-an-uuid"),
+							},
+						},
+					},
+				}
+			},
+			description: "Verify NutanixMachine with data disk storage container ID error",
+			stepDesc:    "should error on validation due to storage container ID",
+			errCheck: func(g *WithT, err error) {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("invalid UUID for storage container in data disk"))
+			},
+		},
+		{
+			name: "storageContainerIDErrorEmptyID",
+			dataDisks: func() []infrav1.NutanixMachineVMDisk {
+				return []infrav1.NutanixMachineVMDisk{
+					{
+						DiskSize: resource.MustParse("20Gi"),
+						DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+							DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+							AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+						},
+						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+							DiskMode:         infrav1.NutanixMachineDiskModeStandard,
+							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{},
+						},
+					},
+				}
+			},
+			description: "Verify NutanixMachine with data disk storage container ID error",
+			stepDesc:    "should error on validation due to storage container ID",
+			errCheck: func(g *WithT, err error) {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("ID is required for storage container in data disk"))
+			},
+		},
+		{
+			name: "dataDiskErrorWrongDiskMode",
+			dataDisks: func() []infrav1.NutanixMachineVMDisk {
+				return []infrav1.NutanixMachineVMDisk{
+					{
+						DiskSize: resource.MustParse("20Gi"),
+						DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+							DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+							AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+						},
+						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+							DiskMode: "not-standard",
+							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
+								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							},
+						},
+					},
+				}
+			},
+			description: "Verify NutanixMachine with data disk disk mode error",
+			stepDesc:    "should error on validation due to disk mode",
+			errCheck: func(g *WithT, err error) {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("invalid disk mode not-standard for data disk"))
+			},
+		},
+		{
+			name: "dataDiskErrorWrongDeviceType",
+			dataDisks: func() []infrav1.NutanixMachineVMDisk {
+				return []infrav1.NutanixMachineVMDisk{
+					{
+						DiskSize: resource.MustParse("20Gi"),
+						DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+							DeviceType:  "not-disk",
+							AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+						},
+						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+							DiskMode: infrav1.NutanixMachineDiskModeStandard,
+							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
+								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							},
+						},
+					},
+				}
+			},
+			description: "Verify NutanixMachine with data disk device type error",
+			stepDesc:    "should error on validation due to device type",
+			errCheck: func(g *WithT, err error) {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("invalid device type not-disk for data disk"))
+			},
+		},
+		{
+			name: "dataDiskErrorWrongAdapterType",
+			dataDisks: func() []infrav1.NutanixMachineVMDisk {
+				return []infrav1.NutanixMachineVMDisk{
+					{
+						DiskSize: resource.MustParse("20Gi"),
+						DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+							DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+							AdapterType: "not-scsi",
+						},
+						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+							DiskMode: infrav1.NutanixMachineDiskModeStandard,
+							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
+								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							},
+						},
+					},
+				}
+			},
+			description: "Verify NutanixMachine with data disk adapter type error",
+			stepDesc:    "should error on validation due to adapter type",
+			errCheck: func(g *WithT, err error) {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("invalid adapter type not-scsi for data disk"))
+			},
+		},
+		{
+			name: "dataDiskErrorWrongDeviceIndex",
+			dataDisks: func() []infrav1.NutanixMachineVMDisk {
+				return []infrav1.NutanixMachineVMDisk{
+					{
+						DiskSize: resource.MustParse("20Gi"),
+						DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+							DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+							AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+							DeviceIndex: -1,
+						},
+						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+							DiskMode: infrav1.NutanixMachineDiskModeStandard,
+							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
+								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							},
+						},
+					},
+				}
+			},
+			description: "Verify NutanixMachine with data disk device index error",
+			stepDesc:    "should error on validation due to device index",
+			errCheck: func(g *WithT, err error) {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("invalid device index -1 for data disk"))
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		g := NewWithT(t)
+
+		Describe("NutanixMachineValidateDataDisks", func() {
+			var (
+				reconciler  *NutanixMachineReconciler
+				ctx         context.Context
+				ntnxMachine *infrav1.NutanixMachine
+				machine     *capiv1.Machine
+				ntnxCluster *infrav1.NutanixCluster
+				dataDisks   func() []infrav1.NutanixMachineVMDisk
+			)
+
+			BeforeEach(func() {
+				ctx = context.Background()
+
+				reconciler = &NutanixMachineReconciler{
+					Client: k8sClient,
+					Scheme: runtime.NewScheme(),
+				}
+
+				ntnxMachine = &infrav1.NutanixMachine{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+					},
+					Spec: infrav1.NutanixMachineSpec{
+						Image: infrav1.NutanixResourceIdentifier{
+							Type: infrav1.NutanixIdentifierName,
+							Name: ptr.To("image"),
+						},
+						VCPUsPerSocket: int32(minVCPUsPerSocket),
+						MemorySize:     minMachineMemorySize,
+						SystemDiskSize: minMachineSystemDiskSize,
+						VCPUSockets:    int32(minVCPUSockets),
+						DataDisks:      dataDisks(),
+						Subnets: []infrav1.NutanixResourceIdentifier{
+							{
+								Type: infrav1.NutanixIdentifierName,
+								Name: ptr.To("blabla"),
+							},
+						},
+						Cluster: infrav1.NutanixResourceIdentifier{
+							Type: infrav1.NutanixIdentifierName,
+							Name: ptr.To("PE1"),
+						},
+					},
+				}
+
+				machine = &capiv1.Machine{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+						Labels: map[string]string{
+							"cluster.x-k8s.io/cluster-name": "test",
+						},
+					},
+					Spec: capiv1.MachineSpec{
+						ClusterName: "test",
+					},
+				}
+
+				ntnxCluster = &infrav1.NutanixCluster{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+					},
+					Spec: infrav1.NutanixClusterSpec{
+						PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+							Address: "prism.central.ntnx",
+							Port:    9440,
+							CredentialRef: &credentialTypes.NutanixCredentialReference{
+								Kind:      credentialTypes.SecretKind,
+								Name:      "test",
+								Namespace: "default",
+							},
+						},
+					},
+				}
+			})
+
+			Context(testCase.description, func() {
+				dataDisks = testCase.dataDisks
+
+				It(testCase.stepDesc, func() {
+					By("Validating machine config")
+					err := reconciler.validateMachineConfig(&nctx.MachineContext{
+						Context:        ctx,
+						NutanixMachine: ntnxMachine,
+						Machine:        machine,
+						NutanixCluster: ntnxCluster,
+					})
+					testCase.errCheck(g, err)
+				})
+			})
+		})
+	}
+}
+
 func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 	defaultSystemImage := &prismclientv3.ImageIntentResponse{
 		Metadata: &prismclientv3.Metadata{
@@ -511,6 +887,21 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 			MemorySize:     minMachineMemorySize,
 			SystemDiskSize: minMachineSystemDiskSize,
 			VCPUSockets:    int32(minVCPUSockets),
+			DataDisks: []infrav1.NutanixMachineVMDisk{
+				{
+					DiskSize: resource.MustParse("20Gi"),
+					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+					},
+					StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+						DiskMode: infrav1.NutanixMachineDiskModeStandard,
+						StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
+							Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+						},
+					},
+				},
+			},
 			Subnets: []infrav1.NutanixResourceIdentifier{
 				{
 					Type: infrav1.NutanixIdentifierName,
@@ -696,6 +1087,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 			if tc.wantErr != (err != nil) {
 				t.Fatal("got unexpected error: ", err)
 			}
+
 			if tc.wantDisksLen != len(disks) {
 				t.Fatalf("expected %d disks, got %d", tc.wantDisksLen, len(disks))
 			}
