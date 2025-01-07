@@ -74,12 +74,12 @@ type NutanixResourceIdentifier struct {
 	Name *string `json:"name,omitempty"`
 }
 
-func (i NutanixResourceIdentifier) String() string {
-	if i.Type == NutanixIdentifierUUID && i.UUID != nil {
-		return *i.UUID
+func (nri NutanixResourceIdentifier) String() string {
+	if nri.Type == NutanixIdentifierUUID && nri.UUID != nil {
+		return *nri.UUID
 	}
-	if i.Type == NutanixIdentifierName && i.Name != nil {
-		return *i.Name
+	if nri.Type == NutanixIdentifierName && nri.Name != nil {
+		return *nri.Name
 	}
 	return ""
 }
