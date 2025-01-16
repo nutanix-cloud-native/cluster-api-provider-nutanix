@@ -239,7 +239,7 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 	clusterUUID, err := controllers.GetPEUUID(ctx, t.nutanixClient, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
-	imageUUID, err := controllers.GetImageUUID(ctx, t.nutanixClient, &imageVarValue, nil)
+	imageUUID, err := controllers.GetImageUUID(ctx, t.nutanixClient, &imageVarValue, nil, nil, nil, nil)
 	Expect(err).ToNot(HaveOccurred())
 
 	subnetUUID, err := controllers.GetSubnetUUID(ctx, t.nutanixClient, clusterUUID, &subnetVarValue, nil)

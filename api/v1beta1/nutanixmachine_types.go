@@ -70,8 +70,26 @@ type NutanixMachineSpec struct {
 	// image is to identify the rhcos image uploaded to the Prism Central (PC)
 	// The image identifier (uuid or name) can be obtained from the Prism Central console
 	// or using the prism_central API.
-	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Optional
+	// +optional
 	Image NutanixResourceIdentifier `json:"image"`
+	// ImageLookupFormat is the naming format to look up the image for this
+	// machine It will be ignored if an explicit image is set. Supports
+	// substitutions for {{.BaseOS}} and {{.K8sVersion}} with the base OS and
+	// kubernetes version, respectively. The BaseOS will be the value in
+	// ImageLookupBaseOS and the kubernetes version as
+	// defined by the packages produced by kubernetes/release without v as a
+	// prefix: 1.13.0, 1.12.5-mybuild.1, or 1.17.3. For example, the default
+	// image format of nkp-{{.BaseOS}}-?{{.K8sVersion}}-* and ImageLookupBaseOS as "rhel-8.10" will end up
+	// searching for AMIs that match the pattern nkp-rhel-8.10-1.30.5-* for a
+	// Machine that is targeting kubernetes v1.30.5. See
+	// also: https://golang.org/pkg/text/template/
+	// +optional
+	ImageLookupFormat string `json:"imageLookupFormat,omitempty"`
+	// ImageLookupBaseOS is the name of the base operating system to use for
+	// image lookup.
+	// +optional
+	ImageLookupBaseOS string `json:"imageLookupBaseOS,omitempty"`
 	// cluster is to identify the cluster (the Prism Element under management
 	// of the Prism Central), in which the Machine's VM will be created.
 	// The cluster identifier (uuid or name) can be obtained from the Prism Central console
@@ -93,17 +111,14 @@ type NutanixMachineSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum:=legacy;uefi
 	BootType NutanixBootType `json:"bootType,omitempty"`
-
 	// systemDiskSize is size (in Quantity format) of the system disk of the VM
 	// The minimum systemDiskSize is 20Gi bytes
 	// +kubebuilder:validation:Required
 	SystemDiskSize resource.Quantity `json:"systemDiskSize"`
-
 	// BootstrapRef is a reference to a bootstrap provider-specific resource
 	// that holds configuration details.
 	// +optional
 	BootstrapRef *corev1.ObjectReference `json:"bootstrapRef,omitempty"`
-
 	// List of GPU devices that need to be added to the machines.
 	// +kubebuilder:validation:Optional
 	GPUs []NutanixGPU `json:"gpus,omitempty"`

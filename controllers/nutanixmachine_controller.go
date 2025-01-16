@@ -776,9 +776,20 @@ func getDiskList(rctx *nctx.MachineContext) ([]*prismclientv3.VMDisk, error) {
 
 func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 	nodeOSImageName := rctx.NutanixMachine.Spec.Image.Name
-	nodeOSImageUUID, err := GetImageUUID(rctx.Context, rctx.NutanixClient, nodeOSImageName, rctx.NutanixMachine.Spec.Image.UUID)
+	imageLookupFormat := rctx.NutanixMachine.Spec.ImageLookupFormat
+	imageLookupBaseOS := rctx.NutanixMachine.Spec.ImageLookupBaseOS
+	k8sVersion := rctx.Machine.Spec.Version
+	nodeOSImageUUID, err := GetImageUUID(
+		rctx.Context,
+		rctx.NutanixClient,
+		nodeOSImageName,
+		rctx.NutanixMachine.Spec.Image.UUID,
+		&imageLookupFormat,
+		&imageLookupBaseOS,
+		k8sVersion,
+	)
 	if err != nil {
-		errorMsg := fmt.Errorf("failed to get the image UUID for image named %q: %w", *nodeOSImageName, err)
+		errorMsg := fmt.Errorf("failed to get systemDisk with error: %w", err)
 		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
 		return nil, err
 	}
@@ -796,7 +807,7 @@ func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 
 func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 	bootstrapImageName := rctx.NutanixMachine.Spec.BootstrapRef.Name
-	bootstrapImageUUID, err := GetImageUUID(rctx.Context, rctx.NutanixClient, &bootstrapImageName, nil)
+	bootstrapImageUUID, err := GetImageUUID(rctx.Context, rctx.NutanixClient, &bootstrapImageName, nil, nil, nil, nil)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the image UUID for image named %q: %w", bootstrapImageName, err)
 		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)

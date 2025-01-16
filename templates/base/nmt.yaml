@@ -14,12 +14,11 @@ spec:
       vcpuSockets: ${NUTANIX_MACHINE_VCPU_SOCKET=2}
       memorySize: "${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}"
       systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
-      image:
-        type: name
-        name: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}"
       cluster:
         type: name
         name: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
+      imageLookupFormat: "${LOOKUP_FORMAT}"
+      imageLookupBaseOS: "${BASE_OS}"
       subnet:
         - type: name
           name: "${NUTANIX_SUBNET_NAME}"
