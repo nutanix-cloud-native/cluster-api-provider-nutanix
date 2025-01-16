@@ -149,7 +149,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.25.0 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
 	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/oauth2 v0.21.0 // indirect
@@ -180,6 +180,7 @@ require (
 replace (
 	// CVE fixes for https://avd.aquasec.com/nvd/2024/cve-2024-45337
 	golang.org/x/crypto => golang.org/x/crypto v0.31.0
-	golang.org/x/net v0.0.0-20220812174116-3211cb980234 => golang.org/x/net v0.0.0-20220906165146-f3363e06e74c
+	// CVE fixes for https://avd.aquasec.com/nvd/2024/cve-2024-45338
+	golang.org/x/net => golang.org/x/net v0.33.0
 	sigs.k8s.io/kind v0.20.0 => sigs.k8s.io/kind v0.22.0
 )
