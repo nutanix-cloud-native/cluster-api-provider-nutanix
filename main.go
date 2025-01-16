@@ -306,13 +306,14 @@ func initializeManager(config *managerConfig) (manager.Manager, error) {
 func main() {
 	logger := setupLogger()
 
-	restConfig := ctrl.GetConfigOrDie()
-
-	config := &managerConfig{
-		logger:     logger,
-		restConfig: restConfig,
-	}
+	config := &managerConfig{}
 	parseFlags(config)
+
+	// Flags must be parsed before calling GetConfigOrDie, because
+	// it reads the value of the--kubeconfig flag.
+	config.restConfig = ctrl.GetConfigOrDie()
+
+	config.logger = logger
 
 	logger.Info("Initializing Nutanix Cluster API Infrastructure Provider", "Git Hash", gitCommitHash)
 	mgr, err := initializeManager(config)
