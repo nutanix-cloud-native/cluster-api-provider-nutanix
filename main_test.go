@@ -2,18 +2,23 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
+	"sigs.k8s.io/cluster-api/util/flags"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
@@ -23,16 +28,158 @@ import (
 	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
 )
 
-func TestParseFlags(t *testing.T) {
-	config := &managerConfig{}
-	os.Args = []string{"cmd", "--leader-elect=true", "--max-concurrent-reconciles=5", "--diagnostics-address=:8081", "--insecure-diagnostics=true"}
-	parseFlags(config)
+func TestInitializeFlags(t *testing.T) {
+	tt := []struct {
+		name   string
+		args   []string
+		want   *options
+		cmpOpt cmp.Option
+	}{
+		{
+			name: "our own flags",
+			args: []string{
+				"cmd",
+				"--leader-elect=true",
+				"--max-concurrent-reconciles=5",
+				"--health-probe-bind-address=:8081",
+				"--rate-limiter-base-delay=500ms",
+				"--rate-limiter-max-delay=10s",
+				"--rate-limiter-bucket-size=1000",
+				"--rate-limiter-qps=50",
+			},
+			want: &options{
+				enableLeaderElection:    true,
+				maxConcurrentReconciles: 5,
+				healthProbeAddr:         ":8081",
+				rateLimiterBaseDelay:    500 * time.Millisecond,
+				rateLimiterMaxDelay:     10 * time.Second,
+				rateLimiterBucketSize:   1000,
+				rateLimiterQPS:          50,
+			},
+			cmpOpt: cmpopts.IgnoreFields(options{},
+				"managerOptions",
+				"zapOptions",
+			),
+		},
+		{
+			name: "Cluster API flags",
+			args: []string{
+				"cmd",
+				"--metrics-bind-addr=1.2.3.4",
+				"--diagnostics-address=:9999",
+				"--insecure-diagnostics=true",
+			},
+			want: &options{
+				managerOptions: flags.ManagerOptions{
+					MetricsBindAddr:     "1.2.3.4",
+					DiagnosticsAddress:  ":9999",
+					InsecureDiagnostics: true,
+				},
+			},
+			cmpOpt: cmpopts.IgnoreFields(options{},
+				"enableLeaderElection",
+				"maxConcurrentReconciles",
+				"healthProbeAddr",
+				"rateLimiterBaseDelay",
+				"rateLimiterMaxDelay",
+				"rateLimiterBucketSize",
+				"rateLimiterQPS",
 
-	assert.Equal(t, true, config.enableLeaderElection)
-	assert.Equal(t, 5, config.concurrentReconcilesNutanixCluster)
-	assert.Equal(t, 5, config.concurrentReconcilesNutanixMachine)
-	assert.Equal(t, ":8081", config.managerOptions.DiagnosticsAddress)
-	assert.Equal(t, true, config.managerOptions.InsecureDiagnostics)
+				// Controller-runtime defaults these values,
+				// so we ignore them.
+				"managerOptions.TLSMinVersion",
+				"managerOptions.TLSCipherSuites",
+			),
+		},
+		// Unfortunately, we cannot test parsing of the single controller-runtime flag,
+		// --kubeconfig, because its values is not exported. However, we do effectively test parsing
+		// by testing manager initialization; that creates loads a kubeconfig specified by the flag.
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			os.Args = tc.args
+
+			// Clear flags initialized by any other test.
+			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+			pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ExitOnError)
+
+			got := initializeFlags()
+			if diff := cmp.Diff(tc.want, got, cmp.AllowUnexported(options{}), tc.cmpOpt); diff != "" {
+				t.Errorf("MakeGatewayInfo() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestInitializeConfig(t *testing.T) {
+	tt := []struct {
+		name    string
+		args    []string
+		want    managerConfig
+		wantErr bool
+	}{
+		{
+			name: "pass with misc. options",
+			args: []string{
+				"cmd",
+				// Our options.
+				"--leader-elect=true",
+				"--max-concurrent-reconciles=5",
+				"--health-probe-bind-address=:8081",
+				"--rate-limiter-base-delay=500ms",
+				"--rate-limiter-max-delay=10s",
+				"--rate-limiter-bucket-size=1000",
+				"--rate-limiter-qps=50",
+				// Cluster API options.
+				"--insecure-diagnostics=true",
+				"--diagnostics-address=:9999",
+				"--insecure-diagnostics=false",
+				// Controller-runtime options.
+				"--kubeconfig=testdata/kubeconfig",
+			},
+			want:    managerConfig{},
+			wantErr: false,
+		},
+		{
+			name: "fail with missing kubeconfig",
+			args: []string{
+				"cmd",
+				"--kubeconfig=notfound",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			os.Args = tc.args
+
+			// Clear flags initialized by any other test.
+			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+			pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ExitOnError)
+
+			opts := initializeFlags()
+
+			got, err := initializeConfig(opts)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("unexpected error: %s", err)
+				}
+				return
+			}
+
+			assert.Equal(t, got.enableLeaderElection, opts.enableLeaderElection)
+			assert.Equal(t, got.healthProbeAddr, opts.healthProbeAddr)
+			assert.Equal(t, got.concurrentReconcilesNutanixCluster, opts.maxConcurrentReconciles)
+			assert.Equal(t, got.concurrentReconcilesNutanixMachine, opts.maxConcurrentReconciles)
+			assert.Equal(t, got.metricsServerOpts.BindAddress, opts.managerOptions.DiagnosticsAddress)
+
+			assert.NotNil(t, got.rateLimiter)
+			assert.True(t, got.logger.Enabled())
+			assert.Equal(t, got.restConfig.Host, "https://example.com:6443")
+		})
+	}
 }
 
 func TestSetupLogger(t *testing.T) {
@@ -60,7 +207,7 @@ func TestInitializeManager(t *testing.T) {
 
 	config := &managerConfig{
 		enableLeaderElection:               false,
-		probeAddr:                          ":8081",
+		healthProbeAddr:                    ":8081",
 		concurrentReconcilesNutanixCluster: 1,
 		concurrentReconcilesNutanixMachine: 1,
 		logger:                             setupLogger(),
