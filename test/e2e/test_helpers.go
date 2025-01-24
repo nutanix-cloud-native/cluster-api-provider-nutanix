@@ -239,7 +239,10 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 	clusterUUID, err := controllers.GetPEUUID(ctx, t.nutanixClient, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
-	imageUUID, err := controllers.GetImageUUID(ctx, t.nutanixClient, &imageVarValue, nil)
+	image, err := controllers.GetImage(ctx, t.nutanixClient, infrav1.NutanixResourceIdentifier{
+		Type: infrav1.NutanixIdentifierName,
+		Name: ptr.To(imageVarValue),
+	})
 	Expect(err).ToNot(HaveOccurred())
 
 	subnetUUID, err := controllers.GetSubnetUUID(ctx, t.nutanixClient, clusterUUID, &subnetVarValue, nil)
@@ -260,7 +263,7 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 					MemorySize:     resource.MustParse(defaultMemorySize),
 					Image: infrav1.NutanixResourceIdentifier{
 						Type: infrav1.NutanixIdentifierUUID,
-						UUID: ptr.To(imageUUID),
+						UUID: image.Metadata.UUID,
 					},
 					Cluster: infrav1.NutanixResourceIdentifier{
 						Type: infrav1.NutanixIdentifierUUID,

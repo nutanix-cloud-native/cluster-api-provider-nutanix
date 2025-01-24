@@ -775,16 +775,15 @@ func getDiskList(rctx *nctx.MachineContext) ([]*prismclientv3.VMDisk, error) {
 }
 
 func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
-	nodeOSImageName := rctx.NutanixMachine.Spec.Image.Name
-	nodeOSImageUUID, err := GetImageUUID(rctx.Context, rctx.NutanixClient, nodeOSImageName, rctx.NutanixMachine.Spec.Image.UUID)
+	nodeOSImage, err := GetImage(rctx.Context, rctx.NutanixClient, rctx.NutanixMachine.Spec.Image)
 	if err != nil {
-		errorMsg := fmt.Errorf("failed to get the image UUID for image named %q: %w", *nodeOSImageName, err)
+		errorMsg := fmt.Errorf("failed to get system disk image %q: %w", rctx.NutanixMachine.Spec.Image, err)
 		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
 		return nil, err
 	}
 
 	systemDiskSizeMib := GetMibValueOfQuantity(rctx.NutanixMachine.Spec.SystemDiskSize)
-	systemDisk, err := CreateSystemDiskSpec(nodeOSImageUUID, systemDiskSizeMib)
+	systemDisk, err := CreateSystemDiskSpec(*nodeOSImage.Metadata.UUID, systemDiskSizeMib)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating system disk spec: %w", err)
 		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
@@ -795,10 +794,13 @@ func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 }
 
 func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
-	bootstrapImageName := rctx.NutanixMachine.Spec.BootstrapRef.Name
-	bootstrapImageUUID, err := GetImageUUID(rctx.Context, rctx.NutanixClient, &bootstrapImageName, nil)
+	bootstrapImageRef := infrav1.NutanixResourceIdentifier{
+		Type: infrav1.NutanixIdentifierName,
+		Name: ptr.To(rctx.NutanixMachine.Spec.BootstrapRef.Name),
+	}
+	bootstrapImage, err := GetImage(rctx.Context, rctx.NutanixClient, bootstrapImageRef)
 	if err != nil {
-		errorMsg := fmt.Errorf("failed to get the image UUID for image named %q: %w", bootstrapImageName, err)
+		errorMsg := fmt.Errorf("failed to get bootstrap disk image %q: %w", bootstrapImageRef, err)
 		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
 		return nil, err
 	}
@@ -813,7 +815,7 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) 
 		},
 		DataSourceReference: &prismclientv3.Reference{
 			Kind: ptr.To(strings.ToLower(infrav1.NutanixMachineBootstrapRefKindImage)),
-			UUID: ptr.To(bootstrapImageUUID),
+			UUID: bootstrapImage.Metadata.UUID,
 		},
 	}
 
