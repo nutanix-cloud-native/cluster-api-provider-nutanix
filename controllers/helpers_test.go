@@ -418,7 +418,7 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			got, err := GetImageByNameOrUUID(ctx, tt.clientBuilder(), tt.image)
+			got, err := GetImage(ctx, tt.clientBuilder(), tt.image)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetImageByNameOrUUID() error = %v, wantErr %v", err, tt.wantErr)
 				return
