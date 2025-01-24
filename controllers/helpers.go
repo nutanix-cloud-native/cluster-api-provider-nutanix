@@ -300,17 +300,17 @@ func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID str
 
 // GetImage returns an image. If no UUID is provided, returns the unique image with the name.
 // Returns an error if no image has the UUID, if no image has the name, or more than one image has the name.
-func GetImage(ctx context.Context, client *prismclientv3.Client, image infrav1.NutanixResourceIdentifier) (*prismclientv3.ImageIntentResponse, error) {
+func GetImage(ctx context.Context, client *prismclientv3.Client, id infrav1.NutanixResourceIdentifier) (*prismclientv3.ImageIntentResponse, error) {
 	switch {
-	case image.IsUUID():
-		resp, err := client.V3.GetImage(ctx, *image.UUID)
+	case id.IsUUID():
+		resp, err := client.V3.GetImage(ctx, *id.UUID)
 		if err != nil {
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-				return nil, fmt.Errorf("failed to find image with UUID %s: %v", *image.UUID, err)
+				return nil, fmt.Errorf("failed to find image with UUID %s: %v", *id.UUID, err)
 			}
 		}
 		return resp, nil
-	case image.IsName():
+	case id.IsName():
 		responseImages, err := client.V3.ListAllImage(ctx, "")
 		if err != nil {
 			return nil, err
@@ -319,7 +319,7 @@ func GetImage(ctx context.Context, client *prismclientv3.Client, image infrav1.N
 		foundImages := make([]*prismclientv3.ImageIntentResponse, 0)
 		for _, s := range responseImages.Entities {
 			imageSpec := s.Spec
-			if strings.EqualFold(*imageSpec.Name, *image.Name) {
+			if strings.EqualFold(*imageSpec.Name, *id.Name) {
 				foundImages = append(foundImages, s)
 			}
 		}
@@ -328,9 +328,9 @@ func GetImage(ctx context.Context, client *prismclientv3.Client, image infrav1.N
 		case len(foundImages) == 1:
 			return foundImages[0], nil
 		case len(foundImages) > 1:
-			return nil, fmt.Errorf("more than one image found with name %s", *image.Name)
+			return nil, fmt.Errorf("more than one image found with name %s", *id.Name)
 		default:
-			return nil, fmt.Errorf("failed to retrieve image by name %s", *image.Name)
+			return nil, fmt.Errorf("failed to retrieve image by name %s", *id.Name)
 		}
 	default:
 		return nil, fmt.Errorf("image identifier is missing both name and uuid")

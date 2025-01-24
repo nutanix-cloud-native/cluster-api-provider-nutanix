@@ -237,7 +237,7 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 	tests := []struct {
 		name          string
 		clientBuilder func() *prismclientv3.Client
-		image         infrav1.NutanixResourceIdentifier
+		id            infrav1.NutanixResourceIdentifier
 		want          *prismclientv3.ImageIntentResponse
 		wantErr       bool
 	}{
@@ -249,7 +249,7 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 
 				return &prismclientv3.Client{V3: mockv3Service}
 			},
-			image:   infrav1.NutanixResourceIdentifier{},
+			id:      infrav1.NutanixResourceIdentifier{},
 			wantErr: true,
 		},
 		{
@@ -261,7 +261,7 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 
 				return &prismclientv3.Client{V3: mockv3Service}
 			},
-			image: infrav1.NutanixResourceIdentifier{
+			id: infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierUUID,
 				UUID: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
 			},
@@ -276,7 +276,7 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 
 				return &prismclientv3.Client{V3: mockv3Service}
 			},
-			image: infrav1.NutanixResourceIdentifier{
+			id: infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierName,
 				Name: ptr.To("example"),
 			},
@@ -297,7 +297,7 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 
 				return &prismclientv3.Client{V3: mockv3Service}
 			},
-			image: infrav1.NutanixResourceIdentifier{
+			id: infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierUUID,
 				UUID: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
 			},
@@ -326,7 +326,7 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 
 				return &prismclientv3.Client{V3: mockv3Service}
 			},
-			image: infrav1.NutanixResourceIdentifier{
+			id: infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierName,
 				Name: ptr.To("example"),
 			},
@@ -360,7 +360,7 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 
 				return &prismclientv3.Client{V3: mockv3Service}
 			},
-			image: infrav1.NutanixResourceIdentifier{
+			id: infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierName,
 				Name: ptr.To("example"),
 			},
@@ -379,7 +379,7 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 
 				return &prismclientv3.Client{V3: mockv3Service}
 			},
-			image: infrav1.NutanixResourceIdentifier{
+			id: infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierName,
 				Name: ptr.To("example"),
 			},
@@ -404,7 +404,7 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 
 				return &prismclientv3.Client{V3: mockv3Service}
 			},
-			image: infrav1.NutanixResourceIdentifier{
+			id: infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierName,
 				Name: ptr.To("example"),
 			},
@@ -418,7 +418,7 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			got, err := GetImage(ctx, tt.clientBuilder(), tt.image)
+			got, err := GetImage(ctx, tt.clientBuilder(), tt.id)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetImageByNameOrUUID() error = %v, wantErr %v", err, tt.wantErr)
 				return
