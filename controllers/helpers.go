@@ -302,7 +302,7 @@ func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID str
 // Returns an error if no image has the UUID, if no image has the name, or more than one image has the name.
 func GetImage(ctx context.Context, client *prismclientv3.Client, image infrav1.NutanixResourceIdentifier) (*prismclientv3.ImageIntentResponse, error) {
 	switch {
-	case image.UUID != nil:
+	case image.IsUUID():
 		resp, err := client.V3.GetImage(ctx, *image.UUID)
 		if err != nil {
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
@@ -310,7 +310,7 @@ func GetImage(ctx context.Context, client *prismclientv3.Client, image infrav1.N
 			}
 		}
 		return resp, nil
-	case image.Name != nil:
+	case image.IsName():
 		responseImages, err := client.V3.ListAllImage(ctx, "")
 		if err != nil {
 			return nil, err
@@ -333,7 +333,7 @@ func GetImage(ctx context.Context, client *prismclientv3.Client, image infrav1.N
 			return nil, fmt.Errorf("failed to retrieve image by name %s", *image.Name)
 		}
 	default:
-		return nil, fmt.Errorf("input parameters must include either name or uuid")
+		return nil, fmt.Errorf("image identifier is missing both name and uuid")
 	}
 }
 

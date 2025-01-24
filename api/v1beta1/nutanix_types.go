@@ -84,6 +84,14 @@ func (nri NutanixResourceIdentifier) String() string {
 	return ""
 }
 
+func (nri NutanixResourceIdentifier) IsUUID() bool {
+	return nri.Type == NutanixIdentifierUUID && nri.UUID != nil
+}
+
+func (nri NutanixResourceIdentifier) IsName() bool {
+	return nri.Type == NutanixIdentifierName && nri.Name != nil
+}
+
 type NutanixCategoryIdentifier struct {
 	// key is the Key of category in PC.
 	// +optional
