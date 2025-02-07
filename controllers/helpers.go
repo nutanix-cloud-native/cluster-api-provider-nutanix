@@ -323,14 +323,12 @@ func GetImage(ctx context.Context, client *prismclientv3.Client, id infrav1.Nuta
 				foundImages = append(foundImages, s)
 			}
 		}
-
-		switch {
-		case len(foundImages) == 1:
-			return foundImages[0], nil
-		case len(foundImages) > 1:
+		if len(foundImages) == 0 {
+			return nil, fmt.Errorf("found no image with name %s", *id.Name)
+		} else if len(foundImages) > 1 {
 			return nil, fmt.Errorf("more than one image found with name %s", *id.Name)
-		default:
-			return nil, fmt.Errorf("failed to retrieve image by name %s", *id.Name)
+		} else {
+			return foundImages[0], nil
 		}
 	default:
 		return nil, fmt.Errorf("image identifier is missing both name and uuid")
