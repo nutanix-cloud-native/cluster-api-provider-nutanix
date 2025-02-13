@@ -38,7 +38,7 @@ jobs:
         run: devbox run -- make generate fmt vet build
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        run: devbox run -- make lint
 
       - name: Lint
         run: devbox run -- make lint-yaml
