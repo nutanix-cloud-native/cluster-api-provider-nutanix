@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -466,4 +467,168 @@ func TestNutanixMachineReconciler_SetupWithManager_ClusterToTypedObjectsMapperEr
 	err = reconciler.SetupWithManager(ctx, mgr)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create mapper for Cluster to NutanixMachine")
+}
+
+func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
+	g := NewWithT(t)
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	Describe("NutanixMachineGetDiskList", func() {
+		var (
+			ctx         context.Context
+			ntnxMachine *infrav1.NutanixMachine
+			machine     *capiv1.Machine
+			ntnxCluster *infrav1.NutanixCluster
+			prismClient *prismclientv3.Client
+		)
+
+		BeforeEach(func() {
+			mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
+			mockV3Service.EXPECT().GetImage(gomock.Any(), gomock.Any()).Return(&prismclientv3.ImageIntentResponse{
+				Metadata: &prismclientv3.Metadata{
+					Kind: ptr.To("image"),
+					UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+				},
+				Spec: &prismclientv3.Image{
+					Name: ptr.To("image"),
+				},
+			}, nil).AnyTimes()
+			mockV3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(&prismclientv3.ImageListIntentResponse{
+				Entities: []*prismclientv3.ImageIntentResponse{
+					{
+						Metadata: &prismclientv3.Metadata{
+							Kind: ptr.To("image"),
+							UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+						},
+						Spec: &prismclientv3.Image{
+							Name: ptr.To("image"),
+						},
+					},
+				},
+			}, nil).AnyTimes()
+
+			ctx = context.Background()
+
+			ntnxMachine = &infrav1.NutanixMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: infrav1.NutanixMachineSpec{
+					Image: infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierUUID,
+						UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+					},
+					VCPUsPerSocket: int32(minVCPUsPerSocket),
+					MemorySize:     minMachineMemorySize,
+					SystemDiskSize: minMachineSystemDiskSize,
+					VCPUSockets:    int32(minVCPUSockets),
+					Subnets: []infrav1.NutanixResourceIdentifier{
+						{
+							Type: infrav1.NutanixIdentifierName,
+							Name: ptr.To("blabla"),
+						},
+					},
+					Cluster: infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierName,
+						Name: ptr.To("PE1"),
+					},
+					BootstrapRef: &corev1.ObjectReference{
+						Kind: infrav1.NutanixMachineBootstrapRefKindImage,
+						Name: "image",
+					},
+				},
+			}
+
+			machine = &capiv1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "default",
+					Labels: map[string]string{
+						"cluster.x-k8s.io/cluster-name": "test",
+					},
+				},
+				Spec: capiv1.MachineSpec{
+					ClusterName: "test",
+				},
+			}
+
+			ntnxCluster = &infrav1.NutanixCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: infrav1.NutanixClusterSpec{
+					PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+						Address: "prism.central.ntnx",
+						Port:    9440,
+						CredentialRef: &credentialTypes.NutanixCredentialReference{
+							Kind:      credentialTypes.SecretKind,
+							Name:      "test",
+							Namespace: "default",
+						},
+					},
+				},
+			}
+
+			prismClient = &prismclientv3.Client{
+				V3: mockV3Service,
+			}
+		})
+
+		It("return the bootstrap and system disks", func() {
+			By("Get disk list")
+
+			disks, err := getDiskList(&nctx.MachineContext{
+				Context:        ctx,
+				NutanixMachine: ntnxMachine,
+				Machine:        machine,
+				NutanixCluster: ntnxCluster,
+				NutanixClient:  prismClient,
+			})
+
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(disks).ToNot(BeNil())
+			g.Expect(len(disks) == 2).To(BeTrue())
+		})
+
+		It("should return an error if the bootstrap disk is not found", func() {
+			By("Get disk list")
+
+			ntnxMachineNoBootstrapDisk := ntnxMachine.DeepCopy()
+			ntnxMachineNoBootstrapDisk.Spec.BootstrapRef = &corev1.ObjectReference{
+				Kind: infrav1.NutanixMachineBootstrapRefKindImage,
+				Name: "notfound", // The name lookup will fail.
+			}
+
+			_, err := getDiskList(&nctx.MachineContext{
+				Context:        ctx,
+				NutanixMachine: ntnxMachineNoBootstrapDisk,
+				Machine:        machine,
+				NutanixCluster: ntnxCluster,
+				NutanixClient:  prismClient,
+			})
+			g.Expect(err).To(HaveOccurred())
+		})
+
+		It("should return an error if the system disk is not found", func() {
+			By("Get disk list")
+
+			ntnxMachineNoSystemDisk := ntnxMachine.DeepCopy()
+			ntnxMachineNoSystemDisk.Spec.Image = infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierName,
+				Name: ptr.To("notfound"), // The name lookup will fail.
+			}
+
+			_, err := getDiskList(&nctx.MachineContext{
+				Context:        ctx,
+				NutanixMachine: ntnxMachineNoSystemDisk,
+				Machine:        machine,
+				NutanixCluster: ntnxCluster,
+				NutanixClient:  prismClient,
+			})
+			g.Expect(err).To(HaveOccurred())
+		})
+	})
 }
