@@ -785,7 +785,7 @@ func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 	// Consider this a precaution. If the image is marked for deletion after we
 	// create the "VM create" task, then that task will fail. We will handle that
 	// failure separately.
-	if imageMarkedForDeletion(nodeOSImage) {
+	if ImageMarkedForDeletion(nodeOSImage) {
 		err := fmt.Errorf("system disk image %s is being deleted", *nodeOSImage.Metadata.UUID)
 		rctx.SetFailureStatus(capierrors.CreateMachineError, err)
 		return nil, err
@@ -817,7 +817,7 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) 
 	// Consider this a precaution. If the image is marked for deletion after we
 	// create the "VM create" task, then that task will fail. We will handle that
 	// failure separately.
-	if imageMarkedForDeletion(bootstrapImage) {
+	if ImageMarkedForDeletion(bootstrapImage) {
 		err := fmt.Errorf("bootstrap disk image %s is being deleted", *bootstrapImage.Metadata.UUID)
 		rctx.SetFailureStatus(capierrors.CreateMachineError, err)
 		return nil, err

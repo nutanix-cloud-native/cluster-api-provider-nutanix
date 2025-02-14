@@ -338,7 +338,7 @@ func GetImage(ctx context.Context, client *prismclientv3.Client, id infrav1.Nuta
 	}
 }
 
-func imageMarkedForDeletion(image *prismclientv3.ImageIntentResponse) bool {
+func ImageMarkedForDeletion(image *prismclientv3.ImageIntentResponse) bool {
 	state := *image.Status.State
 	return state == ImageStateDeletePending || state == ImageStateDeleteInProgress
 }
