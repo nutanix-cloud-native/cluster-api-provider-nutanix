@@ -147,6 +147,7 @@ type testHelperInterface interface {
 	getNutanixResourceIdentifierFromEnv(envVarKey string) infrav1.NutanixResourceIdentifier
 	getNutanixResourceIdentifierFromE2eConfig(variableKey string) infrav1.NutanixResourceIdentifier
 	getVariableFromE2eConfig(variableKey string) string
+	getDefaultStorageContainerNameAndUuid(ctx context.Context) (string, string, error)
 	updateVariableInE2eConfig(variableKey string, variableValue string)
 	stripNutanixIDFromProviderID(providerID string) string
 	verifyCategoryExists(ctx context.Context, categoryKey, categoyValue string)
@@ -590,6 +591,38 @@ func (t testHelper) getVariableFromE2eConfig(variableKey string) string {
 	variableValue := t.e2eConfig.GetVariable(variableKey)
 	Expect(variableValue).ToNot(BeEmpty(), "expected e2econfig variable %s to be set", variableKey)
 	return variableValue
+}
+
+func (t testHelper) getDefaultStorageContainerNameAndUuid(ctx context.Context) (string, string, error) {
+	scName := ""
+	scUUID := ""
+
+	scResponse, err := controllers.ListStorageContainers(ctx, t.nutanixClient)
+	if err != nil {
+		return "", "", err
+	}
+
+	if len(scResponse) == 0 {
+		return "", "", fmt.Errorf("no storage containers found")
+	}
+
+	peName := t.getVariableFromE2eConfig(clusterVarKey)
+
+	for _, sc := range scResponse {
+		if strings.Contains(*sc.Name, "default") && strings.EqualFold(*sc.ClusterName, peName) {
+			if sc.Name != nil {
+				scName = *sc.Name
+			}
+
+			if sc.UUID != nil {
+				scUUID = *sc.UUID
+			}
+
+			return scName, scUUID, nil
+		}
+	}
+
+	return "", "", fmt.Errorf("no default storage container found")
 }
 
 func (t testHelper) updateVariableInE2eConfig(variableKey string, variableValue string) {
