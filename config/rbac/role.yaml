@@ -8,7 +8,6 @@ rules:
   - ""
   resources:
   - configmaps
-  - secrets
   verbs:
   - delete
   - get
@@ -23,6 +22,16 @@ rules:
   - get
   - list
   - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - delete
+  - get
+  - list
+  - update
   - watch
 - apiGroups:
   - bootstrap.cluster.x-k8s.io
@@ -47,7 +56,15 @@ rules:
 - apiGroups:
   - cluster.x-k8s.io
   resources:
+  - clusters
   - clusters/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
   - machines
   - machines/status
   verbs:
@@ -58,7 +75,6 @@ rules:
   - infrastructure.cluster.x-k8s.io
   resources:
   - nutanixclusters
-  - nutanixmachines
   verbs:
   - create
   - delete
@@ -71,13 +87,37 @@ rules:
   - infrastructure.cluster.x-k8s.io
   resources:
   - nutanixclusters/finalizers
-  - nutanixmachines/finalizers
   verbs:
   - update
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
   - nutanixclusters/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - nutanixmachines
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - nutanixmachines/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
   - nutanixmachines/status
   verbs:
   - get
