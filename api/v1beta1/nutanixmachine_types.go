@@ -222,7 +222,7 @@ type NutanixMachineVMStorageConfig struct {
 
 	// storageContainer refers to the storage_container used by the VM disk.
 	// +optional
-	StorageContainer *NutanixStorageContainerResourceIdentifier `json:"storageContainer"`
+	StorageContainer *NutanixResourceIdentifier `json:"storageContainer"`
 }
 
 // NutanixMachineDiskMode is an enumeration of different disk modes.
@@ -236,14 +236,6 @@ type NutanixMachineDiskDeviceType string
 // NutanixMachineDiskAdapterType is an enumeration of different disk device adapter types.
 // +kubebuilder:validation:Enum:=SCSI;IDE;PCI;SATA;SPAPR
 type NutanixMachineDiskAdapterType string
-
-type NutanixStorageContainerResourceIdentifier struct {
-	// Storage Container UUID
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MaxLength=36
-	// +kubebuilder:validation:Pattern="^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-	Id *string `json:"id"`
-}
 
 // NutanixMachineStatus defines the observed state of NutanixMachine
 type NutanixMachineStatus struct {

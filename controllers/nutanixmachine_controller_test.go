@@ -491,8 +491,9 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 						},
 						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
 							DiskMode: infrav1.NutanixMachineDiskModeStandard,
-							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
-								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							StorageContainer: &infrav1.NutanixResourceIdentifier{
+								UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+								Type: infrav1.NutanixIdentifierUUID,
 							},
 						},
 					},
@@ -516,8 +517,9 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 						},
 						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
 							DiskMode: infrav1.NutanixMachineDiskModeStandard,
-							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
-								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							StorageContainer: &infrav1.NutanixResourceIdentifier{
+								UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+								Type: infrav1.NutanixIdentifierUUID,
 							},
 						},
 					},
@@ -542,8 +544,9 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 						},
 						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
 							DiskMode: infrav1.NutanixMachineDiskModeStandard,
-							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
-								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							StorageContainer: &infrav1.NutanixResourceIdentifier{
+								UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+								Type: infrav1.NutanixIdentifierUUID,
 							},
 						},
 						DataSource: &infrav1.NutanixResourceIdentifier{
@@ -572,8 +575,9 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 						},
 						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
 							DiskMode: infrav1.NutanixMachineDiskModeStandard,
-							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
-								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							StorageContainer: &infrav1.NutanixResourceIdentifier{
+								UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+								Type: infrav1.NutanixIdentifierUUID,
 							},
 						},
 						DataSource: &infrav1.NutanixResourceIdentifier{
@@ -602,8 +606,9 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 						},
 						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
 							DiskMode: infrav1.NutanixMachineDiskModeStandard,
-							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
-								Id: ptr.To("not-an-uuid"),
+							StorageContainer: &infrav1.NutanixResourceIdentifier{
+								UUID: ptr.To("not-an-uuid"),
+								Type: infrav1.NutanixIdentifierUUID,
 							},
 						},
 					},
@@ -627,8 +632,11 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 							AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
 						},
 						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
-							DiskMode:         infrav1.NutanixMachineDiskModeStandard,
-							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{},
+							DiskMode: infrav1.NutanixMachineDiskModeStandard,
+							StorageContainer: &infrav1.NutanixResourceIdentifier{
+								UUID: ptr.To(""),
+								Type: infrav1.NutanixIdentifierUUID,
+							},
 						},
 					},
 				}
@@ -637,7 +645,7 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 			stepDesc:    "should error on validation due to storage container ID",
 			errCheck: func(g *WithT, err error) {
 				g.Expect(err).To(HaveOccurred())
-				g.Expect(err.Error()).To(ContainSubstring("ID is required for storage container in data disk"))
+				g.Expect(err.Error()).To(ContainSubstring("invalid UUID for storage container in data disk"))
 			},
 		},
 		{
@@ -652,8 +660,9 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 						},
 						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
 							DiskMode: "not-standard",
-							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
-								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							StorageContainer: &infrav1.NutanixResourceIdentifier{
+								UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+								Type: infrav1.NutanixIdentifierUUID,
 							},
 						},
 					},
@@ -678,8 +687,9 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 						},
 						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
 							DiskMode: infrav1.NutanixMachineDiskModeStandard,
-							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
-								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							StorageContainer: &infrav1.NutanixResourceIdentifier{
+								UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+								Type: infrav1.NutanixIdentifierUUID,
 							},
 						},
 					},
@@ -704,8 +714,9 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 						},
 						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
 							DiskMode: infrav1.NutanixMachineDiskModeStandard,
-							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
-								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							StorageContainer: &infrav1.NutanixResourceIdentifier{
+								UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+								Type: infrav1.NutanixIdentifierUUID,
 							},
 						},
 					},
@@ -731,8 +742,9 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 						},
 						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
 							DiskMode: infrav1.NutanixMachineDiskModeStandard,
-							StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
-								Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+							StorageContainer: &infrav1.NutanixResourceIdentifier{
+								UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+								Type: infrav1.NutanixIdentifierUUID,
 							},
 						},
 					},
@@ -1082,7 +1094,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 				Machine:        machine,
 				NutanixCluster: ntnxCluster,
 				NutanixClient:  prismClient,
-			})
+			}, *ntnxMachine.Spec.Cluster.UUID)
 
 			if tc.wantErr != (err != nil) {
 				t.Fatal("got unexpected error: ", err)

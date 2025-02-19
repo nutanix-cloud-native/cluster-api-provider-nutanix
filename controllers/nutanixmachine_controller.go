@@ -597,14 +597,20 @@ func (r *NutanixMachineReconciler) validateDataDisks(dataDisks []infrav1.Nutanix
 }
 
 func validateDataDiskStorageConfig(disk infrav1.NutanixMachineVMDisk, errors []error) []error {
-	if disk.StorageConfig.StorageContainer != nil && disk.StorageConfig.StorageContainer.Id == nil {
-		errors = append(errors, fmt.Errorf("ID is required for storage container in data disk"))
+	if disk.StorageConfig.StorageContainer != nil && disk.StorageConfig.StorageContainer.IsUUID() {
+		if disk.StorageConfig.StorageContainer.UUID == nil {
+			errors = append(errors, fmt.Errorf("name or uuid is required for storage container in data disk"))
+		} else {
+			if _, err := uuid.Parse(*disk.StorageConfig.StorageContainer.UUID); err != nil {
+				errors = append(errors, fmt.Errorf("invalid UUID for storage container in data disk: %v", err))
+			}
+		}
 	}
 
-	if disk.StorageConfig.StorageContainer != nil && disk.StorageConfig.StorageContainer.Id != nil {
-		if _, err := uuid.Parse(*disk.StorageConfig.StorageContainer.Id); err != nil {
-			errors = append(errors, fmt.Errorf("invalid UUID for storage container in data disk: %v", err))
-		}
+	if disk.StorageConfig.StorageContainer != nil &&
+		disk.StorageConfig.StorageContainer.IsName() &&
+		disk.StorageConfig.StorageContainer.Name == nil {
+		errors = append(errors, fmt.Errorf("name or uuid is required for storage container in data disk"))
 	}
 
 	if disk.StorageConfig.DiskMode != infrav1.NutanixMachineDiskModeFlash && disk.StorageConfig.DiskMode != infrav1.NutanixMachineDiskModeStandard {
@@ -735,7 +741,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 		return nil, err
 	}
 
-	diskList, err := getDiskList(rctx)
+	diskList, err := getDiskList(rctx, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the disk list to create the VM %s. %v", vmName, err)
 		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
@@ -853,7 +859,7 @@ func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineC
 	return nil
 }
 
-func getDiskList(rctx *nctx.MachineContext) ([]*prismclientv3.VMDisk, error) {
+func getDiskList(rctx *nctx.MachineContext, peUUID string) ([]*prismclientv3.VMDisk, error) {
 	diskList := make([]*prismclientv3.VMDisk, 0)
 
 	systemDisk, err := getSystemDisk(rctx)
@@ -872,7 +878,7 @@ func getDiskList(rctx *nctx.MachineContext) ([]*prismclientv3.VMDisk, error) {
 		diskList = append(diskList, bootstrapDisk)
 	}
 
-	dataDisks, err := getDataDisks(rctx)
+	dataDisks, err := getDataDisks(rctx, peUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -963,8 +969,8 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) 
 	return bootstrapDisk, nil
 }
 
-func getDataDisks(rctx *nctx.MachineContext) ([]*prismclientv3.VMDisk, error) {
-	dataDisks, err := CreateDataDiskList(rctx.Context, rctx.NutanixClient, rctx.NutanixMachine.Spec.DataDisks)
+func getDataDisks(rctx *nctx.MachineContext, peUUID string) ([]*prismclientv3.VMDisk, error) {
+	dataDisks, err := CreateDataDiskList(rctx.Context, rctx.NutanixClient, rctx.NutanixMachine.Spec.DataDisks, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating data disk spec: %w", err)
 		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)

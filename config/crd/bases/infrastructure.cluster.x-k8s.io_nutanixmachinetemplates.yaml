@@ -260,13 +260,23 @@ spec:
                                   description: storageContainer refers to the storage_container
                                     used by the VM disk.
                                   properties:
-                                    id:
-                                      description: Storage Container UUID
-                                      maxLength: 36
-                                      pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+                                    name:
+                                      description: name is the resource name in the
+                                        PC
+                                      type: string
+                                    type:
+                                      description: Type is the identifier type to
+                                        use for this resource.
+                                      enum:
+                                      - uuid
+                                      - name
+                                      type: string
+                                    uuid:
+                                      description: uuid is the UUID of the resource
+                                        in the PC.
                                       type: string
                                   required:
-                                  - id
+                                  - type
                                   type: object
                               required:
                               - diskMode
