@@ -157,7 +157,7 @@ var _ = Describe("Nutanix machine data disks", Label("capx-feature-test", "data-
 				clusterName:            clusterName,
 				namespace:              namespace,
 				expectedPhase:          "Failed",
-				expectedFailureMessage: "Unable to find container",
+				expectedFailureMessage: "failed to find storage container 01010101-0101-0101-0101-0101010101",
 				bootstrapClusterProxy:  bootstrapClusterProxy,
 			})
 		})

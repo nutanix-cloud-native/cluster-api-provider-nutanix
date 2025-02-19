@@ -19,5 +19,3 @@ run:
     - e2e
   concurrency: 4
   timeout: 5m
-memory:
-  limit: 7GiB

@@ -2,7 +2,7 @@
   "packages": [
     "bash@latest",
     "coreutils@latest",
-    "clusterctl@latest",
+    "clusterctl@1.8.0",
     "envsubst@1.4.2",
     "fping@latest",
     "gnumake@4.4.1",
