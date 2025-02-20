@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
@@ -470,165 +471,234 @@ func TestNutanixMachineReconciler_SetupWithManager_ClusterToTypedObjectsMapperEr
 }
 
 func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
-	g := NewWithT(t)
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
+	defaultSystemImage := &prismclientv3.ImageIntentResponse{
+		Metadata: &prismclientv3.Metadata{
+			Kind: ptr.To("image"),
+			UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+		},
+		Spec: &prismclientv3.Image{
+			Name: ptr.To("system_image"),
+		},
+		Status: &prismclientv3.ImageDefStatus{
+			State: ptr.To(""),
+		},
+	}
 
-	Describe("NutanixMachineGetDiskList", func() {
-		var (
-			ctx         context.Context
-			ntnxMachine *infrav1.NutanixMachine
-			machine     *capiv1.Machine
-			ntnxCluster *infrav1.NutanixCluster
-			prismClient *prismclientv3.Client
-		)
+	defaultBootstrapImage := &prismclientv3.ImageIntentResponse{
+		Metadata: &prismclientv3.Metadata{
+			Kind: ptr.To("image"),
+			UUID: ptr.To("8c0c9436-f85e-49f4-ac00-782dbfb3c8f7"),
+		},
+		Spec: &prismclientv3.Image{
+			Name: ptr.To("bootstrap_image"),
+		},
+		Status: &prismclientv3.ImageDefStatus{
+			State: ptr.To(""),
+		},
+	}
 
-		BeforeEach(func() {
-			mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
-			mockV3Service.EXPECT().GetImage(gomock.Any(), gomock.Any()).Return(&prismclientv3.ImageIntentResponse{
-				Metadata: &prismclientv3.Metadata{
-					Kind: ptr.To("image"),
-					UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+	defaultNtnxMachine := &infrav1.NutanixMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+		},
+		Spec: infrav1.NutanixMachineSpec{
+			Image: infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierUUID,
+				UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+			},
+			VCPUsPerSocket: int32(minVCPUsPerSocket),
+			MemorySize:     minMachineMemorySize,
+			SystemDiskSize: minMachineSystemDiskSize,
+			VCPUSockets:    int32(minVCPUSockets),
+			Subnets: []infrav1.NutanixResourceIdentifier{
+				{
+					Type: infrav1.NutanixIdentifierName,
+					Name: ptr.To("subnet1"),
 				},
-				Spec: &prismclientv3.Image{
-					Name: ptr.To("image"),
-				},
-			}, nil).AnyTimes()
-			mockV3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(&prismclientv3.ImageListIntentResponse{
-				Entities: []*prismclientv3.ImageIntentResponse{
-					{
-						Metadata: &prismclientv3.Metadata{
-							Kind: ptr.To("image"),
-							UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
-						},
-						Spec: &prismclientv3.Image{
-							Name: ptr.To("image"),
-						},
-					},
-				},
-			}, nil).AnyTimes()
+			},
+			Cluster: infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierName,
+				Name: ptr.To("PE1"),
+			},
+			BootstrapRef: &corev1.ObjectReference{
+				Kind: infrav1.NutanixMachineBootstrapRefKindImage,
+				Name: "bootstrap_image",
+			},
+		},
+	}
 
-			ctx = context.Background()
+	defaultMachine := &capiv1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+			Labels: map[string]string{
+				"cluster.x-k8s.io/cluster-name": "test",
+			},
+		},
+		Spec: capiv1.MachineSpec{
+			ClusterName: "test",
+		},
+	}
 
-			ntnxMachine = &infrav1.NutanixMachine{
-				ObjectMeta: metav1.ObjectMeta{
+	defaultNtnxCluster := &infrav1.NutanixCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+		},
+		Spec: infrav1.NutanixClusterSpec{
+			PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+				Address: "prism.central.ntnx",
+				Port:    9440,
+				CredentialRef: &credentialTypes.NutanixCredentialReference{
+					Kind:      credentialTypes.SecretKind,
 					Name:      "test",
 					Namespace: "default",
 				},
-				Spec: infrav1.NutanixMachineSpec{
-					Image: infrav1.NutanixResourceIdentifier{
-						Type: infrav1.NutanixIdentifierUUID,
+			},
+		},
+	}
+
+	tt := []struct {
+		name         string
+		fixtures     func(*gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client)
+		wantDisksLen int
+		wantErr      bool
+	}{
+		{
+			name:         "return the bootstrap and system disks",
+			wantDisksLen: 2,
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client) {
+				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
+				mockV3Service.EXPECT().GetImage(gomock.Any(), *defaultSystemImage.Metadata.UUID).Return(defaultSystemImage, nil).MinTimes(1)
+				mockV3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(&prismclientv3.ImageListIntentResponse{
+					Entities: []*prismclientv3.ImageIntentResponse{
+						defaultSystemImage, defaultBootstrapImage,
+					},
+				}, nil).MinTimes(1)
+
+				prismClient := &prismclientv3.Client{
+					V3: mockV3Service,
+				}
+
+				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, prismClient
+			},
+		},
+		{
+			name:    "return an error if the bootstrap disk is not found",
+			wantErr: true,
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client) {
+				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
+				mockV3Service.EXPECT().GetImage(gomock.Any(), *defaultSystemImage.Metadata.UUID).Return(defaultSystemImage, nil).MinTimes(1)
+				mockV3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(&prismclientv3.ImageListIntentResponse{
+					Entities: []*prismclientv3.ImageIntentResponse{
+						defaultSystemImage,
+					},
+				}, nil).MinTimes(1)
+
+				prismClient := &prismclientv3.Client{
+					V3: mockV3Service,
+				}
+
+				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, prismClient
+			},
+		},
+		{
+			name:    "return an error if the system disk is not found",
+			wantErr: true,
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client) {
+				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
+				mockV3Service.EXPECT().GetImage(gomock.Any(), *defaultSystemImage.Metadata.UUID).Return(nil, fmt.Errorf("ENTITY_NOT_FOUND")).MinTimes(1)
+
+				prismClient := &prismclientv3.Client{
+					V3: mockV3Service,
+				}
+
+				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, prismClient
+			},
+		},
+		{
+			name:    "return an error if the system disk is marked for deletion",
+			wantErr: true,
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client) {
+				systemImage := &prismclientv3.ImageIntentResponse{
+					Metadata: &prismclientv3.Metadata{
+						Kind: ptr.To("image"),
 						UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
 					},
-					VCPUsPerSocket: int32(minVCPUsPerSocket),
-					MemorySize:     minMachineMemorySize,
-					SystemDiskSize: minMachineSystemDiskSize,
-					VCPUSockets:    int32(minVCPUSockets),
-					Subnets: []infrav1.NutanixResourceIdentifier{
-						{
-							Type: infrav1.NutanixIdentifierName,
-							Name: ptr.To("blabla"),
-						},
+					Spec: &prismclientv3.Image{
+						Name: ptr.To("system_image"),
 					},
-					Cluster: infrav1.NutanixResourceIdentifier{
-						Type: infrav1.NutanixIdentifierName,
-						Name: ptr.To("PE1"),
+					Status: &prismclientv3.ImageDefStatus{
+						State: ptr.To(string(ImageStateDeleteInProgress)),
 					},
-					BootstrapRef: &corev1.ObjectReference{
-						Kind: infrav1.NutanixMachineBootstrapRefKindImage,
-						Name: "image",
-					},
-				},
-			}
+				}
 
-			machine = &capiv1.Machine{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "default",
-					Labels: map[string]string{
-						"cluster.x-k8s.io/cluster-name": "test",
+				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
+				mockV3Service.EXPECT().GetImage(gomock.Any(), *systemImage.Metadata.UUID).Return(systemImage, nil).MinTimes(1)
+
+				prismClient := &prismclientv3.Client{
+					V3: mockV3Service,
+				}
+
+				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, prismClient
+			},
+		},
+		{
+			name:    "return an error if the bootstrap disk is marked for deletion",
+			wantErr: true,
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client) {
+				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
+
+				bootstrapImage := &prismclientv3.ImageIntentResponse{
+					Metadata: &prismclientv3.Metadata{
+						Kind: ptr.To("image"),
+						UUID: ptr.To("8c0c9436-f85e-49f4-ac00-782dbfb3c8f7"),
 					},
-				},
-				Spec: capiv1.MachineSpec{
-					ClusterName: "test",
-				},
-			}
-
-			ntnxCluster = &infrav1.NutanixCluster{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "default",
-				},
-				Spec: infrav1.NutanixClusterSpec{
-					PrismCentral: &credentialTypes.NutanixPrismEndpoint{
-						Address: "prism.central.ntnx",
-						Port:    9440,
-						CredentialRef: &credentialTypes.NutanixCredentialReference{
-							Kind:      credentialTypes.SecretKind,
-							Name:      "test",
-							Namespace: "default",
-						},
+					Spec: &prismclientv3.Image{
+						Name: ptr.To("bootstrap_image"),
 					},
-				},
-			}
+					Status: &prismclientv3.ImageDefStatus{
+						State: ptr.To(string(ImageStateDeletePending)),
+					},
+				}
+				mockV3Service.EXPECT().GetImage(gomock.Any(), *defaultSystemImage.Metadata.UUID).Return(defaultSystemImage, nil).MinTimes(1)
+				mockV3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(&prismclientv3.ImageListIntentResponse{
+					Entities: []*prismclientv3.ImageIntentResponse{
+						defaultSystemImage, bootstrapImage,
+					},
+				}, nil).MinTimes(1)
 
-			prismClient = &prismclientv3.Client{
-				V3: mockV3Service,
-			}
-		})
+				prismClient := &prismclientv3.Client{
+					V3: mockV3Service,
+				}
 
-		It("return the bootstrap and system disks", func() {
-			By("Get disk list")
+				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, prismClient
+			},
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
+			ntnxMachine, machine, ntnxCluster, prismClient := tc.fixtures(mockCtrl)
 
 			disks, err := getDiskList(&nctx.MachineContext{
-				Context:        ctx,
+				Context:        context.Background(),
 				NutanixMachine: ntnxMachine,
 				Machine:        machine,
 				NutanixCluster: ntnxCluster,
 				NutanixClient:  prismClient,
 			})
 
-			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(disks).ToNot(BeNil())
-			g.Expect(len(disks) == 2).To(BeTrue())
-		})
-
-		It("should return an error if the bootstrap disk is not found", func() {
-			By("Get disk list")
-
-			ntnxMachineNoBootstrapDisk := ntnxMachine.DeepCopy()
-			ntnxMachineNoBootstrapDisk.Spec.BootstrapRef = &corev1.ObjectReference{
-				Kind: infrav1.NutanixMachineBootstrapRefKindImage,
-				Name: "notfound", // The name lookup will fail.
+			if tc.wantErr != (err != nil) {
+				t.Fatal("got unexpected error: ", err)
 			}
-
-			_, err := getDiskList(&nctx.MachineContext{
-				Context:        ctx,
-				NutanixMachine: ntnxMachineNoBootstrapDisk,
-				Machine:        machine,
-				NutanixCluster: ntnxCluster,
-				NutanixClient:  prismClient,
-			})
-			g.Expect(err).To(HaveOccurred())
-		})
-
-		It("should return an error if the system disk is not found", func() {
-			By("Get disk list")
-
-			ntnxMachineNoSystemDisk := ntnxMachine.DeepCopy()
-			ntnxMachineNoSystemDisk.Spec.Image = infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("notfound"), // The name lookup will fail.
+			if tc.wantDisksLen != len(disks) {
+				t.Fatalf("expected %d disks, got %d", tc.wantDisksLen, len(disks))
 			}
-
-			_, err := getDiskList(&nctx.MachineContext{
-				Context:        ctx,
-				NutanixMachine: ntnxMachineNoSystemDisk,
-				Machine:        machine,
-				NutanixCluster: ntnxCluster,
-				NutanixClient:  prismClient,
-			})
-			g.Expect(err).To(HaveOccurred())
 		})
-	})
+	}
 }

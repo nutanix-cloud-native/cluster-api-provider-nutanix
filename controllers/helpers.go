@@ -53,6 +53,9 @@ const (
 	gpuUnused = "UNUSED"
 
 	detachVGRequeueAfter = 30 * time.Second
+
+	ImageStateDeletePending    = "DELETE_PENDING"
+	ImageStateDeleteInProgress = "DELETE_IN_PROGRESS"
 )
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
@@ -333,6 +336,11 @@ func GetImage(ctx context.Context, client *prismclientv3.Client, id infrav1.Nuta
 	default:
 		return nil, fmt.Errorf("image identifier is missing both name and uuid")
 	}
+}
+
+func ImageMarkedForDeletion(image *prismclientv3.ImageIntentResponse) bool {
+	state := *image.Status.State
+	return state == ImageStateDeletePending || state == ImageStateDeleteInProgress
 }
 
 // HasTaskInProgress returns true if the given task is in progress
