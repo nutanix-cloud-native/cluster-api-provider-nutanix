@@ -304,25 +304,41 @@ func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID str
 	return foundSubnetUUID, nil
 }
 
-// GetImage returns an image UUID. If no UUID is provided, returns the unique image with the name.
+// GetImage returns an image. If no UUID is provided, returns the unique image with the name.
 // Returns an error if no image has the UUID, if no image has the name, or more than one image has the name.
 func GetImage(ctx context.Context, client *prismclientv3.Client, id *infrav1.NutanixResourceIdentifier) (*prismclientv3.ImageIntentResponse, error) {
 	switch {
 	case id.IsUUID():
-		resolvedUUIDResponse, err := getImageByUUID(ctx, client, *id.UUID)
+		resp, err := client.V3.GetImage(ctx, *id.UUID)
 		if err != nil {
-			return nil, err
+			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
+				return nil, fmt.Errorf("failed to find image with UUID %s: %v", *id.UUID, err)
+			}
 		}
-		return resolvedUUIDResponse, nil
+		return resp, nil
 	case id.IsName():
-		resolvedUUIDResponse, err := getImageByName(ctx, client, *id.Name)
+		responseImages, err := client.V3.ListAllImage(ctx, "")
 		if err != nil {
 			return nil, err
 		}
-		return resolvedUUIDResponse, nil
+		// Validate filtered Images
+		foundImages := make([]*prismclientv3.ImageIntentResponse, 0)
+		for _, s := range responseImages.Entities {
+			imageSpec := s.Spec
+			if strings.EqualFold(*imageSpec.Name, *id.Name) {
+				foundImages = append(foundImages, s)
+			}
+		}
+		if len(foundImages) == 0 {
+			return nil, fmt.Errorf("found no image with name %s", *id.Name)
+		} else if len(foundImages) > 1 {
+			return nil, fmt.Errorf("more than one image found with name %s", *id.Name)
+		} else {
+			return foundImages[0], nil
+		}
 	default:
+		return nil, fmt.Errorf("image identifier is missing both name and uuid")
 	}
-	return nil, fmt.Errorf("image identifier is missing both name and uuid")
 }
 
 type ImageLookup struct {
@@ -381,43 +397,6 @@ func sortImagesByLatestCreationTime(
 		return timeI.After(timeJ)
 	})
 	return images
-}
-
-func getImageByName(ctx context.Context, client *prismclientv3.Client, imageName string) (*prismclientv3.ImageIntentResponse, error) {
-	responseImages, err := client.V3.ListAllImage(ctx, "")
-	if err != nil {
-		return nil, err
-	}
-	// Validate filtered Images
-	foundImages := make([]*prismclientv3.ImageIntentResponse, 0)
-	for _, s := range responseImages.Entities {
-		imageSpec := s.Spec
-		if strings.EqualFold(*imageSpec.Name, imageName) {
-			foundImages = append(foundImages, s)
-		}
-	}
-	if len(foundImages) == 0 {
-		return nil, fmt.Errorf("failed to retrieve image by name %s", imageName)
-	}
-	if len(foundImages) > 1 {
-		return nil, fmt.Errorf("more than one image found with name %s", imageName)
-	}
-	return foundImages[0], nil
-}
-
-func getImageByUUID(
-	ctx context.Context,
-	client *prismclientv3.Client,
-	imageUUID string,
-) (*prismclientv3.ImageIntentResponse, error) {
-	imageIntentResponse, err := client.V3.GetImage(ctx, imageUUID)
-	if err != nil {
-		if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-			return nil, fmt.Errorf("failed to find image with UUID %s: %v", imageUUID, err)
-		}
-		return nil, fmt.Errorf("failed to get image by uuid %s with error %v", imageUUID, err)
-	}
-	return imageIntentResponse, nil
 }
 
 func ImageMarkedForDeletion(image *prismclientv3.ImageIntentResponse) bool {
