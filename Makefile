@@ -224,7 +224,7 @@ docker-push:  ## Push docker image with the manager.
 	KO_DOCKER_REPO=${IMG_REPO} ko build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push-kind
-docker-push-kind:
+docker-push-kind:  ## Make docker image available to kind cluster.
 	GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local ko build -B -t ${IMG_TAG} .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${MANAGER_IMAGE}
 	kind load docker-image --name ${KIND_CLUSTER_NAME} ${MANAGER_IMAGE}
