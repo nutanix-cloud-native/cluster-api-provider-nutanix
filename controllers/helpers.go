@@ -17,12 +17,15 @@ limitations under the License.
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/google/uuid"
@@ -303,7 +306,7 @@ func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID str
 
 // GetImage returns an image. If no UUID is provided, returns the unique image with the name.
 // Returns an error if no image has the UUID, if no image has the name, or more than one image has the name.
-func GetImage(ctx context.Context, client *prismclientv3.Client, id infrav1.NutanixResourceIdentifier) (*prismclientv3.ImageIntentResponse, error) {
+func GetImage(ctx context.Context, client *prismclientv3.Client, id *infrav1.NutanixResourceIdentifier) (*prismclientv3.ImageIntentResponse, error) {
 	switch {
 	case id.IsUUID():
 		resp, err := client.V3.GetImage(ctx, *id.UUID)
@@ -336,6 +339,64 @@ func GetImage(ctx context.Context, client *prismclientv3.Client, id infrav1.Nuta
 	default:
 		return nil, fmt.Errorf("image identifier is missing both name and uuid")
 	}
+}
+
+type ImageLookup struct {
+	BaseOS     string
+	K8sVersion string
+}
+
+func GetImageByLookup(
+	ctx context.Context,
+	client *prismclientv3.Client,
+	imageTemplate,
+	imageLookupBaseOS,
+	k8sVersion *string,
+) (*prismclientv3.ImageIntentResponse, error) {
+	if strings.Contains(*k8sVersion, "v") {
+		k8sVersion = ptr.To(strings.Replace(*k8sVersion, "v", "", 1))
+	}
+	params := ImageLookup{*imageLookupBaseOS, *k8sVersion}
+	t, err := template.New("k8sTemplate").Parse(*imageTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse template given %s %v", *imageTemplate, err)
+	}
+	var templateBytes bytes.Buffer
+	err = t.Execute(&templateBytes, params)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to substitute string %s with params %v error: %w",
+			*imageTemplate,
+			params,
+			err,
+		)
+	}
+	filterString := templateBytes.String()
+	filter := fmt.Sprintf("name==%s$", filterString)
+	responseImages, err := client.V3.ListAllImage(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list images with error %w", err)
+	}
+	sorted := sortImagesByLatestCreationTime(responseImages.Entities)
+	if len(sorted) == 0 {
+		return nil, fmt.Errorf("failed to find image with filter %s", filter)
+	}
+	return sorted[0], nil
+}
+
+// returns the images with the latest creation time first.
+func sortImagesByLatestCreationTime(
+	images []*prismclientv3.ImageIntentResponse,
+) []*prismclientv3.ImageIntentResponse {
+	sort.Slice(images, func(i, j int) bool {
+		if images[i].Metadata.CreationTime == nil || images[j].Metadata.CreationTime == nil {
+			return images[i].Metadata.CreationTime != nil
+		}
+		timeI := *images[i].Metadata.CreationTime
+		timeJ := *images[j].Metadata.CreationTime
+		return timeI.After(timeJ)
+	})
+	return images
 }
 
 func ImageMarkedForDeletion(image *prismclientv3.ImageIntentResponse) bool {

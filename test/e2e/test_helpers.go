@@ -219,7 +219,7 @@ func (t testHelper) createDefaultNMT(clusterName, namespace string) *infrav1.Nut
 					VCPUsPerSocket: defaultVCPUsPerSocket,
 					VCPUSockets:    defaultVCPUSockets,
 					MemorySize:     resource.MustParse(defaultMemorySize),
-					Image:          t.getNutanixResourceIdentifierFromE2eConfig(imageVarKey),
+					Image:          ptr.To(t.getNutanixResourceIdentifierFromE2eConfig(imageVarKey)),
 					Cluster:        t.getNutanixResourceIdentifierFromE2eConfig(clusterVarKey),
 					Subnets: []infrav1.NutanixResourceIdentifier{
 						t.getNutanixResourceIdentifierFromE2eConfig(subnetVarKey),
@@ -239,7 +239,7 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 	clusterUUID, err := controllers.GetPEUUID(ctx, t.nutanixClient, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
-	image, err := controllers.GetImage(ctx, t.nutanixClient, infrav1.NutanixResourceIdentifier{
+	image, err := controllers.GetImage(ctx, t.nutanixClient, &infrav1.NutanixResourceIdentifier{
 		Type: infrav1.NutanixIdentifierName,
 		Name: ptr.To(imageVarValue),
 	})
@@ -261,7 +261,7 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 					VCPUsPerSocket: defaultVCPUsPerSocket,
 					VCPUSockets:    defaultVCPUSockets,
 					MemorySize:     resource.MustParse(defaultMemorySize),
-					Image: infrav1.NutanixResourceIdentifier{
+					Image: &infrav1.NutanixResourceIdentifier{
 						Type: infrav1.NutanixIdentifierUUID,
 						UUID: image.Metadata.UUID,
 					},
