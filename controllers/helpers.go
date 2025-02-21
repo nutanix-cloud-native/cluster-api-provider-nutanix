@@ -21,11 +21,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"html/template"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/google/uuid"
@@ -346,7 +346,7 @@ type ImageLookup struct {
 	K8sVersion string
 }
 
-func GetImageWithFormat(
+func GetImageByLookup(
 	ctx context.Context,
 	client *prismclientv3.Client,
 	imageTemplate,
@@ -830,8 +830,7 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
-		//nolint:govet // ignore error.
-		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error()) //nolint:govet // error will not be a constant
 		return nil, err
 	}
 
@@ -856,9 +855,7 @@ func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.Nut
 	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
-		//nolint:govet // ignore error.
-		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
-
+		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, err.Error()) //nolint:govet // error will not be a constant
 		return nil, err
 	}
 
@@ -868,9 +865,7 @@ func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.Nut
 	})
 	if err != nil {
 		log.Error(err, "error occurred while getting nutanix prism v4 client from cache")
-		//nolint:govet // ignore error.
-		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
-
+		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, err.Error()) //nolint:govet // error will not be a constant
 		return nil, fmt.Errorf("nutanix prism v4 client error: %w", err)
 	}
 
