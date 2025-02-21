@@ -501,8 +501,7 @@ func TestRateLimiter(t *testing.T) {
 }
 
 func TestKubebuilderValidations(t *testing.T) {
-	var testEnv *envtest.Environment
-	testEnv = &envtest.Environment{
+	testEnv := &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
 	}
@@ -652,6 +651,7 @@ func TestKubebuilderValidations(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+			//nolint:errcheck // this is just for house keeping and doesn't actually do anything with testing the functionality.
 			k8sClient.Delete(context.Background(), &tt.machineTemplate)
 		})
 	}
