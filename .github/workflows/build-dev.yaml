@@ -6,7 +6,7 @@ on:
     branches:
       - main
       - 'release-*'
-  pull_request:
+  pull_request: # Fake comment.
     paths:
     - '.github/**'
   pull_request_target:
