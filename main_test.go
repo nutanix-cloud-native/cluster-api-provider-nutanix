@@ -16,12 +16,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/cluster-api/util/flags"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
 	mockctlclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/ctlclient"
 	mockmeta "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sapimachinery"
@@ -491,6 +496,163 @@ func TestRateLimiter(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestKubebuilderValidations(t *testing.T) {
+	var testEnv *envtest.Environment
+	testEnv = &envtest.Environment{
+		CRDDirectoryPaths:     []string{filepath.Join("config", "crd", "bases")},
+		ErrorIfCRDPathMissing: true,
+	}
+
+	cfg, err := testEnv.Start()
+	assert.NoError(t, err)
+	assert.NotNil(t, cfg)
+
+	defer func() {
+		err := testEnv.Stop()
+		require.NoError(t, err)
+	}()
+
+	err = infrav1.AddToScheme(scheme)
+	assert.NoError(t, err)
+
+	err = infrav1.AddToScheme(scheme)
+	assert.NoError(t, err)
+
+	k8sClient, err := client.New(cfg, client.Options{Scheme: scheme})
+	assert.NoError(t, err)
+	assert.NotNil(t, k8sClient)
+
+	cases := []struct {
+		testName        string
+		machineTemplate infrav1.NutanixMachineTemplate
+		wantErr         bool
+		errTextContains string
+	}{
+		{
+			"machine template with image",
+			infrav1.NutanixMachineTemplate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "machinetemplatewithimage",
+					Namespace: metav1.NamespaceDefault,
+				},
+				Spec: infrav1.NutanixMachineTemplateSpec{
+					Template: infrav1.NutanixMachineTemplateResource{
+						Spec: infrav1.NutanixMachineSpec{
+							VCPUsPerSocket: 1,
+							VCPUSockets:    1,
+							MemorySize:     resource.Quantity{},
+							Cluster: infrav1.NutanixResourceIdentifier{
+								Type: infrav1.NutanixIdentifierUUID,
+							},
+							Image: &infrav1.NutanixResourceIdentifier{
+								Type: infrav1.NutanixIdentifierName,
+								Name: ptr.To("rockylinux-9-v1.31.4"),
+							},
+							SystemDiskSize: resource.Quantity{},
+						},
+					},
+				},
+			},
+			false,
+			"",
+		},
+		{
+			"machine template with image lookup",
+			infrav1.NutanixMachineTemplate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "machinetemplatewithimagelookup",
+					Namespace: metav1.NamespaceDefault,
+				},
+				Spec: infrav1.NutanixMachineTemplateSpec{
+					Template: infrav1.NutanixMachineTemplateResource{
+						Spec: infrav1.NutanixMachineSpec{
+							VCPUsPerSocket: 1,
+							VCPUSockets:    1,
+							Cluster: infrav1.NutanixResourceIdentifier{
+								Type: infrav1.NutanixIdentifierUUID,
+							},
+							MemorySize: resource.Quantity{},
+							ImageLookup: &infrav1.NutanixImageLookup{
+								BaseOS: "rockylinux-9",
+							},
+							SystemDiskSize: resource.Quantity{},
+						},
+					},
+				},
+			},
+			false,
+			"",
+		},
+		{
+			"machine template without lookup or image",
+			infrav1.NutanixMachineTemplate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "machinetemplatenolookuporimage",
+					Namespace: metav1.NamespaceDefault,
+				},
+				Spec: infrav1.NutanixMachineTemplateSpec{
+					Template: infrav1.NutanixMachineTemplateResource{
+						Spec: infrav1.NutanixMachineSpec{
+							VCPUsPerSocket: 1,
+							VCPUSockets:    1,
+							Cluster: infrav1.NutanixResourceIdentifier{
+								Type: infrav1.NutanixIdentifierUUID,
+							},
+							MemorySize:     resource.Quantity{},
+							SystemDiskSize: resource.Quantity{},
+						},
+					},
+				},
+			},
+			true,
+			"Either 'image' or 'imageLookup' must be set, but not both",
+		},
+		{
+			"machine template with both lookup or image",
+			infrav1.NutanixMachineTemplate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "machinetemplateimageandlookup",
+					Namespace: metav1.NamespaceDefault,
+				},
+				Spec: infrav1.NutanixMachineTemplateSpec{
+					Template: infrav1.NutanixMachineTemplateResource{
+						Spec: infrav1.NutanixMachineSpec{
+							VCPUsPerSocket: 1,
+							Cluster: infrav1.NutanixResourceIdentifier{
+								Type: infrav1.NutanixIdentifierUUID,
+							},
+							VCPUSockets: 1,
+							ImageLookup: &infrav1.NutanixImageLookup{
+								BaseOS: "rockylinux-9",
+							},
+							Image: &infrav1.NutanixResourceIdentifier{
+								Type: infrav1.NutanixIdentifierName,
+								Name: ptr.To("rockylinux-9-v1.31.4"),
+							},
+							MemorySize:     resource.Quantity{},
+							SystemDiskSize: resource.Quantity{},
+						},
+					},
+				},
+			},
+			true,
+			"Either 'image' or 'imageLookup' must be set, but not both",
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.testName, func(t *testing.T) {
+			err = k8sClient.Create(context.Background(), &tt.machineTemplate)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errTextContains)
+			} else {
+				assert.NoError(t, err)
+			}
+			k8sClient.Delete(context.Background(), &tt.machineTemplate)
 		})
 	}
 }
