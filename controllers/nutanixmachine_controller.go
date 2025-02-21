@@ -784,7 +784,7 @@ func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 			rctx.NutanixMachine.Spec.Image,
 		)
 	} else if rctx.NutanixMachine.Spec.ImageLookup != nil {
-		nodeOSImage, err = GetImageWithFormat(
+		nodeOSImage, err = GetImageByLookup(
 			rctx.Context,
 			rctx.NutanixClient,
 			rctx.NutanixMachine.Spec.ImageLookup.Format,
