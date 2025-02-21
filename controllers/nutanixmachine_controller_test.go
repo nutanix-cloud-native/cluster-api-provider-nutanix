@@ -908,8 +908,9 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 					},
 					StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
 						DiskMode: infrav1.NutanixMachineDiskModeStandard,
-						StorageContainer: &infrav1.NutanixStorageContainerResourceIdentifier{
-							Id: ptr.To("d3b347fc-4154-4880-a1c6-668d874f15c4"),
+						StorageContainer: &infrav1.NutanixResourceIdentifier{
+							UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+							Type: infrav1.NutanixIdentifierUUID,
 						},
 					},
 				},
@@ -921,8 +922,8 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 				},
 			},
 			Cluster: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("PE1"),
+				Type: infrav1.NutanixIdentifierUUID,
+				UUID: ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
 			},
 			BootstrapRef: &corev1.ObjectReference{
 				Kind: infrav1.NutanixMachineBootstrapRefKindImage,
@@ -969,8 +970,8 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 		wantErr      bool
 	}{
 		{
-			name:         "return the bootstrap and system disks",
-			wantDisksLen: 2,
+			name:         "return get disk list",
+			wantDisksLen: 3,
 			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client) {
 				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
 				mockV3Service.EXPECT().GetImage(gomock.Any(), *defaultSystemImage.Metadata.UUID).Return(defaultSystemImage, nil).MinTimes(1)
@@ -979,6 +980,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 						defaultSystemImage, defaultBootstrapImage,
 					},
 				}, nil).MinTimes(1)
+				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
 
 				prismClient := &prismclientv3.Client{
 					V3: mockV3Service,
@@ -998,6 +1000,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 						defaultSystemImage,
 					},
 				}, nil).MinTimes(1)
+				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
 
 				prismClient := &prismclientv3.Client{
 					V3: mockV3Service,
@@ -1012,6 +1015,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client) {
 				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
 				mockV3Service.EXPECT().GetImage(gomock.Any(), *defaultSystemImage.Metadata.UUID).Return(nil, fmt.Errorf("ENTITY_NOT_FOUND")).MinTimes(1)
+				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
 
 				prismClient := &prismclientv3.Client{
 					V3: mockV3Service,
@@ -1039,6 +1043,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 
 				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
 				mockV3Service.EXPECT().GetImage(gomock.Any(), *systemImage.Metadata.UUID).Return(systemImage, nil).MinTimes(1)
+				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
 
 				prismClient := &prismclientv3.Client{
 					V3: mockV3Service,
@@ -1071,6 +1076,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 						defaultSystemImage, bootstrapImage,
 					},
 				}, nil).MinTimes(1)
+				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
 
 				prismClient := &prismclientv3.Client{
 					V3: mockV3Service,
