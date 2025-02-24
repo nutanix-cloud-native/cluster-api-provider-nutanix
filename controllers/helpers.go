@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -371,15 +372,21 @@ func GetImageByLookup(
 			err,
 		)
 	}
-	filterString := templateBytes.String()
-	filter := fmt.Sprintf("name==%s$", filterString)
-	responseImages, err := client.V3.ListAllImage(ctx, filter)
+	responseImages, err := client.V3.ListAllImage(ctx, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to list images with error %w", err)
+		return nil, err
 	}
-	sorted := sortImagesByLatestCreationTime(responseImages.Entities)
+	re := regexp.MustCompile(templateBytes.String())
+	foundImages := make([]*prismclientv3.ImageIntentResponse, 0)
+	for _, s := range responseImages.Entities {
+		imageSpec := s.Spec
+		if re.Match([]byte(*imageSpec.Name)) {
+			foundImages = append(foundImages, s)
+		}
+	}
+	sorted := sortImagesByLatestCreationTime(foundImages)
 	if len(sorted) == 0 {
-		return nil, fmt.Errorf("failed to find image with filter %s", filter)
+		return nil, fmt.Errorf("failed to find image with filter %s", templateBytes.String())
 	}
 	return sorted[0], nil
 }
