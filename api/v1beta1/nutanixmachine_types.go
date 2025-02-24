@@ -155,7 +155,6 @@ type NutanixMachineSpec struct {
 
 	// dataDisks hold the list of data disks to be attached to the VM
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:listType=set
 	DataDisks []NutanixMachineVMDisk `json:"dataDisks,omitempty"`
 
 	// BootstrapRef is a reference to a bootstrap provider-specific resource
@@ -177,14 +176,17 @@ type NutanixMachineVMDisk struct {
 
 	// deviceProperties are the properties of the disk device.
 	// +optional
+	// +kubebuilder:validation:Optional
 	DeviceProperties *NutanixMachineVMDiskDeviceProperties `json:"deviceProperties,omitempty"`
 
 	// storageConfig are the storage configuration parameters of the VM disks.
 	// +optional
+	// +kubebuilder:validation:Optional
 	StorageConfig *NutanixMachineVMStorageConfig `json:"storageConfig,omitempty"`
 
 	// dataSource refers to a data source image for the VM disk.
 	// +optional
+	// +kubebuilder:validation:Optional
 	DataSource *NutanixResourceIdentifier `json:"dataSource,omitempty"`
 }
 
@@ -210,6 +212,7 @@ type NutanixMachineVMDiskDeviceProperties struct {
 	// +kubebuilder:default=0
 	// +kubebuilder:validation:Minimum=0
 	// +optional
+	// +kubebuilder:validation:Optional
 	DeviceIndex int32 `json:"deviceIndex,omitempty"`
 }
 
@@ -218,10 +221,12 @@ type NutanixMachineVMStorageConfig struct {
 	// diskMode specifies the disk mode.
 	// The valid values are Standard and Flash, and the default is Standard.
 	// +kubebuilder:default=Standard
+	// +kubebuilder:validation:Required
 	DiskMode NutanixMachineDiskMode `json:"diskMode"`
 
 	// storageContainer refers to the storage_container used by the VM disk.
 	// +optional
+	// +kubebuilder:validation:Optional
 	StorageContainer *NutanixResourceIdentifier `json:"storageContainer"`
 }
 
