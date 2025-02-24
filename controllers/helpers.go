@@ -1086,10 +1086,10 @@ func getSCinClusterByUUID(storageContainer []*StorageContainerIntentResponse, st
 func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*prismclientv3.Client, error) {
 	log := ctrl.LoggerFrom(ctx)
 
-	log.Info("Get client helper")
+	log.V(4).Info("Get client helper")
 	clientHelper := nutanixclient.NewHelper(secretInformer, mapInformer)
 
-	log.Info("Build management endpoint")
+	log.V(4).Info("Build management endpoint")
 	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
@@ -1097,7 +1097,7 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 		return nil, err
 	}
 
-	log.Info("Get or create prism central client v3")
+	log.V(4).Info("Get or create prism central client v3")
 	v3Client, err := nutanixclient.NutanixClientCache.GetOrCreate(&nutanixclient.CacheParams{
 		NutanixCluster:          cluster,
 		PrismManagementEndpoint: managementEndpoint,
