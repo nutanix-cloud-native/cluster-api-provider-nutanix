@@ -1,10 +1,15 @@
 name: Black Duck Policy Check
 on:
-  pull_request_target:
   push:
     branches:
       - main
       - 'release-*'
+  pull_request:
+    paths:
+    - '.github/**'
+  pull_request_target:
+    paths-ignore:
+    - '.github/**'
 
 jobs:
   security:
