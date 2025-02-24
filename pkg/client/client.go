@@ -97,7 +97,7 @@ func (n *NutanixClientHelper) BuildManagementEndpoint(ctx context.Context, nutan
 	log.Info("Initializing environment with providers")
 	env := environment.NewEnvironment(providers...)
 	// GetManagementEndpoint will return the first valid endpoint from the list of providers
-	log.Info("Getting management endpoint")
+	log.V(4).Info("Getting management endpoint")
 	me, err := env.GetManagementEndpoint(envTypes.Topology{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get management endpoint object: %w", err)
