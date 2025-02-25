@@ -54,14 +54,14 @@ type NutanixImageLookup struct {
 	// machine It will be ignored if an explicit image is set. Supports
 	// substitutions for {{.BaseOS}} and {{.K8sVersion}} with the base OS and
 	// kubernetes version, respectively. The BaseOS will be the value in
-	// ImageLookupBaseOS and the kubernetes version as
-	// defined by the packages produced by kubernetes/release without v as a
+	// BaseOS and the K8sVersion is the value in the Machine .spec.version, with the v prefix removed.
+	// This is effectively the defined by the packages produced by kubernetes/release without v as a
 	// prefix: 1.13.0, 1.12.5-mybuild.1, or 1.17.3. For example, the default
-	// image format of {{.BaseOS}}-?{{.K8sVersion}}-* and ImageLookupBaseOS as "rhel-8.10" will end up
-	// searching for images that match the pattern nkp-rhel-8.10-1.30.5-* for a
+	// image format of {{.BaseOS}}-?{{.K8sVersion}}-* and BaseOS as "rhel-8.10" will end up
+	// searching for images that match the pattern rhel-8.10-1.30.5-* for a
 	// Machine that is targeting kubernetes v1.30.5. See
 	// also: https://golang.org/pkg/text/template/
-	// +kubebuilder:default:="{{.BaseOS}}-kube-v{{.K8sVersion}}.*"
+	// +kubebuilder:default:="capx-{{.BaseOS}}-{{.K8sVersion}}-*"
 	Format *string `json:"format,omitempty"`
 	// BaseOS is the name of the base operating system to use for
 	// image lookup.
