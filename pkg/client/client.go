@@ -73,7 +73,7 @@ func (n *NutanixClientHelper) BuildManagementEndpoint(ctx context.Context, nutan
 	providers := make([]envTypes.Provider, 0)
 
 	// Attempt to build a provider from the NutanixCluster object
-	log.Info("Attemp to build provider from NutanixCluster")
+	log.Info("Attempting to build provider from NutanixCluster")
 	providerForNutanixCluster, err := n.buildProviderFromNutanixCluster(nutanixCluster)
 	if err != nil {
 		return nil, fmt.Errorf("error building an environment provider from NutanixCluster: %w", err)
