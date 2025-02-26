@@ -191,7 +191,7 @@ spec:
                         type: array
                       image:
                         description: |-
-                          image is to identify the rhcos image uploaded to the Prism Central (PC)
+                          image is to identify the nutanix machine image uploaded to the Prism Central (PC)
                           The image identifier (uuid or name) can be obtained from the Prism Central console
                           or using the prism_central API.
                         properties:

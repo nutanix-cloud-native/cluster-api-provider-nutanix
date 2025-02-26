@@ -90,7 +90,7 @@ type NutanixMachineSpec struct {
 	// The minimum memorySize is 2Gi bytes
 	// +kubebuilder:validation:Required
 	MemorySize resource.Quantity `json:"memorySize"`
-	// image is to identify the rhcos image uploaded to the Prism Central (PC)
+	// image is to identify the nutanix machine image uploaded to the Prism Central (PC)
 	// The image identifier (uuid or name) can be obtained from the Prism Central console
 	// or using the prism_central API.
 	// +kubebuilder:validation:Optional
