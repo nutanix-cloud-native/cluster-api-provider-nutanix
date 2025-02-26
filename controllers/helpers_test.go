@@ -22,6 +22,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
@@ -417,14 +418,157 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Log("Running test case ", tt.name)
 			ctx := context.Background()
-			got, err := GetImage(ctx, tt.clientBuilder(), tt.id)
+			got, err := GetImage(ctx, tt.clientBuilder(), &tt.id)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetImageByNameOrUUID() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetImageByNameOrUUID() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetImageByLookup(t *testing.T) {
+	tests := []struct {
+		name          string
+		clientBuilder func() *prismclientv3.Client
+		baseOS        string
+		imageTemplate string
+		k8sVersion    string
+		want          *prismclientv3.ImageIntentResponse
+		wantErr       bool
+	}{
+		{
+			name: "successful image lookup",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(
+					&prismclientv3.ImageListIntentResponse{
+						Entities: []*prismclientv3.ImageIntentResponse{
+							{
+								Spec: &prismclientv3.Image{
+									Name: ptr.To("capx-ubuntu-1.31.4"),
+								},
+							},
+						},
+					}, nil,
+				)
+				return &prismclientv3.Client{V3: mockv3Service}
+			},
+			baseOS:        "ubuntu",
+			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
+			k8sVersion:    "v1.31.4",
+			want: &prismclientv3.ImageIntentResponse{
+				Spec: &prismclientv3.Image{
+					Name: ptr.To("capx-ubuntu-1.31.4"),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "failed template parsing",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				return &prismclientv3.Client{V3: mockv3Service}
+			},
+			baseOS:        "ubuntu",
+			imageTemplate: "invalid-template-{{.InvalidField}}",
+			k8sVersion:    "v1.31.4",
+			want:          nil,
+			wantErr:       true,
+		},
+		{
+			name: "no matching image found",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(
+					&prismclientv3.ImageListIntentResponse{
+						Entities: []*prismclientv3.ImageIntentResponse{},
+					}, nil,
+				)
+				return &prismclientv3.Client{V3: mockv3Service}
+			},
+			baseOS:        "ubuntu",
+			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
+			k8sVersion:    "v1.31.4",
+			want:          nil,
+			wantErr:       true,
+		},
+		{
+			name: "multiple images, return latest by creation time",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(
+					&prismclientv3.ImageListIntentResponse{
+						Entities: []*prismclientv3.ImageIntentResponse{
+							{
+								Spec: &prismclientv3.Image{
+									Name: ptr.To("capx-ubuntu-1.31.4"),
+								},
+								Metadata: &prismclientv3.Metadata{
+									CreationTime: ptr.To(time.Date(2023, 10, 1, 0, 0, 0, 0, time.UTC)),
+								},
+							},
+							{
+								Spec: &prismclientv3.Image{
+									Name: ptr.To("capx-ubuntu-1.31.4"),
+								},
+								Metadata: &prismclientv3.Metadata{
+									CreationTime: ptr.To(time.Date(2023, 10, 2, 0, 0, 0, 0, time.UTC)),
+								},
+							},
+							{
+								Spec: &prismclientv3.Image{
+									Name: ptr.To("capx-ubuntu-1.31.4"),
+								},
+								Metadata: &prismclientv3.Metadata{
+									CreationTime: ptr.To(time.Date(2023, 10, 3, 0, 0, 0, 0, time.UTC)),
+								},
+							},
+						},
+					}, nil,
+				)
+				return &prismclientv3.Client{V3: mockv3Service}
+			},
+			baseOS:        "ubuntu",
+			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
+			k8sVersion:    "v1.31.4",
+			want: &prismclientv3.ImageIntentResponse{
+				Spec: &prismclientv3.Image{
+					Name: ptr.To("capx-ubuntu-1.31.4"),
+				},
+				Metadata: &prismclientv3.Metadata{
+					CreationTime: ptr.To(time.Date(2023, 10, 3, 0, 0, 0, 0, time.UTC)),
+				},
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Log("Running test case ", tt.name)
+			ctx := context.Background()
+			got, err := GetImageByLookup(
+				ctx,
+				tt.clientBuilder(),
+				&tt.imageTemplate,
+				&tt.baseOS,
+				&tt.k8sVersion,
+			)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetImageByLookup() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetImageByLookup() = %v, want %v", got, tt.want)
 			}
 		})
 	}
