@@ -418,7 +418,7 @@ func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID str
 
 // GetImage returns an image. If no UUID is provided, returns the unique image with the name.
 // Returns an error if no image has the UUID, if no image has the name, or more than one image has the name.
-func GetImage(ctx context.Context, client *prismclientv3.Client, id *infrav1.NutanixResourceIdentifier) (*prismclientv3.ImageIntentResponse, error) {
+func GetImage(ctx context.Context, client *prismclientv3.Client, id infrav1.NutanixResourceIdentifier) (*prismclientv3.ImageIntentResponse, error) {
 	switch {
 	case id.IsUUID():
 		resp, err := client.V3.GetImage(ctx, *id.UUID)

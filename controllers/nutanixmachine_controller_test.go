@@ -786,7 +786,7 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 						Namespace: "default",
 					},
 					Spec: infrav1.NutanixMachineSpec{
-						Image: infrav1.NutanixResourceIdentifier{
+						Image: &infrav1.NutanixResourceIdentifier{
 							Type: infrav1.NutanixIdentifierName,
 							Name: ptr.To("image"),
 						},

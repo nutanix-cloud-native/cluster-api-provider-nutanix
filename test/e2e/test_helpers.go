@@ -242,7 +242,7 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 	clusterUUID, err := controllers.GetPEUUID(ctx, t.nutanixClient, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
-	image, err := controllers.GetImage(ctx, t.nutanixClient, &infrav1.NutanixResourceIdentifier{
+	image, err := controllers.GetImage(ctx, t.nutanixClient, infrav1.NutanixResourceIdentifier{
 		Type: infrav1.NutanixIdentifierName,
 		Name: ptr.To(imageVarValue),
 	})
