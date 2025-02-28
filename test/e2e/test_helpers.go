@@ -129,6 +129,7 @@ type testHelperInterface interface {
 	createSecret(params createSecretParams)
 	createUUIDNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate
 	createUUIDProjectNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate
+	createDefaultNMTwithDataDisks(clusterName, namespace string, params withDataDisksParams) *infrav1.NutanixMachineTemplate
 	deployCluster(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult)
 	deployClusterAndWait(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult)
 	deleteSecret(params deleteSecretParams)
@@ -146,12 +147,14 @@ type testHelperInterface interface {
 	getNutanixResourceIdentifierFromEnv(envVarKey string) infrav1.NutanixResourceIdentifier
 	getNutanixResourceIdentifierFromE2eConfig(variableKey string) infrav1.NutanixResourceIdentifier
 	getVariableFromE2eConfig(variableKey string) string
+	getDefaultStorageContainerNameAndUuid(ctx context.Context) (string, string, error)
 	updateVariableInE2eConfig(variableKey string, variableValue string)
 	stripNutanixIDFromProviderID(providerID string) string
 	verifyCategoryExists(ctx context.Context, categoryKey, categoyValue string)
 	verifyCategoriesNutanixMachines(ctx context.Context, clusterName, namespace string, expectedCategories map[string]string)
 	verifyConditionOnNutanixCluster(params verifyConditionParams)
 	verifyConditionOnNutanixMachines(params verifyConditionParams)
+	verifyDisksOnNutanixMachines(ctx context.Context, params verifyDisksOnNutanixMachinesParams)
 	verifyFailureDomainsOnClusterMachines(ctx context.Context, params verifyFailureDomainsOnClusterMachinesParams)
 	verifyFailureMessageOnClusterMachines(ctx context.Context, params verifyFailureMessageOnClusterMachinesParams)
 	verifyGPUNutanixMachines(ctx context.Context, params verifyGPUNutanixMachinesParams)
@@ -239,7 +242,7 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 	clusterUUID, err := controllers.GetPEUUID(ctx, t.nutanixClient, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
-	image, err := controllers.GetImage(ctx, t.nutanixClient, &infrav1.NutanixResourceIdentifier{
+	image, err := controllers.GetImage(ctx, t.nutanixClient, infrav1.NutanixResourceIdentifier{
 		Type: infrav1.NutanixIdentifierName,
 		Name: ptr.To(imageVarValue),
 	})
@@ -348,6 +351,17 @@ func (t testHelper) createDeviceIDGPUNMT(ctx context.Context, clusterName, names
 		},
 	}
 	return nmt
+}
+
+type withDataDisksParams struct {
+	DataDisks []infrav1.NutanixMachineVMDisk
+}
+
+func (t testHelper) createDefaultNMTwithDataDisks(clusterName, namespace string, params withDataDisksParams) *infrav1.NutanixMachineTemplate {
+	defNmt := t.createDefaultNMT(clusterName, namespace)
+	defNmt.Spec.Template.Spec.DataDisks = params.DataDisks
+
+	return defNmt
 }
 
 func (t testHelper) createDefaultNutanixCluster(clusterName, namespace, controlPlaneEndpointIP string, controlPlanePort int32) *infrav1.NutanixCluster {
@@ -577,6 +591,38 @@ func (t testHelper) getVariableFromE2eConfig(variableKey string) string {
 	variableValue := t.e2eConfig.GetVariable(variableKey)
 	Expect(variableValue).ToNot(BeEmpty(), "expected e2econfig variable %s to be set", variableKey)
 	return variableValue
+}
+
+func (t testHelper) getDefaultStorageContainerNameAndUuid(ctx context.Context) (string, string, error) {
+	scName := ""
+	scUUID := ""
+
+	scResponse, err := controllers.ListStorageContainers(ctx, t.nutanixClient)
+	if err != nil {
+		return "", "", err
+	}
+
+	if len(scResponse) == 0 {
+		return "", "", fmt.Errorf("no storage containers found")
+	}
+
+	peName := t.getVariableFromE2eConfig(clusterVarKey)
+
+	for _, sc := range scResponse {
+		if strings.Contains(*sc.Name, "default") && strings.EqualFold(*sc.ClusterName, peName) {
+			if sc.Name != nil {
+				scName = *sc.Name
+			}
+
+			if sc.UUID != nil {
+				scUUID = *sc.UUID
+			}
+
+			return scName, scUUID, nil
+		}
+	}
+
+	return "", "", fmt.Errorf("no default storage container found")
 }
 
 func (t testHelper) updateVariableInE2eConfig(variableKey string, variableValue string) {
@@ -830,6 +876,26 @@ func (t testHelper) verifyGPUNutanixMachines(ctx context.Context, params verifyG
 					},
 				),
 			)))
+	}
+}
+
+type verifyDisksOnNutanixMachinesParams struct {
+	clusterName           string
+	namespace             string
+	bootstrapClusterProxy framework.ClusterProxy
+	diskCount             int
+}
+
+func (t testHelper) verifyDisksOnNutanixMachines(ctx context.Context, params verifyDisksOnNutanixMachinesParams) {
+	nutanixMachines := t.getNutanixMachinesForCluster(ctx, params.clusterName, params.namespace, params.bootstrapClusterProxy)
+	for _, m := range nutanixMachines.Items {
+		machineProviderID := m.Spec.ProviderID
+		Expect(machineProviderID).NotTo(BeEmpty())
+		machineVmUUID := t.stripNutanixIDFromProviderID(machineProviderID)
+		vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
+		Expect(err).ShouldNot(HaveOccurred())
+		disks := vm.Status.Resources.DiskList
+		Expect(disks).To(HaveLen(params.diskCount))
 	}
 }
 
