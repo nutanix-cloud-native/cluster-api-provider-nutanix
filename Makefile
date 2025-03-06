@@ -337,13 +337,21 @@ mocks: ## Generate mocks for the project
 
 GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
 
+KUBEBUILDER_ASSETS=$(shell setup-envtest use --print path $(ENVTEST_K8S_VERSION) --arch=amd64)
+
+.PHONY: print-envtest
+print-envtest: ## Set up envtest (download kubebuilder assets)
+	@echo KUBEBUILDER_ASSETS=$(KUBEBUILDER_ASSETS)
+
 .PHONY: unit-test
 unit-test: mocks  ## Run unit tests.
-	KUBEBUILDER_ASSETS="$(shell setup-envtest use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) $(GOTESTPKGS)
+	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" \
+	$(GOTEST) $(GOTESTPKGS)
 
 .PHONY: coverage
 coverage: mocks ## Run the tests of the project and export the coverage
-	KUBEBUILDER_ASSETS="$(shell setup-envtest use $(ENVTEST_K8S_VERSION)  --arch=amd64 -p path)" $(GOTEST) -race -coverprofile=coverage.out -covermode=atomic $(GOTESTPKGS)
+	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" \
+	$(GOTEST) -race -coverprofile=coverage.out -covermode=atomic $(GOTESTPKGS)
 
 .PHONY: template-test
 template-test: docker-build prepare-local-clusterctl ## Run the template tests
