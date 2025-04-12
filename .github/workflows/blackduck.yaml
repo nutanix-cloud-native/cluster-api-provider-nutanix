@@ -16,7 +16,7 @@ on:
 jobs:
   security:
     if: github.repository == 'nutanix-cloud-native/cluster-api-provider-nutanix'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,17 +38,6 @@ jobs:
 
       - name: Build Project
         run: devbox run -- make build
-
-      - name: Set up Java 11
-        uses: actions/setup-java@v4
-        with:
-          java-version: "11"
-          distribution: "adopt"
-
-      - name: Setup go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
 
       - name: Black Duck Full Scan
         if: ${{ github.event_name != 'pull_request' }}
