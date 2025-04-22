@@ -18,10 +18,8 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -810,67 +808,6 @@ func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.Nut
 
 	conditions.MarkTrue(cluster, infrav1.PrismCentralV4ClientCondition)
 	return client, nil
-}
-
-// isPrismCentralV4Compatible checks if the Prism Central is v4 API compatible
-func isPrismCentralV4Compatible(ctx context.Context, v3Client *prismclientv3.Client) (bool, error) {
-	log := ctrl.LoggerFrom(ctx)
-	internalPCNames := []string{"master", "fraser"}
-	pcVersion, err := getPrismCentralVersion(ctx, v3Client)
-	if err != nil {
-		return false, fmt.Errorf("failed to get Prism Central version: %w", err)
-	}
-
-	// Check if the version is v4 compatible
-	// PC versions look like pc.2024.1.0.1
-	// We can check if the version is greater than or equal to 2024
-
-	if pcVersion == "" {
-		return false, errors.New("prism central version is empty")
-	}
-
-	for _, internalPCName := range internalPCNames {
-		// TODO(sid): This is a naive check to see if the PC version is an internal build. This can potentially lead to failures
-		// if internal fraser build is not v4 compatible.
-		if strings.Contains(pcVersion, internalPCName) {
-			log.Info(fmt.Sprintf("Prism Central version %s is an internal build; assuming it is v4 compatible", pcVersion))
-			return true, nil
-		}
-	}
-
-	// Remove the prefix "pc."
-	version := strings.TrimPrefix(pcVersion, "pc.")
-	// Split the version string by "." to extract the year part
-	parts := strings.Split(version, ".")
-	if len(parts) < 1 {
-		return false, errors.New("invalid version format")
-	}
-
-	// Convert the year part to an integer
-	year, err := strconv.Atoi(parts[0])
-	if err != nil {
-		return false, errors.New("invalid version: failed to parse year from PC version")
-	}
-
-	if year >= 2024 {
-		return true, nil
-	}
-
-	return false, nil
-}
-
-// getPrismCentralVersion returns the version of the Prism Central instance
-func getPrismCentralVersion(ctx context.Context, v3Client *prismclientv3.Client) (string, error) {
-	pcInfo, err := v3Client.V3.GetPrismCentral(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	if pcInfo.Resources == nil || pcInfo.Resources.Version == nil {
-		return "", fmt.Errorf("failed to get Prism Central version")
-	}
-
-	return *pcInfo.Resources.Version, nil
 }
 
 func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Client, vmName string, vmUUID string, vmDiskList []*prismclientv3.VMDisk) error {
