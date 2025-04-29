@@ -1,6 +1,7 @@
 package client
 
 import (
+	"github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	"github.com/nutanix-cloud-native/prism-go-client/environment/types"
 	v3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	v4 "github.com/nutanix-cloud-native/prism-go-client/v4"
@@ -18,10 +19,15 @@ var NutanixClientCacheV4 = v4.NewClientCache(v4.WithSessionAuth(true))
 type CacheParams struct {
 	NutanixCluster          *v1beta1.NutanixCluster
 	PrismManagementEndpoint *types.ManagementEndpoint
+	// PrismIdentity is a reference to NutanixPrismIdentity object
+	PrismIdentity *credentials.NutanixPrismIdentity
 }
 
-// Key is the namespace/name of te NutanixCluster CR
+// Key is the namespace/name of the NutanixCluster CR or the PrismIdentity namespaced name if set
 func (c *CacheParams) Key() string {
+	if c.PrismIdentity != nil {
+		return c.PrismIdentity.GetNamespace() + "/" + c.PrismIdentity.GetName()
+	}
 	return c.NutanixCluster.GetNamespacedName()
 }
 
