@@ -85,11 +85,12 @@ type options struct {
 }
 
 type managerConfig struct {
-	enableLeaderElection               bool
-	healthProbeAddr                    string
-	concurrentReconcilesNutanixCluster int
-	concurrentReconcilesNutanixMachine int
-	metricsServerOpts                  server.Options
+	enableLeaderElection                         bool
+	healthProbeAddr                              string
+	concurrentReconcilesNutanixCluster           int
+	concurrentReconcilesNutanixMachine           int
+	concurrentReconcilesNutanixVMAntiAffinityPolicy int
+	metricsServerOpts                            server.Options
 
 	logger      logr.Logger
 	restConfig  *rest.Config
@@ -194,6 +195,7 @@ func initializeConfig(opts *options) (*managerConfig, error) {
 
 	config.concurrentReconcilesNutanixCluster = opts.maxConcurrentReconciles
 	config.concurrentReconcilesNutanixMachine = opts.maxConcurrentReconciles
+	config.concurrentReconcilesNutanixVMAntiAffinityPolicy = opts.maxConcurrentReconciles
 
 	rateLimiter, err := compositeRateLimiter(opts.rateLimiterBaseDelay, opts.rateLimiterMaxDelay, opts.rateLimiterBucketSize, opts.rateLimiterQPS)
 	if err != nil {
@@ -298,6 +300,27 @@ func setupNutanixMachineController(ctx context.Context, mgr manager.Manager, sec
 	return nil
 }
 
+func setupNutanixVMAntiAffinityPolicyController(ctx context.Context, mgr manager.Manager, secretInformer coreinformers.SecretInformer,
+	configMapInformer coreinformers.ConfigMapInformer, opts ...controllers.ControllerConfigOpts,
+) error {
+	policyCtrl, err := controllers.NewNutanixVMAntiAffinityPolicyReconciler(
+		mgr.GetClient(),
+		secretInformer,
+		configMapInformer,
+		mgr.GetScheme(),
+		opts...,
+	)
+	if err != nil {
+		return fmt.Errorf("unable to create NutanixVMAntiAffinityPolicy controller: %w", err)
+	}
+
+	if err := policyCtrl.SetupWithManager(ctx, mgr); err != nil {
+		return fmt.Errorf("unable to setup NutanixVMAntiAffinityPolicy controller with manager: %w", err)
+	}
+
+	return nil
+}
+
 func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig) error {
 	secretInformer, configMapInformer, err := createInformers(ctx, mgr)
 	if err != nil {
@@ -319,6 +342,15 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 	}
 
 	if err := setupNutanixMachineController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
+		return fmt.Errorf("unable to setup controllers: %w", err)
+	}
+
+	policyControllerOpts := []controllers.ControllerConfigOpts{
+		controllers.WithMaxConcurrentReconciles(config.concurrentReconcilesNutanixVMAntiAffinityPolicy),
+		controllers.WithRateLimiter(config.rateLimiter),
+	}
+
+	if err := setupNutanixVMAntiAffinityPolicyController(ctx, mgr, secretInformer, configMapInformer, policyControllerOpts...); err != nil {
 		return fmt.Errorf("unable to setup controllers: %w", err)
 	}
 
