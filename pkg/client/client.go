@@ -63,6 +63,33 @@ func (n *NutanixClientHelper) withCustomNutanixPrismEndpointReader(getter func()
 	return n
 }
 
+// BuildManagementEndpointFromPrismIdentity takes in a NutanixPrismIdentity and constructs a ManagementEndpoint.
+func (n *NutanixClientHelper) BuildManagementEndpointFromPrismIdentity(ctx context.Context, prismIdentity *credentials.NutanixPrismIdentity) (*envTypes.ManagementEndpoint, error) {
+	log := ctrl.LoggerFrom(ctx)
+	log.Info("Building management endpoint from NutanixPrismIdentity", "identity", prismIdentity.Name)
+
+	// Create an empty list of env providers
+	providers := make([]envTypes.Provider, 0)
+
+	// Create a provider using the NutanixPrismEndpoint from the Identity
+	// The credentials.NutanixPrismEndpoint is used directly by the kubernetes provider
+	provider := kubernetesEnv.NewProvider(prismIdentity.Spec.NutanixPrismEndpoint, n.secretInformer, n.configMapInformer)
+	providers = append(providers, provider)
+
+	// Initialize environment with providers
+	log.Info("Initializing environment with provider from NutanixPrismIdentity")
+	env := environment.NewEnvironment(providers...)
+
+	// GetManagementEndpoint will return the first valid endpoint from the list of providers
+	log.V(1).Info("Getting management endpoint")
+	me, err := env.GetManagementEndpoint(envTypes.Topology{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get management endpoint object from PrismIdentity: %w", err)
+	}
+
+	return me, nil
+}
+
 // BuildManagementEndpoint takes in a NutanixCluster and constructs a ManagementEndpoint with all the information provided.
 // If required information is not set, it will fallback to using information from /etc/nutanix/config/prismCentral,
 // which is expected to be mounted in the Pod.

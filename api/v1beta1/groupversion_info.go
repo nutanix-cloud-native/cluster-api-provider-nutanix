@@ -30,9 +30,6 @@ const (
 
 	// GroupName is the name of the API group.
 	GroupName = "infrastructure.cluster.x-k8s.io"
-	
-	// NutanixVMAntiAffinityPolicyKind is the kind for NutanixVMAntiAffinityPolicy.
-	NutanixVMAntiAffinityPolicyKind = "NutanixVMAntiAffinityPolicy"
 )
 
 var (

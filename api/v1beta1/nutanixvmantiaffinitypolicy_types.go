@@ -106,6 +106,14 @@ type NutanixVMAntiAffinityPolicy struct {
 	Status NutanixVMAntiAffinityPolicyStatus `json:"status,omitempty"`
 }
 
+func (nvmap *NutanixVMAntiAffinityPolicy) GetConditions() clusterv1.Conditions {
+	return nvmap.Status.Conditions
+}
+
+func (nvmap *NutanixVMAntiAffinityPolicy) SetConditions(conditions clusterv1.Conditions) {
+	nvmap.Status.Conditions = conditions
+}
+
 //+kubebuilder:object:root=true
 
 // NutanixVMAntiAffinityPolicyList contains a list of NutanixVMAntiAffinityPolicy

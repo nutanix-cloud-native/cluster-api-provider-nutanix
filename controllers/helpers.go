@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	"reflect"
 	"regexp"
 	"sort"
@@ -220,7 +221,7 @@ func GetPEUUID(ctx context.Context, client *prismclientv3.Client, peName, peUUID
 		foundPEs := make([]*prismclientv3.ClusterIntentResponse, 0)
 		for _, s := range responsePEs.Entities {
 			peSpec := s.Spec
-			if strings.EqualFold(*peSpec.Name, *peName) && hasPEClusterServiceEnabled(s, serviceNamePECluster) {
+			if strings.EqualFold(peSpec.Name, *peName) && hasPEClusterServiceEnabled(s, serviceNamePECluster) {
 				foundPEs = append(foundPEs, s)
 			}
 		}
@@ -1132,6 +1133,33 @@ func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.Nut
 	}
 
 	conditions.MarkTrue(cluster, infrav1.PrismCentralV4ClientCondition)
+	return client, nil
+}
+
+func getPrismCentralV4ClientForPrismIdentity(ctx context.Context, identity *credentials.NutanixPrismIdentity, secretInformer v1.SecretInformer, configMapInformer v1.ConfigMapInformer) (*prismclientv4.Client, error) {
+	log := ctrl.LoggerFrom(ctx)
+	log.Info(fmt.Sprintf("Getting V4 client for PrismIdentity %s", identity.GetName()))
+
+	// Create a new client helper
+	clientHelper := nutanixclient.NewHelper(secretInformer, configMapInformer)
+
+	// Get the management endpoint using the PrismIdentity
+	managementEndpoint, err := clientHelper.BuildManagementEndpointFromPrismIdentity(ctx, identity)
+	if err != nil {
+		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for PrismIdentity %q", identity.GetName()))
+		return nil, fmt.Errorf("error getting management endpoint from PrismIdentity: %w", err)
+	}
+
+	// Create client from cache
+	client, err := nutanixclient.NutanixClientCacheV4.GetOrCreate(&nutanixclient.CacheParams{
+		PrismManagementEndpoint: managementEndpoint,
+		PrismIdentity:           identity,
+	})
+	if err != nil {
+		log.Error(err, fmt.Sprintf("error occurred while getting nutanix prism v4 client from cache for identity %q", identity.GetName()))
+		return nil, fmt.Errorf("nutanix prism v4 client error for identity: %w", err)
+	}
+
 	return client, nil
 }
 
