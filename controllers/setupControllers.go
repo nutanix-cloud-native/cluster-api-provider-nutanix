@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	coreinformers "k8s.io/client-go/informers/core/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 

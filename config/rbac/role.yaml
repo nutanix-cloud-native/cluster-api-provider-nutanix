@@ -17,6 +17,15 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - configmaps
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - nodes
   verbs:
   - get
@@ -72,6 +81,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - credentials.nutanix.com
+  resources:
+  - nutanixprismidentities
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
   - nutanixclusters
@@ -119,6 +136,32 @@ rules:
   - infrastructure.cluster.x-k8s.io
   resources:
   - nutanixmachines/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - nutanixvmantiaffinitypolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - nutanixvmantiaffinitypolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - nutanixvmantiaffinitypolicies/status
   verbs:
   - get
   - patch
