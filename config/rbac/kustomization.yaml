@@ -16,5 +16,15 @@ resources:
 - auth_proxy_role.yaml
 - auth_proxy_role_binding.yaml
 - auth_proxy_client_clusterrole.yaml
+- nutanixcluster_editor_role.yaml
+- nutanixcluster_viewer_role.yaml
+- nutanixclustertemplate_editor_role.yaml
+- nutanixclustertemplate_viewer_role.yaml
+- nutanixmachine_editor_role.yaml
+- nutanixmachine_viewer_role.yaml
+- nutanixmachinetemplate_editor_role.yaml
+- nutanixmachinetemplate_viewer_role.yaml
+- nutanixvmantiaffinitypolicy_editor_role.yaml
+- nutanixvmantiaffinitypolicy_viewer_role.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

@@ -1,0 +1,20 @@
+# permissions for end users to view nutanixvmantiaffinitypolicies.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nutanixvmantiaffinitypolicy-viewer-role
+rules:
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - nutanixvmantiaffinitypolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - nutanixvmantiaffinitypolicies/status
+  verbs:
+  - get
