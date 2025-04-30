@@ -93,7 +93,7 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 					&infrav1.NutanixCluster{},
 				),
 			),
-			builder.WithPredicates(predicates.ClusterUnpausedAndInfrastructureReady(ctrl.LoggerFrom(ctx))),
+			builder.WithPredicates(predicates.ClusterUnpausedAndInfrastructureReady(mgr.GetScheme(), ctrl.LoggerFrom(ctx))),
 		).
 		WithOptions(copts).
 		Complete(r)

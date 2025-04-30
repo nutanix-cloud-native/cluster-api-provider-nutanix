@@ -24,7 +24,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/errors"
 )
 
 const (
@@ -83,7 +82,7 @@ type NutanixClusterStatus struct {
 
 	// Will be set in case of failure of Cluster instance
 	// +optional
-	FailureReason *errors.ClusterStatusError `json:"failureReason,omitempty"`
+	FailureReason *string `json:"failureReason,omitempty"`
 
 	// Will be set in case of failure of Cluster instance
 	// +optional
