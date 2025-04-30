@@ -703,8 +703,22 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 		}
 	}
 
-	// Set Categories to VM Sepc before creating VM
-	categories, err := GetCategoryVMSpec(ctx, v3Client, r.getMachineCategoryIdentifiers(rctx))
+	// Get default categories and additional categories from the NutanixMachine
+	categoryIdentifiers := r.getMachineCategoryIdentifiers(rctx)
+	
+	// Get categories from anti-affinity policy if specified
+	antiAffinityCategories, err := r.getAntiAffinityPolicyCategories(rctx)
+	if err != nil {
+		errorMsg := fmt.Errorf("error retrieving anti-affinity policy categories for VM %s: %v", vmName, err)
+		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		return nil, errorMsg
+	}
+	
+	// Append anti-affinity categories if available
+	categoryIdentifiers = append(categoryIdentifiers, antiAffinityCategories...)
+
+	// Convert categories to VM spec format
+	categories, err := GetCategoryVMSpec(ctx, v3Client, categoryIdentifiers)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %v", vmName, err)
 		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
@@ -1079,6 +1093,55 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 	}
 
 	return nil
+}
+
+// getAntiAffinityPolicyCategories retrieves categories from the specified AntiAffinityPolicy
+func (r *NutanixMachineReconciler) getAntiAffinityPolicyCategories(rctx *nctx.MachineContext) ([]*infrav1.NutanixCategoryIdentifier, error) {
+	log := ctrl.LoggerFrom(rctx.Context)
+	
+	// Return empty slice if VMPlacement is not configured or AntiAffinityPolicyName is not set
+	if rctx.NutanixMachine.Spec.VMPlacement == nil || rctx.NutanixMachine.Spec.VMPlacement.AntiAffinityPolicyName == "" {
+		return []*infrav1.NutanixCategoryIdentifier{}, nil
+	}
+	
+	policyName := rctx.NutanixMachine.Spec.VMPlacement.AntiAffinityPolicyName
+	log.Info("Looking up anti-affinity policy", "policyName", policyName)
+	
+	// Look up the NutanixVMAntiAffinityPolicy by name
+	policyList := &infrav1.NutanixVMAntiAffinityPolicyList{}
+	if err := r.Client.List(rctx.Context, policyList, client.InNamespace(rctx.NutanixMachine.Namespace)); err != nil {
+		return nil, fmt.Errorf("failed to list VMAntiAffinityPolicies: %w", err)
+	}
+	
+	// Find the policy by name
+	var policy *infrav1.NutanixVMAntiAffinityPolicy
+	for i := range policyList.Items {
+		if policyList.Items[i].Name == policyName {
+			policy = &policyList.Items[i]
+			break
+		}
+	}
+	
+	if policy == nil {
+		return nil, fmt.Errorf("anti-affinity policy '%s' not found in namespace '%s'", 
+			policyName, rctx.NutanixMachine.Namespace)
+	}
+	
+	if !policy.Status.Ready {
+		return nil, fmt.Errorf("anti-affinity policy '%s' exists but is not ready", policyName)
+	}
+	
+	log.Info("Found matching anti-affinity policy", "policyName", policyName, 
+		"categoryCount", len(policy.Spec.Categories), "policyUUID", policy.Status.PolicyUUID)
+	
+	// Copy categories from policy
+	categories := make([]*infrav1.NutanixCategoryIdentifier, 0, len(policy.Spec.Categories))
+	for _, cat := range policy.Spec.Categories {
+		categoryCopy := cat
+		categories = append(categories, &categoryCopy)
+	}
+	
+	return categories, nil
 }
 
 func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vmMetadata *prismclientv3.Metadata) error {

@@ -141,6 +141,10 @@ type NutanixMachineSpec struct {
 	// List of categories that need to be added to the machines. Categories must already exist in Prism Central
 	// +kubebuilder:validation:Optional
 	AdditionalCategories []NutanixCategoryIdentifier `json:"additionalCategories,omitempty"`
+	
+	// VMPlacement defines placement options for the VM
+	// +kubebuilder:validation:Optional
+	VMPlacement *NutanixMachineVMPlacement `json:"vmPlacement,omitempty"`
 	// Add the machine resources to a Prism Central project
 	// +optional
 	Project *NutanixResourceIdentifier `json:"project,omitempty"`
@@ -241,6 +245,13 @@ type NutanixMachineDiskDeviceType string
 // NutanixMachineDiskAdapterType is an enumeration of different disk device adapter types.
 // +kubebuilder:validation:Enum:=SCSI;IDE;PCI;SATA;SPAPR
 type NutanixMachineDiskAdapterType string
+
+// NutanixMachineVMPlacement defines the placement options for a NutanixMachine
+type NutanixMachineVMPlacement struct {
+	// AntiAffinityPolicyName is the name of the VMAntiAffinityPolicy to be applied to this VM
+	// +kubebuilder:validation:Optional
+	AntiAffinityPolicyName string `json:"antiAffinityPolicyName,omitempty"`
+}
 
 // NutanixMachineStatus defines the observed state of NutanixMachine
 type NutanixMachineStatus struct {

@@ -439,6 +439,15 @@ spec:
                         format: int32
                         minimum: 1
                         type: integer
+                      vmPlacement:
+                        description: VMPlacement defines placement options for the
+                          VM
+                        properties:
+                          antiAffinityPolicyName:
+                            description: AntiAffinityPolicyName is the name of the
+                              VMAntiAffinityPolicy to be applied to this VM
+                            type: string
+                        type: object
                     required:
                     - memorySize
                     - systemDiskSize
