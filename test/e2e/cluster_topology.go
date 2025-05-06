@@ -215,7 +215,7 @@ func (e2eTest *NutanixE2ETest) RunConformanceTest(ctx context.Context, clusterRe
 }
 
 func (e2eTest *NutanixE2ETest) InstallAddonPackage(ctx context.Context, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult) error {
-	return fmt.Errorf("Not implemented yet.")
+	return fmt.Errorf("not implemented yet")
 }
 
 type ClusterTopologyConfig struct {

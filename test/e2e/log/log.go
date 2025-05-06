@@ -22,7 +22,7 @@ package log
 import (
 	"fmt"
 
-	. "github.com/onsi/ginkgo/v2"
+	ginkgov2 "github.com/onsi/ginkgo/v2"
 )
 
 const (
@@ -62,5 +62,5 @@ func Errorf(format string, a ...interface{}) {
 // Logf logs a message with the given level
 func Logf(level string, format string, a ...interface{}) {
 	msg := level + ": " + format + "\n"
-	fmt.Fprintf(GinkgoWriter, msg, a...)
+	fmt.Fprintf(ginkgov2.GinkgoWriter, msg, a...)
 }

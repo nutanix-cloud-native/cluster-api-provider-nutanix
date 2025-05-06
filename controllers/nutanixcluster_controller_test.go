@@ -37,7 +37,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/uuid"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
-	capiutil "sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/config"
@@ -306,7 +305,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				}, ntnxSecret)).To(Succeed())
 
 				// Check if secret is owned by the NutanixCluster
-				g.Expect(capiutil.IsOwnedByObject(ntnxSecret, ntnxCluster)).To(BeTrue())
+				g.Expect(util.IsOwnedByObject(ntnxSecret, ntnxCluster)).To(BeTrue())
 
 				// check finalizer
 				g.Expect(ctrlutil.ContainsFinalizer(ntnxSecret, infrav1.NutanixClusterCredentialFinalizer))
@@ -342,7 +341,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				}, ntnxSecret)).To(Succeed())
 
 				// Check if secret is owned by the NutanixCluster
-				g.Expect(capiutil.IsOwnedByObject(ntnxSecret, ntnxCluster)).To(BeTrue())
+				g.Expect(util.IsOwnedByObject(ntnxSecret, ntnxCluster)).To(BeTrue())
 
 				// check if only one ownerReference has been added
 				g.Expect(len(ntnxSecret.OwnerReferences)).To(Equal(1))
@@ -379,7 +378,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				}, ntnxSecret)).To(Succeed())
 
 				// Check if secret is owned by the NutanixCluster
-				g.Expect(capiutil.IsOwnedByObject(ntnxSecret, ntnxCluster)).To(BeTrue())
+				g.Expect(util.IsOwnedByObject(ntnxSecret, ntnxCluster)).To(BeTrue())
 
 				g.Expect(len(ntnxSecret.OwnerReferences)).To(Equal(2))
 			})

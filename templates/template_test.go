@@ -254,7 +254,7 @@ func fetchMachineTemplates(clnt client.Client, clusterName string) ([]*v1beta1.N
 
 	nmts := make([]*v1beta1.NutanixMachineTemplate, 0)
 	for _, nmt := range nutanixMachineTemplateList.Items {
-		if nmt.ObjectMeta.Labels[capiv1.ClusterNameLabel] == clusterName {
+		if nmt.Labels[capiv1.ClusterNameLabel] == clusterName {
 			nmts = append(nmts, &nmt)
 		}
 	}
@@ -273,7 +273,7 @@ func fetchKubeadmControlPlane(clnt client.Client, clusterName string) (*controlp
 	}
 
 	for _, kcp := range kubeadmControlPlaneList.Items {
-		if kcp.ObjectMeta.Labels[capiv1.ClusterNameLabel] == clusterName {
+		if kcp.Labels[capiv1.ClusterNameLabel] == clusterName {
 			return &kcp, nil
 		}
 	}
@@ -293,7 +293,7 @@ func fetchControlPlaneMachineTemplate(clnt client.Client, clusterName string) (*
 	}
 
 	for _, nmt := range nmts {
-		if nmt.ObjectMeta.Name == kcp.Spec.MachineTemplate.InfrastructureRef.Name {
+		if nmt.Name == kcp.Spec.MachineTemplate.InfrastructureRef.Name {
 			return nmt, nil
 		}
 	}
@@ -314,7 +314,7 @@ func fetchWorkerMachineTemplates(clnt client.Client, clusterName string) ([]*v1b
 
 	workerNmts := make([]*v1beta1.NutanixMachineTemplate, 0)
 	for _, nmt := range nmts {
-		if nmt.ObjectMeta.Name == kcp.Spec.MachineTemplate.InfrastructureRef.Name {
+		if nmt.Name == kcp.Spec.MachineTemplate.InfrastructureRef.Name {
 			continue
 		}
 
