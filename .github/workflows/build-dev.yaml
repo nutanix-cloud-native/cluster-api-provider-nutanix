@@ -7,20 +7,21 @@ on:
       - main
       - 'release-*'
   pull_request:
-    paths:
-    - '.github/**'
   pull_request_target:
-    paths-ignore:
-    - '.github/**'
+    branches:
+      - main
+      - 'release-*'
 jobs:
   check_approvals:
+    runs-on: ubuntu-latest
     # Run this job only if the following conditions are met:
     # 1. The pull request has the 'integration-test' label.
     # 2. The event is either:
     #   a. A 'pull_request' event where the base and head repositories are the same (internal PR).
     #   b. A 'pull_request_target' event where the base and head repositories are different (external PR).
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'integration-test') && ( github.event_name == 'pull_request' && github.event.pull_request.base.repo.clone_url == github.event.pull_request.head.repo.clone_url || github.event_name == 'pull_request_target' && github.event.pull_request.base.repo.clone_url != github.event.pull_request.head.repo.clone_url ) }}
-    runs-on: ubuntu-latest
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'integration-test') &&
+      (( github.event_name == 'pull_request' && github.event.pull_request.base.repo.clone_url == github.event.pull_request.head.repo.clone_url) ||
+      (github.event_name == 'pull_request_target' && github.event.pull_request.base.repo.clone_url != github.event.pull_request.head.repo.clone_url )) }}
     outputs:
       # Output the approval status for pull_request_target events, otherwise default to 'true'
       check_approvals: ${{ github.event_name == 'pull_request_target' && steps.check_approvals.outputs.check_approvals || 'true' }}
