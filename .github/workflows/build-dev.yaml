@@ -13,29 +13,7 @@ on:
     paths-ignore:
     - '.github/**'
 jobs:
-  check_approvals:
-    # Run this job only if the following conditions are met:
-    # 1. The pull request has the 'integration-test' label.
-    # 2. The event is either:
-    #   a. A 'pull_request' event where the base and head repositories are the same (internal PR).
-    #   b. A 'pull_request_target' event where the base and head repositories are different (external PR).
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'integration-test') && ( github.event_name == 'pull_request' && github.event.pull_request.base.repo.clone_url == github.event.pull_request.head.repo.clone_url || github.event_name == 'pull_request_target' && github.event.pull_request.base.repo.clone_url != github.event.pull_request.head.repo.clone_url ) }}
-    runs-on: self-hosted-nutanix-medium
-    outputs:
-      # Output the approval status for pull_request_target events, otherwise default to 'true'
-      check_approvals: ${{ github.event_name == 'pull_request_target' && steps.check_approvals.outputs.check_approvals || 'true' }}
-      # Output whether the PR is external
-      external_pr: ${{ github.event.pull_request.base.repo.clone_url != github.event.pull_request.head.repo.clone_url }}
-    steps:
-      - name: Check integration test allowance status
-        # Only run this step for pull_request_target events
-        if: ${{ github.event_name == 'pull_request_target' }}
-        id: check_approvals
-        # Use an external action to check if the PR has the necessary approvals
-        uses: nutanix-cloud-native/action-check-approvals@v1
-
   build-container:
-    needs: check_approvals
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -105,7 +83,6 @@ jobs:
           - "capx-feature-test"
           - "scaling"
       fail-fast: false
-    needs: check_approvals
     uses: ./.github/workflows/e2e.yaml
     with:
       e2e-labels: ${{ matrix.e2e-labels }}
