@@ -20,7 +20,7 @@ jobs:
     #   a. A 'pull_request' event where the base and head repositories are the same (internal PR).
     #   b. A 'pull_request_target' event where the base and head repositories are different (external PR).
     if: ${{ contains(github.event.pull_request.labels.*.name, 'integration-test') && ( github.event_name == 'pull_request' && github.event.pull_request.base.repo.clone_url == github.event.pull_request.head.repo.clone_url || github.event_name == 'pull_request_target' && github.event.pull_request.base.repo.clone_url != github.event.pull_request.head.repo.clone_url ) }}
-    runs-on: self-hosted-nutanix-medium
+    runs-on: ubuntu-latest
     outputs:
       # Output the approval status for pull_request_target events, otherwise default to 'true'
       check_approvals: ${{ github.event_name == 'pull_request_target' && steps.check_approvals.outputs.check_approvals || 'true' }}
