@@ -26,7 +26,7 @@ import (
 
 	prismGoClient "github.com/nutanix-cloud-native/prism-go-client"
 	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
-	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 )
 
@@ -63,7 +63,7 @@ func fetchCredentialParameter(key string, config clusterctl.E2EConfig, allowEmpt
 	if allowEmpty && value == "" {
 		return value
 	}
-	Expect(value).ToNot(BeEmpty(), "expected parameter %s to be set", key)
+	gomega.Expect(value).ToNot(gomega.BeEmpty(), "expected parameter %s to be set", key)
 	return value
 }
 
