@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 
 	"github.com/blang/semver"
-	. "github.com/onsi/ginkgo/v2"
+	ginkgov2 "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega/types"
 	corev1 "k8s.io/api/core/v1"
 
@@ -49,7 +49,7 @@ const (
 )
 
 func Byf(format string, a ...interface{}) {
-	By(fmt.Sprintf(format, a...))
+	ginkgov2.By(fmt.Sprintf(format, a...))
 }
 
 func setupSpecNamespace(ctx context.Context, specName string, clusterProxy framework.ClusterProxy, artifactFolder string) (*corev1.Namespace, context.CancelFunc) {
