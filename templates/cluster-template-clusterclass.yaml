@@ -324,6 +324,18 @@ spec:
             - nutanix-quick-start-worker
     enabledIf: '{{if .project}}true{{end}}'
     name: add-project
+  - definitions:
+    - jsonPatches:
+      - op: add
+        path: /spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs/cloud-provider
+        value: external
+      selector:
+        apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+        kind: KubeadmControlPlaneTemplate
+        matchResources:
+          controlPlane: true
+    enabledIf: '{{semverCompare "< 1.33.0-0" .builtin.controlPlane.version}}'
+    name: add-apiserver-cloud-provider-external-for-pre-k8s-1.33
   variables:
   - name: sshKey
     required: true
@@ -576,7 +588,6 @@ spec:
             - 127.0.0.1
             - 0.0.0.0
             extraArgs:
-              cloud-provider: external
               tls-cipher-suites: TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
           controllerManager:
             extraArgs:
