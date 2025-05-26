@@ -6,6 +6,7 @@ resources:
 - bases/infrastructure.cluster.x-k8s.io_nutanixmachines.yaml
 - bases/infrastructure.cluster.x-k8s.io_nutanixmachinetemplates.yaml
 - bases/infrastructure.cluster.x-k8s.io_nutanixclustertemplates.yaml
+- bases/infrastructure.cluster.x-k8s.io_nutanixvmantiaffinitypolicies.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.

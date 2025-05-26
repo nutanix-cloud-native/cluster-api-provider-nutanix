@@ -30,6 +30,7 @@ import (
 	apitypes "k8s.io/apimachinery/pkg/types"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
+	workqueue "k8s.io/client-go/util/workqueue"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	capiutil "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
@@ -78,7 +79,7 @@ func NewNutanixClusterReconciler(client client.Client, secretInformer coreinform
 func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	copts := controller.Options{
 		MaxConcurrentReconciles: r.controllerConfig.MaxConcurrentReconciles,
-		RateLimiter:             r.controllerConfig.RateLimiter,
+		RateLimiter:             workqueue.DefaultTypedControllerRateLimiter[reconcile.Request](),
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).

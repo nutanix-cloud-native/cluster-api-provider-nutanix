@@ -34,6 +34,7 @@ import (
 	apitypes "k8s.io/apimachinery/pkg/types"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
+	workqueue "k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -107,12 +108,27 @@ func NewNutanixMachineReconciler(client client.Client, secretInformer coreinform
 func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	copts := controller.Options{
 		MaxConcurrentReconciles: r.controllerConfig.MaxConcurrentReconciles,
-		RateLimiter:             r.controllerConfig.RateLimiter,
+		RateLimiter:             workqueue.DefaultTypedControllerRateLimiter[reconcile.Request](),
 	}
 
 	clusterToObjectFunc, err := capiutil.ClusterToTypedObjectsMapper(r.Client, &infrav1.NutanixMachineList{}, mgr.GetScheme())
 	if err != nil {
 		return fmt.Errorf("failed to create mapper for Cluster to NutanixMachine: %s", err)
+	}
+
+	// Set index for VmAntiAffinityPolicy annotation
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &infrav1.NutanixMachine{},
+		fmt.Sprintf("metadata.annotations.%s", infrav1.NutanixVMAntiAfiinityPolicyNameAnnotation),
+		func(rawObj client.Object) []string {
+			ntxMachine, ok := rawObj.(*infrav1.NutanixMachine)
+			if ok {
+				if policyName, ok := ntxMachine.Annotations[infrav1.NutanixVMAntiAfiinityPolicyNameAnnotation]; ok {
+					return []string{policyName}
+				}
+			}
+			return nil
+		}); err != nil {
+		return fmt.Errorf("failed to index NutanixMachine by %s annotation: %w", infrav1.NutanixVMAntiAfiinityPolicyNameAnnotation, err)
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -137,8 +153,48 @@ func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctr
 			handler.EnqueueRequestsFromMapFunc(clusterToObjectFunc),
 			builder.WithPredicates(predicates.ClusterUnpausedAndInfrastructureReady(ctrl.LoggerFrom(ctx))),
 		).
+		Watches(
+			&infrav1.NutanixVMAntiAffinityPolicy{},
+			handler.EnqueueRequestsFromMapFunc(
+				r.mapVmAntiAffinityPolicyToNutanixMachines(),
+			),
+		).
 		WithOptions(copts).
 		Complete(r)
+}
+
+func (r *NutanixMachineReconciler) mapVmAntiAffinityPolicyToNutanixMachines() handler.MapFunc {
+	return func(ctx context.Context, o client.Object) []ctrl.Request {
+		log := ctrl.LoggerFrom(ctx)
+		policy, ok := o.(*infrav1.NutanixVMAntiAffinityPolicy)
+		if !ok {
+			log.Error(fmt.Errorf("expected a NutanixVMAntiAffinityPolicy object in mapVmAntiAffinityPolicyToNutanixMachines but was %T", o), "unexpected type")
+			return nil
+		}
+		log.V(1).Info(fmt.Sprintf("Mapping NutanixVMAntiAffinityPolicy %s to NutanixMachines", policy.Name))
+		// Get the list of NutanixMachines that are using this policy.
+		machineList := &infrav1.NutanixMachineList{}
+		if err := r.List(ctx, machineList, client.MatchingFields{
+			fmt.Sprintf("metadata.annotations.%s", infrav1.NutanixVMAntiAfiinityPolicyNameAnnotation): policy.Name,
+		}); err != nil {
+			log.V(1).Error(err, "failed to list NutanixMachines for policy")
+			return nil
+		}
+		requests := make([]ctrl.Request, 0)
+		for _, machine := range machineList.Items {
+			if machine.Annotations[infrav1.NutanixVMAntiAfiinityPolicyNameAnnotation] == policy.Name {
+				requests = append(requests, ctrl.Request{
+					NamespacedName: apitypes.NamespacedName{
+						Namespace: machine.Namespace,
+						Name:      machine.Name,
+					},
+				})
+			}
+		}
+		log.V(1).Info(fmt.Sprintf("Found %d NutanixMachines for policy %s", len(requests), policy.Name))
+
+		return requests
+	}
 }
 
 func (r *NutanixMachineReconciler) mapNutanixClusterToNutanixMachines() handler.MapFunc {
@@ -189,6 +245,7 @@ func (r *NutanixMachineReconciler) mapNutanixClusterToNutanixMachines() handler.
 //+kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=bootstrap.cluster.x-k8s.io,resources=kubeadmconfigs,verbs=get;list;watch;update;patch
+//+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixvmantiaffinitypolicies,verbs=get;list;watch;create
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -490,6 +547,45 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		errorMsg := fmt.Errorf("failed to patch NutanixMachine %s after creation. %v", rctx.NutanixMachine.Name, err)
 		log.Error(errorMsg, "failed to patch")
 		return reconcile.Result{}, errorMsg
+	}
+
+	// Check VMAntiAffinityPolicy
+	if rctx.NutanixMachine.Annotations[infrav1.NutanixVMAntiAfiinityPolicyNameAnnotation] != "" {
+		log.V(1).Info(fmt.Sprintf("Checking VMAntiAffinityPolicy for NutanixMachine %s", rctx.NutanixMachine.Name))
+		policyName := rctx.NutanixMachine.Annotations[infrav1.NutanixVMAntiAfiinityPolicyNameAnnotation]
+		policy := &infrav1.NutanixVMAntiAffinityPolicy{}
+		policyKey := client.ObjectKey{
+			Namespace: rctx.NutanixMachine.Namespace,
+			Name:      policyName,
+		}
+		if err := r.Get(rctx.Context, policyKey, policy); err != nil {
+			if apierrors.IsNotFound(err) {
+				log.V(1).Info(fmt.Sprintf("VMAntiAffinityPolicy %s not found for NutanixMachine %s, ignoring...", policyName, rctx.NutanixMachine.Name))
+			}
+			// Error reading the object - requeue the request.
+			log.Error(err, fmt.Sprintf("Failed to fetch VMAntiAffinityPolicy %s for NutanixMachine %s", policyName, rctx.NutanixMachine.Name))
+
+			return reconcile.Result{}, err
+		} else {
+			log.V(1).Info(fmt.Sprintf("Found VMAntiAffinityPolicy %s for NutanixMachine %s", policyName, rctx.NutanixMachine.Name))
+		}
+
+		vmInput := &prismclientv3.VMIntentInput{
+			APIVersion: vm.APIVersion,
+			Metadata:   vm.Metadata,
+			Spec:       vm.Spec,
+		}
+
+		for _, category := range policy.Spec.Categories {
+			vmInput.Metadata.Categories[category.Key] = category.Value
+		}
+
+		if _, err := rctx.NutanixClient.V3.UpdateVM(rctx.Context, *vm.Metadata.UUID, vmInput); err != nil {
+			errorMsg := fmt.Errorf("failed to update VM %s with UUID %s with VMAntiAffinityPolicy %s: %v", rctx.NutanixMachine.Name, rctx.NutanixMachine.Status.VmUUID, policyName, err)
+			log.Error(errorMsg, "failed to update VM with VMAntiAffinityPolicy")
+			return reconcile.Result{}, errorMsg
+		}
+		log.V(1).Info(fmt.Sprintf("Updated VM %s with UUID %s with VMAntiAffinityPolicy %s", rctx.NutanixMachine.Name, rctx.NutanixMachine.Status.VmUUID, policyName))
 	}
 
 	log.Info(fmt.Sprintf("Assigning IP addresses to VM with name: %s, vmUUID: %s", rctx.NutanixMachine.Name, rctx.NutanixMachine.Status.VmUUID))

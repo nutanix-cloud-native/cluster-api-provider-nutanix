@@ -13,5 +13,5 @@ kind: Kustomization
 
 images:
 - name: controller
-  newName: ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller
-  newTag: latest
+  newName: harbor.eng.nutanix.com/capx-dev/cluster-api-provider-nutanix
+  newTag: antiaffinity

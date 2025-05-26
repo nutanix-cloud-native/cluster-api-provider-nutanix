@@ -23,6 +23,7 @@ import (
 
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	capierrors "sigs.k8s.io/cluster-api/errors"
@@ -58,6 +59,14 @@ type MachineContext struct {
 
 	// The VM ip address
 	IP string
+}
+
+// VMAniffinityPolicyContext is a context used with a NutanixVMAntiAffinityPolicy reconciler
+type VMAntiAffinityPolicyContext struct {
+	Context                     context.Context
+	NutanixClient               *prismclientv4.Client
+	NutanixCluster              *infrav1.NutanixCluster
+	NutanixVMAntiAffinityPolicy *infrav1.NutanixVMAntiAffinityPolicy
 }
 
 // IsControlPlaneMachine returns true if the provided resource is
