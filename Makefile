@@ -7,8 +7,8 @@ EXPORT_RESULT?=false # for CI please set EXPORT_RESULT to true
 
 GIT_COMMIT_HASH=$(shell git rev-parse HEAD)
 LOCAL_IMAGE_REGISTRY ?= ko.local
-IMG_REPO=${LOCAL_IMAGE_REGISTRY}/cluster-api-provider-nutanix
-IMG_TAG=e2e-${GIT_COMMIT_HASH}
+IMG_REPO ?= ${LOCAL_IMAGE_REGISTRY}/cluster-api-provider-nutanix
+IMG_TAG ?= e2e-${GIT_COMMIT_HASH}
 MANAGER_IMAGE=${IMG_REPO}:${IMG_TAG}
 DOCKER_SOCKET := $(shell docker context inspect --format '{{.Endpoints.docker.Host}}')
 

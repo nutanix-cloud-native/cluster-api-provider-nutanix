@@ -15,13 +15,13 @@
     "ko@latest",
     "kubectl@latest",
     "kubernetes-code-generator@latest",
-    "kubernetes-controller-tools@latest",
     "kustomize@latest",
     "mockgen@latest",
     "yamllint@latest",
     "path:./hack/flakes#go-apidiff",
     "path:./hack/flakes#go-mod-upgrade",
     "path:./hack/flakes#yamllint-checkstyle",
-    "path:./hack/flakes#setup-envtest"
+    "path:./hack/flakes#setup-envtest",
+    "kubernetes-controller-tools@latest"
   ]
 }
