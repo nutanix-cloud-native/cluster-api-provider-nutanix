@@ -124,6 +124,15 @@ spec:
             sed -i 's#path: /etc/kubernetes/admin.conf#path: /etc/kubernetes/super-admin.conf#' /etc/kubernetes/manifests/kube-vip.yaml;
           fi
         fi
+      - |
+        KUBERNETES_VERSION_NO_V=${KUBERNETES_VERSION#v}
+        VERSION_TO_COMPARE=1.33.0
+        # Add cloud-provider flag only for Kubernetes versions < 1.33.0
+        if [ "$(printf '%s\n' "$VERSION_TO_COMPARE" "$KUBERNETES_VERSION_NO_V" | sort -V | head -n1)" = "$KUBERNETES_VERSION_NO_V" ]; then
+          if [ -f /run/kubeadm/kubeadm.yaml ]; then
+            sed -i '/apiServer:/,/extraArgs:/s/extraArgs:/extraArgs:\n        cloud-provider: external/' /run/kubeadm/kubeadm.yaml
+          fi
+        fi
     postKubeadmCommands:
       - echo export KUBECONFIG=/etc/kubernetes/admin.conf >> /root/.bashrc
       - |
