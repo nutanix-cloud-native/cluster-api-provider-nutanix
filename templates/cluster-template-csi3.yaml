@@ -2617,8 +2617,9 @@ spec:
       # Add cloud-provider flag only for Kubernetes versions < 1.33.0
       if [ "$(printf '%s\n' "$VERSION_TO_COMPARE" "$KUBERNETES_VERSION_NO_V" | sort -V | head -n1)" = "$KUBERNETES_VERSION_NO_V" ]; then
         if [ -f /run/kubeadm/kubeadm.yaml ]; then
-          # Fix the indentation to match the existing YAML structure
-          sed -i '/apiServer:/,/extraArgs:/s/extraArgs:/extraArgs:\n  cloud-provider: external/' /run/kubeadm/kubeadm.yaml
+          # Make sure cloud-provider uses exactly the same indentation level as other extraArgs entries
+          sed -i '/apiServer:/,/extraArgs:/s/extraArgs:/extraArgs:\
+            cloud-provider: external/' /run/kubeadm/kubeadm.yaml
           # Add logging for debugging
           echo "Added cloud-provider: external to apiServer configuration" > /var/log/cloud-provider-config.log
         fi
