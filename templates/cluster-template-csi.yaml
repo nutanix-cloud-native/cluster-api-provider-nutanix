@@ -2170,7 +2170,7 @@ spec:
         if [ -f /run/kubeadm/kubeadm.yaml ]; then
           # Make sure cloud-provider uses exactly the same indentation level as other extraArgs entries
           sed -i '/apiServer:/,/extraArgs:/s/extraArgs:/extraArgs:\
-           cloud-provider: external/' /run/kubeadm/kubeadm.yaml
+          cloud-provider: external/' /run/kubeadm/kubeadm.yaml
           # Add logging for debugging
           echo "Added cloud-provider: external to apiServer configuration" > /var/log/cloud-provider-config.log
         fi
