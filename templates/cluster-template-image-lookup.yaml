@@ -533,7 +533,7 @@ spec:
     - |
       KUBERNETES_VERSION_NO_V=${KUBERNETES_VERSION#v}
       VERSION_TO_COMPARE=1.33.0
-      # Add cloud-provider flag only for Kubernetes versions < 1.33.0
+      # Add cloud-provider flag only for Kubernetes versions <= 1.33.0
       if [ "$(printf '%s\n' "$VERSION_TO_COMPARE" "$KUBERNETES_VERSION_NO_V" | sort -V | head -n1)" = "$KUBERNETES_VERSION_NO_V" ]; then
         if [ -f /run/kubeadm/kubeadm.yaml ]; then
           # Insert cloud-provider in the proper list format used by the kubeadm.yaml file
