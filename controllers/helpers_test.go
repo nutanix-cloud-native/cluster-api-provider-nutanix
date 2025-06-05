@@ -95,7 +95,7 @@ func TestControllerHelpers(t *testing.T) {
 			})
 			It("should return the correct failuredomain", func() {
 				r := util.RandomString(10)
-				fd1 := infrav1.NutanixFailureDomain{
+				fd1 := infrav1.NutanixFailureDomainConfig{ //nolint:staticcheck // suppress complaining on Deprecated type
 					Name: fd1Name,
 					Cluster: infrav1.NutanixResourceIdentifier{
 						Type: infrav1.NutanixIdentifierName,
@@ -108,7 +108,7 @@ func TestControllerHelpers(t *testing.T) {
 						},
 					},
 				}
-				fd2 := infrav1.NutanixFailureDomain{
+				fd2 := infrav1.NutanixFailureDomainConfig{ //nolint:staticcheck // suppress complaining on Deprecated type
 					Name: fd2Name,
 					Cluster: infrav1.NutanixResourceIdentifier{
 						Type: infrav1.NutanixIdentifierName,
@@ -121,7 +121,7 @@ func TestControllerHelpers(t *testing.T) {
 						},
 					},
 				}
-				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomain{
+				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{ //nolint:staticcheck // suppress complaining on Deprecated type
 					fd1,
 					fd2,
 				}
