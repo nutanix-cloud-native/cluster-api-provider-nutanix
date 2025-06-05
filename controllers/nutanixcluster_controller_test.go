@@ -52,18 +52,11 @@ func TestNutanixClusterReconciler(t *testing.T) {
 	g := NewWithT(t)
 
 	_ = Describe("NutanixClusterReconciler", func() {
-		const (
-			fd1Name = "fd-1"
-			fd2Name = "fd-2"
-			// To be replaced with capiv1.ClusterKind
-			clusterKind = "Cluster"
-		)
-
 		var (
 			ntnxCluster *infrav1.NutanixCluster
 			ctx         context.Context
-			fd1         infrav1.NutanixFailureDomain
 			reconciler  *NutanixClusterReconciler
+			fdRef       corev1.LocalObjectReference
 			ntnxSecret  *corev1.Secret
 			r           string
 		)
@@ -97,19 +90,8 @@ func TestNutanixClusterReconciler(t *testing.T) {
 					},
 				},
 			}
-			fd1 = infrav1.NutanixFailureDomain{
-				Name: fd1Name,
-				Cluster: infrav1.NutanixResourceIdentifier{
-					Type: infrav1.NutanixIdentifierName,
-					Name: &r,
-				},
-				Subnets: []infrav1.NutanixResourceIdentifier{
-					{
-						Type: infrav1.NutanixIdentifierName,
-						Name: &r,
-					},
-				},
-			}
+			fdRef = corev1.LocalObjectReference{Name: "test"}
+
 			reconciler = &NutanixClusterReconciler{
 				Client: k8sClient,
 				Scheme: runtime.NewScheme(),
@@ -161,10 +143,32 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(result.RequeueAfter).To(BeZero())
 				g.Expect(result.Requeue).To(BeFalse())
 			})
-			It("should not error and not requeue if failure domains are configured and cluster is Ready", func() {
-				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomain{
-					fd1,
-				}
+			It("should not error and not requeue if failure domains (deprecated) are configured and cluster is Ready", func() {
+				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{{ //nolint:staticcheck // suppress complaining on Deprecated type
+					Name: "fd-1",
+					Cluster: infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierName,
+						Name: &r,
+					},
+					Subnets: []infrav1.NutanixResourceIdentifier{
+						{
+							Type: infrav1.NutanixIdentifierName,
+							Name: &r,
+						},
+					},
+				}}
+				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
+				ntnxCluster.Status.Ready = true
+				result, err := reconciler.reconcileNormal(&nctx.ClusterContext{
+					Context:        ctx,
+					NutanixCluster: ntnxCluster,
+				})
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(result.RequeueAfter).To(BeZero())
+				g.Expect(result.Requeue).To(BeFalse())
+			})
+			It("should not error and not requeue if controlPlaneFailureDomains are configured and cluster is Ready", func() {
+				ntnxCluster.Spec.ControlPlaneFailureDomains = []corev1.LocalObjectReference{fdRef}
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
 				ntnxCluster.Status.Ready = true
 				result, err := reconciler.reconcileNormal(&nctx.ClusterContext{
@@ -178,10 +182,8 @@ func TestNutanixClusterReconciler(t *testing.T) {
 		})
 
 		Context("Reconcile failure domains", func() {
-			It("sets the failure domains in the nutanixcluster status and failure domain reconciled condition", func() {
-				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomain{
-					fd1,
-				}
+			It("not found failure domains not in the nutanixcluster status's failureDomains and the failure domain validated condition is false", func() {
+				ntnxCluster.Spec.ControlPlaneFailureDomains = []corev1.LocalObjectReference{fdRef}
 
 				// Create the NutanixCluster object and expect the Reconcile to be created
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
@@ -202,21 +204,15 @@ func TestNutanixClusterReconciler(t *testing.T) {
 					gstruct.MatchFields(
 						gstruct.IgnoreExtras,
 						gstruct.Fields{
-							"Type":   Equal(infrav1.FailureDomainsReconciled),
-							"Status": Equal(corev1.ConditionTrue),
+							"Type":   Equal(infrav1.FailureDomainsValidatedCondition),
+							"Status": Equal(corev1.ConditionFalse),
+							"Reason": Equal(infrav1.FailureDomainsMisconfiguredReason),
 						},
 					),
 				))
-				g.Expect(appliedNtnxCluster.Status.FailureDomains).To(HaveKey(fd1Name))
-				g.Expect(appliedNtnxCluster.Status.FailureDomains[fd1Name]).To(gstruct.MatchFields(
-					gstruct.IgnoreExtras,
-					gstruct.Fields{
-						"ControlPlane": Equal(fd1.ControlPlane),
-					},
-				))
 			})
 
-			It("sets the NoFailureDomainsReconciled condition when no failure domains are set", func() {
+			It("sets the NoFailureDomainsConfigured condition when no failure domains are set", func() {
 				// Create the NutanixCluster object and expect the Reconcile to be created
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
 				// Retrieve the applied nutanix cluster objects
@@ -236,7 +232,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 					gstruct.MatchFields(
 						gstruct.IgnoreExtras,
 						gstruct.Fields{
-							"Type":   Equal(infrav1.NoFailureDomainsReconciled),
+							"Type":   Equal(infrav1.NoFailureDomainsConfiguredCondition),
 							"Status": Equal(corev1.ConditionTrue),
 						},
 					),
@@ -244,6 +240,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(appliedNtnxCluster.Status.FailureDomains).To(BeEmpty())
 			})
 		})
+
 		Context("Reconcile credentialRef for a NutanixCluster", func() {
 			It("should return error if already owned by another NutanixCluster", func() {
 				// Create an additional NutanixCluster object
@@ -359,7 +356,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				ntnxSecret.OwnerReferences = []metav1.OwnerReference{
 					{
 						APIVersion: capiv1.GroupVersion.String(),
-						Kind:       clusterKind,
+						Kind:       capiv1.ClusterKind,
 						UID:        ntnxCluster.UID,
 						Name:       r,
 					},
