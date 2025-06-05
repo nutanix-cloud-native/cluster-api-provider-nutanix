@@ -31,6 +31,10 @@ spec:
       jsonPath: .spec.providerID
       name: ProviderID
       type: string
+    - description: NutanixMachine FailureDomain
+      jsonPath: .status.failureDomain
+      name: FailureDomain
+      type: string
     name: v1beta1
     schema:
       openAPIV3Schema:
@@ -485,6 +489,10 @@ spec:
                   - type
                   type: object
                 type: array
+              failureDomain:
+                description: failureDomain is the name of the failure domain where
+                  this Machine has been placed in.
+                type: string
               failureMessage:
                 description: Will be set in case of failure of Machine instance
                 type: string
