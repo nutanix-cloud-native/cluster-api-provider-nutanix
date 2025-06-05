@@ -38,7 +38,7 @@ jobs:
 
   security:
     needs: check_approvals
-    if: github.repository == 'nutanix-cloud-native/cluster-api-provider-nutanix'
+    if: ${{ (github.event_name == 'pull_request' && needs.check_approvals.outputs.external_pr == 'false') || (github.event_name == 'pull_request_target' && needs.check_approvals.outputs.external_pr == 'true' && needs.check_approvals.outputs.check_approvals == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

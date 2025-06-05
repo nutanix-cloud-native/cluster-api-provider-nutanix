@@ -36,6 +36,7 @@ jobs:
         uses: nutanix-cloud-native/action-check-approvals@v1
 
   build-container:
+    if: ${{ (github.event_name == 'pull_request' && needs.check_approvals.outputs.external_pr == 'false') || (github.event_name == 'pull_request_target' && needs.check_approvals.outputs.external_pr == 'true' && needs.check_approvals.outputs.check_approvals == 'true') }}
     needs: check_approvals
     runs-on: ubuntu-latest
     steps:
