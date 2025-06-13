@@ -45,6 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
@@ -190,6 +191,7 @@ func initializeConfig(opts *options) (*managerConfig, error) {
 	if metricsServerOpts == nil {
 		return nil, errors.New("parsed manager options are nil")
 	}
+	metricsServerOpts.FilterProvider = filters.WithAuthenticationAndAuthorization
 	config.metricsServerOpts = *metricsServerOpts
 
 	config.concurrentReconcilesNutanixCluster = opts.maxConcurrentReconciles
