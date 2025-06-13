@@ -156,14 +156,14 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				})
 				g.Expect(err).ToNot(HaveOccurred())
 			})
-			It("returns no error if valid machine config is passed with failure domain", func() {
+			It("returns error if invalid machine config is passed with reference to not-exist failure domain", func() {
 				machine.Spec.FailureDomain = &r
 				err := reconciler.validateMachineConfig(&nctx.MachineContext{
 					Context:        ctx,
 					NutanixMachine: ntnxMachine,
 					Machine:        machine,
 				})
-				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).To(HaveOccurred())
 			})
 		})
 
@@ -204,32 +204,6 @@ func TestNutanixMachineReconciler(t *testing.T) {
 					{
 						Type: infrav1.NutanixIdentifierName,
 						Name: &r,
-					},
-				}
-				_, _, err := reconciler.GetSubnetAndPEUUIDs(&nctx.MachineContext{
-					Context:        ctx,
-					NutanixMachine: ntnxMachine,
-					Machine:        machine,
-					NutanixCluster: ntnxCluster,
-				})
-				g.Expect(err).To(HaveOccurred())
-			})
-			It("should error if machine has failure domain and but it is missing on nutanixCluster object", func() {
-				machine.Spec.FailureDomain = &r
-
-				_, _, err := reconciler.GetSubnetAndPEUUIDs(&nctx.MachineContext{
-					Context:        ctx,
-					NutanixMachine: ntnxMachine,
-					Machine:        machine,
-					NutanixCluster: ntnxCluster,
-				})
-				g.Expect(err).To(HaveOccurred())
-			})
-			It("should error if machine and nutanixCluster have failure domain and but nutanixClient is nil", func() {
-				machine.Spec.FailureDomain = &r
-				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomain{
-					{
-						Name: r,
 					},
 				}
 				_, _, err := reconciler.GetSubnetAndPEUUIDs(&nctx.MachineContext{

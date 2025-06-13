@@ -275,6 +275,10 @@ type NutanixMachineStatus struct {
 	// Will be set in case of failure of Machine instance
 	// +optional
 	FailureMessage *string `json:"failureMessage,omitempty"`
+
+	// failureDomain is the name of the failure domain where this Machine has been placed in.
+	// +optional
+	FailureDomain *string `json:"failureDomain,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -284,6 +288,7 @@ type NutanixMachineStatus struct {
 // +kubebuilder:printcolumn:name="Address",type="string",JSONPath=".status.addresses[0].address",description="The VM address"
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.ready",description="NutanixMachine ready status"
 // +kubebuilder:printcolumn:name="ProviderID",type="string",JSONPath=".spec.providerID",description="NutanixMachine instance ID"
+// +kubebuilder:printcolumn:name="FailureDomain",type="string",JSONPath=".status.failureDomain",description="NutanixMachine FailureDomain"
 // NutanixMachine is the Schema for the nutanixmachines API
 type NutanixMachine struct {
 	metav1.TypeMeta   `json:",inline"`
