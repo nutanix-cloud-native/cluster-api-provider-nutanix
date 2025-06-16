@@ -95,9 +95,7 @@ spec:
                   type: object
                   x-kubernetes-map-type: atomic
                 type: array
-                x-kubernetes-list-map-keys:
-                - name
-                x-kubernetes-list-type: map
+                x-kubernetes-list-type: set
               failureDomains:
                 description: |-
                   failureDomains configures failure domains information for the Nutanix platform.
