@@ -15,12 +15,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/utils/ptr"
+	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/flags"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
@@ -653,6 +655,94 @@ func TestKubebuilderValidations(t *testing.T) {
 			}
 			//nolint:errcheck // this is just for house keeping and doesn't actually do anything with testing the functionality.
 			k8sClient.Delete(context.Background(), &tt.machineTemplate)
+		})
+	}
+}
+
+func TestFailureDomains(t *testing.T) {
+	testEnv := &envtest.Environment{
+		CRDDirectoryPaths:     []string{filepath.Join("config", "crd", "bases")},
+		ErrorIfCRDPathMissing: true,
+	}
+
+	cfg, err := testEnv.Start()
+	assert.NoError(t, err)
+	assert.NotNil(t, cfg)
+
+	defer func() {
+		err := testEnv.Stop()
+		require.NoError(t, err)
+	}()
+
+	err = infrav1.AddToScheme(scheme)
+	assert.NoError(t, err)
+
+	err = infrav1.AddToScheme(scheme)
+	assert.NoError(t, err)
+
+	k8sClient, err := client.New(cfg, client.Options{Scheme: scheme})
+	assert.NoError(t, err)
+	assert.NotNil(t, k8sClient)
+	cases := []struct {
+		testName        string
+		nutanixCluster  infrav1.NutanixCluster
+		wantErr         bool
+		errTextContains string
+	}{
+		{
+			"multiple same names",
+			infrav1.NutanixCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "samenamefailuredomain",
+					Namespace: metav1.NamespaceDefault,
+				},
+				Spec: infrav1.NutanixClusterSpec{
+					ControlPlaneEndpoint: capiv1.APIEndpoint{
+						Host: "10.22.50.63",
+						Port: 6443,
+					},
+					ControlPlaneFailureDomains: []corev1.LocalObjectReference{
+						{Name: "foo"},
+						{Name: "foo"},
+					},
+				},
+			},
+			true,
+			"Duplicate value",
+		},
+		{
+			"distinct names",
+			infrav1.NutanixCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "differentfailuredomain",
+					Namespace: metav1.NamespaceDefault,
+				},
+				Spec: infrav1.NutanixClusterSpec{
+					ControlPlaneEndpoint: capiv1.APIEndpoint{
+						Host: "10.22.50.63",
+						Port: 6443,
+					},
+					ControlPlaneFailureDomains: []corev1.LocalObjectReference{
+						{Name: "foo"},
+						{Name: "bar"},
+					},
+				},
+			},
+			false,
+			"",
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.testName, func(t *testing.T) {
+			err = k8sClient.Create(context.Background(), &tt.nutanixCluster)
+			if tt.wantErr {
+				assert.Contains(t, err.Error(), tt.errTextContains)
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			//nolint:errcheck // this is just for house keeping and doesn't actually do anything with testing the functionality.
+			k8sClient.Delete(context.Background(), &tt.nutanixCluster)
 		})
 	}
 }

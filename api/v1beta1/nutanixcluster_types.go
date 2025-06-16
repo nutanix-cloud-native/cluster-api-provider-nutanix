@@ -71,8 +71,7 @@ type NutanixClusterSpec struct {
 
 	// controlPlaneFailureDomains configures references to the NutanixFailureDomain objects
 	// that the cluster uses to deploy its control-plane machines.
-	// +listType=map
-	// +listMapKey=name
+	// +listType=set
 	// +optional
 	ControlPlaneFailureDomains []corev1.LocalObjectReference `json:"controlPlaneFailureDomains,omitempty"`
 }
