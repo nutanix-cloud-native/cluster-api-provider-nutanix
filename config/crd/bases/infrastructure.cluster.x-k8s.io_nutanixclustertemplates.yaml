@@ -65,14 +65,44 @@ spec:
                         - host
                         - port
                         type: object
+                      controlPlaneFailureDomains:
+                        description: |-
+                          controlPlaneFailureDomains configures references to the NutanixFailureDomain objects
+                          that the cluster uses to deploy its control-plane machines.
+                        items:
+                          description: |-
+                            LocalObjectReference contains enough information to let you locate the
+                            referenced object inside the same namespace.
+                          properties:
+                            name:
+                              default: ""
+                              description: |-
+                                Name of the referent.
+                                This field is effectively required, but due to backwards compatibility is
+                                allowed to be empty. Instances of this type with an empty value here are
+                                almost certainly wrong.
+                                TODO: Add other useful fields. apiVersion, kind, uid?
+                                More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
+                              type: string
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        type: array
+                        x-kubernetes-list-type: set
                       failureDomains:
                         description: |-
                           failureDomains configures failure domains information for the Nutanix platform.
                           When set, the failure domains defined here may be used to spread Machines across
                           prism element clusters to improve fault tolerance of the cluster.
+
+
+                          Deprecated: This field is replaced by the field controlPlaneFailureDomains and will be removed in the next apiVersion.
                         items:
-                          description: NutanixFailureDomain configures failure domain
-                            information for Nutanix.
+                          description: |-
+                            NutanixFailureDomainConfig configures failure domain information for Nutanix.
+
+
+                            Deprecated: This type is replaced by the NutanixFailureDomain CRD type and will be removed in the next apiVersion.
                           properties:
                             cluster:
                               description: |-

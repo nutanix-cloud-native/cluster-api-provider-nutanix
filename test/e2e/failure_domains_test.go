@@ -93,7 +93,7 @@ var _ = Describe("Nutanix failure domains", Label("capx-feature-test", "failure-
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
 				expectedCondition: clusterv1.Condition{
-					Type:   infrav1.FailureDomainsReconciled,
+					Type:   infrav1.FailureDomainsValidatedCondition,
 					Status: corev1.ConditionTrue,
 				},
 			})

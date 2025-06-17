@@ -19,16 +19,17 @@ package controllers
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kapierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	apitypes "k8s.io/apimachinery/pkg/types"
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	capiutil "sigs.k8s.io/cluster-api/util"
@@ -95,8 +96,46 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 			),
 			builder.WithPredicates(predicates.ClusterUnpausedAndInfrastructureReady(ctrl.LoggerFrom(ctx))),
 		).
+		Watches(
+			&infrav1.NutanixFailureDomain{},
+			handler.EnqueueRequestsFromMapFunc(
+				r.mapNutanixFailureDomainToNutanixCluster(),
+			),
+		).
 		WithOptions(copts).
 		Complete(r)
+}
+
+func (r *NutanixClusterReconciler) mapNutanixFailureDomainToNutanixCluster() handler.MapFunc {
+	return func(ctx context.Context, o client.Object) []ctrl.Request {
+		log := ctrl.LoggerFrom(ctx)
+		nfd, ok := o.(*infrav1.NutanixFailureDomain)
+		if !ok {
+			log.Error(fmt.Errorf("expected a NutanixFailureDomain object but was %T", o), "unexpected type")
+			return nil
+		}
+
+		// Get all the NutanixClusters in the local namespace
+		nclList := &infrav1.NutanixClusterList{}
+		if err := r.Client.List(ctx, nclList, client.InNamespace(nfd.Namespace)); err != nil {
+			log.Error(err, "Failed to list nutanix clusters for failure domain")
+			return nil
+		}
+
+		// Return those NutanixCluster instances having reference to the failure domain
+		reqs := make([]ctrl.Request, 0)
+		for _, ncl := range nclList.Items {
+			for _, fdRef := range ncl.Spec.ControlPlaneFailureDomains {
+				if fdRef.Name == nfd.Name {
+					objKey := client.ObjectKey{Name: ncl.Name, Namespace: ncl.Namespace}
+					reqs = append(reqs, ctrl.Request{NamespacedName: objKey})
+					continue
+				}
+			}
+		}
+
+		return reqs
+	}
 }
 
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update;delete
@@ -124,7 +163,7 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	cluster := &infrav1.NutanixCluster{}
 	err = r.Client.Get(ctx, req.NamespacedName, cluster)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if kapierrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
@@ -163,7 +202,7 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	defer func() {
 		// Always attempt to Patch the NutanixCluster object and its status after each reconciliation.
 		if err := patchHelper.Patch(ctx, cluster); err != nil {
-			reterr = kerrors.NewAggregate([]error{reterr, err})
+			reterr = kutilerrors.NewAggregate([]error{reterr, err})
 		}
 		log.V(1).Info(fmt.Sprintf("Patched NutanixCluster. Status: %+v", cluster.Status))
 	}()
@@ -289,20 +328,79 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 
 func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterContext) error {
 	log := ctrl.LoggerFrom(rctx.Context)
-	if len(rctx.NutanixCluster.Spec.FailureDomains) == 0 {
-		log.V(1).Info("no failure domains defined on cluster")
-		conditions.MarkTrue(rctx.NutanixCluster, infrav1.NoFailureDomainsReconciled)
+	log.Info("Reconciling failure domains for cluster")
+
+	failureDomains := capiv1.FailureDomains{}
+	if len(rctx.NutanixCluster.Spec.ControlPlaneFailureDomains) == 0 && len(rctx.NutanixCluster.Spec.FailureDomains) == 0 { //nolint:staticcheck // suppress complaining on Deprecated field
+		log.Info("No failure domains configured for cluster.")
+		conditions.MarkTrue(rctx.NutanixCluster, infrav1.NoFailureDomainsConfiguredCondition)
+		conditions.Delete(rctx.NutanixCluster, infrav1.FailureDomainsValidatedCondition)
+
+		// Reset the failure domains for nutanixcluster status
+		rctx.NutanixCluster.Status.FailureDomains = failureDomains
 		return nil
 	}
-	log.V(1).Info("Reconciling failure domains for cluster")
-	// If failure domains is nil on status object, first create empty slice
-	if rctx.NutanixCluster.Status.FailureDomains == nil {
-		rctx.NutanixCluster.Status.FailureDomains = make(capiv1.FailureDomains, 0)
+
+	// Clear NoFailureDomainsConfiguredCondition condition
+	conditions.Delete(rctx.NutanixCluster, infrav1.NoFailureDomainsConfiguredCondition)
+
+	validationErrs := []error{}
+	for _, fdRef := range rctx.NutanixCluster.Spec.ControlPlaneFailureDomains {
+		// Fetch the referent failure domain object
+		fdObj := &infrav1.NutanixFailureDomain{}
+		fdKey := client.ObjectKey{Name: fdRef.Name, Namespace: rctx.NutanixCluster.Namespace}
+		if err := r.Client.Get(rctx.Context, fdKey, fdObj); err != nil {
+			if kapierrors.IsNotFound(err) {
+				validationErrs = append(validationErrs, fmt.Errorf("not found the failure domain object with name %q", fdRef.Name))
+				continue
+			}
+			validationErrs = append(validationErrs, fmt.Errorf("failed to fetch the failure domain object with name %q: %w", fdRef.Name, err))
+			continue
+		}
+
+		// Validate the failure domain configuration
+		if err := r.validateFailureDomainSpec(rctx, fdObj); err != nil {
+			validationErrs = append(validationErrs, fmt.Errorf("failed to validate the failure domain %q configuration: %w", fdRef.Name, err))
+			continue
+		}
+
+		// The failure domain configuration passed validation. Add it to the result map.
+		failureDomains[fdObj.Name] = capiv1.FailureDomainSpec{ControlPlane: true}
 	}
-	for _, fd := range rctx.NutanixCluster.Spec.FailureDomains {
-		rctx.NutanixCluster.Status.FailureDomains[fd.Name] = capiv1.FailureDomainSpec{ControlPlane: fd.ControlPlane}
+
+	// Remove below when the Deprecated field NutanixCluster.Spec.FailureDomains is removed
+	for _, fd := range rctx.NutanixCluster.Spec.FailureDomains { //nolint:staticcheck // suppress complaining on Deprecated field
+		failureDomains[fd.Name] = capiv1.FailureDomainSpec{ControlPlane: fd.ControlPlane}
 	}
-	conditions.MarkTrue(rctx.NutanixCluster, infrav1.FailureDomainsReconciled)
+
+	// Set the failure domains for nutanixcluster status
+	rctx.NutanixCluster.Status.FailureDomains = failureDomains
+
+	if len(validationErrs) != 0 {
+		conditions.MarkFalse(rctx.NutanixCluster, infrav1.FailureDomainsValidatedCondition,
+			infrav1.FailureDomainsMisconfiguredReason, capiv1.ConditionSeverityWarning, errors.Join(validationErrs...).Error())
+		return nil
+	}
+
+	conditions.MarkTrue(rctx.NutanixCluster, infrav1.FailureDomainsValidatedCondition)
+	return nil
+}
+
+// validateFailureDomainSpec is to validate the input failure domain's spec configuration.
+// It returns error if validation fails, and returns nil if validation succeeds.
+func (r *NutanixClusterReconciler) validateFailureDomainSpec(rctx *nctx.ClusterContext, fd *infrav1.NutanixFailureDomain) error {
+	pe := fd.Spec.PrismElementCluster
+	peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixClient, pe.Name, pe.UUID)
+	if err != nil {
+		return err
+	}
+
+	subnets := fd.Spec.Subnets
+	_, err = GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, subnets, peUUID)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -357,7 +455,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Cont
 	}
 	err = r.Client.Get(ctx, secretKey, secret)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if kapierrors.IsNotFound(err) {
 			log.V(1).Info(fmt.Sprintf("Secret %s in namespace %s for cluster %s not found. Ignoring since object must be deleted", secret.Name, secret.Namespace, nutanixCluster.Name))
 			return nil
 		}
@@ -371,7 +469,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Cont
 
 	if secret.DeletionTimestamp.IsZero() {
 		log.Info(fmt.Sprintf("removing secret %s in namespace %s for cluster %s", secret.Name, secret.Namespace, nutanixCluster.Name))
-		if err := r.Client.Delete(ctx, secret); err != nil && !errors.IsNotFound(err) {
+		if err := r.Client.Delete(ctx, secret); err != nil && !kapierrors.IsNotFound(err) {
 			return err
 		}
 	}
@@ -442,7 +540,7 @@ func (r *NutanixClusterReconciler) reconcileTrustBundleRefDelete(ctx context.Con
 
 	configMap := &corev1.ConfigMap{}
 	if err := r.Client.Get(ctx, configMapKey, configMap); err != nil {
-		if errors.IsNotFound(err) {
+		if kapierrors.IsNotFound(err) {
 			log.Info(fmt.Sprintf("configmap %s/%s for cluster %s not found. Ignoring since object must be deleted", configMapKey.Namespace, configMapKey.Name, nutanixCluster.Name))
 			return nil
 		}
@@ -458,7 +556,7 @@ func (r *NutanixClusterReconciler) reconcileTrustBundleRefDelete(ctx context.Con
 
 	if configMap.DeletionTimestamp.IsZero() {
 		log.Info(fmt.Sprintf("removing configmap %s/%s for cluster %s", configMap.Namespace, configMap.Name, nutanixCluster.Name))
-		if err := r.Client.Delete(ctx, configMap); err != nil && !errors.IsNotFound(err) {
+		if err := r.Client.Delete(ctx, configMap); err != nil && !kapierrors.IsNotFound(err) {
 			return err
 		}
 	}
