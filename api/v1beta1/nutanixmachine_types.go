@@ -34,7 +34,7 @@ const (
 	// NutanixMachineFinalizer allows NutanixMachineReconciler to clean up AHV
 	// resources associated with NutanixMachine before removing it from the
 	// API Server.
-	NutanixMachineFinalizer = "nutanixmachine.infrastructure.cluster.x-k8s.io"
+	NutanixMachineFinalizer = "infrastructure.cluster.x-k8s.io/nutanixmachine"
 
 	// NutanixMachineBootstrapRefKindSecret represents the Kind of Secret
 	// referenced by NutanixMachine's BootstrapRef.
