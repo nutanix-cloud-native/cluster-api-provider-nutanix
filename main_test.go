@@ -70,13 +70,11 @@ func TestInitializeFlags(t *testing.T) {
 			name: "Cluster API flags",
 			args: []string{
 				"cmd",
-				"--metrics-bind-addr=1.2.3.4",
 				"--diagnostics-address=:9999",
 				"--insecure-diagnostics=true",
 			},
 			want: &options{
 				managerOptions: flags.ManagerOptions{
-					MetricsBindAddr:     "1.2.3.4",
 					DiagnosticsAddress:  ":9999",
 					InsecureDiagnostics: true,
 				},
