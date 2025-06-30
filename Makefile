@@ -218,11 +218,11 @@ run: manifests generate ## Run a controller from your host.
 .PHONY: docker-build
 docker-build:  ## Build docker image with the manager.
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
-	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS} -t ${IMG_TAG} .
+	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=${IMG_REPO} GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push
 docker-push:  ## Push docker image with the manager.
-	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=${IMG_REPO} ko build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
+	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=${IMG_REPO} GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push-kind
 docker-push-kind:  ## Make docker image available to kind cluster.
@@ -257,10 +257,10 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 ##@ Templates
 
 .PHONY: cluster-e2e-templates
-cluster-e2e-templates: cluster-e2e-templates-v1beta1 cluster-e2e-templates-v152 ## Generate cluster templates for all versions
+cluster-e2e-templates: cluster-e2e-templates-v1beta1 cluster-e2e-templates-v161 ## Generate cluster templates for all versions
 
-cluster-e2e-templates-v152: ## Generate cluster templates for CAPX v1.5.2
-	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1.5.2/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1.5.2/cluster-template.yaml
+cluster-e2e-templates-v161: ## Generate cluster templates for CAPX v1.6.1
+	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1.6.1/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1.6.1/cluster-template.yaml
 
 cluster-e2e-templates-v1beta1: ## Generate cluster templates for v1beta1
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template.yaml
