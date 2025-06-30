@@ -57,7 +57,7 @@ func getKubernetesVersion() string {
 	return "undefined"
 }
 
-var _ = Describe("[clusterctl-Upgrade] Upgrade CAPX (v1.5.2 => current) K8S "+kubernetesVersion, Label("clusterctl-upgrade"), func() {
+var _ = Describe("[clusterctl-Upgrade] Upgrade CAPX (v1.6.1 => current) K8S "+kubernetesVersion, Label("clusterctl-upgrade"), func() {
 	preWaitForCluster := createPreWaitForClusterFunc(func() capie2e.ClusterctlUpgradeSpecInput {
 		return capie2e.ClusterctlUpgradeSpecInput{
 			E2EConfig:             e2eConfig,
@@ -83,12 +83,12 @@ var _ = Describe("[clusterctl-Upgrade] Upgrade CAPX (v1.5.2 => current) K8S "+ku
 			BootstrapClusterProxy:           bootstrapClusterProxy,
 			ArtifactFolder:                  artifactFolder,
 			SkipCleanup:                     skipCleanup,
-			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.7.6/clusterctl-{OS}-{ARCH}",
-			InitWithKubernetesVersion:       e2eConfig.GetVariable("KUBERNETES_VERSION"),
-			InitWithCoreProvider:            "cluster-api:v1.7.6",
-			InitWithBootstrapProviders:      []string{"kubeadm:v1.7.6"},
-			InitWithControlPlaneProviders:   []string{"kubeadm:v1.7.6"},
-			InitWithInfrastructureProviders: []string{"nutanix:v1.5.2"},
+			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.10.3/clusterctl-{OS}-{ARCH}",
+			InitWithKubernetesVersion:       e2eConfig.MustGetVariable("KUBERNETES_VERSION"),
+			InitWithCoreProvider:            "cluster-api:v1.10.3",
+			InitWithBootstrapProviders:      []string{"kubeadm:v1.10.3"},
+			InitWithControlPlaneProviders:   []string{"kubeadm:v1.10.3"},
+			InitWithInfrastructureProviders: []string{"nutanix:v1.6.1"},
 			PreWaitForCluster:               preWaitForCluster,
 			PostUpgrade:                     postUpgradeFunc,
 		}
@@ -104,7 +104,7 @@ func createPreWaitForClusterFunc(testInputFunc func() capie2e.ClusterctlUpgradeS
 
 		By("Get latest version of CAPX provider")
 
-		latestVersionString := "v1.5.2"
+		latestVersionString := "v1.6.1"
 		latestVersion, err := semver.ParseTolerant(latestVersionString)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -163,7 +163,7 @@ func createPostUpgradeFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInp
 
 		yamlProc := yaml.NewSimpleProcessor()
 
-		latestVersionString := "v1.5.2"
+		latestVersionString := "v1.6.1"
 		latestVersion, err := semver.ParseTolerant(latestVersionString)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -199,7 +199,7 @@ func createPostUpgradeFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInp
 			}
 
 			log.Debugf("Nutanix CCM manifest variable %s found", varName)
-			return testInput.E2EConfig.GetVariable(varName), nil
+			return testInput.E2EConfig.MustGetVariable(varName), nil
 		})
 		Expect(err).NotTo(HaveOccurred())
 

@@ -57,7 +57,7 @@ func fetchCredentialParameter(key string, config clusterctl.E2EConfig, allowEmpt
 	value := os.Getenv(key)
 
 	if value == "" && config.HasVariable(key) {
-		value = config.GetVariable(key)
+		value = config.MustGetVariable(key)
 	}
 
 	if allowEmpty && value == "" {
