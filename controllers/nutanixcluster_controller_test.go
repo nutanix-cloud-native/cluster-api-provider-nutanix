@@ -144,19 +144,20 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(result.Requeue).To(BeFalse())
 			})
 			It("should not error and not requeue if failure domains (deprecated) are configured and cluster is Ready", func() {
-				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{{ //nolint:staticcheck // suppress complaining on Deprecated type
-					Name: "fd-1",
-					Cluster: infrav1.NutanixResourceIdentifier{
+			ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{{ //nolint:staticcheck // suppress complaining on Deprecated type
+				Name: "fd-1",
+				Cluster: infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierName,
+					Name: &r,
+				},
+				Subnets: []infrav1.NutanixResourceIdentifier{
+					{
 						Type: infrav1.NutanixIdentifierName,
 						Name: &r,
 					},
-					Subnets: []infrav1.NutanixResourceIdentifier{
-						{
-							Type: infrav1.NutanixIdentifierName,
-							Name: &r,
-						},
-					},
-				}}
+				},
+				ControlPlane: true,
+			}}
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
 				ntnxCluster.Status.Ready = true
 				result, err := reconciler.reconcileNormal(&nctx.ClusterContext{
