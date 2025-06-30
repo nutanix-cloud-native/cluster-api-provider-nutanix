@@ -447,7 +447,7 @@ func (t testHelper) deployCluster(params deployClusterParams, clusterResources *
 		Flavor:                   params.flavor,
 		Namespace:                params.namespace.Name,
 		ClusterName:              params.clusterName,
-		KubernetesVersion:        t.e2eConfig.GetVariable(KubernetesVersion),
+		KubernetesVersion:        t.e2eConfig.MustGetVariable(KubernetesVersion),
 		ControlPlaneMachineCount: ptr.To(int64(1)),
 		WorkerMachineCount:       ptr.To(int64(1)),
 	}
@@ -470,7 +470,7 @@ func (t testHelper) deployClusterAndWait(params deployClusterParams, clusterReso
 		Flavor:                   params.flavor,
 		Namespace:                params.namespace.Name,
 		ClusterName:              params.clusterName,
-		KubernetesVersion:        t.e2eConfig.GetVariable(KubernetesVersion),
+		KubernetesVersion:        t.e2eConfig.MustGetVariable(KubernetesVersion),
 		ControlPlaneMachineCount: ptr.To(int64(1)),
 		WorkerMachineCount:       ptr.To(int64(1)),
 	}
@@ -486,14 +486,12 @@ func (t testHelper) deployClusterAndWait(params deployClusterParams, clusterReso
 
 func (t testHelper) deleteAllClustersAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, namespace *corev1.Namespace, intervalsGetter func(spec, key string) []interface{}) {
 	framework.DeleteAllClustersAndWait(ctx, framework.DeleteAllClustersAndWaitInput{
-		Client:    bootstrapClusterProxy.GetClient(),
 		Namespace: namespace.Name,
 	}, intervalsGetter(specName, "wait-delete-cluster")...)
 }
 
 func (t testHelper) deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *capiv1.Cluster, intervalsGetter func(spec, key string) []interface{}) {
 	framework.DeleteClusterAndWait(ctx, framework.DeleteClusterAndWaitInput{
-		Client:  bootstrapClusterProxy.GetClient(),
 		Cluster: cluster,
 	}, intervalsGetter(specName, "wait-delete-cluster")...)
 }
@@ -587,7 +585,7 @@ func (t testHelper) getNutanixResourceIdentifierFromE2eConfig(variableKey string
 
 func (t testHelper) getVariableFromE2eConfig(variableKey string) string {
 	Expect(t.e2eConfig.HasVariable(variableKey)).To(BeTrue(), "expected e2econfig variable %s to exist", variableKey)
-	variableValue := t.e2eConfig.GetVariable(variableKey)
+	variableValue := t.e2eConfig.MustGetVariable(variableKey)
 	Expect(variableValue).ToNot(BeEmpty(), "expected e2econfig variable %s to be set", variableKey)
 	return variableValue
 }

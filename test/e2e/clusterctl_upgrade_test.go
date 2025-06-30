@@ -84,7 +84,7 @@ var _ = Describe("[clusterctl-Upgrade] Upgrade CAPX (v1.6.1 => current) K8S "+ku
 			ArtifactFolder:                  artifactFolder,
 			SkipCleanup:                     skipCleanup,
 			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.10.3/clusterctl-{OS}-{ARCH}",
-			InitWithKubernetesVersion:       e2eConfig.GetVariable("KUBERNETES_VERSION"),
+			InitWithKubernetesVersion:       e2eConfig.MustGetVariable("KUBERNETES_VERSION"),
 			InitWithCoreProvider:            "cluster-api:v1.10.3",
 			InitWithBootstrapProviders:      []string{"kubeadm:v1.10.3"},
 			InitWithControlPlaneProviders:   []string{"kubeadm:v1.10.3"},
@@ -199,7 +199,7 @@ func createPostUpgradeFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInp
 			}
 
 			log.Debugf("Nutanix CCM manifest variable %s found", varName)
-			return testInput.E2EConfig.GetVariable(varName), nil
+			return testInput.E2EConfig.MustGetVariable(varName), nil
 		})
 		Expect(err).NotTo(HaveOccurred())
 
