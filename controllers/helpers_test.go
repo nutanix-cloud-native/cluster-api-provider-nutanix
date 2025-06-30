@@ -107,6 +107,7 @@ func TestControllerHelpers(t *testing.T) {
 							Name: &r,
 						},
 					},
+					ControlPlane: true,
 				}
 				fd2 := infrav1.NutanixFailureDomainConfig{ //nolint:staticcheck // suppress complaining on Deprecated type
 					Name: fd2Name,
@@ -120,6 +121,7 @@ func TestControllerHelpers(t *testing.T) {
 							Name: &r,
 						},
 					},
+					ControlPlane: true,
 				}
 				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{ //nolint:staticcheck // suppress complaining on Deprecated type
 					fd1,
