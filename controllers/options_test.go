@@ -2,9 +2,12 @@ package controllers
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/time/rate"
 	"k8s.io/client-go/util/workqueue"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 func TestWithMaxConcurrentReconciles(t *testing.T) {
@@ -42,7 +45,7 @@ func TestWithMaxConcurrentReconciles(t *testing.T) {
 func TestWithRateLimiter(t *testing.T) {
 	tests := []struct {
 		name         string
-		rateLimiter  workqueue.RateLimiter
+		rateLimiter  workqueue.TypedRateLimiter[reconcile.Request]
 		expectError  bool
 		expectedType interface{}
 	}{
@@ -54,9 +57,9 @@ func TestWithRateLimiter(t *testing.T) {
 		},
 		{
 			name:         "TestWithRateLimiterSet",
-			rateLimiter:  workqueue.DefaultControllerRateLimiter(),
+			rateLimiter:  workqueue.NewTypedMaxOfRateLimiter(workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](1*time.Millisecond, 1000*time.Second), &workqueue.TypedBucketRateLimiter[reconcile.Request]{Limiter: rate.NewLimiter(rate.Limit(10), 100)}),
 			expectError:  false,
-			expectedType: &workqueue.MaxOfRateLimiter{},
+			expectedType: &workqueue.TypedMaxOfRateLimiter[reconcile.Request]{},
 		},
 	}
 	for _, tt := range tests {

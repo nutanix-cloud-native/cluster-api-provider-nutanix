@@ -47,6 +47,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
@@ -329,7 +330,7 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 
 	clusterControllerOpts := []controllers.ControllerConfigOpts{
 		controllers.WithMaxConcurrentReconciles(config.concurrentReconcilesNutanixCluster),
-		controllers.WithRateLimiter(config.rateLimiter),
+			controllers.WithRateLimiter(workqueue.NewTypedMaxOfRateLimiter(workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](1*time.Millisecond, 1000*time.Second), &workqueue.TypedBucketRateLimiter[reconcile.Request]{Limiter: rate.NewLimiter(rate.Limit(10), 100)})),
 	}
 
 	if err := setupNutanixClusterController(ctx, mgr, secretInformer, configMapInformer, clusterControllerOpts...); err != nil {
@@ -338,7 +339,7 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 
 	machineControllerOpts := []controllers.ControllerConfigOpts{
 		controllers.WithMaxConcurrentReconciles(config.concurrentReconcilesNutanixMachine),
-		controllers.WithRateLimiter(config.rateLimiter),
+			controllers.WithRateLimiter(workqueue.NewTypedMaxOfRateLimiter(workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](1*time.Millisecond, 1000*time.Second), &workqueue.TypedBucketRateLimiter[reconcile.Request]{Limiter: rate.NewLimiter(rate.Limit(10), 100)})),
 	}
 
 	if err := setupNutanixMachineController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {

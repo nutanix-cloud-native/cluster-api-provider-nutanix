@@ -135,7 +135,7 @@ func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctr
 		Watches(
 			&capiv1.Cluster{},
 			handler.EnqueueRequestsFromMapFunc(clusterToObjectFunc),
-			builder.WithPredicates(predicates.ClusterUnpausedAndInfrastructureReady(ctrl.LoggerFrom(ctx))),
+			builder.WithPredicates(predicates.ClusterUnpausedAndInfrastructureReady(r.Scheme, ctrl.LoggerFrom(ctx))),
 		).
 		WithOptions(copts).
 		Complete(r)

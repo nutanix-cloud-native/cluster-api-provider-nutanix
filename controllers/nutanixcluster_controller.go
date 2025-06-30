@@ -94,7 +94,7 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 					&infrav1.NutanixCluster{},
 				),
 			),
-			builder.WithPredicates(predicates.ClusterUnpausedAndInfrastructureReady(ctrl.LoggerFrom(ctx))),
+			builder.WithPredicates(predicates.ClusterUnpausedAndInfrastructureReady(r.Scheme, ctrl.LoggerFrom(ctx))),
 		).
 		Watches(
 			&infrav1.NutanixFailureDomain{},
