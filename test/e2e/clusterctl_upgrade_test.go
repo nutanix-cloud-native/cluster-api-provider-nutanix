@@ -57,7 +57,7 @@ func getKubernetesVersion() string {
 	return "undefined"
 }
 
-var _ = Describe("[clusterctl-Upgrade] Upgrade CAPX (v1.6.1 => current) K8S "+kubernetesVersion, Label("clusterctl-upgrade"), func() {
+var _ = Describe("[clusterctl-upgrade] Upgrade CAPX (v1.6.1 => current) K8S "+kubernetesVersion, Label("clusterctl-upgrade"), func() {
 	preWaitForCluster := createPreWaitForClusterFunc(func() capie2e.ClusterctlUpgradeSpecInput {
 		return capie2e.ClusterctlUpgradeSpecInput{
 			E2EConfig:             e2eConfig,
