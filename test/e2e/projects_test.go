@@ -31,7 +31,7 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
-var _ = Describe("Nutanix projects", Label("capx-feature-test", "projects"), func() {
+var _ = Describe("Nutanix projects", Label("nutanix-feature-test", "projects"), func() {
 	const (
 		specName               = "cluster-projects"
 		nonExistingProjectName = "nonExistingProjectNameCAPX"

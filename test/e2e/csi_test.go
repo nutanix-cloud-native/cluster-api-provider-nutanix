@@ -35,7 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("Nutanix flavor CSI", Label("capx-feature-test", "csi"), func() {
+var _ = Describe("Nutanix flavor CSI", Label("nutanix-feature-test", "csi"), func() {
 	const (
 		specName = "cluster-csi"
 
