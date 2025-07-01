@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
+	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
@@ -68,9 +69,11 @@ func (r *NutanixFailureDomainReconciler) SetupWithManager(ctx context.Context, m
 	copts := controller.Options{
 		MaxConcurrentReconciles: r.controllerConfig.MaxConcurrentReconciles,
 		RateLimiter:             r.controllerConfig.RateLimiter,
+		SkipNameValidation:      ptr.To(true),
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
+		Named("nutanixfailuredomain-controller").
 		For(&infrav1.NutanixFailureDomain{}).
 		Watches(
 			&infrav1.NutanixMachine{},
