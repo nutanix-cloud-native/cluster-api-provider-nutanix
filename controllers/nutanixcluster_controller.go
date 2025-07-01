@@ -280,6 +280,7 @@ func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (r
 
 	// Remove the finalizer from the NutanixCluster object
 	ctrlutil.RemoveFinalizer(rctx.NutanixCluster, infrav1.NutanixClusterFinalizer)
+	ctrlutil.RemoveFinalizer(rctx.NutanixCluster, infrav1.DeprecatedNutanixClusterFinalizer)
 
 	// Remove the workload cluster client from cache
 	clusterKey := apitypes.NamespacedName{
@@ -303,6 +304,7 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 	if !ctrlutil.ContainsFinalizer(rctx.NutanixCluster, infrav1.NutanixClusterFinalizer) {
 		ctrlutil.AddFinalizer(rctx.NutanixCluster, infrav1.NutanixClusterFinalizer)
 	}
+	ctrlutil.RemoveFinalizer(rctx.NutanixCluster, infrav1.DeprecatedNutanixClusterFinalizer)
 
 	// Reconciling failure domains before Ready check to allow failure domains to be modified
 	if err := r.reconcileFailureDomains(rctx); err != nil {
@@ -461,7 +463,9 @@ func (r *NutanixClusterReconciler) reconcileCredentialRefDelete(ctx context.Cont
 		}
 		return err
 	}
+
 	ctrlutil.RemoveFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer)
+	ctrlutil.RemoveFinalizer(secret, infrav1.DeprecatedNutanixClusterCredentialFinalizer)
 	log.V(1).Info(fmt.Sprintf("removing finalizers from secret %s in namespace %s for cluster %s", secret.Name, secret.Namespace, nutanixCluster.Name))
 	if err := r.Client.Update(ctx, secret); err != nil {
 		return err
@@ -514,6 +518,7 @@ func (r *NutanixClusterReconciler) reconcileTrustBundleRef(ctx context.Context, 
 	if !ctrlutil.ContainsFinalizer(configMap, infrav1.NutanixClusterCredentialFinalizer) {
 		ctrlutil.AddFinalizer(configMap, infrav1.NutanixClusterCredentialFinalizer)
 	}
+	ctrlutil.RemoveFinalizer(configMap, infrav1.DeprecatedNutanixClusterCredentialFinalizer)
 
 	if err := r.Client.Update(ctx, configMap); err != nil {
 		log.Error(err, "error occurred while updating trust bundle configmap", "nutanixCluster", nutanixCluster)
@@ -549,6 +554,7 @@ func (r *NutanixClusterReconciler) reconcileTrustBundleRefDelete(ctx context.Con
 	}
 
 	ctrlutil.RemoveFinalizer(configMap, infrav1.NutanixClusterCredentialFinalizer)
+	ctrlutil.RemoveFinalizer(configMap, infrav1.DeprecatedNutanixClusterCredentialFinalizer)
 	log.V(1).Info(fmt.Sprintf("removing finalizers from configmap %s/%s for cluster %s", configMap.Namespace, configMap.Name, nutanixCluster.Name))
 	if err := r.Client.Update(ctx, configMap); err != nil {
 		return err
@@ -608,6 +614,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, n
 	if !ctrlutil.ContainsFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer) {
 		ctrlutil.AddFinalizer(secret, infrav1.NutanixClusterCredentialFinalizer)
 	}
+	ctrlutil.RemoveFinalizer(secret, infrav1.DeprecatedNutanixClusterCredentialFinalizer)
 
 	err = r.Client.Update(ctx, secret)
 	if err != nil {

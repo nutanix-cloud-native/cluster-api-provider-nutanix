@@ -34,8 +34,11 @@ const (
 	// NutanixClusterFinalizer allows NutanixClusterReconciler to clean up AHV
 	// resources associated with NutanixCluster before removing it from the
 	// API Server.
-	NutanixClusterFinalizer           = "nutanixcluster.infrastructure.cluster.x-k8s.io"
-	NutanixClusterCredentialFinalizer = "nutanixcluster/infrastructure.cluster.x-k8s.io"
+	NutanixClusterFinalizer           = "infrastructure.cluster.x-k8s.io/nutanixcluster"
+	DeprecatedNutanixClusterFinalizer = "nutanixcluster.infrastructure.cluster.x-k8s.io"
+
+	NutanixClusterCredentialFinalizer           = "infrastructure.cluster.x-k8s.io/nutanixclustercredential"
+	DeprecatedNutanixClusterCredentialFinalizer = "nutanixcluster/infrastructure.cluster.x-k8s.io"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
