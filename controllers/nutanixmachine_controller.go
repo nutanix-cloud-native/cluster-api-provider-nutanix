@@ -36,7 +36,6 @@ import (
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	capierrors "sigs.k8s.io/cluster-api/errors"
 	capiutil "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -135,7 +134,7 @@ func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctr
 		Watches(
 			&capiv1.Cluster{},
 			handler.EnqueueRequestsFromMapFunc(clusterToObjectFunc),
-			builder.WithPredicates(predicates.ClusterUnpausedAndInfrastructureReady(r.Scheme, ctrl.LoggerFrom(ctx))),
+			builder.WithPredicates(predicates.ClusterPausedTransitionsOrInfrastructureReady(r.Scheme, ctrl.LoggerFrom(ctx))),
 		).
 		WithOptions(copts).
 		Complete(r)
@@ -724,14 +723,14 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	log.Info(fmt.Sprintf("No existing VM found. Starting creation process of VM %s.", vmName))
 	err = r.validateMachineConfig(rctx)
 	if err != nil {
-		rctx.SetFailureStatus(capierrors.CreateMachineError, err)
+		rctx.SetFailureStatus("CreateMachineError", err)
 		return nil, err
 	}
 
 	peUUID, subnetUUIDs, err := r.GetSubnetAndPEUUIDs(rctx)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("failed to get the config for VM %s.", vmName))
-		rctx.SetFailureStatus(capierrors.CreateMachineError, err)
+		rctx.SetFailureStatus("CreateMachineError", err)
 		return nil, err
 	}
 
@@ -752,7 +751,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	categories, err := GetCategoryVMSpec(ctx, v3Client, r.getMachineCategoryIdentifiers(rctx))
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %v", vmName, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, errorMsg
 	}
 
@@ -765,7 +764,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	err = r.addVMToProject(rctx, vmMetadata)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while trying to add VM %s to project: %v", vmName, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, err
 	}
 
@@ -773,14 +772,14 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	gpuList, err := GetGPUList(ctx, v3Client, rctx.NutanixMachine.Spec.GPUs, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the GPU list to create the VM %s. %v", vmName, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, err
 	}
 
 	diskList, err := getDiskList(rctx, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the disk list to create the VM %s. %v", vmName, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, err
 	}
 
@@ -802,7 +801,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 
 	if err := r.addGuestCustomizationToVM(rctx, vmSpec); err != nil {
 		errorMsg := fmt.Errorf("error occurred while adding guest customization to vm spec: %v", err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, err
 	}
 
@@ -810,7 +809,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	err = r.addBootTypeToVM(rctx, vmSpec)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while adding boot type to vm spec: %v", err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, err
 	}
 
@@ -821,13 +820,13 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	vmResponse, err := v3Client.V3.CreateVM(ctx, vmInput)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to create VM %s. error: %v", vmName, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, err
 	}
 
 	if vmResponse == nil || vmResponse.Metadata == nil || vmResponse.Metadata.UUID == nil || *vmResponse.Metadata.UUID == "" {
 		errorMsg := fmt.Errorf("no valid VM UUID found in response after creating vm %s", rctx.Machine.Name)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, errorMsg
 	}
 	vmUuid := *vmResponse.Metadata.UUID
@@ -840,20 +839,20 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	lastTaskUUID, err := GetTaskUUIDFromVM(vmResponse)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred fetching task UUID from vm %s after creation: %v", rctx.Machine.Name, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, errorMsg
 	}
 
 	if lastTaskUUID == "" {
 		errorMsg := fmt.Errorf("failed to retrieve task UUID for VM %s after creation", vmName)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, errorMsg
 	}
 
 	log.Info(fmt.Sprintf("Waiting for task %s to get completed for VM %s", lastTaskUUID, rctx.NutanixMachine.Name))
 	if err := nutanixclient.WaitForTaskToSucceed(ctx, v3Client, lastTaskUUID); err != nil {
 		errorMsg := fmt.Errorf("error occurred while waiting for task %s to start: %v", lastTaskUUID, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, errorMsg
 	}
 
@@ -861,7 +860,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	vm, err = FindVMByUUID(ctx, v3Client, vmUuid)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while getting VM %s after creation: %v", vmName, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, errorMsg
 	}
 
@@ -943,7 +942,7 @@ func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 	}
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get system disk image %q: %w", rctx.NutanixMachine.Spec.Image, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, err
 	}
 
@@ -952,7 +951,7 @@ func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 	// failure separately.
 	if ImageMarkedForDeletion(nodeOSImage) {
 		err := fmt.Errorf("system disk image %s is being deleted", *nodeOSImage.Metadata.UUID)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, err)
+		rctx.SetFailureStatus("CreateMachineError", err)
 		return nil, err
 	}
 
@@ -960,7 +959,7 @@ func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 	systemDisk, err := CreateSystemDiskSpec(*nodeOSImage.Metadata.UUID, systemDiskSizeMib)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating system disk spec: %w", err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, err
 	}
 
@@ -975,7 +974,7 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) 
 	bootstrapImage, err := GetImage(rctx.Context, rctx.NutanixClient, bootstrapImageRef)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get bootstrap disk image %q: %w", bootstrapImageRef, err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, err
 	}
 
@@ -984,7 +983,7 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) 
 	// failure separately.
 	if ImageMarkedForDeletion(bootstrapImage) {
 		err := fmt.Errorf("bootstrap disk image %s is being deleted", *bootstrapImage.Metadata.UUID)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, err)
+		rctx.SetFailureStatus("CreateMachineError", err)
 		return nil, err
 	}
 
@@ -1009,7 +1008,7 @@ func getDataDisks(rctx *nctx.MachineContext, peUUID string) ([]*prismclientv3.VM
 	dataDisks, err := CreateDataDiskList(rctx.Context, rctx.NutanixClient, rctx.NutanixMachine.Spec.DataDisks, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating data disk spec: %w", err)
-		rctx.SetFailureStatus(capierrors.CreateMachineError, errorMsg)
+		rctx.SetFailureStatus("CreateMachineError", errorMsg)
 		return nil, err
 	}
 

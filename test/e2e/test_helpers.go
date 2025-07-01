@@ -818,7 +818,7 @@ func (t testHelper) verifyFailureMessageOnClusterMachines(ctx context.Context, p
 		nutanixMachines := t.getMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
 		for _, m := range nutanixMachines.Items {
 			machineStatus := m.Status
-			if machineStatus.Phase == params.expectedPhase && strings.Contains(*machineStatus.FailureMessage, params.expectedFailureMessage) {
+			if machineStatus.Phase == params.expectedPhase && machineStatus.FailureMessage != nil && strings.Contains(*machineStatus.FailureMessage, params.expectedFailureMessage) { //nolint:staticcheck // deprecated field needed for compatibility
 				return true
 			}
 		}
