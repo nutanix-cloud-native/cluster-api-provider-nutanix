@@ -218,7 +218,7 @@ run: manifests generate ## Run a controller from your host.
 .PHONY: docker-build
 docker-build:  ## Build docker image with the manager.
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
-	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=${IMG_REPO} GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS} -t ${IMG_TAG} .
+	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push
 docker-push:  ## Push docker image with the manager.
