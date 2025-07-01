@@ -31,7 +31,7 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
-var _ = Describe("Nutanix machine data disks", Label("capx-feature-test", "data-disks"), func() {
+var _ = Describe("Nutanix machine data disks", Label("nutanix-feature-test", "data-disks"), func() {
 	const specName = "cluster-data-disks"
 
 	var (
