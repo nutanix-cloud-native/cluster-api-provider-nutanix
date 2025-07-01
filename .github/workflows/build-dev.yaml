@@ -107,7 +107,9 @@ jobs:
           - "clusterctl-upgrade"
           - "clusterclass"
           - "capx-feature-test"
+          - "nutanix-feature-test"
           - "scaling"
+          - "kubernetes-upgrade"
       fail-fast: false
     needs: check_approvals
     uses: ./.github/workflows/e2e.yaml
