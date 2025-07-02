@@ -108,6 +108,7 @@ jobs:
           - "clusterclass"
           - "capx-feature-test"
           - "nutanix-feature-test"
+          - "nutanix-storage-test"
           - "scaling"
           - "kubernetes-upgrade"
       fail-fast: false
