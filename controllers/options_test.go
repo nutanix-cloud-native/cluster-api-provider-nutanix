@@ -10,6 +10,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+// WithSkipNameValidationForTesting returns ControllerConfigOpts that enables
+// SkipNameValidation for unit tests
+func WithSkipNameValidationForTesting() ControllerConfigOpts {
+	return WithSkipNameValidation(true)
+}
+
 func TestWithMaxConcurrentReconciles(t *testing.T) {
 	tests := []struct {
 		name                    string
@@ -73,6 +79,34 @@ func TestWithRateLimiter(t *testing.T) {
 				assert.NoError(t, err)
 				assert.IsType(t, tt.expectedType, config.RateLimiter)
 			}
+		})
+	}
+}
+
+func TestWithSkipNameValidation(t *testing.T) {
+	tests := []struct {
+		name               string
+		skipNameValidation bool
+		expectedValue      bool
+	}{
+		{
+			name:               "TestWithSkipNameValidationTrue",
+			skipNameValidation: true,
+			expectedValue:      true,
+		},
+		{
+			name:               "TestWithSkipNameValidationFalse",
+			skipNameValidation: false,
+			expectedValue:      false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opt := WithSkipNameValidation(tt.skipNameValidation)
+			config := &ControllerConfig{}
+			err := opt(config)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedValue, config.SkipNameValidation)
 		})
 	}
 }

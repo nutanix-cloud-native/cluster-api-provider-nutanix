@@ -11,6 +11,7 @@ import (
 type ControllerConfig struct {
 	MaxConcurrentReconciles int
 	RateLimiter             workqueue.TypedRateLimiter[reconcile.Request]
+	SkipNameValidation      bool
 }
 
 // ControllerConfigOpts is a function that can be used to configure the controller config
@@ -34,6 +35,14 @@ func WithRateLimiter(rateLimiter workqueue.TypedRateLimiter[reconcile.Request]) 
 			return errors.New("rate limiter cannot be nil")
 		}
 		c.RateLimiter = rateLimiter
+		return nil
+	}
+}
+
+// WithSkipNameValidation sets whether to skip name validation in controller options
+func WithSkipNameValidation(skip bool) ControllerConfigOpts {
+	return func(c *ControllerConfig) error {
+		c.SkipNameValidation = skip
 		return nil
 	}
 }

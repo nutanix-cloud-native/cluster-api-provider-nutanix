@@ -281,6 +281,7 @@ func testRunManagerCommon(t *testing.T, ctrl *gomock.Controller) (*mockctlclient
 		concurrentReconcilesNutanixMachine: 1,
 		restConfig:                         cfg,
 		rateLimiter:                        rateLimiter,
+		skipNameValidation:                 true, // Enable for tests to allow duplicate controller names
 	}
 
 	restScope := mockmeta.NewMockRESTScope(ctrl)

@@ -254,6 +254,7 @@ func TestNutanixMachineReconciler_SetupWithManager(t *testing.T) {
 		Scheme: scheme,
 		controllerConfig: &ControllerConfig{
 			MaxConcurrentReconciles: 1,
+			SkipNameValidation:      true, // Enable for tests
 		},
 	}
 

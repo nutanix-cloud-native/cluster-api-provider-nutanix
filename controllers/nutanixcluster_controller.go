@@ -81,7 +81,7 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 	copts := controller.Options{
 		MaxConcurrentReconciles: r.controllerConfig.MaxConcurrentReconciles,
 		RateLimiter:             r.controllerConfig.RateLimiter,
-		SkipNameValidation:      ptr.To(true),
+		SkipNameValidation:      ptr.To(r.controllerConfig.SkipNameValidation),
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).

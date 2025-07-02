@@ -92,6 +92,7 @@ type managerConfig struct {
 	concurrentReconcilesNutanixCluster int
 	concurrentReconcilesNutanixMachine int
 	metricsServerOpts                  server.Options
+	skipNameValidation                 bool
 
 	logger      logr.Logger
 	restConfig  *rest.Config
@@ -333,6 +334,11 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 		controllers.WithRateLimiter(workqueue.NewTypedMaxOfRateLimiter(workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](1*time.Millisecond, 1000*time.Second), &workqueue.TypedBucketRateLimiter[reconcile.Request]{Limiter: rate.NewLimiter(rate.Limit(10), 100)})),
 	}
 
+	// Enable SkipNameValidation in test environments
+	if config.skipNameValidation {
+		clusterControllerOpts = append(clusterControllerOpts, controllers.WithSkipNameValidation(true))
+	}
+
 	if err := setupNutanixClusterController(ctx, mgr, secretInformer, configMapInformer, clusterControllerOpts...); err != nil {
 		return fmt.Errorf("unable to setup controllers: %w", err)
 	}
@@ -342,10 +348,16 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 		controllers.WithRateLimiter(workqueue.NewTypedMaxOfRateLimiter(workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](1*time.Millisecond, 1000*time.Second), &workqueue.TypedBucketRateLimiter[reconcile.Request]{Limiter: rate.NewLimiter(rate.Limit(10), 100)})),
 	}
 
+	// Enable SkipNameValidation in test environments for machine controllers
+	if config.skipNameValidation {
+		machineControllerOpts = append(machineControllerOpts, controllers.WithSkipNameValidation(true))
+	}
+
 	if err := setupNutanixMachineController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
 		return fmt.Errorf("unable to setup controllers: %w", err)
 	}
 
+	// Use the same opts for failure domain controller as machine controller
 	if err := setupNutanixFailureDomainController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
 		return fmt.Errorf("unable to setup controllers: %w", err)
 	}

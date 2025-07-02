@@ -107,7 +107,7 @@ func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctr
 	copts := controller.Options{
 		MaxConcurrentReconciles: r.controllerConfig.MaxConcurrentReconciles,
 		RateLimiter:             r.controllerConfig.RateLimiter,
-		SkipNameValidation:      ptr.To(true),
+		SkipNameValidation:      ptr.To(r.controllerConfig.SkipNameValidation),
 	}
 
 	clusterToObjectFunc, err := capiutil.ClusterToTypedObjectsMapper(r.Client, &infrav1.NutanixMachineList{}, mgr.GetScheme())
