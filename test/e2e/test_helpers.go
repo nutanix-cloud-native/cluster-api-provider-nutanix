@@ -486,15 +486,17 @@ func (t testHelper) deployClusterAndWait(params deployClusterParams, clusterReso
 
 func (t testHelper) deleteAllClustersAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, namespace *corev1.Namespace, intervalsGetter func(spec, key string) []interface{}) {
 	framework.DeleteAllClustersAndWait(ctx, framework.DeleteAllClustersAndWaitInput{
-		ClusterProxy: bootstrapClusterProxy,
-		Namespace:    namespace.Name,
+		ClusterProxy:         bootstrapClusterProxy,
+		ClusterctlConfigPath: clusterctlConfigPath,
+		Namespace:            namespace.Name,
 	}, intervalsGetter(specName, "wait-delete-cluster")...)
 }
 
 func (t testHelper) deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *capiv1.Cluster, intervalsGetter func(spec, key string) []interface{}) {
 	framework.DeleteClusterAndWait(ctx, framework.DeleteClusterAndWaitInput{
-		ClusterProxy: bootstrapClusterProxy,
-		Cluster:      cluster,
+		ClusterProxy:         bootstrapClusterProxy,
+		ClusterctlConfigPath: clusterctlConfigPath,
+		Cluster:              cluster,
 	}, intervalsGetter(specName, "wait-delete-cluster")...)
 }
 

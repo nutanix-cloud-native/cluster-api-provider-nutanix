@@ -79,7 +79,9 @@ var _ = Describe("Nutanix regression tests", Label("capx-feature-test", "regress
 
 		Byf("Waiting for cluster %s/%s to be deleted", namespace.Name, clusterName)
 		framework.WaitForClusterDeleted(ctx, framework.WaitForClusterDeletedInput{
-			Cluster: myCluster,
+			ClusterProxy:         bootstrapClusterProxy,
+			ClusterctlConfigPath: clusterctlConfigPath,
+			Cluster:              myCluster,
 		}, e2eConfig.GetIntervals(specName, "wait-delete-cluster")...)
 
 		Byf("Deleting namespace used for hosting the %q test spec", specName)
@@ -169,6 +171,8 @@ var _ = Describe("Nutanix regression tests", Label("capx-feature-test", "regress
 
 			Byf("Waiting for cluster %s/%s to be deleted", namespace.Name, clusterName)
 			framework.WaitForClusterDeleted(ctx, framework.WaitForClusterDeletedInput{
+				ClusterProxy:         bootstrapClusterProxy,
+				ClusterctlConfigPath: clusterctlConfigPath,
 				Cluster: &clusterv1.Cluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      clusterName,
