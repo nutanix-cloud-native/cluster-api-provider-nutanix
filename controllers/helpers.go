@@ -58,6 +58,8 @@ const (
 
 	ImageStateDeletePending    = "DELETE_PENDING"
 	ImageStateDeleteInProgress = "DELETE_IN_PROGRESS"
+
+	createErrorFailureReason = "CreateError"
 )
 
 type StorageContainerIntentResponse struct {

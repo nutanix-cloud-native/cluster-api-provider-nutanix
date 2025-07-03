@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: nutanixclustertemplates.infrastructure.cluster.x-k8s.io
 spec:
   group: infrastructure.cluster.x-k8s.io
@@ -55,10 +55,13 @@ spec:
                           host can be either DNS name or ip address
                         properties:
                           host:
-                            description: The hostname on which the API server is serving.
+                            description: host is the hostname on which the API server
+                              is serving.
+                            maxLength: 512
                             type: string
                           port:
-                            description: The port on which the API server is serving.
+                            description: port is the port on which the API server
+                              is serving.
                             format: int32
                             type: integer
                         required:
@@ -81,9 +84,7 @@ spec:
                                 This field is effectively required, but due to backwards compatibility is
                                 allowed to be empty. Instances of this type with an empty value here are
                                 almost certainly wrong.
-                                TODO: Add other useful fields. apiVersion, kind, uid?
                                 More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
                               type: string
                           type: object
                           x-kubernetes-map-type: atomic
@@ -97,12 +98,10 @@ spec:
                           When set, the failure domains defined here may be used to spread Machines across
                           prism element clusters to improve fault tolerance of the cluster.
 
-
                           Deprecated: This field is replaced by the field controlPlaneFailureDomains and will be removed in the next apiVersion.
                         items:
                           description: |-
                             NutanixFailureDomainConfig configures failure domain information for Nutanix.
-
 
                             Deprecated: This type is replaced by the NutanixFailureDomain CRD type and will be removed in the next apiVersion.
                           properties:
@@ -176,6 +175,7 @@ spec:
                               type: array
                           required:
                           - cluster
+                          - controlPlane
                           - name
                           - subnets
                           type: object

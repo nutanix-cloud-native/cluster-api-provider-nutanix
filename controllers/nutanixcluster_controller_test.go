@@ -156,6 +156,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 							Name: &r,
 						},
 					},
+					ControlPlane: true,
 				}}
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
 				ntnxCluster.Status.Ready = true
@@ -875,6 +876,7 @@ func TestNutanixClusterReconciler_SetupWithManager(t *testing.T) {
 		Scheme: scheme,
 		controllerConfig: &ControllerConfig{
 			MaxConcurrentReconciles: 1,
+			SkipNameValidation:      true, // Enable for tests
 		},
 	}
 

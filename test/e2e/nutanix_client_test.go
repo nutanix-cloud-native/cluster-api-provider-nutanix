@@ -62,7 +62,7 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client"),
 		controlplaneEndpointIP = testHelper.getVariableFromE2eConfig(controlplaneEndpointIPKey)
 		controlplaneEndpointPort = defaultControlPlaneEndpointPort
 		if e2eConfig.HasVariable(controlplaneEndpointPortKey) {
-			controlplaneEndpointPortInt, err := strconv.Atoi(e2eConfig.GetVariable(controlplaneEndpointPortKey))
+			controlplaneEndpointPortInt, err := strconv.Atoi(e2eConfig.MustGetVariable(controlplaneEndpointPortKey))
 			Expect(err).ToNot(HaveOccurred())
 			controlplaneEndpointPort = int32(controlplaneEndpointPortInt)
 		}

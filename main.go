@@ -47,6 +47,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
@@ -91,21 +92,22 @@ type managerConfig struct {
 	concurrentReconcilesNutanixCluster int
 	concurrentReconcilesNutanixMachine int
 	metricsServerOpts                  server.Options
+	skipNameValidation                 bool
 
 	logger      logr.Logger
 	restConfig  *rest.Config
-	rateLimiter workqueue.RateLimiter
+	rateLimiter workqueue.TypedRateLimiter[reconcile.Request]
 }
 
 // compositeRateLimiter will build a limiter similar to the default from DefaultControllerRateLimiter but with custom values.
-func compositeRateLimiter(baseDelay, maxDelay time.Duration, bucketSize, qps int) (workqueue.RateLimiter, error) {
+func compositeRateLimiter(baseDelay, maxDelay time.Duration, bucketSize, qps int) (workqueue.TypedRateLimiter[reconcile.Request], error) {
 	// Validate the rate limiter configuration
 	if err := validateRateLimiterConfig(baseDelay, maxDelay, bucketSize, qps); err != nil {
 		return nil, err
 	}
-	exponentialBackoffLimiter := workqueue.NewItemExponentialFailureRateLimiter(baseDelay, maxDelay)
-	bucketLimiter := &workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(qps), bucketSize)}
-	return workqueue.NewMaxOfRateLimiter(exponentialBackoffLimiter, bucketLimiter), nil
+	exponentialBackoffLimiter := workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](baseDelay, maxDelay)
+	bucketLimiter := &workqueue.TypedBucketRateLimiter[reconcile.Request]{Limiter: rate.NewLimiter(rate.Limit(qps), bucketSize)}
+	return workqueue.NewTypedMaxOfRateLimiter[reconcile.Request](exponentialBackoffLimiter, bucketLimiter), nil
 }
 
 // validateRateLimiterConfig validates the rate limiter configuration parameters
@@ -329,7 +331,12 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 
 	clusterControllerOpts := []controllers.ControllerConfigOpts{
 		controllers.WithMaxConcurrentReconciles(config.concurrentReconcilesNutanixCluster),
-		controllers.WithRateLimiter(config.rateLimiter),
+		controllers.WithRateLimiter(workqueue.NewTypedMaxOfRateLimiter(workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](1*time.Millisecond, 1000*time.Second), &workqueue.TypedBucketRateLimiter[reconcile.Request]{Limiter: rate.NewLimiter(rate.Limit(10), 100)})),
+	}
+
+	// Enable SkipNameValidation in test environments
+	if config.skipNameValidation {
+		clusterControllerOpts = append(clusterControllerOpts, controllers.WithSkipNameValidation(true))
 	}
 
 	if err := setupNutanixClusterController(ctx, mgr, secretInformer, configMapInformer, clusterControllerOpts...); err != nil {
@@ -338,13 +345,19 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 
 	machineControllerOpts := []controllers.ControllerConfigOpts{
 		controllers.WithMaxConcurrentReconciles(config.concurrentReconcilesNutanixMachine),
-		controllers.WithRateLimiter(config.rateLimiter),
+		controllers.WithRateLimiter(workqueue.NewTypedMaxOfRateLimiter(workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](1*time.Millisecond, 1000*time.Second), &workqueue.TypedBucketRateLimiter[reconcile.Request]{Limiter: rate.NewLimiter(rate.Limit(10), 100)})),
+	}
+
+	// Enable SkipNameValidation in test environments for machine controllers
+	if config.skipNameValidation {
+		machineControllerOpts = append(machineControllerOpts, controllers.WithSkipNameValidation(true))
 	}
 
 	if err := setupNutanixMachineController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
 		return fmt.Errorf("unable to setup controllers: %w", err)
 	}
 
+	// Use the same opts for failure domain controller as machine controller
 	if err := setupNutanixFailureDomainController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
 		return fmt.Errorf("unable to setup controllers: %w", err)
 	}

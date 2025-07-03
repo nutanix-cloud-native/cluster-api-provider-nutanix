@@ -70,13 +70,11 @@ func TestInitializeFlags(t *testing.T) {
 			name: "Cluster API flags",
 			args: []string{
 				"cmd",
-				"--metrics-bind-addr=1.2.3.4",
 				"--diagnostics-address=:9999",
 				"--insecure-diagnostics=true",
 			},
 			want: &options{
 				managerOptions: flags.ManagerOptions{
-					MetricsBindAddr:     "1.2.3.4",
 					DiagnosticsAddress:  ":9999",
 					InsecureDiagnostics: true,
 				},
@@ -283,6 +281,7 @@ func testRunManagerCommon(t *testing.T, ctrl *gomock.Controller) (*mockctlclient
 		concurrentReconcilesNutanixMachine: 1,
 		restConfig:                         cfg,
 		rateLimiter:                        rateLimiter,
+		skipNameValidation:                 true, // Enable for tests to allow duplicate controller names
 	}
 
 	restScope := mockmeta.NewMockRESTScope(ctrl)

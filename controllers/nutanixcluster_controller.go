@@ -31,6 +31,7 @@ import (
 	apitypes "k8s.io/apimachinery/pkg/types"
 	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
+	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	capiutil "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
@@ -80,9 +81,11 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 	copts := controller.Options{
 		MaxConcurrentReconciles: r.controllerConfig.MaxConcurrentReconciles,
 		RateLimiter:             r.controllerConfig.RateLimiter,
+		SkipNameValidation:      ptr.To(r.controllerConfig.SkipNameValidation),
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
+		Named("nutanixcluster-controller").
 		For(&infrav1.NutanixCluster{}). // Watch the controlled, infrastructure resource.
 		Watches(
 			&capiv1.Cluster{},
@@ -94,7 +97,7 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 					&infrav1.NutanixCluster{},
 				),
 			),
-			builder.WithPredicates(predicates.ClusterUnpausedAndInfrastructureReady(ctrl.LoggerFrom(ctx))),
+			builder.WithPredicates(predicates.ClusterPausedTransitionsOrInfrastructureReady(r.Scheme, ctrl.LoggerFrom(ctx))),
 		).
 		Watches(
 			&infrav1.NutanixFailureDomain{},
