@@ -72,6 +72,21 @@ func (mr *MockServiceMockRecorder) CreateAddressGroup(arg0, arg1 any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAddressGroup", reflect.TypeOf((*MockService)(nil).CreateAddressGroup), arg0, arg1)
 }
 
+// CreateIdempotenceIdentifiers mocks base method.
+func (m *MockService) CreateIdempotenceIdentifiers(arg0 context.Context, arg1 *models.IdempotenceIdentifiersInput) (*models.IdempotenceIdentifiersResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateIdempotenceIdentifiers", arg0, arg1)
+	ret0, _ := ret[0].(*models.IdempotenceIdentifiersResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateIdempotenceIdentifiers indicates an expected call of CreateIdempotenceIdentifiers.
+func (mr *MockServiceMockRecorder) CreateIdempotenceIdentifiers(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateIdempotenceIdentifiers", reflect.TypeOf((*MockService)(nil).CreateIdempotenceIdentifiers), arg0, arg1)
+}
+
 // CreateImage mocks base method.
 func (m *MockService) CreateImage(arg0 context.Context, arg1 *v3.ImageIntentInput) (*v3.ImageIntentResponse, error) {
 	m.ctrl.T.Helper()
@@ -337,6 +352,20 @@ func (m *MockService) DeleteCategoryValue(arg0 context.Context, arg1, arg2 strin
 func (mr *MockServiceMockRecorder) DeleteCategoryValue(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCategoryValue", reflect.TypeOf((*MockService)(nil).DeleteCategoryValue), arg0, arg1, arg2)
+}
+
+// DeleteIdempotenceIdentifiers mocks base method.
+func (m *MockService) DeleteIdempotenceIdentifiers(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteIdempotenceIdentifiers", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteIdempotenceIdentifiers indicates an expected call of DeleteIdempotenceIdentifiers.
+func (mr *MockServiceMockRecorder) DeleteIdempotenceIdentifiers(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIdempotenceIdentifiers", reflect.TypeOf((*MockService)(nil).DeleteIdempotenceIdentifiers), arg0, arg1)
 }
 
 // DeleteImage mocks base method.
@@ -649,6 +678,21 @@ func (m *MockService) GetHost(arg0 context.Context, arg1 string) (*v3.HostRespon
 func (mr *MockServiceMockRecorder) GetHost(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHost", reflect.TypeOf((*MockService)(nil).GetHost), arg0, arg1)
+}
+
+// GetIdempotenceIdentifiers mocks base method.
+func (m *MockService) GetIdempotenceIdentifiers(arg0 context.Context, arg1 string) (*models.IdempotenceIdentifiersResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetIdempotenceIdentifiers", arg0, arg1)
+	ret0, _ := ret[0].(*models.IdempotenceIdentifiersResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetIdempotenceIdentifiers indicates an expected call of GetIdempotenceIdentifiers.
+func (mr *MockServiceMockRecorder) GetIdempotenceIdentifiers(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIdempotenceIdentifiers", reflect.TypeOf((*MockService)(nil).GetIdempotenceIdentifiers), arg0, arg1)
 }
 
 // GetImage mocks base method.
