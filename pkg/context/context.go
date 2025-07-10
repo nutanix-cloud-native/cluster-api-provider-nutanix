@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/nutanix-cloud-native/prism-go-client/facade"
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -62,13 +61,25 @@ type MachineContext struct {
 	IP string
 }
 
-// VMAniffinityPolicyContext is a context used with a NutanixVMAntiAffinityPolicy reconciler
-type VMAntiAffinityPolicyContext struct {
-	Context                     context.Context
-	NutanixClient               facade.FacadeClientV4
+type ExtendedContext struct {
+	Context        context.Context
+	K8sPatchHelper *patch.Helper
+}
+
+type NutanixReconcileContext[T any] struct {
+	ExtendedContext
+	NutanixClient T
+}
+
+type VMAntiAffinityPolicyScope struct {
 	NutanixCluster              *infrav1.NutanixCluster
 	NutanixVMAntiAffinityPolicy *infrav1.NutanixVMAntiAffinityPolicy
-	K8sPatchHelper              *patch.Helper
+}
+
+// VMAntiAffinityPolicyContext is a context used with a NutanixVMAntiAffinityPolicy reconciler
+type VMAntiAffinityPolicyContext[T any] struct {
+	NutanixReconcileContext[T]
+	VMAntiAffinityPolicyScope
 }
 
 // IsControlPlaneMachine returns true if the provided resource is

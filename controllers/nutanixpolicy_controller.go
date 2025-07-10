@@ -18,9 +18,12 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,6 +42,7 @@ import (
 	"github.com/google/uuid"
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/prism-go-client/facade"
+	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
@@ -63,19 +67,119 @@ const (
 	// CategoryCleanupAnnotationPrefix is the prefix for the annotation used to indicate that the category should be cleaned up
 	CategoryCleanupAnnotationPrefix = "infrastructure.cluster.x-k8s.io/category-cleanup-"
 
-	ClusterAnnotationReady   = "ClusterAnnotationReady"
-	ClusterIdentityReady     = "ClusterIdentityReady"
-	PcClientReady            = "PcClientReady"
-	AnnotationsReconciled    = "AnnotationsReconciled"
-	CategoriesReady          = "CategoriesReady"
-	PolicyAlreadyPresentInPC = "PolicyAlreadyPresentInPC"
-	PolicyCreated            = "PolicyCreated"
-	PolicyUpdated            = "PolicyUpdated"
-	PolicyDeleted            = "PolicyDeleted"
-	CategoriesCleanedUp      = "CategoriesCleanedUp"
-	FinalizerAdded           = "FinalizerAdded"
-	FinalizerRemoved         = "FinalizerRemoved"
+	ClusterAnnotationReady   capiv1.ConditionType = "ClusterAnnotationReady"
+	ClusterIdentityReady     capiv1.ConditionType = "ClusterIdentityReady"
+	PcClientReady            capiv1.ConditionType = "PcClientReady"
+	PcVersionCompatibility   capiv1.ConditionType = "PcVersionCompatibility"
+	AnnotationsReconciled    capiv1.ConditionType = "AnnotationsReconciled"
+	FinalizerAdded           capiv1.ConditionType = "FinalizerAdded"
+	CategoriesReady          capiv1.ConditionType = "CategoriesReady"
+	PolicyAlreadyPresentInPC capiv1.ConditionType = "PolicyAlreadyPresentInPC"
+	PolicyCreated            capiv1.ConditionType = "PolicyCreated"
+	PolicyUpdated            capiv1.ConditionType = "PolicyUpdated"
+	PolicyDeleted            capiv1.ConditionType = "PolicyDeleted"
+	CategoriesCleanedUp      capiv1.ConditionType = "CategoriesCleanedUp"
+	FinalizerRemoved         capiv1.ConditionType = "FinalizerRemoved"
 )
+
+type nutanixPreflightReconcileFunction func(ectx *nctx.ExtendedContext, scope *nctx.VMAntiAffinityPolicyScope) (*nctx.VMAntiAffinityPolicyScope, error)
+type nutanixPolicyReconcileFunction[T any] func(pctx *nctx.VMAntiAffinityPolicyContext[T]) (ctrl.Result, error)
+
+type nutanixPreflightReconcilerUnitOfWork struct {
+	// Reconciler is the NutanixPolicyReconciler instance.
+	Reconciler *NutanixPolicyReconciler
+
+	// PreflightReconcileFunc is the function to be executed for preflight reconciliation.
+	PreflightReconcileFunc nutanixPreflightReconcileFunction
+
+	// StepCondition is the condition to be set after the step is executed.
+	StepCondition capiv1.ConditionType
+}
+
+type nutanixPolicyReconcilerUnitOfWork[T any] struct {
+	// Reconciler is the NutanixPolicyReconciler instance.
+	Reconciler *NutanixPolicyReconciler
+
+	// ReconcileFunc is the function to be executed for reconciliation.
+	ReconcileFunc nutanixPolicyReconcileFunction[T]
+
+	// StepCondition is the condition to be set after the step is executed.
+	StepCondition capiv1.ConditionType
+}
+
+type UnitOfWork[inT any, outT any] interface {
+	Run(inT) outT
+}
+
+func (uow *nutanixPreflightReconcilerUnitOfWork) Run(ectx *nctx.ExtendedContext, scope *nctx.VMAntiAffinityPolicyScope) (*nctx.VMAntiAffinityPolicyScope, error) {
+	return PreflightReconcileFuncRun(
+		ectx,
+		scope,
+		uow.PreflightReconcileFunc,
+		uow.StepCondition,
+	)
+}
+
+func (uow *nutanixPolicyReconcilerUnitOfWork[T]) Run(pctx *nctx.VMAntiAffinityPolicyContext[T]) (ctrl.Result, error) {
+	return ReconcileFuncRun[T](
+		pctx,
+		uow.ReconcileFunc,
+		uow.StepCondition,
+	)
+}
+
+func ReconcileFuncRun[T any](
+	pctx *nctx.VMAntiAffinityPolicyContext[T],
+	reconcileFunc nutanixPolicyReconcileFunction[T],
+	stepCondition capiv1.ConditionType,
+) (ctrl.Result, error) {
+	log := log.FromContext(pctx.Context)
+	log.Info("Running reconcile function", "StepCondition", stepCondition)
+
+	// Run the reconcile function
+	result, err := reconcileFunc(pctx)
+	if err != nil {
+		log.Error(err, "Failed to run reconcile function")
+		return ctrl.Result{}, err
+	}
+
+	// Mark the condition as true if the step is successful
+	conditions.MarkTrue(pctx.NutanixVMAntiAffinityPolicy, stepCondition)
+
+	return result, nil
+}
+
+func PreflightReconcileFuncRun(
+	ectx *nctx.ExtendedContext,
+	scope *nctx.VMAntiAffinityPolicyScope,
+	preflightReconcileFunc nutanixPreflightReconcileFunction,
+	stepCondition capiv1.ConditionType,
+) (*nctx.VMAntiAffinityPolicyScope, error) {
+	log := log.FromContext(ectx.Context)
+	log.Info("Running preflight reconcile function", "StepCondition", stepCondition)
+
+	// Run the preflight reconcile function
+	newScope, err := preflightReconcileFunc(ectx, scope)
+	if err != nil {
+		log.Error(err, "Failed to run preflight reconcile function")
+
+		// Mark the condition as false if the step fails
+		conditions.MarkFalse(
+			scope.NutanixVMAntiAffinityPolicy,
+			stepCondition,
+			fmt.Sprintf("%w", err),
+			capiv1.ConditionSeverityError,
+			"Failed to run preflight reconcile function: %s", err.Error(),
+		)
+
+		return nil, err
+	}
+
+	// Mark the condition as true if the step is successful
+	conditions.MarkTrue(newScope.NutanixVMAntiAffinityPolicy, stepCondition)
+
+	return newScope, nil
+}
 
 type NutanixPolicyReconciler struct {
 	client.Client
@@ -83,6 +187,10 @@ type NutanixPolicyReconciler struct {
 	ConfigMapInformer coreinformers.ConfigMapInformer
 	Scheme            *runtime.Scheme
 	controllerConfig  *ControllerConfig
+
+	// Add any additional fields needed for the reconciler
+	failedToFindPolicyUuid map[string]int
+	mutex                  sync.Mutex
 }
 
 func NewNutanixPolicyReconciler(
@@ -105,6 +213,9 @@ func NewNutanixPolicyReconciler(
 		SecretInformer:    secretInformer,
 		ConfigMapInformer: configMapInformer,
 		controllerConfig:  controllerConfig,
+
+		failedToFindPolicyUuid: make(map[string]int),
+		mutex:                  sync.Mutex{},
 	}, nil
 }
 
@@ -184,6 +295,47 @@ func (r *NutanixPolicyReconciler) mapNutanixClusterToNutanixVMAntiAffinityPolicy
 	}
 }
 
+func (r *NutanixPolicyReconciler) preflightCheckClusterAnnotation(
+	ectx *nctx.ExtendedContext,
+	scope *nctx.VMAntiAffinityPolicyScope,
+) (*nctx.VMAntiAffinityPolicyScope, error) {
+	log := log.FromContext(ectx.Context)
+	log.Info("Preflight check for cluster annotation")
+
+	// Check if the NutanixVMAntiAffinityPolicy has the cluster annotation
+	if _, ok := scope.NutanixVMAntiAffinityPolicy.Annotations[ClusterNameAnnotation]; !ok {
+		log.Info("NutanixVMAntiAffinityPolicy does not have the cluster annotation, skipping reconciliation")
+
+		return scope, fmt.Errorf("NutanixVMAntiAffinityPolicy does not have the cluster annotation")
+	}
+
+	return scope, nil
+}
+
+func (r *NutanixPolicyReconciler) preflightCheckClusterIdentity(
+	ectx *nctx.ExtendedContext,
+	scope *nctx.VMAntiAffinityPolicyScope,
+) (*nctx.VMAntiAffinityPolicyScope, error) {
+	log := log.FromContext(ectx.Context)
+	log.Info("Preflight check for cluster identity")
+
+	// Get NutanixCluster from the cluster annotation
+	clusterName := scope.NutanixVMAntiAffinityPolicy.Annotations[ClusterNameAnnotation]
+	nutanixCluster := &infrav1.NutanixCluster{}
+	if err := r.Get(ectx.Context, client.ObjectKey{Namespace: scope.NutanixVMAntiAffinityPolicy.Namespace, Name: clusterName}, nutanixCluster); err != nil {
+		if apierrors.IsNotFound(err) {
+			log.Info("NutanixCluster not found, ignoring since object must be deleted")
+			return scope, nil
+		}
+		// Error reading the object - requeue the request.
+		log.Error(err, "Failed to get NutanixCluster")
+		return scope, fmt.Errorf("failed to get NutanixCluster: %w", err)
+	}
+
+	scope.NutanixCluster = nutanixCluster
+	return scope, nil
+}
+
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update;delete
@@ -200,6 +352,19 @@ func (r *NutanixPolicyReconciler) mapNutanixClusterToNutanixVMAntiAffinityPolicy
 func (r *NutanixPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	log.Info("Reconciling NutanixVMAntiAffinityPolicy")
+
+	preflightReconcileRegistry := []nutanixPreflightReconcilerUnitOfWork{
+		{
+			StepCondition:          ClusterAnnotationReady,
+			PreflightReconcileFunc: r.preflightCheckClusterAnnotation,
+			Reconciler:             r,
+		},
+		{
+			StepCondition:          ClusterIdentityReady,
+			PreflightReconcileFunc: r.preflightCheckClusterIdentity,
+			Reconciler:             r,
+		},
+	}
 
 	// Fetch the NutanixVMAntiAffinityPolicy instance
 	nutanixVMAntiAffinityPolicy := &infrav1.NutanixVMAntiAffinityPolicy{}
@@ -228,56 +393,31 @@ func (r *NutanixPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}()
 
-	// Check if the NutanixVMAntiAffinityPolicy has the cluster annotation
-	if _, ok := nutanixVMAntiAffinityPolicy.Annotations[ClusterNameAnnotation]; !ok {
-		log.Info("NutanixVMAntiAffinityPolicy does not have the cluster annotation, skipping reconciliation")
-
-		conditions.MarkFalse(
-			nutanixVMAntiAffinityPolicy,
-			ClusterAnnotationReady,
-			"NoClusterAnnotation",
-			capiv1.ConditionSeverityWarning,
-			"The NutanixVMAntiAffinityPolicy does not have the cluster annotation",
-		)
-
-		if err := patchHelper.Patch(ctx, nutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
-			log.Error(err, "Failed to patch NutanixVMAntiAffinityPolicy after checking for cluster annotation")
-			return ctrl.Result{}, err
-		}
-
-		// Requeue the request to check again later
-		return ctrl.Result{Requeue: true}, nil
+	ectx := &nctx.ExtendedContext{
+		Context:        ctx,
+		K8sPatchHelper: patchHelper,
 	}
 
-	// Mark the condition as true if the cluster annotation is present
-	conditions.MarkTrue(nutanixVMAntiAffinityPolicy, ClusterAnnotationReady)
-
-	// Get NutanixCluster from the cluster annotation
-	clusterName := nutanixVMAntiAffinityPolicy.Annotations[ClusterNameAnnotation]
-	nutanixCluster := &infrav1.NutanixCluster{}
-	if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: clusterName}, nutanixCluster); err != nil {
-		if apierrors.IsNotFound(err) {
-			log.Info("NutanixCluster not found, ignoring since object must be deleted")
-			return ctrl.Result{}, nil
-		}
-
-		conditions.MarkFalse(
-			nutanixVMAntiAffinityPolicy,
-			ClusterIdentityReady,
-			"ClusterNotFound",
-			capiv1.ConditionSeverityWarning,
-			"NutanixCluster %s not found in namespace %s", clusterName, req.Namespace,
-		)
-
-		// Error reading the object - requeue the request.
-		log.Error(err, "Failed to get NutanixCluster")
-		return ctrl.Result{}, err
+	scope := &nctx.VMAntiAffinityPolicyScope{
+		NutanixCluster:              nil, // Will be set later after checking the cluster annotation
+		NutanixVMAntiAffinityPolicy: nutanixVMAntiAffinityPolicy,
 	}
 
-	// Mark the condition as true if the NutanixCluster is found
-	conditions.MarkTrue(nutanixVMAntiAffinityPolicy, ClusterIdentityReady)
+	for _, preflightReconcileUnit := range preflightReconcileRegistry {
+		log.Info("Running preflight reconcile step", "ConditionType", preflightReconcileUnit.StepCondition)
+		// Run the preflight reconcile function
+		scope, err = preflightReconcileUnit.Run(ectx, scope)
+		if scope == nil {
+			log.Error(fmt.Errorf("preflight reconcile function returned nil scope"), "Failed to run preflight reconcile function")
+			return ctrl.Result{}, fmt.Errorf("preflight reconcile function returned nil scope")
+		}
+		if err != nil {
+			log.Error(err, "Failed to run preflight reconcile function")
+			return ctrl.Result{RequeueAfter: time.Second * 30}, nil
+		}
+	}
 
-	if !nutanixCluster.DeletionTimestamp.IsZero() {
+	if !scope.NutanixCluster.DeletionTimestamp.IsZero() {
 		log.Info("NutanixCluster is marked for deletion, deleting NutanixVMAntiAffinityPolicy")
 		// If the NutanixCluster is marked for deletion, we should delete the NutanixVMAntiAffinityPolicy as well
 		if err := r.Delete(ctx, nutanixVMAntiAffinityPolicy); err != nil {
@@ -287,7 +427,7 @@ func (r *NutanixPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				ClusterIdentityReady,
 				"ClusterMarkedForDeletion",
 				capiv1.ConditionSeverityWarning,
-				"NutanixCluster %s is marked for deletion, deleting NutanixVMAntiAffinityPolicy", clusterName,
+				"NutanixCluster %s is marked for deletion, deleting NutanixVMAntiAffinityPolicy", scope.NutanixCluster.Name,
 			)
 			if err := patchHelper.Patch(ctx, nutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
 				log.Error(err, "Failed to patch NutanixVMAntiAffinityPolicy after deleting for NutanixCluster marked for deletion")
@@ -297,7 +437,7 @@ func (r *NutanixPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// Get Nutanix v4 API client
-	v4FacadeClient, err := getFacadePrismCentralV4ClientForCluster(ctx, nutanixCluster, r.SecretInformer, r.ConfigMapInformer)
+	v4FacadeClient, err := getFacadePrismCentralV4ClientForCluster(ctx, scope.NutanixCluster, r.SecretInformer, r.ConfigMapInformer)
 	if err != nil {
 		log.Error(err, "Failed to get Nutanix v4 API client")
 		conditions.MarkFalse(
@@ -310,59 +450,333 @@ func (r *NutanixPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 		if err := patchHelper.Patch(ctx, nutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
 			log.Error(err, "Failed to patch NutanixVMAntiAffinityPolicy after getting Nutanix v4 API client")
+		}
+	}
+
+	var v3Client *prismclientv3.Client
+
+	if v4FacadeClient == nil {
+		v3Client, err = getPrismCentralClientForCluster(ctx, scope.NutanixCluster, r.SecretInformer, r.ConfigMapInformer)
+		if err != nil {
+			log.Error(err, "Failed to get Nutanix v3 API client")
+			conditions.MarkFalse(
+				nutanixVMAntiAffinityPolicy,
+				PcClientReady,
+				"NoClient",
+				capiv1.ConditionSeverityWarning,
+				"Failed to get Nutanix v3 API client",
+			)
+
+			if err := patchHelper.Patch(ctx, nutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
+				log.Error(err, "Failed to patch NutanixVMAntiAffinityPolicy after getting Nutanix v3 API client")
+			}
 			return ctrl.Result{}, err
 		}
-
-		return ctrl.Result{}, err
 	}
 
 	// Mark the condition as true if the Nutanix v4 API client is ready
 	conditions.MarkTrue(nutanixVMAntiAffinityPolicy, PcClientReady)
 
 	// Create VMAniffinityPolicyContext
-	vmAntiAffinityPolicyContext := &nctx.VMAntiAffinityPolicyContext{
-		Context:                     ctx,
-		NutanixClient:               v4FacadeClient,
-		NutanixCluster:              nutanixCluster,
-		NutanixVMAntiAffinityPolicy: nutanixVMAntiAffinityPolicy,
-		K8sPatchHelper:              patchHelper,
+	vmAntiAffinityPolicyContextFacadeV4 := &nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]{
+		NutanixReconcileContext: nctx.NutanixReconcileContext[facade.FacadeClientV4]{
+			ExtendedContext: *ectx,
+			NutanixClient:   v4FacadeClient,
+		},
+		VMAntiAffinityPolicyScope: *scope,
 	}
 
-	// Reconcile annotations (additional categories to cleanup and policy to cleanup if already created manually)
-	if err, requeue := r.ReconcileAnnotations(vmAntiAffinityPolicyContext); err != nil {
-		log.Error(err, "Failed to reconcile annotations for NutanixVMAntiAffinityPolicy")
-		conditions.MarkFalse(
-			nutanixVMAntiAffinityPolicy,
-			AnnotationsReconciled,
-			"AnnotationReconcileError",
-			capiv1.ConditionSeverityWarning,
-			"Failed to reconcile annotations for NutanixVMAntiAffinityPolicy",
-		)
-		if err := patchHelper.Patch(ctx, nutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
-			log.Error(err, "Failed to patch NutanixVMAntiAffinityPolicy after reconciling annotations")
-			return ctrl.Result{}, err
+	vmAntiAffinityPolicyContextV3 := &nctx.VMAntiAffinityPolicyContext[*prismclientv3.Client]{
+		NutanixReconcileContext: nctx.NutanixReconcileContext[*prismclientv3.Client]{
+			ExtendedContext: *ectx,
+			NutanixClient:   v3Client,
+		},
+		VMAntiAffinityPolicyScope: *scope,
+	}
+
+	v4ReconcileList := []nutanixPolicyReconcilerUnitOfWork[facade.FacadeClientV4]{
+		{
+			ReconcileFunc: func(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (ctrl.Result, error) {
+				return r.ReconcileNutanixPCVersionCompatibilityV4(pctx)
+			},
+			StepCondition: PcVersionCompatibility,
+		},
+		{
+			ReconcileFunc: func(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (ctrl.Result, error) {
+				return r.ReconcileAnnotations(pctx)
+			},
+			StepCondition: AnnotationsReconciled,
+		},
+		{
+			ReconcileFunc: func(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (ctrl.Result, error) {
+				return r.ReconcileFinalizer(pctx)
+			},
+			StepCondition: FinalizerAdded,
+		},
+		{
+			ReconcileFunc: func(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (ctrl.Result, error) {
+				return r.ReconcileCategories(pctx)
+			},
+			StepCondition: CategoriesReady,
+		},
+		{
+			ReconcileFunc: func(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (ctrl.Result, error) {
+				return r.ReconcilePolicyCreate(pctx)
+			},
+			StepCondition: PolicyCreated,
+		},
+		{
+			ReconcileFunc: func(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (ctrl.Result, error) {
+				return r.ReconcilePolicyAlreadyPresentInPC(pctx)
+			},
+			StepCondition: PolicyAlreadyPresentInPC,
+		},
+		{
+			ReconcileFunc: func(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (ctrl.Result, error) {
+				return r.ReconcilePolicyUpdate(pctx)
+			},
+			StepCondition: PolicyUpdated,
+		},
+	}
+
+	v3ReconcileList := []nutanixPolicyReconcilerUnitOfWork[*prismclientv3.Client]{
+		{
+			ReconcileFunc: func(pctx *nctx.VMAntiAffinityPolicyContext[*prismclientv3.Client]) (ctrl.Result, error) {
+				return r.ReconcileNutanixPCVersionCompatibilityV3(pctx)
+			},
+			StepCondition: PcVersionCompatibility,
+		},
+	}
+
+	if v4FacadeClient != nil {
+		// Check if the NutanixVMAntiAffinityPolicy is marked for deletion
+		if !nutanixVMAntiAffinityPolicy.DeletionTimestamp.IsZero() {
+			// The NutanixVMAntiAffinityPolicy is marked for deletion, so we need to handle the deletion logic
+			log.Info("NutanixVMAntiAffinityPolicy is marked for deletion")
+			return r.reconcileDelete(vmAntiAffinityPolicyContextFacadeV4)
 		}
 
-		if requeue {
+		for _, v4ReconcileUnit := range v4ReconcileList {
+			log.Info("Running v4 reconcile step", "ConditionType", v4ReconcileUnit.StepCondition)
+			// Run the v4 reconcile function
+			result, err := v4ReconcileUnit.Run(vmAntiAffinityPolicyContextFacadeV4)
+			if err != nil {
+				log.Error(err, "Failed to run v4 reconcile function")
+				return result, err
+			}
+			if result.Requeue || result.RequeueAfter > 0 {
+				return result, nil // Requeue if needed
+			}
+		}
+	} else if v3Client != nil {
+		for _, v3ReconcileUnit := range v3ReconcileList {
+			log.Info("Running v3 reconcile step", "ConditionType", v3ReconcileUnit.StepCondition)
+			// Run the v3 reconcile function
+			result, err := v3ReconcileUnit.Run(vmAntiAffinityPolicyContextV3)
+			if err != nil {
+				log.Error(err, "Failed to run v3 reconcile function")
+				return result, err
+			}
+			if result.Requeue || result.RequeueAfter > 0 {
+				return result, nil // Requeue if needed
+			}
+		}
+	}
+
+	log.Error(fmt.Errorf("no Nutanix v4 or v3 API client found"), "Failed to get Nutanix API client")
+	return ctrl.Result{}, errors.New("no Nutanix v4 or v3 API client found")
+}
+
+func (r *NutanixPolicyReconciler) ReconcileNutanixPCVersionCompatibilityV4(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (ctrl.Result, error) {
+	log := log.FromContext(pctx.Context)
+	log.Info("Reconciling Nutanix PC version compatibility")
+
+	return ctrl.Result{}, nil
+}
+
+func (r *NutanixPolicyReconciler) ReconcileNutanixPCVersionCompatibilityV3(pctx *nctx.VMAntiAffinityPolicyContext[*prismclientv3.Client]) (ctrl.Result, error) {
+	log := log.FromContext(pctx.Context)
+	log.Info("Reconciling Nutanix PC version compatibility for v3 client")
+
+	return ctrl.Result{RequeueAfter: 5 * time.Minute}, errors.New("Nutanix VM-VM anti-affinity policies is not supported for current PC version")
+}
+
+func (r *NutanixPolicyReconciler) ReconcileFinalizer(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (ctrl.Result, error) {
+	log := log.FromContext(pctx.Context)
+	log.Info("Reconciling finalizer for NutanixVMAntiAffinityPolicy")
+
+	// Get the NutanixVMAntiAffinityPolicy
+	nutanixVMAntiAffinityPolicy := pctx.NutanixVMAntiAffinityPolicy
+
+	// Check if the NutanixVMAntiAffinityPolicy already has the finalizer
+	if controllerutil.ContainsFinalizer(nutanixVMAntiAffinityPolicy, NutanixVMAntiAffinityPolicyFinalizerName) {
+		log.Info("NutanixVMAntiAffinityPolicy already has the finalizer, skipping")
+		return ctrl.Result{}, nil
+	}
+
+	// Add the finalizer to the NutanixVMAntiAffinityPolicy
+	controllerutil.AddFinalizer(nutanixVMAntiAffinityPolicy, NutanixVMAntiAffinityPolicyFinalizerName)
+	log.Info("Added finalizer to NutanixVMAntiAffinityPolicy", "Finalizer", NutanixVMAntiAffinityPolicyFinalizerName)
+
+	return ctrl.Result{}, nil
+}
+
+func (r *NutanixPolicyReconciler) ReconcileCategories(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (ctrl.Result, error) {
+	log := log.FromContext(pctx.Context)
+	log.Info("Reconciling categories for NutanixVMAntiAffinityPolicy")
+
+	// Get or create categories
+	_, err := r.GetOrCreateCategories(pctx)
+	if err != nil {
+		log.Error(err, "Failed to get or create categories for NutanixVMAntiAffinityPolicy")
+
+		// Requeue the request to check again later
+		return ctrl.Result{Requeue: true}, err
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func (r *NutanixPolicyReconciler) ReconcilePolicyCreate(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (ctrl.Result, error) {
+	log := log.FromContext(pctx.Context)
+	log.Info("Reconciling policy creation for NutanixVMAntiAffinityPolicy")
+
+	// Check if the policy is already present in PC
+	if pctx.NutanixVMAntiAffinityPolicy.Status.UUID != "" {
+		log.Info("NutanixVMAntiAffinityPolicy should be present in PC", "UUID", pctx.NutanixVMAntiAffinityPolicy.Status.UUID)
+		return ctrl.Result{}, nil
+	}
+
+	policyName := GetPolicyName(pctx)
+	log.Info("Trying to get Nutanix VM Anti-Affinity Policy by name", "Name", policyName)
+
+	// Try to get the policy by name
+	policies, err := pctx.NutanixClient.ListAntiAffinityPolicies(
+		facade.WithPage(0),
+		facade.WithLimit(100),
+		facade.WithFilter(fmt.Sprintf("name eq %s", policyName)),
+	)
+
+	if err != nil {
+		log.Error(err, "Failed to list Nutanix VM Anti-Affinity Policies")
+		return ctrl.Result{Requeue: true}, fmt.Errorf("failed to list Nutanix VM Anti-Affinity Policies: %w", err)
+	}
+
+	if len(policies) == 0 {
+		log.Info("Nutanix VM Anti-Affinity Policy not found, creating a new one", "Name", policyName)
+
+		// Get or create categories
+		policyCategories, err := r.GetOrCreateCategories(pctx)
+		if err != nil {
+			log.Error(err, "Failed to get or create categories for NutanixVMAntiAffinityPolicy")
+			return ctrl.Result{RequeueAfter: 2 * time.Second}, err
+		}
+
+		// Create a new policy
+		newPolicyWaiter, err := pctx.NutanixClient.CreateAntiAffinityPolicy(
+			policiesv4.VmAntiAffinityPolicy{
+				Name:        &policyName,
+				Description: &pctx.NutanixVMAntiAffinityPolicy.Spec.Description,
+				Categories:  policyCategories,
+			},
+		)
+		if err != nil {
+			log.Error(err, "Failed to create Nutanix VM Anti-Affinity Policy")
+			return ctrl.Result{Requeue: true}, fmt.Errorf("failed to create Nutanix VM Anti-Affinity Policy: %w", err)
+		}
+
+		newPolicy, err := newPolicyWaiter.WaitForTaskCompletion()
+		if err != nil {
+			log.Error(err, "Failed to create Nutanix VM Anti-Affinity Policy")
+			return ctrl.Result{Requeue: true}, fmt.Errorf("failed to create Nutanix VM Anti-Affinity Policy: %w", err)
+		}
+		// Update the status of the NutanixVMAntiAffinityPolicy with the UUID of the created policy
+		pctx.NutanixVMAntiAffinityPolicy.Status.UUID = *newPolicy[0].ExtId
+		pctx.NutanixVMAntiAffinityPolicy.Status.CleanupPolicy = true // Mark the policy for cleanup
+
+		log.Info("Nutanix VM Anti-Affinity Policy created", "UUID", newPolicy[0].ExtId)
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func (r *NutanixPolicyReconciler) ReconcilePolicyAlreadyPresentInPC(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (ctrl.Result, error) {
+	log := log.FromContext(pctx.Context)
+	log.Info("Reconciling if policy is already present in PC for NutanixVMAntiAffinityPolicy")
+
+	// Check if the policy is already present in PC
+	nutanixVMAntiAffinityPolicy := pctx.NutanixVMAntiAffinityPolicy
+	if nutanixVMAntiAffinityPolicy.Status.UUID == "" {
+		log.Info("NutanixVMAntiAffinityPolicy does not have a UUID, requeuing", "Name", nutanixVMAntiAffinityPolicy.Name)
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	// Get the policy by UUID
+	policy, err := pctx.NutanixClient.GetAntiAffinityPolicy(nutanixVMAntiAffinityPolicy.Status.UUID)
+	if err != nil {
+		log.Error(err, "Failed to get Nutanix VM Anti-Affinity Policy by UUID", "UUID", nutanixVMAntiAffinityPolicy.Status.UUID)
+	}
+
+	if policy == nil {
+		log.Info("Nutanix VM Anti-Affinity Policy not found by UUID, requeuing", "UUID", nutanixVMAntiAffinityPolicy.Status.UUID)
+		// Requeue the request to check again later
+		return ctrl.Result{Requeue: true}, fmt.Errorf("Nutanix VM Anti-Affinity Policy not found by UUID: %s", nutanixVMAntiAffinityPolicy.Status.UUID)
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func (r *NutanixPolicyReconciler) ReconcilePolicyUpdate(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (ctrl.Result, error) {
+	log := log.FromContext(pctx.Context)
+	log.Info("Reconciling policy update for NutanixVMAntiAffinityPolicy")
+
+	// Get the NutanixVMAntiAffinityPolicy
+	nutanixVMAntiAffinityPolicy := pctx.NutanixVMAntiAffinityPolicy
+
+	pcPolicy, err := pctx.NutanixClient.GetAntiAffinityPolicy(nutanixVMAntiAffinityPolicy.Status.UUID)
+	if err != nil {
+		log.Error(err, "Failed to get Nutanix VM Anti-Affinity Policy by UUID", "UUID", nutanixVMAntiAffinityPolicy.Status.UUID)
+		// Requeue the request to check again later
+		return ctrl.Result{Requeue: true}, fmt.Errorf("failed to get Nutanix VM Anti-Affinity Policy by UUID: %w", err)
+	}
+
+	// Check if policy shoud be updated
+	if requiredUpdate(pcPolicy, pctx) {
+		log.Info("Nutanix VM Anti-Affinity Policy needs to be updated", "UUID", pcPolicy.ExtId)
+
+		// Update the policy with the categories from the NutanixVMAntiAffinityPolicy
+		if _, err := r.UpdatePolicy(pcPolicy, pctx); err != nil {
+			log.Error(err, "Failed to update Nutanix VM Anti-Affinity Policy")
+			conditions.MarkFalse(
+				nutanixVMAntiAffinityPolicy,
+				PolicyUpdated,
+				"PolicyUpdateError",
+				capiv1.ConditionSeverityWarning,
+				"Failed to update Nutanix VM Anti-Affinity Policy",
+			)
+			if err := pctx.K8sPatchHelper.Patch(pctx.Context, nutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
+				log.Error(err, "Failed to patch NutanixVMAntiAffinityPolicy after policy update error")
+				return ctrl.Result{}, err
+			}
 			// Requeue the request to check again later
 			return ctrl.Result{Requeue: true}, nil
 		}
+		log.Info("Nutanix VM Anti-Affinity Policy updated successfully", "UUID", pcPolicy.ExtId)
+		conditions.MarkTrue(nutanixVMAntiAffinityPolicy, PolicyUpdated)
+	} else {
+		log.Info("Nutanix VM Anti-Affinity Policy is up to date", "UUID", pcPolicy.ExtId)
 	}
 
-	// Mark the condition as true if the annotations are reconciled
-	conditions.MarkTrue(nutanixVMAntiAffinityPolicy, AnnotationsReconciled)
-
-	// Check if the NutanixVMAntiAffinityPolicy is marked for deletion
-	if !nutanixVMAntiAffinityPolicy.DeletionTimestamp.IsZero() {
-		// The NutanixVMAntiAffinityPolicy is marked for deletion, so we need to handle the deletion logic
-		log.Info("NutanixVMAntiAffinityPolicy is marked for deletion")
-		return r.reconcileDelete(vmAntiAffinityPolicyContext)
+	// Update the status of the NutanixVMAntiAffinityPolicy with the UUID of the created policy
+	if nutanixVMAntiAffinityPolicy.Status.UUID != *pcPolicy.ExtId {
+		log.Info("Updating NutanixVMAntiAffinityPolicy status with the UUID of the created policy", "UUID", pcPolicy.ExtId)
+		nutanixVMAntiAffinityPolicy.Status.UUID = *pcPolicy.ExtId
 	}
 
-	return r.reconcileNormal(vmAntiAffinityPolicyContext)
+	return ctrl.Result{}, nil
 }
 
-func (r *NutanixPolicyReconciler) reconcileDelete(pctx *nctx.VMAntiAffinityPolicyContext) (ctrl.Result, error) {
+func (r *NutanixPolicyReconciler) reconcileDelete(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (ctrl.Result, error) {
 	log := log.FromContext(pctx.Context)
 	log.Info("Reconciling deletion of NutanixVMAntiAffinityPolicy")
 
@@ -483,181 +897,39 @@ func (r *NutanixPolicyReconciler) reconcileDelete(pctx *nctx.VMAntiAffinityPolic
 	return ctrl.Result{}, nil
 }
 
-func (r *NutanixPolicyReconciler) reconcileNormal(pctx *nctx.VMAntiAffinityPolicyContext) (ctrl.Result, error) {
-	log := log.FromContext(pctx.Context)
-	log.Info("Reconciling normal state of NutanixVMAntiAffinityPolicy")
-
-	patchHelper, err := patch.NewHelper(pctx.NutanixVMAntiAffinityPolicy, r.Client)
-	if err != nil {
-		log.Error(err, "Failed to create patch helper for NutanixVMAntiAffinityPolicy")
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	defer func() {
-		// Always patch the NutanixVMAntiAffinityPolicy after reconciliation
-		if err := patchHelper.Patch(pctx.Context, pctx.NutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
-			log.Error(err, "Failed to patch NutanixVMAntiAffinityPolicy after reconciliation")
-		}
-	}()
-
-	nutanixVMAntiAffinityPolicy := pctx.NutanixVMAntiAffinityPolicy
-
-	// Get or create categories
-	_, err = r.GetOrCreateCategories(pctx)
-	if err != nil {
-		log.Error(err, "Failed to get or create categories for NutanixVMAntiAffinityPolicy")
-		conditions.MarkFalse(
-			nutanixVMAntiAffinityPolicy,
-			CategoriesReady,
-			"CategoryFetchError",
-			capiv1.ConditionSeverityWarning,
-			"Failed to get or create categories for NutanixVMAntiAffinityPolicy",
-		)
-		if err := patchHelper.Patch(pctx.Context, nutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
-			log.Error(err, "Failed to patch NutanixVMAntiAffinityPolicy after category fetch error")
-			return ctrl.Result{}, err
-		}
-
-		// Requeue the request to check again later
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	// Mark the condition as true if the categories are ready
-	conditions.MarkTrue(nutanixVMAntiAffinityPolicy, CategoriesReady)
-	if err := patchHelper.Patch(pctx.Context, nutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
-		log.Error(err, "Failed to patch NutanixVMAntiAffinityPolicy after categories are ready")
-		return ctrl.Result{}, err
-	}
-
-	// Try to get AntiAffinityPolicy from Nutanix Prism Central
-	log.Info("Getting or creating Nutanix VM Anti-Affinity Policy")
-	pcPolicy, err := r.GetVmAntiAffinityPolicy(pctx)
-	if err != nil {
-		log.Error(err, "Failed to get Nutanix VM Anti-Affinity Policy from PC")
-		conditions.MarkFalse(
-			nutanixVMAntiAffinityPolicy,
-			PolicyAlreadyPresentInPC,
-			"PolicyFetchError",
-			capiv1.ConditionSeverityWarning,
-			"Failed to get Nutanix VM Anti-Affinity Policy from Prism Central",
-		)
-
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	if pcPolicy == nil {
-		pctx.NutanixVMAntiAffinityPolicy.Status.CleanupPolicy = true
-		if !controllerutil.ContainsFinalizer(nutanixVMAntiAffinityPolicy, NutanixVMAntiAffinityPolicyFinalizerName) {
-			log.Info("Adding finalizer to NutanixVMAntiAffinityPolicy")
-			controllerutil.AddFinalizer(nutanixVMAntiAffinityPolicy, NutanixVMAntiAffinityPolicyFinalizerName)
-			conditions.MarkTrue(nutanixVMAntiAffinityPolicy, FinalizerAdded)
-			if err := patchHelper.Patch(pctx.Context, nutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
-				log.Error(err, "Failed to patch NutanixVMAntiAffinityPolicy after adding finalizer")
-				return ctrl.Result{}, err
-			}
-			log.Info("Finalizer added to NutanixVMAntiAffinityPolicy successfully")
-		}
-
-		log.Info("Nutanix VM Anti-Affinity Policy not found in Prism Central, creating a new one")
-		pcPolicy, err := r.CreateVMAntiAffinityPolicy(pctx)
-		if err != nil {
-			log.Error(err, "Failed to get or create Nutanix VM Anti-Affinity Policy")
-			conditions.MarkFalse(
-				nutanixVMAntiAffinityPolicy,
-				PolicyCreated,
-				"PolicyCreationError",
-				capiv1.ConditionSeverityWarning,
-				"Failed to get or create Nutanix VM Anti-Affinity Policy",
-			)
-			if err := patchHelper.Patch(pctx.Context, nutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
-				log.Error(err, "Failed to patch NutanixVMAntiAffinityPolicy after policy creation error")
-				return ctrl.Result{}, err
-			}
-			// Requeue the request to check again later
-			return ctrl.Result{Requeue: true}, nil
-		}
-		log.Info("Nutanix VM Anti-Affinity Policy processed", "UUID", pcPolicy.ExtId)
-		conditions.MarkTrue(nutanixVMAntiAffinityPolicy, PolicyCreated)
-	} else {
-		conditions.MarkTrue(nutanixVMAntiAffinityPolicy, PolicyCreated)
-		conditions.MarkTrue(nutanixVMAntiAffinityPolicy, PolicyAlreadyPresentInPC)
-	}
-
-	// Check if policy shoud be updated
-	if requiredUpdate(pcPolicy, pctx) {
-		log.Info("Nutanix VM Anti-Affinity Policy needs to be updated", "UUID", pcPolicy.ExtId)
-
-		// Update the policy with the categories from the NutanixVMAntiAffinityPolicy
-		if _, err := r.UpdatePolicy(pcPolicy, pctx); err != nil {
-			log.Error(err, "Failed to update Nutanix VM Anti-Affinity Policy")
-			conditions.MarkFalse(
-				nutanixVMAntiAffinityPolicy,
-				PolicyUpdated,
-				"PolicyUpdateError",
-				capiv1.ConditionSeverityWarning,
-				"Failed to update Nutanix VM Anti-Affinity Policy",
-			)
-			if err := patchHelper.Patch(pctx.Context, nutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
-				log.Error(err, "Failed to patch NutanixVMAntiAffinityPolicy after policy update error")
-				return ctrl.Result{}, err
-			}
-			// Requeue the request to check again later
-			return ctrl.Result{Requeue: true}, nil
-		}
-		log.Info("Nutanix VM Anti-Affinity Policy updated successfully", "UUID", pcPolicy.ExtId)
-		conditions.MarkTrue(nutanixVMAntiAffinityPolicy, PolicyUpdated)
-	} else {
-		log.Info("Nutanix VM Anti-Affinity Policy is up to date", "UUID", pcPolicy.ExtId)
-	}
-
-	// Update the status of the NutanixVMAntiAffinityPolicy with the UUID of the created policy
-	if nutanixVMAntiAffinityPolicy.Status.UUID != *pcPolicy.ExtId {
-		log.Info("Updating NutanixVMAntiAffinityPolicy status with the UUID of the created policy", "UUID", pcPolicy.ExtId)
-		nutanixVMAntiAffinityPolicy.Status.UUID = *pcPolicy.ExtId
-	}
-
-	return ctrl.Result{}, nil
-}
-
-func (r *NutanixPolicyReconciler) ReconcileAnnotations(pctx *nctx.VMAntiAffinityPolicyContext) (error, bool) {
+func (r *NutanixPolicyReconciler) ReconcileAnnotations(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (ctrl.Result, error) {
 	log := log.FromContext(pctx.Context)
 	log.Info("Reconciling annotations for NutanixVMAntiAffinityPolicy")
 
 	nutanixVMAntiAffinityPolicy := pctx.NutanixVMAntiAffinityPolicy
-
-	patchHelper, err := patch.NewHelper(nutanixVMAntiAffinityPolicy, r.Client)
-	if err != nil {
-		log.Error(err, "Failed to create patch helper for NutanixVMAntiAffinityPolicy")
-		return fmt.Errorf("failed to create patch helper: %w", err), false
-	}
 
 	// Check annotation for cleanup policy
 	if cleanupPolicyUuidString, ok := nutanixVMAntiAffinityPolicy.Annotations[CleanupPolicyAnnotationName]; ok {
 		policyUUID, err := uuid.Parse(cleanupPolicyUuidString)
 		if err != nil {
 			log.Error(err, "Failed to parse cleanup policy UUID from annotation", "Annotation", CleanupPolicyAnnotationName)
-			return fmt.Errorf("failed to parse cleanup policy UUID from annotation: %w", err), false
+			return ctrl.Result{Requeue: true}, fmt.Errorf("failed to parse cleanup policy UUID from annotation: %w", err)
 		}
 		log.Info("Cleanup policy UUID found in annotation", "UUID", policyUUID)
 
 		// Check if the policy already adopted
 		if nutanixVMAntiAffinityPolicy.Status.UUID == "" {
-			return nil, false
+			return ctrl.Result{}, nil
 		}
 
 		if nutanixVMAntiAffinityPolicy.Status.UUID != policyUUID.String() {
 			log.Info("NutanixVMAntiAffinityPolicy UUID does not match the cleanup policy UUID, updating status", "CurrentUUID", nutanixVMAntiAffinityPolicy.Status.UUID, "CleanupPolicyUUID", policyUUID.String())
-			return fmt.Errorf("NutanixVMAntiAffinityPolicy UUID does not match the cleanup policy UUID: %s != %s", nutanixVMAntiAffinityPolicy.Status.UUID, policyUUID.String()), false
+			return ctrl.Result{}, fmt.Errorf("NutanixVMAntiAffinityPolicy UUID does not match the cleanup policy UUID: %s != %s", nutanixVMAntiAffinityPolicy.Status.UUID, policyUUID.String())
 		}
 
 		log.Info("NutanixVMAntiAffinityPolicy UUID matches the cleanup policy UUID, updating status")
 		nutanixVMAntiAffinityPolicy.Status.CleanupPolicy = true
 
-		if err := patchHelper.Patch(pctx.Context, nutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
+		// Patch the NutanixVMAntiAffinityPolicy to update the status
+		if err := pctx.K8sPatchHelper.Patch(pctx.Context, nutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
 			log.Error(err, "Failed to patch NutanixVMAntiAffinityPolicy after updating cleanup policy status")
-			return fmt.Errorf("failed to patch NutanixVMAntiAffinityPolicy after updating cleanup policy status: %w", err), false
+			return ctrl.Result{}, fmt.Errorf("failed to patch NutanixVMAntiAffinityPolicy after updating cleanup policy status: %w", err)
 		}
-
 		log.Info("NutanixVMAntiAffinityPolicy status updated with cleanup policy", "UUID", nutanixVMAntiAffinityPolicy.Status.UUID)
 	}
 
@@ -668,7 +940,7 @@ func (r *NutanixPolicyReconciler) ReconcileAnnotations(pctx *nctx.VMAntiAffinity
 			parts := strings.SplitN(categoryKeyValue, ":", 2)
 			if len(parts) != 2 {
 				log.Error(fmt.Errorf("invalid category cleanup annotation format"), "Invalid category cleanup annotation format", "Annotation", categoryKeyValue)
-				return fmt.Errorf("invalid category cleanup annotation format: %s", categoryKeyValue), false
+				return ctrl.Result{}, fmt.Errorf("invalid category cleanup annotation format: %s", categoryKeyValue)
 			}
 			key := parts[0]
 			value := parts[1]
@@ -684,17 +956,17 @@ func (r *NutanixPolicyReconciler) ReconcileAnnotations(pctx *nctx.VMAntiAffinity
 				},
 			)
 
-			if err := patchHelper.Patch(pctx.Context, nutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
+			if err := pctx.K8sPatchHelper.Patch(pctx.Context, nutanixVMAntiAffinityPolicy, patch.WithStatusObservedGeneration{}); err != nil {
 				log.Error(err, "Failed to patch NutanixVMAntiAffinityPolicy after adding category to cleanup list")
-				return fmt.Errorf("failed to patch NutanixVMAntiAffinityPolicy after adding category to cleanup list: %w", err), false
+				return ctrl.Result{}, fmt.Errorf("failed to patch NutanixVMAntiAffinityPolicy after adding category to cleanup list: %w", err)
 			}
 		}
 	}
 
-	return nil, false
+	return ctrl.Result{}, nil
 }
 
-func (r *NutanixPolicyReconciler) GetOrCreateCategories(pctx *nctx.VMAntiAffinityPolicyContext) ([]policiesv4.CategoryReference, error) {
+func (r *NutanixPolicyReconciler) GetOrCreateCategories(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) ([]policiesv4.CategoryReference, error) {
 	log := log.FromContext(pctx.Context)
 	log.Info("Getting or creating categories for NutanixVMAntiAffinityPolicy")
 
@@ -756,7 +1028,7 @@ func (r *NutanixPolicyReconciler) GetOrCreateCategories(pctx *nctx.VMAntiAffinit
 	return policyCategories, nil
 }
 
-func (r *NutanixPolicyReconciler) GetVmAntiAffinityPolicy(pctx *nctx.VMAntiAffinityPolicyContext) (*policiesv4.VmAntiAffinityPolicy, error) {
+func (r *NutanixPolicyReconciler) GetVmAntiAffinityPolicy(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (*policiesv4.VmAntiAffinityPolicy, error) {
 	log := log.FromContext(pctx.Context)
 	log.Info("Trying  to get Nutanix VM Anti-Affinity Policy")
 
@@ -800,7 +1072,7 @@ func (r *NutanixPolicyReconciler) GetVmAntiAffinityPolicy(pctx *nctx.VMAntiAffin
 	return &policies[0], nil
 }
 
-func GetPolicyName(pctx *nctx.VMAntiAffinityPolicyContext) string {
+func GetPolicyName(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) string {
 	result := pctx.NutanixVMAntiAffinityPolicy.Spec.Name
 	if result == "" {
 		// Generate name if not provided based on cluster name and namespace, policy metadata
@@ -809,7 +1081,7 @@ func GetPolicyName(pctx *nctx.VMAntiAffinityPolicyContext) string {
 	return result
 }
 
-func (r *NutanixPolicyReconciler) CreateVMAntiAffinityPolicy(pctx *nctx.VMAntiAffinityPolicyContext) (*policiesv4.VmAntiAffinityPolicy, error) {
+func (r *NutanixPolicyReconciler) CreateVMAntiAffinityPolicy(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (*policiesv4.VmAntiAffinityPolicy, error) {
 	log := log.FromContext(pctx.Context)
 	log.Info("Creating Nutanix VM Anti-Affinity Policy")
 
@@ -854,7 +1126,7 @@ func (r *NutanixPolicyReconciler) CreateVMAntiAffinityPolicy(pctx *nctx.VMAntiAf
 	return newPolicy, nil
 }
 
-func (r *NutanixPolicyReconciler) UpdatePolicy(policy *policiesv4.VmAntiAffinityPolicy, pctx *nctx.VMAntiAffinityPolicyContext) (*policiesv4.VmAntiAffinityPolicy, error) {
+func (r *NutanixPolicyReconciler) UpdatePolicy(policy *policiesv4.VmAntiAffinityPolicy, pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) (*policiesv4.VmAntiAffinityPolicy, error) {
 	log := log.FromContext(pctx.Context)
 	log.Info("Updating Nutanix VM Anti-Affinity Policy", "UUID", policy.ExtId)
 
@@ -900,7 +1172,7 @@ func (r *NutanixPolicyReconciler) UpdatePolicy(policy *policiesv4.VmAntiAffinity
 	return updatedPolicy, nil
 }
 
-func (r *NutanixPolicyReconciler) DeleteCategories(pctx *nctx.VMAntiAffinityPolicyContext) error {
+func (r *NutanixPolicyReconciler) DeleteCategories(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) error {
 	log := log.FromContext(pctx.Context)
 	log.Info("Deleting categories for NutanixVMAntiAffinityPolicy")
 
@@ -940,7 +1212,7 @@ func (r *NutanixPolicyReconciler) DeleteCategories(pctx *nctx.VMAntiAffinityPoli
 	return nil
 }
 
-func (r *NutanixPolicyReconciler) DeleteVmAntiAffinityPolicy(pctx *nctx.VMAntiAffinityPolicyContext) error {
+func (r *NutanixPolicyReconciler) DeleteVmAntiAffinityPolicy(pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) error {
 	log := log.FromContext(pctx.Context)
 	log.Info("Deleting Nutanix VM Anti-Affinity Policy")
 
@@ -969,7 +1241,7 @@ func (r *NutanixPolicyReconciler) DeleteVmAntiAffinityPolicy(pctx *nctx.VMAntiAf
 	return nil
 }
 
-func requiredUpdate(policy *policiesv4.VmAntiAffinityPolicy, pctx *nctx.VMAntiAffinityPolicyContext) bool {
+func requiredUpdate(policy *policiesv4.VmAntiAffinityPolicy, pctx *nctx.VMAntiAffinityPolicyContext[facade.FacadeClientV4]) bool {
 	log := log.FromContext(pctx.Context)
 	nutanixVMAntiAffinityPolicy := pctx.NutanixVMAntiAffinityPolicy
 	log.Info("Checking if Nutanix VM Anti-Affinity Policy requires update", "UUID", policy.ExtId)
