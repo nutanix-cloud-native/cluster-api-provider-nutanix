@@ -1093,7 +1093,7 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
-		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
 		return nil, err
 	}
 
@@ -1104,7 +1104,7 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 	})
 	if err != nil {
 		log.Error(err, "error occurred while getting nutanix prism v3 Client from cache")
-		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
 		return nil, fmt.Errorf("nutanix prism v3 Client error: %w", err)
 	}
 
@@ -1119,7 +1119,7 @@ func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.Nut
 	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
-		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
 		return nil, err
 	}
 
@@ -1129,7 +1129,7 @@ func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.Nut
 	})
 	if err != nil {
 		log.Error(err, "error occurred while getting nutanix prism v4 client from cache")
-		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, err.Error())
+		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
 		return nil, fmt.Errorf("nutanix prism v4 client error: %w", err)
 	}
 
