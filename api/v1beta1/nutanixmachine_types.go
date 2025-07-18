@@ -132,12 +132,12 @@ type NutanixMachineSpec struct {
 	// The cluster identifier (uuid or name) can be obtained from the Prism Central console
 	// or using the prism_central API.
 	// +kubebuilder:validation:Optional
-	Cluster NutanixResourceIdentifier `json:"cluster"`
+	Cluster NutanixResourceIdentifier `json:"cluster,omitzero"`
 	// subnet is to identify the cluster's network subnet to use for the Machine's VM
 	// The cluster identifier (uuid or name) can be obtained from the Prism Central console
 	// or using the prism_central API.
 	// +kubebuilder:validation:Optional
-	Subnets []NutanixResourceIdentifier `json:"subnet"`
+	Subnets []NutanixResourceIdentifier `json:"subnet,omitempty"`
 	// List of categories that need to be added to the machines. Categories must already exist in Prism Central
 	// +kubebuilder:validation:Optional
 	AdditionalCategories []NutanixCategoryIdentifier `json:"additionalCategories,omitempty"`
