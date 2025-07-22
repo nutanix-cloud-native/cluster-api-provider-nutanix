@@ -59,6 +59,8 @@ spec:
                     type: string
                   uuid:
                     description: uuid is the UUID of the resource in the PC.
+                    maxLength: 36
+                    minLength: 36
                     type: string
                 required:
                 - type
@@ -66,6 +68,15 @@ spec:
                 x-kubernetes-validations:
                 - message: prismElementCluster is immutable once set
                   rule: self == oldSelf
+                - message: when type is 'name', the 'name' field must be set and non-empty,
+                    and 'uuid' field must not be set
+                  rule: 'self.type == ''name'' ? (has(self.name) && size(self.name)
+                    > 0 && !has(self.uuid)) : true'
+                - message: when type is 'uuid', the 'uuid' field must be set with
+                    valid UUID format (containing dashes), and 'name' field must not
+                    be set
+                  rule: 'self.type == ''uuid'' ? (has(self.uuid) && self.uuid.contains(''-'')
+                    && !has(self.name)) : true'
               subnets:
                 description: |-
                   subnets holds a list of identifiers (one or more) of the PE cluster's network subnets
@@ -85,10 +96,22 @@ spec:
                       type: string
                     uuid:
                       description: uuid is the UUID of the resource in the PC.
+                      maxLength: 36
+                      minLength: 36
                       type: string
                   required:
                   - type
                   type: object
+                  x-kubernetes-validations:
+                  - message: when type is 'name', the 'name' field must be set and
+                      non-empty, and 'uuid' field must not be set
+                    rule: 'self.type == ''name'' ? (has(self.name) && size(self.name)
+                      > 0 && !has(self.uuid)) : true'
+                  - message: when type is 'uuid', the 'uuid' field must be set with
+                      valid UUID format (containing dashes), and 'name' field must
+                      not be set
+                    rule: 'self.type == ''uuid'' ? (has(self.uuid) && self.uuid.contains(''-'')
+                      && !has(self.name)) : true'
                 minItems: 1
                 type: array
                 x-kubernetes-validations:
