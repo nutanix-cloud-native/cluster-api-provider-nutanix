@@ -211,6 +211,7 @@ func GetPEUUID(ctx context.Context, client *prismclientv3.Client, peName, peUUID
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
 				return "", fmt.Errorf("failed to find Prism Element cluster with UUID %s: %v", *peUUID, err)
 			}
+			return "", fmt.Errorf("failed to get Prism Element cluster with UUID %s: %v", *peUUID, err)
 		}
 		return *peIntentResponse.Metadata.UUID, nil
 	} else if peName != nil && *peName != "" {
@@ -376,6 +377,7 @@ func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID str
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
 				return "", fmt.Errorf("failed to find subnet with UUID %s: %v", *subnetUUID, err)
 			}
+			return "", fmt.Errorf("failed to get subnet with UUID %s: %v", *subnetUUID, err)
 		}
 		foundSubnetUUID = *subnetIntentResponse.Metadata.UUID
 	} else { // else search by name
@@ -396,7 +398,7 @@ func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID str
 					foundSubnets = append(foundSubnets, subnet)
 				} else {
 					// By default check if the PE UUID matches if it is not an overlay subnet.
-					if *subnet.Spec.ClusterReference.UUID == peUUID {
+					if subnet.Spec.ClusterReference != nil && *subnet.Spec.ClusterReference.UUID == peUUID {
 						foundSubnets = append(foundSubnets, subnet)
 					}
 				}
@@ -426,6 +428,7 @@ func GetImage(ctx context.Context, client *prismclientv3.Client, id infrav1.Nuta
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
 				return nil, fmt.Errorf("failed to find image with UUID %s: %v", *id.UUID, err)
 			}
+			return nil, fmt.Errorf("failed to get image with UUID %s: %v", *id.UUID, err)
 		}
 		return resp, nil
 	case id.IsName():
@@ -813,6 +816,7 @@ func GetProjectUUID(ctx context.Context, client *prismclientv3.Client, projectNa
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
 				return "", fmt.Errorf("failed to find project with UUID %s: %v", *projectUUID, err)
 			}
+			return "", fmt.Errorf("failed to get project with UUID %s: %v", *projectUUID, err)
 		}
 		foundProjectUUID = *projectIntentResponse.Metadata.UUID
 	} else { // else search by name
