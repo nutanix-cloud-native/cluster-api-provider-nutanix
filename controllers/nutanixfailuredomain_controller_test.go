@@ -102,7 +102,7 @@ func TestNutanixFailureDomainReconciler(t *testing.T) {
 						Name: &rstr,
 					},
 					Subnets: []infrav1.NutanixResourceIdentifier{
-						{Type: infrav1.NutanixIdentifierUUID, UUID: &rstr},
+						{Type: infrav1.NutanixIdentifierName, Name: &rstr},
 					},
 				},
 				Status: infrav1.NutanixMachineStatus{

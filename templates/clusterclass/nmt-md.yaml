@@ -14,13 +14,7 @@ spec:
       systemDiskSize: 40Gi
       image:
         type: name
-        name: ""
-      cluster:
-        type: name
-        name: ""
-      subnet:
-        - type: name
-          name: ""
+        name: "placeholder-image"
       # Adds additional categories to the virtual machines.
       # Note: Categories must already be present in Prism Central
       # additionalCategories:

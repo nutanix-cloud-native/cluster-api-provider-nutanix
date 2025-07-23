@@ -161,10 +161,22 @@ spec:
                             type: string
                           uuid:
                             description: uuid is the UUID of the resource in the PC.
+                            maxLength: 36
+                            minLength: 36
                             type: string
                         required:
                         - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: when type is 'name', the 'name' field must be set
+                            and non-empty, and 'uuid' field must not be set
+                          rule: 'self.type == ''name'' ? (has(self.name) && size(self.name)
+                            > 0 && !has(self.uuid)) : true'
+                        - message: when type is 'uuid', the 'uuid' field must be set
+                            with valid UUID format (containing dashes), and 'name'
+                            field must not be set
+                          rule: 'self.type == ''uuid'' ? (has(self.uuid) && self.uuid.contains(''-'')
+                            && !has(self.name)) : true'
                       dataDisks:
                         description: dataDisks hold the list of data disks to be attached
                           to the VM
@@ -189,10 +201,24 @@ spec:
                                 uuid:
                                   description: uuid is the UUID of the resource in
                                     the PC.
+                                  maxLength: 36
+                                  minLength: 36
                                   type: string
                               required:
                               - type
                               type: object
+                              x-kubernetes-validations:
+                              - message: when type is 'name', the 'name' field must
+                                  be set and non-empty, and 'uuid' field must not
+                                  be set
+                                rule: 'self.type == ''name'' ? (has(self.name) &&
+                                  size(self.name) > 0 && !has(self.uuid)) : true'
+                              - message: when type is 'uuid', the 'uuid' field must
+                                  be set with valid UUID format (containing dashes),
+                                  and 'name' field must not be set
+                                rule: 'self.type == ''uuid'' ? (has(self.uuid) &&
+                                  self.uuid.contains(''-'') && !has(self.name)) :
+                                  true'
                             deviceProperties:
                               description: deviceProperties are the properties of
                                 the disk device.
@@ -274,10 +300,25 @@ spec:
                                     uuid:
                                       description: uuid is the UUID of the resource
                                         in the PC.
+                                      maxLength: 36
+                                      minLength: 36
                                       type: string
                                   required:
                                   - type
                                   type: object
+                                  x-kubernetes-validations:
+                                  - message: when type is 'name', the 'name' field
+                                      must be set and non-empty, and 'uuid' field
+                                      must not be set
+                                    rule: 'self.type == ''name'' ? (has(self.name)
+                                      && size(self.name) > 0 && !has(self.uuid)) :
+                                      true'
+                                  - message: when type is 'uuid', the 'uuid' field
+                                      must be set with valid UUID format (containing
+                                      dashes), and 'name' field must not be set
+                                    rule: 'self.type == ''uuid'' ? (has(self.uuid)
+                                      && self.uuid.contains(''-'') && !has(self.name))
+                                      : true'
                               required:
                               - diskMode
                               type: object
@@ -326,10 +367,22 @@ spec:
                             type: string
                           uuid:
                             description: uuid is the UUID of the resource in the PC.
+                            maxLength: 36
+                            minLength: 36
                             type: string
                         required:
                         - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: when type is 'name', the 'name' field must be set
+                            and non-empty, and 'uuid' field must not be set
+                          rule: 'self.type == ''name'' ? (has(self.name) && size(self.name)
+                            > 0 && !has(self.uuid)) : true'
+                        - message: when type is 'uuid', the 'uuid' field must be set
+                            with valid UUID format (containing dashes), and 'name'
+                            field must not be set
+                          rule: 'self.type == ''uuid'' ? (has(self.uuid) && self.uuid.contains(''-'')
+                            && !has(self.name)) : true'
                       imageLookup:
                         description: imageLookup is a container that holds how to
                           look up rhcos images for the cluster.
@@ -383,10 +436,22 @@ spec:
                             type: string
                           uuid:
                             description: uuid is the UUID of the resource in the PC.
+                            maxLength: 36
+                            minLength: 36
                             type: string
                         required:
                         - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: when type is 'name', the 'name' field must be set
+                            and non-empty, and 'uuid' field must not be set
+                          rule: 'self.type == ''name'' ? (has(self.name) && size(self.name)
+                            > 0 && !has(self.uuid)) : true'
+                        - message: when type is 'uuid', the 'uuid' field must be set
+                            with valid UUID format (containing dashes), and 'name'
+                            field must not be set
+                          rule: 'self.type == ''uuid'' ? (has(self.uuid) && self.uuid.contains(''-'')
+                            && !has(self.name)) : true'
                       providerID:
                         description: ProviderID is the unique identifier as specified
                           by the cloud provider.
@@ -413,10 +478,22 @@ spec:
                             uuid:
                               description: uuid is the UUID of the resource in the
                                 PC.
+                              maxLength: 36
+                              minLength: 36
                               type: string
                           required:
                           - type
                           type: object
+                          x-kubernetes-validations:
+                          - message: when type is 'name', the 'name' field must be
+                              set and non-empty, and 'uuid' field must not be set
+                            rule: 'self.type == ''name'' ? (has(self.name) && size(self.name)
+                              > 0 && !has(self.uuid)) : true'
+                          - message: when type is 'uuid', the 'uuid' field must be
+                              set with valid UUID format (containing dashes), and
+                              'name' field must not be set
+                            rule: 'self.type == ''uuid'' ? (has(self.uuid) && self.uuid.contains(''-'')
+                              && !has(self.name)) : true'
                         type: array
                       systemDiskSize:
                         anyOf:
