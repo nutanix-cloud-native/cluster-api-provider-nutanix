@@ -1172,3 +1172,29 @@ func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Clien
 
 	return nil
 }
+
+func resourceIdsEquals(nris1, nris2 []infrav1.NutanixResourceIdentifier) bool {
+	if nris1 == nil && nris2 == nil {
+		return true
+	}
+	if (nris1 == nil && nris2 != nil) ||
+		(nris1 != nil && nris2 == nil) ||
+		len(nris1) != len(nris2) {
+		return false
+	}
+
+	for i := range nris1 {
+		found := false
+		for j := range nris2 {
+			if nris1[i].EqualTo(&nris2[j]) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	return true
+}

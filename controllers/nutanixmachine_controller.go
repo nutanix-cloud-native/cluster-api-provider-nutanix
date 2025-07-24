@@ -489,6 +489,12 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	log.V(1).Info(fmt.Sprintf("Found VM with name: %s, vmUUID: %s", rctx.Machine.Name, *vm.Metadata.UUID))
 	rctx.NutanixMachine.Status.VmUUID = *vm.Metadata.UUID
 
+	// Set the NutanixMachine.status.failureDomain if the Machine is created with failureDomain
+	if err = r.checkFailureDomainStatus(rctx); err != nil {
+		log.Error(err, "Failed to check/set status.failureDomain")
+		return reconcile.Result{}, err
+	}
+
 	log.V(1).Info(fmt.Sprintf("Patching machine post creation vmUUID: %s", rctx.NutanixMachine.Status.VmUUID))
 	if err := r.patchMachine(rctx); err != nil {
 		errorMsg := fmt.Errorf("failed to patch NutanixMachine %s after creation. %v", rctx.NutanixMachine.Name, err)
@@ -514,13 +520,70 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	return reconcile.Result{}, nil
 }
 
-func (r *NutanixMachineReconciler) validateFailureDomainRef(rctx *nctx.MachineContext, fdName string) (*infrav1.NutanixFailureDomain, error) {
+// checkFailureDomainStatus checks and sets the NutanixMachine.status.failureDomain if necessary
+func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineContext) error {
+	if rctx.Machine.Spec.FailureDomain == nil || *rctx.Machine.Spec.FailureDomain == "" {
+		return nil
+	}
+
 	// Fetch the referent failure domain object
+	fdObj, err := r.getFailureDomainObj(rctx, *rctx.Machine.Spec.FailureDomain)
+	if err != nil {
+		return err
+	}
+
+	// Validate the NutanixMachine machine spec is consistent with that in the failure domain spec
+	// Note that when failure domain is used, the cluster/subnets fields of NutanixMachine spec are
+	// replaced with that in the failure domain spec, when the machine VM is created.
+	errMessages := []string{}
+	if !rctx.NutanixMachine.Spec.Cluster.EqualTo(&fdObj.Spec.PrismElementCluster) {
+		errMessages = append(
+			errMessages,
+			fmt.Sprintf(
+				"NutanixMachine.spec.cluster=%s, NutanixFailureDomain.spec.prismElementCluster=%s",
+				rctx.NutanixMachine.Spec.Cluster.DisplayString(),
+				fdObj.Spec.PrismElementCluster.DisplayString(),
+			),
+		)
+	}
+	if !resourceIdsEquals(rctx.NutanixMachine.Spec.Subnets, fdObj.Spec.Subnets) {
+		errMessages = append(
+			errMessages,
+			fmt.Sprintf(
+				"NutanixMachine.spec.subnets=%v, NutanixFailureDomain.spec.subnets=%v",
+				rctx.NutanixMachine.Spec.Subnets,
+				fdObj.Spec.Subnets,
+			),
+		)
+	}
+	if len(errMessages) > 0 {
+		return fmt.Errorf(
+			"the NutanixMachine is not consistent with the referenced NutanixFailureDomain %q: %s",
+			*rctx.Machine.Spec.FailureDomain,
+			strings.Join(errMessages, "; "),
+		)
+	}
+
+	// Set the NutanixMachine.status.failureDomain
+	rctx.NutanixMachine.Status.FailureDomain = &fdObj.Name
+
+	return nil
+}
+
+func (r *NutanixMachineReconciler) getFailureDomainObj(rctx *nctx.MachineContext, fdName string) (*infrav1.NutanixFailureDomain, error) {
 	fdObj := &infrav1.NutanixFailureDomain{}
 	fdKey := client.ObjectKey{Name: fdName, Namespace: rctx.NutanixMachine.Namespace}
-	err := r.Get(rctx.Context, fdKey, fdObj)
-	if err != nil {
+	if err := r.Get(rctx.Context, fdKey, fdObj); err != nil {
 		return nil, fmt.Errorf("failed to fetch the referent failure domain object %q: %w", fdName, err)
+	}
+	return fdObj, nil
+}
+
+func (r *NutanixMachineReconciler) validateFailureDomainRef(rctx *nctx.MachineContext, fdName string) (*infrav1.NutanixFailureDomain, error) {
+	// Fetch the referent failure domain object
+	fdObj, err := r.getFailureDomainObj(rctx, fdName)
+	if err != nil {
+		return nil, err
 	}
 
 	// Validate the failure domain configuration
