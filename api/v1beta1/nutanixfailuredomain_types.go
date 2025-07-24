@@ -56,6 +56,7 @@ type NutanixFailureDomainStatus struct {
 // +kubebuilder:resource:path=nutanixfailuredomains,shortName=nfd,scope=Namespaced,categories=cluster-api
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
+// +kubebuilder:metadata:labels=clusterctl.cluster.x-k8s.io/move=
 
 // NutanixFailureDomain is the Schema for the NutanixFailureDomain API.
 type NutanixFailureDomain struct {
