@@ -184,7 +184,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				}
 				err := reconciler.checkFailureDomainStatus(mctx)
 				g.Expect(err).To(HaveOccurred())
-				g.Expect(err.Error()).To(ContainSubstring("the nutanixmachine spec.cluster does not equal to that in the failure domain"))
+				g.Expect(err.Error()).To(ContainSubstring("the NutanixMachine is not consistent with the referenced NutanixFailureDomain"))
 			})
 
 			It("should error if failureDomain is configured in the owner machine spec and subnets configuration is not consistent", func() {
@@ -201,7 +201,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				}
 				err := reconciler.checkFailureDomainStatus(mctx)
 				g.Expect(err).To(HaveOccurred())
-				g.Expect(err.Error()).To(ContainSubstring("the nutanixmachine spec.subnets do not equal to that in the failure domain"))
+				g.Expect(err.Error()).To(ContainSubstring("the NutanixMachine is not consistent with the referenced NutanixFailureDomain"))
 			})
 		})
 

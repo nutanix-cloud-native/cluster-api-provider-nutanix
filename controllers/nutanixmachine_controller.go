@@ -533,14 +533,35 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 	}
 
 	// Validate the NutanixMachine machine spec is consistent with that in the failure domain spec
-	// Note that when failure domain is used, the cluster/subnets fields of NutanixMachine spec are replaced with that in the failure domain spec,
-	// when the machine VM is created.
+	// Note that when failure domain is used, the cluster/subnets fields of NutanixMachine spec are
+	// replaced with that in the failure domain spec, when the machine VM is created.
+	errMessages := []string{}
 	if !rctx.NutanixMachine.Spec.Cluster.EqualTo(&fdObj.Spec.PrismElementCluster) {
-		return fmt.Errorf("the nutanixmachine spec.cluster does not equal to that in the failure domain %q: nutanixmachine.spec.cluster: %s, nutanixfailuredomain.spec.prismElementCluster: %s",
-			*rctx.Machine.Spec.FailureDomain, rctx.NutanixMachine.Spec.Cluster.DisplayString(), fdObj.Spec.PrismElementCluster.DisplayString())
+		errMessages = append(
+			errMessages,
+			fmt.Sprintf(
+				"NutanixMachine.spec.cluster=%s, NutanixFailureDomain.spec.prismElementCluster=%s",
+				rctx.NutanixMachine.Spec.Cluster.DisplayString(),
+				fdObj.Spec.PrismElementCluster.DisplayString(),
+			),
+		)
 	}
 	if !resourceIdsEquals(rctx.NutanixMachine.Spec.Subnets, fdObj.Spec.Subnets) {
-		return fmt.Errorf("the nutanixmachine spec.subnets do not equal to that in the failure domain %q", *rctx.Machine.Spec.FailureDomain)
+		errMessages = append(
+			errMessages,
+			fmt.Sprintf(
+				"NutanixMachine.spec.subnets=%v, NutanixFailureDomain.spec.subnets=%v",
+				rctx.NutanixMachine.Spec.Subnets,
+				fdObj.Spec.Subnets,
+			),
+		)
+	}
+	if len(errMessages) > 0 {
+		return fmt.Errorf(
+			"the NutanixMachine is not consistent with the referenced NutanixFailureDomain %q: %s",
+			*rctx.Machine.Spec.FailureDomain,
+			strings.Join(errMessages, "; "),
+		)
 	}
 
 	// Set the NutanixMachine.status.failureDomain
