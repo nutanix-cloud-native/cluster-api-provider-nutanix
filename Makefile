@@ -306,6 +306,7 @@ cluster-templates: ## Generate cluster templates for all flavors
 	kustomize build $(TEMPLATES_DIR)/clusterclass > $(TEMPLATES_DIR)/cluster-template-clusterclass.yaml
 	kustomize build $(TEMPLATES_DIR)/topology > $(TEMPLATES_DIR)/cluster-template-topology.yaml
 	kustomize build $(TEMPLATES_DIR)/image-lookup/ > $(TEMPLATES_DIR)/cluster-template-image-lookup.yaml
+	kustomize build $(TEMPLATES_DIR)/failure-domains/ > $(TEMPLATES_DIR)/cluster-template-failure-domains.yaml
 
 ##@ Testing
 
