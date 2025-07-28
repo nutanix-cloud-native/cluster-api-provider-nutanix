@@ -1,0 +1,34 @@
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixCluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  failureDomains:
+    - name: ${NUTANIX_FAILURE_DOMAIN_1_NAME}
+      controlPlane: true
+      cluster:
+        name: ${NUTANIX_FAILURE_DOMAIN_1_PRISM_ELEMENT_NAME}
+        type: name
+      subnets:
+        - name: ${NUTANIX_FAILURE_DOMAIN_1_SUBNET_NAME}
+          type: name
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: KubeadmControlPlane
+metadata:
+  name: ${CLUSTER_NAME}-kcp
+spec:
+  replicas: 3
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  labels:
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+  name: ${CLUSTER_NAME}-wmd
+spec:
+  replicas: 0
+  template:
+    spec:
+      failureDomain: ${NUTANIX_FAILURE_DOMAIN_1_NAME}
