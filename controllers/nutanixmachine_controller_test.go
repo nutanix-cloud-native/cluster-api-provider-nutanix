@@ -132,6 +132,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 					Context:        ctx,
 					NutanixMachine: ntnxMachine,
 					Machine:        machine,
+					NutanixCluster: ntnxCluster,
 				}
 				err := reconciler.checkFailureDomainStatus(mctx)
 				g.Expect(err).NotTo(HaveOccurred())
