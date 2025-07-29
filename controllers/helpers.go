@@ -929,8 +929,8 @@ func GetGPUsForPE(ctx context.Context, client *prismclientv3.Client, peUUID stri
 	return gpus, nil
 }
 
-// GetFailureDomain gets the failure domain with a given name from a NutanixCluster object.
-func GetFailureDomain(failureDomainName string, nutanixCluster *infrav1.NutanixCluster) (*infrav1.NutanixFailureDomainConfig, error) { //nolint:staticcheck // suppress complaining on Deprecated type
+// GetLegacyFailureDomainFromNutanixCluster gets the failure domain with a given name from a NutanixCluster object.
+func GetLegacyFailureDomainFromNutanixCluster(failureDomainName string, nutanixCluster *infrav1.NutanixCluster) (*infrav1.NutanixFailureDomainConfig, error) { //nolint:staticcheck // suppress complaining on Deprecated type
 	if failureDomainName == "" {
 		return nil, fmt.Errorf("failure domain name must be set when searching for failure domains on a Nutanix cluster object")
 	}

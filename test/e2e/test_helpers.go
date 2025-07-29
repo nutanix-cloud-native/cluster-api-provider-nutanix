@@ -785,7 +785,7 @@ func (t testHelper) verifyFailureDomainsOnClusterMachines(ctx context.Context, p
 					// failure domain had a match
 					match = true
 					// Search for failure domain
-					fd, err := controllers.GetFailureDomain(fdName, nutanixCluster)
+					fd, err := controllers.GetLegacyFailureDomainFromNutanixCluster(fdName, nutanixCluster)
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(fd).ToNot(BeNil())
 					// Search for VM

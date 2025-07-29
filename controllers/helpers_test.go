@@ -80,17 +80,17 @@ func TestControllerHelpers(t *testing.T) {
 		Context("Get failure domains", func() {
 			It("should error when passing empty failure domain name", func() {
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
-				_, err := GetFailureDomain("", ntnxCluster)
+				_, err := GetLegacyFailureDomainFromNutanixCluster("", ntnxCluster)
 				Expect(err).To(HaveOccurred())
 			})
 			It("should error when passing nil cluster", func() {
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
-				_, err := GetFailureDomain(fd1Name, nil)
+				_, err := GetLegacyFailureDomainFromNutanixCluster(fd1Name, nil)
 				Expect(err).To(HaveOccurred())
 			})
 			It("should error when no failure domain has been found", func() {
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
-				_, err := GetFailureDomain(fd1Name, ntnxCluster)
+				_, err := GetLegacyFailureDomainFromNutanixCluster(fd1Name, ntnxCluster)
 				Expect(err).To(HaveOccurred())
 			})
 			It("should return the correct failuredomain", func() {
@@ -128,7 +128,7 @@ func TestControllerHelpers(t *testing.T) {
 					fd2,
 				}
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
-				fd, err := GetFailureDomain(fd2Name, ntnxCluster)
+				fd, err := GetLegacyFailureDomainFromNutanixCluster(fd2Name, ntnxCluster)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(*fd).To(Equal(fd2))
 			})

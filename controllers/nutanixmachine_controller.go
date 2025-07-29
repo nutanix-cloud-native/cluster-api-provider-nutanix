@@ -606,19 +606,51 @@ func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineConte
 	log := ctrl.LoggerFrom(rctx.Context)
 
 	fdName := rctx.Machine.Spec.FailureDomain
-	if fdName != nil && *fdName != "" {
+	foundInOldFailureDomainsList := false
+	for _, fd := range rctx.NutanixCluster.Spec.FailureDomains {
+		if fd.Name == *fdName {
+			foundInOldFailureDomainsList = true
+		}
+	}
+	if fdName != nil && *fdName != "" && !foundInOldFailureDomainsList {
 		log.WithValues("failureDomain", *fdName)
 		fdObj, err := r.validateFailureDomainRef(rctx, *fdName)
 		if err != nil {
 			log.Error(err, "Failed to validate the failure domain")
 			return err
 		}
-
 		// Update the NutanixMachine machine config based on the failure domain spec
 		rctx.NutanixMachine.Spec.Cluster = fdObj.Spec.PrismElementCluster
 		rctx.NutanixMachine.Spec.Subnets = fdObj.Spec.Subnets
 		rctx.NutanixMachine.Status.FailureDomain = &fdObj.Name
 		log.Info(fmt.Sprintf("Updated the NutanixMachine %s machine config from the failure domain %s configuration.", rctx.NutanixMachine.Name, fdObj.Name))
+	}
+	if foundInOldFailureDomainsList {
+		failureDomainName := *rctx.Machine.Spec.FailureDomain
+		failureDomain, err := GetLegacyFailureDomainFromNutanixCluster(failureDomainName, rctx.NutanixCluster)
+		if err != nil {
+			return fmt.Errorf("failed to find failure domain %s", failureDomainName)
+		}
+		peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixClient, failureDomain.Cluster.Name, failureDomain.Cluster.UUID)
+		if err != nil {
+			return fmt.Errorf("failed to find prism element uuid for failure domain %s", failureDomainName)
+		}
+		subnetUUIDs, err := GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, failureDomain.Subnets, peUUID)
+		if err != nil {
+			return fmt.Errorf("failed to find subnet uuids for failure domain %s", failureDomainName)
+		}
+		rctx.NutanixMachine.Spec.Cluster = infrav1.NutanixResourceIdentifier{
+			UUID: &peUUID,
+			Type: infrav1.NutanixIdentifierUUID,
+		}
+		subnets := []infrav1.NutanixResourceIdentifier{}
+		for _, subnetUUID := range subnetUUIDs {
+			subnets = append(subnets, infrav1.NutanixResourceIdentifier{
+				UUID: &subnetUUID,
+				Type: infrav1.NutanixIdentifierUUID,
+			})
+		}
+		rctx.NutanixMachine.Spec.Subnets = subnets
 	}
 
 	if len(rctx.NutanixMachine.Spec.Subnets) == 0 {
