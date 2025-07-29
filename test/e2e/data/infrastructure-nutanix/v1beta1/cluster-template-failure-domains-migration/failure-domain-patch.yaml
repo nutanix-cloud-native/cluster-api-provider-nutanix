@@ -13,6 +13,22 @@ spec:
       subnets:
         - name: ${NUTANIX_FAILURE_DOMAIN_1_SUBNET_NAME}
           type: name
+    - name: ${NUTANIX_FAILURE_DOMAIN_2_NAME}
+      controlPlane: true
+      cluster:
+        name: ${NUTANIX_FAILURE_DOMAIN_2_PRISM_ELEMENT_NAME}
+        type: name
+      subnets:
+        - name: ${NUTANIX_FAILURE_DOMAIN_2_SUBNET_NAME}
+          type: name
+    - name: ${NUTANIX_FAILURE_DOMAIN_3_NAME}
+      controlPlane: true
+      cluster:
+        name: ${NUTANIX_FAILURE_DOMAIN_3_PRISM_ELEMENT_NAME}
+        type: name
+      subnets:
+        - name: ${NUTANIX_FAILURE_DOMAIN_3_SUBNET_NAME}
+          type: name
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
 kind: KubeadmControlPlane
@@ -28,7 +44,7 @@ metadata:
     cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
   name: ${CLUSTER_NAME}-wmd
 spec:
-  replicas: 0
+  replicas: 1
   template:
     spec:
       failureDomain: ${NUTANIX_FAILURE_DOMAIN_1_NAME}

@@ -154,7 +154,8 @@ type testHelperInterface interface {
 	verifyConditionOnNutanixCluster(params verifyConditionParams)
 	verifyConditionOnNutanixMachines(params verifyConditionParams)
 	verifyDisksOnNutanixMachines(ctx context.Context, params verifyDisksOnNutanixMachinesParams)
-	verifyFailureDomainsOnClusterMachines(ctx context.Context, params verifyFailureDomainsOnClusterMachinesParams)
+	verifyLegacyFailureDomainsOnClusterMachines(ctx context.Context, params verifyFailureDomainsOnClusterMachinesParams)
+	verifyNewFailureDomainsOnClusterMachines(ctx context.Context, params verifyFailureDomainsOnClusterMachinesParams)
 	verifyFailureMessageOnClusterMachines(ctx context.Context, params verifyFailureMessageOnClusterMachinesParams)
 	verifyGPUNutanixMachines(ctx context.Context, params verifyGPUNutanixMachinesParams)
 	verifyProjectNutanixMachines(ctx context.Context, params verifyProjectNutanixMachinesParams)
@@ -768,7 +769,7 @@ type verifyFailureDomainsOnClusterMachinesParams struct {
 	bootstrapClusterProxy framework.ClusterProxy
 }
 
-func (t testHelper) verifyFailureDomainsOnClusterMachines(ctx context.Context, params verifyFailureDomainsOnClusterMachinesParams) {
+func (t testHelper) verifyLegacyFailureDomainsOnClusterMachines(ctx context.Context, params verifyFailureDomainsOnClusterMachinesParams) {
 	Eventually(func() bool {
 		nutanixCluster := t.getNutanixClusterByName(ctx, getNutanixClusterByNameInput{
 			Getter:    params.bootstrapClusterProxy.GetClient(),
@@ -796,6 +797,49 @@ func (t testHelper) verifyFailureDomainsOnClusterMachines(ctx context.Context, p
 					// Check if correct PE and subnet are used
 					Expect(*vm.Spec.ClusterReference.Name).To(Equal(*fd.Cluster.Name))
 					Expect(*vm.Spec.Resources.NicList[0].SubnetReference.Name).To(Equal(*fd.Subnets[0].Name))
+					break
+				}
+			}
+			if !match {
+				return false
+			}
+		}
+		return true
+	}, defaultTimeout, defaultInterval).Should(BeTrue())
+}
+
+func (t testHelper) verifyNewFailureDomainsOnClusterMachines(ctx context.Context, params verifyFailureDomainsOnClusterMachinesParams) {
+	Eventually(func() bool {
+		nutanixCluster := t.getNutanixClusterByName(ctx, getNutanixClusterByNameInput{
+			Getter:    params.bootstrapClusterProxy.GetClient(),
+			Name:      params.clusterName,
+			Namespace: params.namespace.Name,
+		})
+		Expect(nutanixCluster).ToNot(BeNil())
+		var match bool
+		for _, fdName := range params.failureDomainNames {
+			nutanixMachines := t.getMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
+			for _, m := range nutanixMachines.Items {
+				machineSpec := m.Spec
+				if *machineSpec.FailureDomain == fdName {
+					// failure domain had a match
+					match = true
+
+					// if the old field wasn't set or the failure domain name referenced isn't present there, we
+					// can assume that it is refering to the new CRD so we make a get
+					fdObj := &infrav1.NutanixFailureDomain{}
+					fdKey := client.ObjectKey{Name: fdName, Namespace: m.Namespace}
+					err := params.bootstrapClusterProxy.GetClient().Get(ctx, fdKey, fdObj)
+					Expect(err).ShouldNot(HaveOccurred())
+					Expect(fdObj).ToNot(BeNil())
+					// Search for VM
+					machineVmUUID := t.stripNutanixIDFromProviderID(*machineSpec.ProviderID)
+					vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
+					Expect(err).ShouldNot(HaveOccurred())
+					Expect(vm).ToNot(BeNil())
+					// Check if correct PE and subnet are used
+					Expect(*vm.Spec.ClusterReference.Name).To(Equal(fdObj.Spec.PrismElementCluster.Name))
+					Expect(*vm.Spec.Resources.NicList[0].SubnetReference.Name).To(Equal(fdObj.Spec.Subnets[0].Name))
 					break
 				}
 			}
