@@ -30,6 +30,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -571,6 +572,49 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 }
 
 func (r *NutanixMachineReconciler) getFailureDomainObj(rctx *nctx.MachineContext, fdName string) (*infrav1.NutanixFailureDomain, error) {
+	foundInOldFailureDomainsList := false
+	for _, fd := range rctx.NutanixCluster.Spec.FailureDomains {
+		if fd.Name == fdName {
+			foundInOldFailureDomainsList = true
+		}
+	}
+	if foundInOldFailureDomainsList {
+		failureDomainName := *rctx.Machine.Spec.FailureDomain
+		failureDomain, err := GetLegacyFailureDomainFromNutanixCluster(failureDomainName, rctx.NutanixCluster)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find failure domain %s", failureDomainName)
+		}
+		peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixClient, failureDomain.Cluster.Name, failureDomain.Cluster.UUID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find prism element uuid for failure domain %s", failureDomainName)
+		}
+		subnetUUIDs, err := GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, failureDomain.Subnets, peUUID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find subnet uuids for failure domain %s", failureDomainName)
+		}
+		cluster := infrav1.NutanixResourceIdentifier{
+			UUID: &peUUID,
+			Type: infrav1.NutanixIdentifierUUID,
+		}
+		subnets := []infrav1.NutanixResourceIdentifier{}
+		for _, subnetUUID := range subnetUUIDs {
+			subnets = append(subnets, infrav1.NutanixResourceIdentifier{
+				UUID: &subnetUUID,
+				Type: infrav1.NutanixIdentifierUUID,
+			})
+		}
+		fdObj := &infrav1.NutanixFailureDomain{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fdName,
+				Namespace: rctx.NutanixMachine.Namespace,
+			},
+			Spec: infrav1.NutanixFailureDomainSpec{
+				PrismElementCluster: cluster,
+				Subnets:             subnets,
+			},
+		}
+		return fdObj, nil
+	}
 	fdObj := &infrav1.NutanixFailureDomain{}
 	fdKey := client.ObjectKey{Name: fdName, Namespace: rctx.NutanixMachine.Namespace}
 	if err := r.Get(rctx.Context, fdKey, fdObj); err != nil {
@@ -604,15 +648,8 @@ func (r *NutanixMachineReconciler) validateFailureDomainRef(rctx *nctx.MachineCo
 
 func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineContext) error {
 	log := ctrl.LoggerFrom(rctx.Context)
-
 	fdName := rctx.Machine.Spec.FailureDomain
-	foundInOldFailureDomainsList := false
-	for _, fd := range rctx.NutanixCluster.Spec.FailureDomains {
-		if fd.Name == *fdName {
-			foundInOldFailureDomainsList = true
-		}
-	}
-	if fdName != nil && *fdName != "" && !foundInOldFailureDomainsList {
+	if fdName != nil && *fdName != "" {
 		log.WithValues("failureDomain", *fdName)
 		fdObj, err := r.validateFailureDomainRef(rctx, *fdName)
 		if err != nil {
@@ -624,33 +661,6 @@ func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineConte
 		rctx.NutanixMachine.Spec.Subnets = fdObj.Spec.Subnets
 		rctx.NutanixMachine.Status.FailureDomain = &fdObj.Name
 		log.Info(fmt.Sprintf("Updated the NutanixMachine %s machine config from the failure domain %s configuration.", rctx.NutanixMachine.Name, fdObj.Name))
-	}
-	if foundInOldFailureDomainsList {
-		failureDomainName := *rctx.Machine.Spec.FailureDomain
-		failureDomain, err := GetLegacyFailureDomainFromNutanixCluster(failureDomainName, rctx.NutanixCluster)
-		if err != nil {
-			return fmt.Errorf("failed to find failure domain %s", failureDomainName)
-		}
-		peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixClient, failureDomain.Cluster.Name, failureDomain.Cluster.UUID)
-		if err != nil {
-			return fmt.Errorf("failed to find prism element uuid for failure domain %s", failureDomainName)
-		}
-		subnetUUIDs, err := GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, failureDomain.Subnets, peUUID)
-		if err != nil {
-			return fmt.Errorf("failed to find subnet uuids for failure domain %s", failureDomainName)
-		}
-		rctx.NutanixMachine.Spec.Cluster = infrav1.NutanixResourceIdentifier{
-			UUID: &peUUID,
-			Type: infrav1.NutanixIdentifierUUID,
-		}
-		subnets := []infrav1.NutanixResourceIdentifier{}
-		for _, subnetUUID := range subnetUUIDs {
-			subnets = append(subnets, infrav1.NutanixResourceIdentifier{
-				UUID: &subnetUUID,
-				Type: infrav1.NutanixIdentifierUUID,
-			})
-		}
-		rctx.NutanixMachine.Spec.Subnets = subnets
 	}
 
 	if len(rctx.NutanixMachine.Spec.Subnets) == 0 {
