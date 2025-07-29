@@ -838,8 +838,8 @@ func (t testHelper) verifyNewFailureDomainsOnClusterMachines(ctx context.Context
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(vm).ToNot(BeNil())
 					// Check if correct PE and subnet are used
-					Expect(*vm.Spec.ClusterReference.Name).To(Equal(fdObj.Spec.PrismElementCluster.Name))
-					Expect(*vm.Spec.Resources.NicList[0].SubnetReference.Name).To(Equal(fdObj.Spec.Subnets[0].Name))
+					Expect(*vm.Spec.ClusterReference.Name).To(Equal(*fdObj.Spec.PrismElementCluster.Name))
+					Expect(*vm.Spec.Resources.NicList[0].SubnetReference.Name).To(Equal(*fdObj.Spec.Subnets[0].Name))
 					break
 				}
 			}
