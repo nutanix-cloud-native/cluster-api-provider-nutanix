@@ -324,7 +324,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				g.Expect(err).To(HaveOccurred())
 			})
 		})
-		Context("Can get failure domain spec", func() {
+		Context("Can get failure domain spec with the legacy failure domain configuration", func() {
 			It("returns a valid failure domain if the legacy failure domains are used", func() {
 				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{ //nolint:staticcheck // this is a test
 					{
