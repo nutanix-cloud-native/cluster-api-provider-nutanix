@@ -576,18 +576,20 @@ func (r *NutanixMachineReconciler) getFailureDomainSpec(rctx *nctx.MachineContex
 	// is present in the legacy embedded field. if it is, we return a "dummy" spec for the new failure domain
 	// CR with the subnets and cluster info
 	failureDomainName := *rctx.Machine.Spec.FailureDomain
-	failureDomain, err := GetLegacyFailureDomainFromNutanixCluster(failureDomainName, rctx.NutanixCluster)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find failure domain %s", failureDomainName)
-	}
-	if failureDomain != nil {
-		cluster := failureDomain.Cluster
-		subnets := failureDomain.Subnets
-		fdSpec := &infrav1.NutanixFailureDomainSpec{
-			PrismElementCluster: cluster,
-			Subnets:             subnets,
+	if rctx.NutanixCluster != nil && rctx.NutanixCluster.Spec.FailureDomains != nil {
+		failureDomain, err := GetLegacyFailureDomainFromNutanixCluster(failureDomainName, rctx.NutanixCluster)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find failure domain %s", failureDomainName)
 		}
-		return fdSpec, nil
+		if failureDomain != nil {
+			cluster := failureDomain.Cluster
+			subnets := failureDomain.Subnets
+			fdSpec := &infrav1.NutanixFailureDomainSpec{
+				PrismElementCluster: cluster,
+				Subnets:             subnets,
+			}
+			return fdSpec, nil
+		}
 	}
 	// if the old field wasn't set or the failure domain name referenced isn't present there, we
 	// can assume that it is refering to the new CRD so we make a get

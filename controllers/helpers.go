@@ -937,9 +937,6 @@ func GetLegacyFailureDomainFromNutanixCluster(failureDomainName string, nutanixC
 	if nutanixCluster == nil {
 		return nil, fmt.Errorf("nutanixCluster cannot be nil when searching for failure domains")
 	}
-	if nutanixCluster.Spec.FailureDomains == nil { //nolint:staticcheck // suppress complaining on Deprecated field
-		return nil, nil
-	}
 	for _, fd := range nutanixCluster.Spec.FailureDomains { //nolint:staticcheck // suppress complaining on Deprecated field
 		if fd.Name == failureDomainName {
 			return &fd, nil

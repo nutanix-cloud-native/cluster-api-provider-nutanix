@@ -89,23 +89,6 @@ func TestControllerHelpers(t *testing.T) {
 				Expect(err).To(HaveOccurred())
 			})
 			It("should error when no failure domain has been found", func() {
-				fd1 := infrav1.NutanixFailureDomainConfig{ //nolint:staticcheck // suppress complaining on Deprecated type
-					Name: "somename",
-					Cluster: infrav1.NutanixResourceIdentifier{
-						Type: infrav1.NutanixIdentifierName,
-						Name: ptr.To("foo"),
-					},
-					Subnets: []infrav1.NutanixResourceIdentifier{
-						{
-							Type: infrav1.NutanixIdentifierName,
-							Name: ptr.To("aaaa"),
-						},
-					},
-					ControlPlane: true,
-				}
-				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{ //nolint:staticcheck // suppress complaining on Deprecated type
-					fd1,
-				}
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
 				_, err := GetLegacyFailureDomainFromNutanixCluster(fd1Name, ntnxCluster)
 				Expect(err).To(HaveOccurred())
