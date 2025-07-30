@@ -576,7 +576,7 @@ func (r *NutanixMachineReconciler) getFailureDomainSpec(rctx *nctx.MachineContex
 	// is present in the legacy embedded field. if it is, we return a "dummy" spec for the new failure domain
 	// CR with the subnets and cluster info
 	failureDomainName := *rctx.Machine.Spec.FailureDomain
-	if rctx.NutanixCluster != nil && rctx.NutanixCluster.Spec.FailureDomains != nil {
+	if rctx.NutanixCluster != nil && rctx.NutanixCluster.Spec.FailureDomains != nil { //nolint:staticcheck // this handles old field
 		failureDomain, err := GetLegacyFailureDomainFromNutanixCluster(failureDomainName, rctx.NutanixCluster)
 		if err != nil {
 			return nil, fmt.Errorf("failed to find failure domain %s", failureDomainName)
