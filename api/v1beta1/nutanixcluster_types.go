@@ -44,6 +44,7 @@ const (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // NutanixClusterSpec defines the desired state of NutanixCluster
+// +kubebuilder:validation:XValidation:rule="!(has(self.failureDomains) && has(self.controlPlaneFailureDomains))",message="Cannot set both 'failureDomains' and 'controlPlaneFailureDomains' fields simultaneously. Use 'controlPlaneFailureDomains' as 'failureDomains' is deprecated."
 type NutanixClusterSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file

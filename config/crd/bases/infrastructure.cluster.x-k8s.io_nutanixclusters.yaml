@@ -257,6 +257,11 @@ spec:
                 - port
                 type: object
             type: object
+            x-kubernetes-validations:
+            - message: Cannot set both 'failureDomains' and 'controlPlaneFailureDomains'
+                fields simultaneously. Use 'controlPlaneFailureDomains' as 'failureDomains'
+                is deprecated.
+              rule: '!(has(self.failureDomains) && has(self.controlPlaneFailureDomains))'
           status:
             description: NutanixClusterStatus defines the observed state of NutanixCluster
             properties:
