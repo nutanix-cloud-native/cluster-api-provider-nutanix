@@ -15,4 +15,4 @@ patches:
     - op: "remove"
       path: "/spec/template/spec/cluster"
     - op: "remove"
-      path: "/spec/template/spec/subnet" 
+      path: "/spec/template/spec/subnet"

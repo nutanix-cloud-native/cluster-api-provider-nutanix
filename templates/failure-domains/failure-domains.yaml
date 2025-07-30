@@ -36,4 +36,4 @@ spec:
     name: "${NUTANIX_FAILURE_DOMAIN_3_PRISM_ELEMENT_NAME}"
   subnets:
     - type: name
-      name: "${NUTANIX_FAILURE_DOMAIN_3_SUBNET_NAME}" 
+      name: "${NUTANIX_FAILURE_DOMAIN_3_SUBNET_NAME}"

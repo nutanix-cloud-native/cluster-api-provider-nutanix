@@ -26,4 +26,4 @@ spec:
   replicas: ${WORKER_MACHINE_COUNT=3}
   template:
     spec:
-      failureDomain: ${NUTANIX_FAILURE_DOMAIN_1_NAME} 
+      failureDomain: ${NUTANIX_FAILURE_DOMAIN_1_NAME}
