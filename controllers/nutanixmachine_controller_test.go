@@ -150,6 +150,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 					Context:        ctx,
 					NutanixMachine: ntnxMachine,
 					Machine:        machine,
+					NutanixCluster: ntnxCluster,
 				}
 				err := reconciler.checkFailureDomainStatus(mctx)
 				g.Expect(err).NotTo(HaveOccurred())
@@ -165,6 +166,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 					Context:        ctx,
 					NutanixMachine: ntnxMachine,
 					Machine:        machine,
+					NutanixCluster: ntnxCluster,
 				}
 				err := reconciler.checkFailureDomainStatus(mctx)
 				g.Expect(err).To(HaveOccurred())
@@ -182,6 +184,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 					Context:        ctx,
 					NutanixMachine: ntnxMachine,
 					Machine:        machine,
+					NutanixCluster: ntnxCluster,
 				}
 				err := reconciler.checkFailureDomainStatus(mctx)
 				g.Expect(err).To(HaveOccurred())
@@ -199,6 +202,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 					Context:        ctx,
 					NutanixMachine: ntnxMachine,
 					Machine:        machine,
+					NutanixCluster: ntnxCluster,
 				}
 				err := reconciler.checkFailureDomainStatus(mctx)
 				g.Expect(err).To(HaveOccurred())
@@ -268,6 +272,22 @@ func TestNutanixMachineReconciler(t *testing.T) {
 					Context:        ctx,
 					NutanixMachine: ntnxMachine,
 					Machine:        machine,
+				})
+				g.Expect(err).To(HaveOccurred())
+			})
+			It("returns a valid failure domain if the legacy failure domains are used", func() {
+				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{ //nolint:staticcheck // this is a test
+					{
+						Name:    "failure-domain",
+						Cluster: fdObj.Spec.PrismElementCluster,
+						Subnets: fdObj.Spec.Subnets,
+					},
+				}
+				err := reconciler.validateMachineConfig(&nctx.MachineContext{
+					Context:        ctx,
+					NutanixMachine: ntnxMachine,
+					Machine:        machine,
+					NutanixCluster: ntnxCluster,
 				})
 				g.Expect(err).To(HaveOccurred())
 			})
