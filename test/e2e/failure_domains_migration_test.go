@@ -22,7 +22,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -178,14 +177,14 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 			err = bootstrapClient.Update(ctx, kcpCopy)
 			Expect(err).To(BeNil())
 
+			waitForMachineUpgrade := e2eConfig.GetIntervals("", "wait-machine-upgrade")
 			Eventually(
 				func() []capiv1.Condition {
 					err := bootstrapClient.Get(ctx, client.ObjectKeyFromObject(kcp), kcp)
 					Expect(err).To(BeNil())
 					return kcp.Status.Conditions
 				},
-				time.Minute*15,
-				defaultInterval,
+				waitForMachineUpgrade...,
 			).Should(
 				ContainElement(
 					gstruct.MatchFields(
