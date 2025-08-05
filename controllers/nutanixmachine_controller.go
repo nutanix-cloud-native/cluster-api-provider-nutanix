@@ -314,10 +314,12 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, errorMsg
 	}
 
+	// Condition: NutanixMachineVmNeedsDeletion
 	// Check if VMUUID is absent
 	if vmUUID == "" {
 		log.Info(fmt.Sprintf("VM UUID was not found in spec for VM %s. Skipping delete", vmName))
 		log.Info(fmt.Sprintf("Removing finalizers for VM %s during delete reconciliation", vmName))
+		// Condition: NutanixMachineFinalizerRemoved
 		ctrlutil.RemoveFinalizer(rctx.NutanixMachine, infrav1.NutanixMachineFinalizer)
 		ctrlutil.RemoveFinalizer(rctx.NutanixMachine, infrav1.DeprecatedNutanixMachineFinalizer)
 		return reconcile.Result{}, nil
@@ -372,6 +374,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		log.V(1).Info(fmt.Sprintf("no task UUID found on VM %s. Starting delete.", vmName))
 	}
 
+	// Condition: NutanixMachineVolumeGroupDetachNeeded
 	var vgDetachNeeded bool
 	if vm.Spec.Resources != nil && vm.Spec.Resources.DiskList != nil {
 		for _, disk := range vm.Spec.Resources.DiskList {
@@ -382,6 +385,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		}
 	}
 
+	// Condition: NutanixMachineVolumeGroupDetach
 	if vgDetachNeeded {
 		if err := r.detachVolumeGroups(rctx, vmName, vmUUID, vm.Spec.Resources.DiskList); err != nil {
 			err := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %v", vmName, vmUUID, err)
@@ -397,6 +401,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		return reconcile.Result{RequeueAfter: detachVGRequeueAfter}, nil
 	}
 
+	// Condition: NutanixMachineVmDelete
 	// Delete the VM since the VM was found (err was nil)
 	deleteTaskUUID, err := DeleteVM(ctx, v3Client, vmName, vmUUID)
 	if err != nil {
@@ -432,12 +437,14 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	log.Info("Handling NutanixMachine reconciling")
 	var err error
 
+	// Condition: AddFinalizer
 	// Add finalizer first if not exist to avoid the race condition between init and delete
 	if !ctrlutil.ContainsFinalizer(rctx.NutanixMachine, infrav1.NutanixMachineFinalizer) {
 		ctrlutil.AddFinalizer(rctx.NutanixMachine, infrav1.NutanixMachineFinalizer)
 	}
 	ctrlutil.RemoveFinalizer(rctx.NutanixMachine, infrav1.DeprecatedNutanixMachineFinalizer)
 
+	// Condition: NutanixMachineProviderIdReady
 	log.V(1).Info(fmt.Sprintf("Checking current machine status for machine %s: Status %+v Spec %+v", rctx.NutanixMachine.Name, rctx.NutanixMachine.Status, rctx.NutanixMachine.Spec))
 	if rctx.NutanixMachine.Status.Ready {
 		if !rctx.Machine.Status.InfrastructureReady || rctx.Machine.Spec.ProviderID == nil {
@@ -449,6 +456,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, nil
 	}
 
+	// Condition: NutanixMachineClusterInfrastructureReady
 	// Make sure Cluster.Status.InfrastructureReady is true
 	log.Info("Checking if cluster infrastructure is ready")
 	if !rctx.Cluster.Status.InfrastructureReady {
@@ -457,6 +465,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, nil
 	}
 
+	// Condition: NutanixMachineBootstrapDataReady
 	// Make sure bootstrap data is available and populated.
 	if rctx.NutanixMachine.Spec.BootstrapRef == nil {
 		if rctx.Machine.Spec.Bootstrap.DataSecretName == nil {
@@ -480,6 +489,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		log.V(1).Info(fmt.Sprintf("Added the spec.bootstrapRef to NutanixMachine object: %v", rctx.NutanixMachine.Spec.BootstrapRef))
 	}
 
+	// Condition: NutanixMachineVMReady
 	// Create or get existing VM
 	vm, err := r.getOrCreateVM(rctx)
 	if err != nil {
@@ -489,6 +499,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	log.V(1).Info(fmt.Sprintf("Found VM with name: %s, vmUUID: %s", rctx.Machine.Name, *vm.Metadata.UUID))
 	rctx.NutanixMachine.Status.VmUUID = *vm.Metadata.UUID
 
+	// Condition: NutanixMachineFailureDomainReady
 	// Set the NutanixMachine.status.failureDomain if the Machine is created with failureDomain
 	if err = r.checkFailureDomainStatus(rctx); err != nil {
 		log.Error(err, "Failed to check/set status.failureDomain")
@@ -502,6 +513,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, errorMsg
 	}
 
+	// Condition: NutanixMachineIPAddressesAssigned
 	log.Info(fmt.Sprintf("Assigning IP addresses to VM with name: %s, vmUUID: %s", rctx.NutanixMachine.Name, rctx.NutanixMachine.Status.VmUUID))
 	if err := r.assignAddressesToMachine(rctx, vm); err != nil {
 		errorMsg := fmt.Errorf("failed to assign addresses to VM %s with UUID %s...: %v", rctx.Machine.Name, rctx.NutanixMachine.Status.VmUUID, err)
