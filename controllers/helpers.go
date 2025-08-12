@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/nutanix-cloud-native/prism-go-client/facade"
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
@@ -223,7 +224,7 @@ func GetPEUUID(ctx context.Context, client *prismclientv3.Client, peName, peUUID
 		foundPEs := make([]*prismclientv3.ClusterIntentResponse, 0)
 		for _, s := range responsePEs.Entities {
 			peSpec := s.Spec
-			if strings.EqualFold(*peSpec.Name, *peName) && hasPEClusterServiceEnabled(s, serviceNamePECluster) {
+			if strings.EqualFold(peSpec.Name, *peName) && hasPEClusterServiceEnabled(s, serviceNamePECluster) {
 				foundPEs = append(foundPEs, s)
 			}
 		}
@@ -1138,6 +1139,31 @@ func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.Nut
 	}
 
 	conditions.MarkTrue(cluster, infrav1.PrismCentralV4ClientCondition)
+	return client, nil
+}
+
+func getPrismCentralV4FacadeClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (facade.FacadeClientV4, error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	clientHelper := nutanixclient.NewHelper(secretInformer, mapInformer)
+	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
+	if err != nil {
+		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
+		conditions.MarkFalse(cluster, infrav1.PrismCentralV4FacadeClientCondition, infrav1.PrismCentralV4FacadeClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		return nil, err
+	}
+
+	client, err := nutanixclient.NutanixClientCacheV4Facade.GetOrCreate(&nutanixclient.CacheParams{
+		NutanixCluster:          cluster,
+		PrismManagementEndpoint: managementEndpoint,
+	})
+	if err != nil {
+		log.Error(err, "error occurred while getting nutanix prism v4 facade client from cache")
+		conditions.MarkFalse(cluster, infrav1.PrismCentralV4FacadeClientCondition, infrav1.PrismCentralV4FacadeClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		return nil, fmt.Errorf("nutanix prism v4 facade client error: %w", err)
+	}
+
+	conditions.MarkTrue(cluster, infrav1.PrismCentralV4FacadeClientCondition)
 	return client, nil
 }
 

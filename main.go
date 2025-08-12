@@ -107,7 +107,7 @@ func compositeRateLimiter(baseDelay, maxDelay time.Duration, bucketSize, qps int
 	}
 	exponentialBackoffLimiter := workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](baseDelay, maxDelay)
 	bucketLimiter := &workqueue.TypedBucketRateLimiter[reconcile.Request]{Limiter: rate.NewLimiter(rate.Limit(qps), bucketSize)}
-	return workqueue.NewTypedMaxOfRateLimiter[reconcile.Request](exponentialBackoffLimiter, bucketLimiter), nil
+	return workqueue.NewTypedMaxOfRateLimiter(exponentialBackoffLimiter, bucketLimiter), nil
 }
 
 // validateRateLimiterConfig validates the rate limiter configuration parameters
