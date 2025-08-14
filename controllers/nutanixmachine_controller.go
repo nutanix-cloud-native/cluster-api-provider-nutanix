@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -26,7 +27,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
-	"github.com/pkg/errors"
+	vmmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
+	vmmcontent "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -51,7 +53,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
@@ -269,12 +270,12 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	rctx := &nctx.MachineContext{
-		Context:        ctx,
-		Cluster:        cluster,
-		Machine:        machine,
-		NutanixCluster: ntxCluster,
-		NutanixMachine: ntxMachine,
-		NutanixClient:  v3Client,
+		Context:         ctx,
+		Cluster:         cluster,
+		Machine:         machine,
+		NutanixCluster:  ntxCluster,
+		NutanixMachine:  ntxMachine,
+		NutanixV3Client: v3Client,
 	}
 
 	defer func() {
@@ -303,7 +304,7 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (reconcile.Result, error) {
 	ctx := rctx.Context
 	log := ctrl.LoggerFrom(ctx)
-	v3Client := rctx.NutanixClient
+	v3Client := rctx.NutanixV3Client
 	vmName := rctx.Machine.Name
 	log.Info(fmt.Sprintf("Handling deletion of VM: %s", vmName))
 	conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, capiv1.DeletingReason, capiv1.ConditionSeverityInfo, "")
@@ -323,7 +324,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, nil
 	}
 
-	vm, err := FindVMByUUID(ctx, v3Client, vmUUID)
+	vm, err := FindVMByUUID(ctx, rctx.NutanixFacadeV4Client, vmUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("error finding VM %s with UUID %s: %v", vmName, vmUUID, err)
 		log.Error(errorMsg, "error finding VM")
@@ -344,22 +345,24 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	// Now, we create VMs with the same name as the Machine name in line with other CAPI providers.
 	// This check is to ensure that we are deleting the correct VM for both cases as older CAPX VMs
 	// will have the NutanixMachine name as the VM name.
-	if *vm.Spec.Name != vmName && *vm.Spec.Name != rctx.NutanixMachine.Name {
-		return reconcile.Result{}, fmt.Errorf("found VM with UUID %s but name %s did not match Machine name %s or NutanixMachineName %s", vmUUID, *vm.Spec.Name, vmName, rctx.NutanixMachine.Name)
+	if *vm.Name != vmName && *vm.Name != rctx.NutanixMachine.Name {
+		return reconcile.Result{}, fmt.Errorf("found VM with UUID %s but name %s did not match Machine name %s or NutanixMachineName %s", vmUUID, *vm.Name, vmName, rctx.NutanixMachine.Name)
 	}
 
-	log.V(1).Info(fmt.Sprintf("VM %s with UUID %s was found.", *vm.Spec.Name, vmUUID))
-	lastTaskUUID, err := GetTaskUUIDFromVM(vm)
-	if err != nil {
-		errorMsg := fmt.Errorf("error occurred fetching task UUID from VM: %v", err)
-		log.Error(errorMsg, "error fetching task UUID")
-		conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, "%s", errorMsg.Error())
-		return reconcile.Result{}, errorMsg
-	}
+	log.V(1).Info(fmt.Sprintf("VM %s with UUID %s was found.", *vm.Name, vmUUID))
+	// TODO av fix
+	// lastTaskUUID, err := GetTaskUUIDFromVM(vm)
+	// if err != nil {
+	// 	errorMsg := fmt.Errorf("error occurred fetching task UUID from VM: %v", err)
+	// 	log.Error(errorMsg, "error fetching task UUID")
+	// 	conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, errorMsg.Error())
+	// 	return reconcile.Result{}, errorMsg
+	// }
+	lastTaskUUID := ""
 
 	if lastTaskUUID != "" {
 		log.Info(fmt.Sprintf("checking if VM %s with UUID %s has in progress tasks", vmName, vmUUID))
-		taskInProgress, err := HasTaskInProgress(ctx, rctx.NutanixClient, lastTaskUUID)
+		taskInProgress, err := HasTaskInProgress(ctx, v3Client, lastTaskUUID)
 		if err != nil {
 			log.Error(err, fmt.Sprintf("error occurred while checking task %s for VM %s. Trying to delete VM", lastTaskUUID, vmName))
 		}
@@ -373,23 +376,25 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	}
 
 	var vgDetachNeeded bool
-	if vm.Spec.Resources != nil && vm.Spec.Resources.DiskList != nil {
-		for _, disk := range vm.Spec.Resources.DiskList {
-			if disk.VolumeGroupReference != nil {
-				vgDetachNeeded = true
-				break
-			}
-		}
+	if vm.Disks != nil {
+		// TODO av fix
+		// for _, disk := range vm.Disks {
+		// 	if disk.VolumeGroupReference != nil {  // check disk.BackingInfoRef
+		// 		vgDetachNeeded = true
+		// 		break
+		// 	}
+		// }
 	}
 
 	if vgDetachNeeded {
-		if err := r.detachVolumeGroups(rctx, vmName, vmUUID, vm.Spec.Resources.DiskList); err != nil {
-			err := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %v", vmName, vmUUID, err)
-			log.Error(err, "failed to detach volume groups from VM")
-			conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VolumeGroupDetachFailed, capiv1.ConditionSeverityWarning, "%s", err.Error())
+		// TODO av fix
+		// if err := r.detachVolumeGroups(rctx, vmName, vmUUID, vm.Disks); err != nil {
+		// 	err := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %v", vmName, vmUUID, err)
+		// 	log.Error(err, "failed to detach volume groups from VM")
+		// 	conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VolumeGroupDetachFailed, capiv1.ConditionSeverityWarning, err.Error())
 
-			return reconcile.Result{}, err
-		}
+		// 	return reconcile.Result{}, err
+		// }
 
 		// Requeue to wait for volume group detach tasks to complete. This is done instead of blocking on task
 		// completion to avoid long-running reconcile loops.
@@ -481,13 +486,13 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	}
 
 	// Create or get existing VM
-	vm, err := r.getOrCreateVM(rctx)
+	vm, err := r.GetOrCreateVM(rctx)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("Failed to create VM %s.", rctx.Machine.Name))
 		return reconcile.Result{}, err
 	}
-	log.V(1).Info(fmt.Sprintf("Found VM with name: %s, vmUUID: %s", rctx.Machine.Name, *vm.Metadata.UUID))
-	rctx.NutanixMachine.Status.VmUUID = *vm.Metadata.UUID
+	log.V(1).Info(fmt.Sprintf("Found VM with name: %s, vmUUID: %s", rctx.Machine.Name, *vm.ExtId))
+	rctx.NutanixMachine.Status.VmUUID = *vm.ExtId
 
 	// Set the NutanixMachine.status.failureDomain if the Machine is created with failureDomain
 	if err = r.checkFailureDomainStatus(rctx); err != nil {
@@ -503,12 +508,13 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	}
 
 	log.Info(fmt.Sprintf("Assigning IP addresses to VM with name: %s, vmUUID: %s", rctx.NutanixMachine.Name, rctx.NutanixMachine.Status.VmUUID))
-	if err := r.assignAddressesToMachine(rctx, vm); err != nil {
-		errorMsg := fmt.Errorf("failed to assign addresses to VM %s with UUID %s...: %v", rctx.Machine.Name, rctx.NutanixMachine.Status.VmUUID, err)
-		log.Error(errorMsg, "failed to assign addresses")
-		conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMAddressesAssignedCondition, infrav1.VMAddressesFailed, capiv1.ConditionSeverityError, "%s", err.Error())
-		return reconcile.Result{}, errorMsg
-	}
+	// TODO av fix
+	// if err := r.assignAddressesToMachine(rctx, vm); err != nil {
+	// 	errorMsg := fmt.Errorf("failed to assign addresses to VM %s with UUID %s...: %v", rctx.Machine.Name, rctx.NutanixMachine.Status.VmUUID, err)
+	// 	log.Error(errorMsg, "failed to assign addresses")
+	// 	conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMAddressesAssignedCondition, infrav1.VMAddressesFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+	// 	return reconcile.Result{}, errorMsg
+	// }
 
 	conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMAddressesAssignedCondition)
 	// Update the NutanixMachine Spec.ProviderID
@@ -601,13 +607,13 @@ func (r *NutanixMachineReconciler) getFailureDomainSpec(rctx *nctx.MachineContex
 func (r *NutanixMachineReconciler) validateFailureDomainSpec(rctx *nctx.MachineContext, fdSpec *infrav1.NutanixFailureDomainSpec) error {
 	// Validate the failure domain configuration
 	pe := fdSpec.PrismElementCluster
-	peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixClient, pe.Name, pe.UUID)
+	peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixFacadeV4Client, pe.Name, pe.UUID)
 	if err != nil {
 		return err
 	}
 
 	subnets := fdSpec.Subnets
-	_, err = GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, subnets, peUUID)
+	_, err = GetSubnetUUIDList(rctx.Context, rctx.NutanixFacadeV4Client, subnets, peUUID)
 	if err != nil {
 		return err
 	}
@@ -778,26 +784,26 @@ func validateDataDiskDeviceProperties(disk infrav1.NutanixMachineVMDisk, errors 
 }
 
 // GetOrCreateVM creates a VM and is invoked by the NutanixMachineReconciler
-func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*prismclientv3.VMIntentResponse, error) {
+func (r *NutanixMachineReconciler) GetOrCreateVM(rctx *nctx.MachineContext) (*vmmconfig.Vm, error) {
 	var err error
-	var vm *prismclientv3.VMIntentResponse
 	ctx := rctx.Context
 	log := ctrl.LoggerFrom(ctx)
 	vmName := rctx.Machine.Name
-	v3Client := rctx.NutanixClient
+	// v3Client := rctx.NutanixV3Client
+	v4FacadeClient := rctx.NutanixFacadeV4Client
 
 	// Check if the VM already exists
-	vm, err = FindVM(ctx, v3Client, rctx.NutanixMachine, vmName)
+	vmFound, err := FindVM(ctx, v4FacadeClient, rctx.NutanixMachine, vmName)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred finding VM %s by name or uuid", vmName))
 		return nil, err
 	}
 
 	// if VM exists
-	if vm != nil {
-		log.Info(fmt.Sprintf("vm %s found with UUID %s", *vm.Spec.Name, rctx.NutanixMachine.Status.VmUUID))
+	if vmFound != nil {
+		log.Info(fmt.Sprintf("vm %s found with UUID %s", *vmFound.Name, rctx.NutanixMachine.Status.VmUUID))
 		conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
-		return vm, nil
+		return vmFound, nil
 	}
 
 	log.Info(fmt.Sprintf("No existing VM found. Starting creation process of VM %s.", vmName))
@@ -807,137 +813,133 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 		return nil, err
 	}
 
-	peUUID, subnetUUIDs, err := r.GetSubnetAndPEUUIDs(rctx)
+	peUUID, _, err := r.GetSubnetAndPEUUIDs(rctx)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("failed to get the config for VM %s.", vmName))
 		rctx.SetFailureStatus(createErrorFailureReason, err)
 		return nil, err
 	}
 
-	vmInput := &prismclientv3.VMIntentInput{}
-	vmSpec := &prismclientv3.VM{Name: utils.StringPtr(vmName)}
-
-	nicList := make([]*prismclientv3.VMNic, len(subnetUUIDs))
-	for idx, subnetUUID := range subnetUUIDs {
-		nicList[idx] = &prismclientv3.VMNic{
-			SubnetReference: &prismclientv3.Reference{
-				UUID: utils.StringPtr(subnetUUID),
-				Kind: utils.StringPtr("subnet"),
-			},
-		}
+	vm := &vmmconfig.Vm{
+		Name:              ptr.To(vmName),
+		NumCoresPerSocket: utils.IntPtr(int(rctx.NutanixMachine.Spec.VCPUsPerSocket)),
+		NumSockets:        utils.IntPtr(int(rctx.NutanixMachine.Spec.VCPUSockets)),
+		MemorySizeBytes:   utils.Int64Ptr(GetBytesValueOfQuantity(rctx.NutanixMachine.Spec.MemorySize)),
+		Cluster: &vmmconfig.ClusterReference{
+			ExtId: ptr.To(peUUID),
+		},
 	}
 
 	// Set Categories to VM Sepc before creating VM
-	categories, err := GetCategoryVMSpec(ctx, v3Client, r.getMachineCategoryIdentifiers(rctx))
-	if err != nil {
-		errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %v", vmName, err)
-		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
-		return nil, errorMsg
-	}
+	// TODO av fix
+	// categories, err := GetCategoryVMSpec(ctx, v3Client, r.getMachineCategoryIdentifiers(rctx))
+	// if err != nil {
+	// 	errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %v", vmName, err)
+	// 	rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+	// 	return nil, errorMsg
+	// }
 
-	vmMetadata := &prismclientv3.Metadata{
-		Kind:        utils.StringPtr("vm"),
-		SpecVersion: utils.Int64Ptr(1),
-		Categories:  categories,
-	}
 	// Set Project in VM Spec before creating VM
-	err = r.addVMToProject(rctx, vmMetadata)
-	if err != nil {
-		errorMsg := fmt.Errorf("error occurred while trying to add VM %s to project: %v", vmName, err)
-		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
-		return nil, err
-	}
+	// err = r.addVMToProject(rctx, vmMetadata)
+	// if err != nil {
+	// 	errorMsg := fmt.Errorf("error occurred while trying to add VM %s to project: %v", vmName, err)
+	// 	rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+	// 	return nil, err
+	// }
 
 	// Get GPU list
-	gpuList, err := GetGPUList(ctx, v3Client, rctx.NutanixMachine.Spec.GPUs, peUUID)
-	if err != nil {
-		errorMsg := fmt.Errorf("failed to get the GPU list to create the VM %s. %v", vmName, err)
-		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
-		return nil, err
-	}
+	// gpuList, err := GetGPUList(ctx, v3Client, rctx.NutanixMachine.Spec.GPUs, peUUID)
+	// if err != nil {
+	// 	errorMsg := fmt.Errorf("failed to get the GPU list to create the VM %s. %v", vmName, err)
+	// 	rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+	// 	return nil, err
+	// }
 
-	diskList, err := getDiskList(rctx, peUUID)
+	diskList, cdRomList, err := getDiskList(rctx, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the disk list to create the VM %s. %v", vmName, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, err
 	}
+	vm.Disks = diskList
+	vm.CdRoms = cdRomList
 
-	memorySizeMib := GetMibValueOfQuantity(rctx.NutanixMachine.Spec.MemorySize)
-	vmSpec.Resources = &prismclientv3.VMResources{
-		PowerState:            utils.StringPtr("ON"),
-		HardwareClockTimezone: utils.StringPtr("UTC"),
-		NumVcpusPerSocket:     utils.Int64Ptr(int64(rctx.NutanixMachine.Spec.VCPUsPerSocket)),
-		NumSockets:            utils.Int64Ptr(int64(rctx.NutanixMachine.Spec.VCPUSockets)),
-		MemorySizeMib:         utils.Int64Ptr(memorySizeMib),
-		NicList:               nicList,
-		DiskList:              diskList,
-		GpuList:               gpuList,
-	}
-	vmSpec.ClusterReference = &prismclientv3.Reference{
-		Kind: utils.StringPtr("cluster"),
-		UUID: utils.StringPtr(peUUID),
-	}
-
-	if err := r.addGuestCustomizationToVM(rctx, vmSpec); err != nil {
-		errorMsg := fmt.Errorf("error occurred while adding guest customization to vm spec: %v", err)
-		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
-		return nil, err
-	}
+	// TODO av fix
+	// if err := r.addGuestCustomizationToVM(rctx, vmSpec); err != nil {
+	// 	errorMsg := fmt.Errorf("error occurred while adding guest customization to vm spec: %v", err)
+	// 	rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+	// 	return nil, err
+	// }
 
 	// Set BootType in VM Spec before creating VM
-	err = r.addBootTypeToVM(rctx, vmSpec)
+	err = r.addBootTypeToVM(rctx, vm)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while adding boot type to vm spec: %v", err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, err
 	}
 
-	vmInput.Spec = vmSpec
-	vmInput.Metadata = vmMetadata
 	// Create the actual VM/Machine
 	log.Info(fmt.Sprintf("Creating VM with name %s for cluster %s", vmName, rctx.NutanixCluster.Name))
-	vmResponse, err := v3Client.V3.CreateVM(ctx, vmInput)
+	newVmTaskWaiter, err := v4FacadeClient.CreateVM(vm)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to create VM %s. error: %v", vmName, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, err
 	}
-
-	if vmResponse == nil || vmResponse.Metadata == nil || vmResponse.Metadata.UUID == nil || *vmResponse.Metadata.UUID == "" {
-		errorMsg := fmt.Errorf("no valid VM UUID found in response after creating vm %s", rctx.Machine.Name)
+	log.V(1).Info(fmt.Sprintf("Getting task vm task uuid for VM %s", vmName))
+	taskUUID := newVmTaskWaiter.GetTaskUUID()
+	if taskUUID == "" {
+		errorMsg := fmt.Errorf("failed to create VM %s. no task UUID found in response", vmName)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, errorMsg
 	}
-	vmUuid := *vmResponse.Metadata.UUID
+	log.Info(fmt.Sprintf("Waiting for cluster creation task to get completed for VM %s", rctx.NutanixMachine.Name))
+	vmEntities, err := newVmTaskWaiter.WaitForTaskCompletion()
+	if err != nil {
+		errorMsg := fmt.Errorf("failed to create VM %s. error: %v", vmName, err)
+		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		return nil, errorMsg
+	}
+	errs := newVmTaskWaiter.GetTaskErrors()
+	if len(errs) > 0 {
+		errorMsg := fmt.Errorf("failed to create VM %s. error: %v", vmName, errs)
+		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		return nil, errorMsg
+	}
+
+	vmEntity := vmEntities[0]
+	vmUuid := *vmEntity.ExtId
+	log.V(1).Info(fmt.Sprintf("Sent the post request to create VM %s. Got the vm UUID: %s, status.state: %d", vmName, vmUuid, *vmEntity.PowerState))
+
 	// set the VM UUID on the nutanix machine as soon as it is available. VM UUID can be used for cleanup in case of failure
 	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUuid)
 	rctx.NutanixMachine.Status.VmUUID = vmUuid
 
-	log.V(1).Info(fmt.Sprintf("Sent the post request to create VM %s. Got the vm UUID: %s, status.state: %s", vmName, vmUuid, *vmResponse.Status.State))
-	log.V(1).Info(fmt.Sprintf("Getting task vmUUID for VM %s", vmName))
-	lastTaskUUID, err := GetTaskUUIDFromVM(vmResponse)
-	if err != nil {
-		errorMsg := fmt.Errorf("error occurred fetching task UUID from vm %s after creation: %v", rctx.Machine.Name, err)
-		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
-		return nil, errorMsg
-	}
-
-	if lastTaskUUID == "" {
-		errorMsg := fmt.Errorf("failed to retrieve task UUID for VM %s after creation", vmName)
-		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
-		return nil, errorMsg
-	}
-
-	log.Info(fmt.Sprintf("Waiting for task %s to get completed for VM %s", lastTaskUUID, rctx.NutanixMachine.Name))
-	if err := nutanixclient.WaitForTaskToSucceed(ctx, v3Client, lastTaskUUID); err != nil {
-		errorMsg := fmt.Errorf("error occurred while waiting for task %s to start: %v", lastTaskUUID, err)
-		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
-		return nil, errorMsg
-	}
-
 	log.Info("Fetching VM after creation")
-	vm, err = FindVMByUUID(ctx, v3Client, vmUuid)
+	vmCreated, err := FindVMByUUID(ctx, v4FacadeClient, vmUuid)
+	if err != nil {
+		errorMsg := fmt.Errorf("error occurred while getting VM %s after creation: %v", vmName, err)
+		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		return nil, errorMsg
+	}
+
+	log.Info("Sent request to turn VM Power On")
+	newVmTaskWaiter, err = v4FacadeClient.PowerOnVM(vmUuid)
+	if err != nil {
+		errorMsg := fmt.Errorf("error occurred while powering on VM %s after creation: %v", vmName, err)
+		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		return nil, errorMsg
+	}
+	log.Info(fmt.Sprintf("Getting VM power on task uuid for VM %s", vmUuid))
+	taskUUID = newVmTaskWaiter.GetTaskUUID()
+	if taskUUID == "" {
+		errorMsg := fmt.Errorf("failed to power on VM %s. no task UUID found in response", vmName)
+		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		return nil, errorMsg
+	}
+	log.Info(fmt.Sprintf("Waiting for VM %s to power on", rctx.NutanixMachine.Name))
+	_, err = newVmTaskWaiter.WaitForTaskCompletion()
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while getting VM %s after creation: %v", vmName, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
@@ -945,9 +947,12 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	}
 
 	conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
-	return vm, nil
+	return vmCreated, nil
 }
 
+// addGuestCustomizationToVM is intentionally unused to suppress linter warning (U1000).
+//
+//lint:file-ignore U1000 Suppress unused warning for addGuestCustomizationToVM
 func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineContext, vmSpec *prismclientv3.VM) error {
 	// Get the bootstrapData
 	bootstrapRef := rctx.NutanixMachine.Spec.BootstrapRef
@@ -974,47 +979,49 @@ func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineC
 	return nil
 }
 
-func getDiskList(rctx *nctx.MachineContext, peUUID string) ([]*prismclientv3.VMDisk, error) {
-	diskList := make([]*prismclientv3.VMDisk, 0)
+func getDiskList(rctx *nctx.MachineContext, peUUID string) ([]vmmconfig.Disk, []vmmconfig.CdRom, error) {
+	diskList := make([]vmmconfig.Disk, 0)
+	cdRomList := make([]vmmconfig.CdRom, 0)
 
 	systemDisk, err := getSystemDisk(rctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	diskList = append(diskList, systemDisk)
+	diskList = append(diskList, *systemDisk)
 
 	bootstrapRef := rctx.NutanixMachine.Spec.BootstrapRef
 	if bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindImage {
 		bootstrapDisk, err := getBootstrapDisk(rctx)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		diskList = append(diskList, bootstrapDisk)
+		cdRomList = append(cdRomList, *bootstrapDisk)
 	}
 
-	dataDisks, err := getDataDisks(rctx, peUUID)
+	dataDisks, cdRoms, err := getDataDisks(rctx, peUUID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	diskList = append(diskList, dataDisks...)
+	cdRomList = append(cdRomList, cdRoms...)
 
-	return diskList, nil
+	return diskList, cdRomList, nil
 }
 
-func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
-	var nodeOSImage *prismclientv3.ImageIntentResponse
+func getSystemDisk(rctx *nctx.MachineContext) (*vmmconfig.Disk, error) {
+	var nodeOSImage *vmmcontent.Image
 	var err error
 	if rctx.NutanixMachine.Spec.Image != nil {
 		nodeOSImage, err = GetImage(
 			rctx.Context,
-			rctx.NutanixClient,
+			rctx.NutanixFacadeV4Client,
 			*rctx.NutanixMachine.Spec.Image,
 		)
 	} else if rctx.NutanixMachine.Spec.ImageLookup != nil {
 		nodeOSImage, err = GetImageByLookup(
 			rctx.Context,
-			rctx.NutanixClient,
+			rctx.NutanixFacadeV4Client,
 			rctx.NutanixMachine.Spec.ImageLookup.Format,
 			&rctx.NutanixMachine.Spec.ImageLookup.BaseOS,
 			rctx.Machine.Spec.Version,
@@ -1030,13 +1037,13 @@ func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 	// create the "VM create" task, then that task will fail. We will handle that
 	// failure separately.
 	if ImageMarkedForDeletion(nodeOSImage) {
-		err := fmt.Errorf("system disk image %s is being deleted", *nodeOSImage.Metadata.UUID)
+		err := fmt.Errorf("system disk image %s is being deleted", *nodeOSImage.ExtId)
 		rctx.SetFailureStatus(createErrorFailureReason, err)
 		return nil, err
 	}
 
-	systemDiskSizeMib := GetMibValueOfQuantity(rctx.NutanixMachine.Spec.SystemDiskSize)
-	systemDisk, err := CreateSystemDiskSpec(*nodeOSImage.Metadata.UUID, systemDiskSizeMib)
+	systemDiskSizeBytes := GetBytesValueOfQuantity(rctx.NutanixMachine.Spec.SystemDiskSize)
+	systemDisk, err := CreateSystemDiskSpec(*nodeOSImage.ExtId, systemDiskSizeBytes)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating system disk spec: %w", err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
@@ -1046,12 +1053,12 @@ func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 	return systemDisk, nil
 }
 
-func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
+func getBootstrapDisk(rctx *nctx.MachineContext) (*vmmconfig.CdRom, error) {
 	bootstrapImageRef := infrav1.NutanixResourceIdentifier{
 		Type: infrav1.NutanixIdentifierName,
 		Name: ptr.To(rctx.NutanixMachine.Spec.BootstrapRef.Name),
 	}
-	bootstrapImage, err := GetImage(rctx.Context, rctx.NutanixClient, bootstrapImageRef)
+	bootstrapImage, err := GetImage(rctx.Context, rctx.NutanixFacadeV4Client, bootstrapImageRef)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get bootstrap disk image %q: %w", bootstrapImageRef, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
@@ -1062,43 +1069,43 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) 
 	// create the "VM create" task, then that task will fail. We will handle that
 	// failure separately.
 	if ImageMarkedForDeletion(bootstrapImage) {
-		err := fmt.Errorf("bootstrap disk image %s is being deleted", *bootstrapImage.Metadata.UUID)
+		err := fmt.Errorf("bootstrap disk image %s is being deleted", *bootstrapImage.ExtId)
 		rctx.SetFailureStatus(createErrorFailureReason, err)
 		return nil, err
 	}
 
-	bootstrapDisk := &prismclientv3.VMDisk{
-		DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
-			DeviceType: ptr.To(deviceTypeCDROM),
-			DiskAddress: &prismclientv3.DiskAddress{
-				AdapterType: ptr.To(adapterTypeIDE),
-				DeviceIndex: ptr.To(int64(0)),
-			},
-		},
-		DataSourceReference: &prismclientv3.Reference{
-			Kind: ptr.To(strings.ToLower(infrav1.NutanixMachineBootstrapRefKindImage)),
-			UUID: bootstrapImage.Metadata.UUID,
-		},
-	}
+	cdRom := vmmconfig.NewCdRom()
+	cdRom.DiskAddress = vmmconfig.NewCdRomAddress()
+	cdRom.DiskAddress.BusType = ptr.To(vmmconfig.CDROMBUSTYPE_IDE)
+	cdRom.DiskAddress.Index = ptr.To(0)
 
-	return bootstrapDisk, nil
+	vmDisk := vmmconfig.NewVmDisk()
+	vmDisk.DataSource = vmmconfig.NewDataSource()
+	imageRef := vmmconfig.NewImageReference()
+	imageRef.ImageExtId = ptr.To(*bootstrapImage.ExtId)
+	vmDisk.DataSource.SetReference(*imageRef)
+	vmDisk.DataSource.ReferenceItemDiscriminator_ = nil // TODO av
+
+	cdRom.BackingInfo = vmDisk
+
+	return cdRom, nil
 }
 
-func getDataDisks(rctx *nctx.MachineContext, peUUID string) ([]*prismclientv3.VMDisk, error) {
-	dataDisks, err := CreateDataDiskList(rctx.Context, rctx.NutanixClient, rctx.NutanixMachine.Spec.DataDisks, peUUID)
+func getDataDisks(rctx *nctx.MachineContext, peUUID string) ([]vmmconfig.Disk, []vmmconfig.CdRom, error) {
+	dataDisks, cdRoms, err := CreateDataDiskList(rctx.Context, rctx.NutanixFacadeV4Client, rctx.NutanixMachine.Spec.DataDisks, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating data disk spec: %w", err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
-		return nil, err
+		return nil, nil, err
 	}
 
-	return dataDisks, nil
+	return dataDisks, cdRoms, nil
 }
 
 // getBootstrapData returns the Bootstrap data from the ref secret
 func (r *NutanixMachineReconciler) getBootstrapData(rctx *nctx.MachineContext) ([]byte, error) {
 	if rctx.NutanixMachine.Spec.BootstrapRef == nil {
-		return nil, errors.New("NutanixMachine spec.BootstrapRef is nil.")
+		return nil, errors.New("NutanixMachine spec.BootstrapRef is nil")
 	}
 
 	secretName := rctx.NutanixMachine.Spec.BootstrapRef.Name
@@ -1108,7 +1115,7 @@ func (r *NutanixMachineReconciler) getBootstrapData(rctx *nctx.MachineContext) (
 		Name:      secretName,
 	}
 	if err := r.Get(rctx.Context, secretKey, secret); err != nil {
-		return nil, errors.Wrapf(err, "failed to retrieve bootstrap data secret %s", secretName)
+		return nil, fmt.Errorf("failed to retrieve bootstrap data secret %s: %w", secretName, err)
 	}
 
 	value, ok := secret.Data["value"]
@@ -1168,7 +1175,7 @@ func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.Mach
 	categoryIdentifiers := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
 	// Only try to create default categories. ignoring error so that we can return all including
 	// additionalCategories as well
-	_, err := GetOrCreateCategories(rctx.Context, rctx.NutanixClient, categoryIdentifiers)
+	_, err := GetOrCreateCategories(rctx.Context, rctx.NutanixV3Client, categoryIdentifiers)
 	if err != nil {
 		log.Error(err, "Failed to getOrCreateCategories")
 	}
@@ -1184,7 +1191,7 @@ func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.Mach
 	return categoryIdentifiers
 }
 
-func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vmSpec *prismclientv3.VM) error {
+func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
 	bootType := rctx.NutanixMachine.Spec.BootType
 	// Defaults to legacy if boot type is not set.
 	if bootType != "" {
@@ -1195,10 +1202,10 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 		}
 
 		// Only modify VM spec if boot type is UEFI. Otherwise, assume default Legacy mode
+		vm.BootConfig = vmmconfig.NewOneOfVmBootConfig()
+		vm.BootConfig.SetValue(*vmmconfig.NewLegacyBoot())
 		if bootType == infrav1.NutanixBootTypeUEFI {
-			vmSpec.Resources.BootConfig = &prismclientv3.VMBootConfig{
-				BootType: utils.StringPtr(strings.ToUpper(string(bootType))),
-			}
+			vm.BootConfig.SetValue(*vmmconfig.NewUefiBoot())
 		}
 	}
 
@@ -1221,7 +1228,7 @@ func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vmM
 		return errorMsg
 	}
 
-	projectUUID, err := GetProjectUUID(rctx.Context, rctx.NutanixClient, projectRef.Name, projectRef.UUID)
+	projectUUID, err := GetProjectUUID(rctx.Context, rctx.NutanixV3Client, projectRef.Name, projectRef.UUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while searching for project for VM %s: %v", vmName, err)
 		log.Error(errorMsg, "error occurred while searching for project")
@@ -1242,12 +1249,12 @@ func (r *NutanixMachineReconciler) GetSubnetAndPEUUIDs(rctx *nctx.MachineContext
 		return "", nil, fmt.Errorf("cannot create machine config if machine context is nil")
 	}
 
-	peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixClient, rctx.NutanixMachine.Spec.Cluster.Name, rctx.NutanixMachine.Spec.Cluster.UUID)
+	peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixFacadeV4Client, rctx.NutanixMachine.Spec.Cluster.Name, rctx.NutanixMachine.Spec.Cluster.UUID)
 	if err != nil {
 		return "", nil, err
 	}
 
-	subnetUUIDs, err := GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, rctx.NutanixMachine.Spec.Subnets, peUUID)
+	subnetUUIDs, err := GetSubnetUUIDList(rctx.Context, rctx.NutanixFacadeV4Client, rctx.NutanixMachine.Spec.Subnets, peUUID)
 	if err != nil {
 		return "", nil, err
 	}

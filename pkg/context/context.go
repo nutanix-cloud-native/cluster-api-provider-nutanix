@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"sync"
 
+	prismclientfacadev4 "github.com/nutanix-cloud-native/prism-go-client/facade/v4"
 	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -38,8 +39,9 @@ var (
 
 // ClusterContext is a context used with a NutanixCluster reconciler
 type ClusterContext struct {
-	Context       context.Context
-	NutanixClient *prismclientv3.Client
+	Context               context.Context
+	NutanixV3Client       *prismclientv3.Client
+	NutanixV4FacadeClient *prismclientfacadev4.FacadeV4Client
 
 	Cluster        *capiv1.Cluster
 	NutanixCluster *infrav1.NutanixCluster
@@ -47,8 +49,9 @@ type ClusterContext struct {
 
 // MachineContext is a context used with a NutanixMachine reconciler
 type MachineContext struct {
-	Context       context.Context
-	NutanixClient *prismclientv3.Client
+	Context               context.Context
+	NutanixV3Client       *prismclientv3.Client
+	NutanixFacadeV4Client *prismclientfacadev4.FacadeV4Client
 
 	Cluster        *capiv1.Cluster
 	Machine        *capiv1.Machine

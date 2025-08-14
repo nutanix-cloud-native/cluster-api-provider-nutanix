@@ -46,6 +46,8 @@ import (
 	mockmeta "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sapimachinery"
 	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	prismgoclient "github.com/nutanix-cloud-native/prism-go-client"
+	v4facade "github.com/nutanix-cloud-native/prism-go-client/facade/v4"
 )
 
 func TestNutanixMachineReconciler(t *testing.T) {
@@ -1101,21 +1103,225 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 
 			ntnxMachine, machine, ntnxCluster, prismClient := tc.fixtures(mockCtrl)
 
-			disks, err := getDiskList(&nctx.MachineContext{
-				Context:        context.Background(),
-				NutanixMachine: ntnxMachine,
-				Machine:        machine,
-				NutanixCluster: ntnxCluster,
-				NutanixClient:  prismClient,
+			disks, cdRoms, err := getDiskList(&nctx.MachineContext{
+				Context:         context.Background(),
+				NutanixMachine:  ntnxMachine,
+				Machine:         machine,
+				NutanixCluster:  ntnxCluster,
+				NutanixV3Client: prismClient,
 			}, *ntnxMachine.Spec.Cluster.UUID)
 
 			if tc.wantErr != (err != nil) {
 				t.Fatal("got unexpected error: ", err)
 			}
 
-			if tc.wantDisksLen != len(disks) {
+			if tc.wantDisksLen != len(disks)+len(cdRoms) {
 				t.Fatalf("expected %d disks, got %d", tc.wantDisksLen, len(disks))
 			}
+		})
+	}
+}
+
+const (
+	PcEndpoint   = ""
+    PcURL        = ""
+    PcUsername   = ""
+    PcPassword   = ""
+    PcSubnet     = ""
+    PeCluster    = ""
+    PeGpuCluster = ""
+)
+
+var (
+	v3client       *prismclientv3.Client
+	v4facadeclient *v4facade.FacadeV4Client
+)
+
+func getCredentials() prismgoclient.Credentials {
+	return prismgoclient.Credentials{
+		Endpoint: PcEndpoint,
+		URL:      PcURL,
+		Username: PcUsername,
+		Password: PcPassword,
+		Insecure: true,
+	}
+}
+
+func createClients() {
+	creds := getCredentials()
+	fmt.Println("Credentials:", creds)
+	var err error
+
+	v3client, err = prismclientv3.NewV3Client(creds)
+	if err != nil {
+		fmt.Println("Error creating v3 client:", err)
+		return
+	}
+
+	v4facadeclient, err = v4facade.NewFacadeV4Client(creds)
+	if err != nil {
+		fmt.Println("Error creating v4 client:", err)
+		return
+	}
+}
+
+func TestGetOrCreateVM(t *testing.T) {
+	createClients()
+	baseNtnxMachine := infrav1.NutanixMachine{
+		Spec: infrav1.NutanixMachineSpec{
+			Subnets: []infrav1.NutanixResourceIdentifier{
+				{
+					Type: "name",
+					Name: ptr.To(PcSubnet),
+				},
+			},
+			Cluster: infrav1.NutanixResourceIdentifier{
+				Type: "name",
+				Name: ptr.To(PeCluster),
+			},
+			BootstrapRef: &corev1.ObjectReference{
+				Kind: infrav1.NutanixMachineBootstrapRefKindImage,
+			},
+			Image: &infrav1.NutanixResourceIdentifier{
+				Type: "name",
+			},
+			SystemDiskSize: resource.MustParse("30Gi"),
+			MemorySize:     resource.MustParse("4Gi"),
+			VCPUsPerSocket: 1,
+			VCPUSockets:    1,
+		},
+	}
+	baseRctx := nctx.MachineContext{
+		Cluster:               &capiv1.Cluster{ObjectMeta: metav1.ObjectMeta{}},
+		Context:               context.Background(),
+		NutanixV3Client:       v3client,
+		NutanixFacadeV4Client: v4facadeclient,
+		Machine:               &capiv1.Machine{ObjectMeta: metav1.ObjectMeta{}},
+		NutanixCluster:        &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{}},
+	}
+
+	osImageName := ""
+	osImageUUID := ""
+	images, err := v4facadeclient.ListImages()
+	if err != nil || len(images) == 0 {
+		fmt.Println("Error listing images")
+		return
+	}
+	osImageName = *images[0].Name
+	osImageUUID = *images[0].ExtId
+
+	tests := []struct {
+		name        string
+		vmName      string
+		clusterName string
+		osImageName string
+		dataDisks   []infrav1.NutanixMachineVMDisk
+		bootType    infrav1.NutanixBootType
+		gpus        []infrav1.NutanixGPU
+	}{
+		{
+			name:        "Test with data disks",
+			vmName:      "test-createvm-data-disks",
+			osImageName: osImageName,
+			clusterName: PeCluster,
+			dataDisks: []infrav1.NutanixMachineVMDisk{
+				{
+					DiskSize: resource.MustParse("30Gi"),
+					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+						DeviceIndex: 10,
+					},
+					DataSource: &infrav1.NutanixResourceIdentifier{
+						Type: "uuid",
+						UUID: ptr.To(osImageUUID),
+					},
+					StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+						DiskMode: infrav1.NutanixMachineDiskModeStandard,
+						StorageContainer: &infrav1.NutanixResourceIdentifier{
+							Type: "name",
+							Name: ptr.To("SelfServiceContainer"),
+						},
+					},
+				},
+				{
+					DiskSize: resource.MustParse("30Gi"),
+					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{ // if nil defaults are picked Disk SCSI
+						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeCDRom,
+						AdapterType: infrav1.NutanixMachineDiskAdapterTypeIDE,
+						DeviceIndex: 1,
+					},
+					DataSource: &infrav1.NutanixResourceIdentifier{
+						Type: "uuid",
+						UUID: ptr.To(osImageUUID),
+					},
+					StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+						DiskMode: infrav1.NutanixMachineDiskModeFlash,
+						StorageContainer: &infrav1.NutanixResourceIdentifier{
+							Type: "name",
+							Name: ptr.To("SelfServiceContainer"),
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "Test with boot type UEFI",
+			vmName:      "test-createvm-boot-type",
+			osImageName: osImageName,
+			clusterName: PeCluster,
+			bootType:    infrav1.NutanixBootTypeUEFI,
+		},
+		// {
+		// 	name:        "Test with GPUs",
+		// 	vmName:      "test-createvm-gpus",
+		// 	osImageName: osImageName,
+		// 	clusterName: PeGpuCluster,
+		// 	gpus: []infrav1.NutanixGPU{
+		// 		{
+		// 			Type:     "deviceID",
+		// 			DeviceID: utils.Int64Ptr(555),
+		// 		},
+		// 	},
+		// },
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rctx := ptr.To(baseRctx)
+			rctx.Cluster.ObjectMeta.Name = test.vmName
+			rctx.Machine.ObjectMeta.Name = test.vmName
+			rctx.NutanixCluster.ObjectMeta.Name = test.vmName
+
+			rctx.NutanixMachine = ptr.To(baseNtnxMachine)
+			rctx.NutanixMachine.Spec.Cluster.Name = &test.clusterName
+			rctx.NutanixMachine.Spec.BootstrapRef.Name = test.osImageName
+			rctx.NutanixMachine.Spec.Image.Name = &test.osImageName
+			rctx.NutanixMachine.Spec.BootType = test.bootType
+			rctx.NutanixMachine.Spec.DataDisks = test.dataDisks
+			rctx.NutanixMachine.Spec.GPUs = test.gpus
+
+			reconciler := &NutanixMachineReconciler{}
+
+			vm, err := reconciler.GetOrCreateVM(rctx)
+			if err != nil {
+				t.Fatal("failed to GetOrCreateVM: ", err)
+			}
+			t.Logf("created VM with name: %s, UUID: %s", rctx.Machine.Name, *vm.ExtId)
+
+			waiter, err := v4facadeclient.DeleteVM(*vm.ExtId)
+			if err != nil {
+				t.Fatal("failed to delete vm: ", err)
+			}
+			_, err = waiter.WaitForTaskCompletion()
+			if err != nil {
+				t.Fatal("failed to delete vm: ", err)
+			}
+			errs := waiter.GetTaskErrors()
+			if len(errs) > 0 {
+				t.Fatal("failed to delete vm: ", errs)
+			}
+			t.Logf("deleted VM with name: %s, UUID: %s", rctx.Machine.Name, *vm.ExtId)
 		})
 	}
 }
