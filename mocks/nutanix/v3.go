@@ -23,6 +23,7 @@ import (
 type MockService struct {
 	ctrl     *gomock.Controller
 	recorder *MockServiceMockRecorder
+	isgomock struct{}
 }
 
 // MockServiceMockRecorder is the mock recorder for MockService.
@@ -43,1700 +44,1700 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 }
 
 // CreateAccessControlPolicy mocks base method.
-func (m *MockService) CreateAccessControlPolicy(arg0 context.Context, arg1 *v3.AccessControlPolicy) (*v3.AccessControlPolicy, error) {
+func (m *MockService) CreateAccessControlPolicy(ctx context.Context, request *v3.AccessControlPolicy) (*v3.AccessControlPolicy, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateAccessControlPolicy", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateAccessControlPolicy", ctx, request)
 	ret0, _ := ret[0].(*v3.AccessControlPolicy)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateAccessControlPolicy indicates an expected call of CreateAccessControlPolicy.
-func (mr *MockServiceMockRecorder) CreateAccessControlPolicy(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateAccessControlPolicy(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccessControlPolicy", reflect.TypeOf((*MockService)(nil).CreateAccessControlPolicy), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccessControlPolicy", reflect.TypeOf((*MockService)(nil).CreateAccessControlPolicy), ctx, request)
 }
 
 // CreateAddressGroup mocks base method.
-func (m *MockService) CreateAddressGroup(arg0 context.Context, arg1 *v3.AddressGroupInput) (*v3.Reference, error) {
+func (m *MockService) CreateAddressGroup(ctx context.Context, request *v3.AddressGroupInput) (*v3.Reference, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateAddressGroup", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateAddressGroup", ctx, request)
 	ret0, _ := ret[0].(*v3.Reference)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateAddressGroup indicates an expected call of CreateAddressGroup.
-func (mr *MockServiceMockRecorder) CreateAddressGroup(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateAddressGroup(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAddressGroup", reflect.TypeOf((*MockService)(nil).CreateAddressGroup), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAddressGroup", reflect.TypeOf((*MockService)(nil).CreateAddressGroup), ctx, request)
 }
 
 // CreateIdempotenceIdentifiers mocks base method.
-func (m *MockService) CreateIdempotenceIdentifiers(arg0 context.Context, arg1 *models.IdempotenceIdentifiersInput) (*models.IdempotenceIdentifiersResponse, error) {
+func (m *MockService) CreateIdempotenceIdentifiers(ctx context.Context, request *models.IdempotenceIdentifiersInput) (*models.IdempotenceIdentifiersResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateIdempotenceIdentifiers", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateIdempotenceIdentifiers", ctx, request)
 	ret0, _ := ret[0].(*models.IdempotenceIdentifiersResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateIdempotenceIdentifiers indicates an expected call of CreateIdempotenceIdentifiers.
-func (mr *MockServiceMockRecorder) CreateIdempotenceIdentifiers(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateIdempotenceIdentifiers(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateIdempotenceIdentifiers", reflect.TypeOf((*MockService)(nil).CreateIdempotenceIdentifiers), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateIdempotenceIdentifiers", reflect.TypeOf((*MockService)(nil).CreateIdempotenceIdentifiers), ctx, request)
 }
 
 // CreateImage mocks base method.
-func (m *MockService) CreateImage(arg0 context.Context, arg1 *v3.ImageIntentInput) (*v3.ImageIntentResponse, error) {
+func (m *MockService) CreateImage(ctx context.Context, createRequest *v3.ImageIntentInput) (*v3.ImageIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateImage", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateImage", ctx, createRequest)
 	ret0, _ := ret[0].(*v3.ImageIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateImage indicates an expected call of CreateImage.
-func (mr *MockServiceMockRecorder) CreateImage(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateImage(ctx, createRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateImage", reflect.TypeOf((*MockService)(nil).CreateImage), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateImage", reflect.TypeOf((*MockService)(nil).CreateImage), ctx, createRequest)
 }
 
 // CreateNetworkSecurityRule mocks base method.
-func (m *MockService) CreateNetworkSecurityRule(arg0 context.Context, arg1 *v3.NetworkSecurityRuleIntentInput) (*v3.NetworkSecurityRuleIntentResponse, error) {
+func (m *MockService) CreateNetworkSecurityRule(ctx context.Context, request *v3.NetworkSecurityRuleIntentInput) (*v3.NetworkSecurityRuleIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateNetworkSecurityRule", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateNetworkSecurityRule", ctx, request)
 	ret0, _ := ret[0].(*v3.NetworkSecurityRuleIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateNetworkSecurityRule indicates an expected call of CreateNetworkSecurityRule.
-func (mr *MockServiceMockRecorder) CreateNetworkSecurityRule(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateNetworkSecurityRule(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateNetworkSecurityRule", reflect.TypeOf((*MockService)(nil).CreateNetworkSecurityRule), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateNetworkSecurityRule", reflect.TypeOf((*MockService)(nil).CreateNetworkSecurityRule), ctx, request)
 }
 
 // CreateOrUpdateCategoryKey mocks base method.
-func (m *MockService) CreateOrUpdateCategoryKey(arg0 context.Context, arg1 *v3.CategoryKey) (*v3.CategoryKeyStatus, error) {
+func (m *MockService) CreateOrUpdateCategoryKey(ctx context.Context, body *v3.CategoryKey) (*v3.CategoryKeyStatus, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOrUpdateCategoryKey", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateOrUpdateCategoryKey", ctx, body)
 	ret0, _ := ret[0].(*v3.CategoryKeyStatus)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateOrUpdateCategoryKey indicates an expected call of CreateOrUpdateCategoryKey.
-func (mr *MockServiceMockRecorder) CreateOrUpdateCategoryKey(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateOrUpdateCategoryKey(ctx, body any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateCategoryKey", reflect.TypeOf((*MockService)(nil).CreateOrUpdateCategoryKey), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateCategoryKey", reflect.TypeOf((*MockService)(nil).CreateOrUpdateCategoryKey), ctx, body)
 }
 
 // CreateOrUpdateCategoryValue mocks base method.
-func (m *MockService) CreateOrUpdateCategoryValue(arg0 context.Context, arg1 string, arg2 *v3.CategoryValue) (*v3.CategoryValueStatus, error) {
+func (m *MockService) CreateOrUpdateCategoryValue(ctx context.Context, name string, body *v3.CategoryValue) (*v3.CategoryValueStatus, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOrUpdateCategoryValue", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "CreateOrUpdateCategoryValue", ctx, name, body)
 	ret0, _ := ret[0].(*v3.CategoryValueStatus)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateOrUpdateCategoryValue indicates an expected call of CreateOrUpdateCategoryValue.
-func (mr *MockServiceMockRecorder) CreateOrUpdateCategoryValue(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateOrUpdateCategoryValue(ctx, name, body any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateCategoryValue", reflect.TypeOf((*MockService)(nil).CreateOrUpdateCategoryValue), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateCategoryValue", reflect.TypeOf((*MockService)(nil).CreateOrUpdateCategoryValue), ctx, name, body)
 }
 
 // CreateProject mocks base method.
-func (m *MockService) CreateProject(arg0 context.Context, arg1 *v3.Project) (*v3.Project, error) {
+func (m *MockService) CreateProject(ctx context.Context, request *v3.Project) (*v3.Project, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateProject", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateProject", ctx, request)
 	ret0, _ := ret[0].(*v3.Project)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateProject indicates an expected call of CreateProject.
-func (mr *MockServiceMockRecorder) CreateProject(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateProject(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateProject", reflect.TypeOf((*MockService)(nil).CreateProject), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateProject", reflect.TypeOf((*MockService)(nil).CreateProject), ctx, request)
 }
 
 // CreateProtectionRule mocks base method.
-func (m *MockService) CreateProtectionRule(arg0 context.Context, arg1 *v3.ProtectionRuleInput) (*v3.ProtectionRuleResponse, error) {
+func (m *MockService) CreateProtectionRule(ctx context.Context, request *v3.ProtectionRuleInput) (*v3.ProtectionRuleResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateProtectionRule", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateProtectionRule", ctx, request)
 	ret0, _ := ret[0].(*v3.ProtectionRuleResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateProtectionRule indicates an expected call of CreateProtectionRule.
-func (mr *MockServiceMockRecorder) CreateProtectionRule(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateProtectionRule(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateProtectionRule", reflect.TypeOf((*MockService)(nil).CreateProtectionRule), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateProtectionRule", reflect.TypeOf((*MockService)(nil).CreateProtectionRule), ctx, request)
 }
 
 // CreateRecoveryPlan mocks base method.
-func (m *MockService) CreateRecoveryPlan(arg0 context.Context, arg1 *models.RecoveryPlanIntentInput) (*models.RecoveryPlanIntentResponse, error) {
+func (m *MockService) CreateRecoveryPlan(ctx context.Context, request *models.RecoveryPlanIntentInput) (*models.RecoveryPlanIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateRecoveryPlan", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateRecoveryPlan", ctx, request)
 	ret0, _ := ret[0].(*models.RecoveryPlanIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateRecoveryPlan indicates an expected call of CreateRecoveryPlan.
-func (mr *MockServiceMockRecorder) CreateRecoveryPlan(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateRecoveryPlan(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRecoveryPlan", reflect.TypeOf((*MockService)(nil).CreateRecoveryPlan), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRecoveryPlan", reflect.TypeOf((*MockService)(nil).CreateRecoveryPlan), ctx, request)
 }
 
 // CreateRecoveryPlanJob mocks base method.
-func (m *MockService) CreateRecoveryPlanJob(arg0 context.Context, arg1 *v3.RecoveryPlanJobIntentInput) (*v3.RecoveryPlanJobResponse, error) {
+func (m *MockService) CreateRecoveryPlanJob(ctx context.Context, request *v3.RecoveryPlanJobIntentInput) (*v3.RecoveryPlanJobResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateRecoveryPlanJob", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateRecoveryPlanJob", ctx, request)
 	ret0, _ := ret[0].(*v3.RecoveryPlanJobResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateRecoveryPlanJob indicates an expected call of CreateRecoveryPlanJob.
-func (mr *MockServiceMockRecorder) CreateRecoveryPlanJob(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateRecoveryPlanJob(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRecoveryPlanJob", reflect.TypeOf((*MockService)(nil).CreateRecoveryPlanJob), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRecoveryPlanJob", reflect.TypeOf((*MockService)(nil).CreateRecoveryPlanJob), ctx, request)
 }
 
 // CreateRole mocks base method.
-func (m *MockService) CreateRole(arg0 context.Context, arg1 *v3.Role) (*v3.Role, error) {
+func (m *MockService) CreateRole(ctx context.Context, request *v3.Role) (*v3.Role, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateRole", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateRole", ctx, request)
 	ret0, _ := ret[0].(*v3.Role)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateRole indicates an expected call of CreateRole.
-func (mr *MockServiceMockRecorder) CreateRole(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateRole(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRole", reflect.TypeOf((*MockService)(nil).CreateRole), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRole", reflect.TypeOf((*MockService)(nil).CreateRole), ctx, request)
 }
 
 // CreateServiceGroup mocks base method.
-func (m *MockService) CreateServiceGroup(arg0 context.Context, arg1 *v3.ServiceGroupInput) (*v3.Reference, error) {
+func (m *MockService) CreateServiceGroup(ctx context.Context, request *v3.ServiceGroupInput) (*v3.Reference, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateServiceGroup", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateServiceGroup", ctx, request)
 	ret0, _ := ret[0].(*v3.Reference)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateServiceGroup indicates an expected call of CreateServiceGroup.
-func (mr *MockServiceMockRecorder) CreateServiceGroup(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateServiceGroup(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateServiceGroup", reflect.TypeOf((*MockService)(nil).CreateServiceGroup), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateServiceGroup", reflect.TypeOf((*MockService)(nil).CreateServiceGroup), ctx, request)
 }
 
 // CreateSubnet mocks base method.
-func (m *MockService) CreateSubnet(arg0 context.Context, arg1 *v3.SubnetIntentInput) (*v3.SubnetIntentResponse, error) {
+func (m *MockService) CreateSubnet(ctx context.Context, createRequest *v3.SubnetIntentInput) (*v3.SubnetIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateSubnet", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateSubnet", ctx, createRequest)
 	ret0, _ := ret[0].(*v3.SubnetIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateSubnet indicates an expected call of CreateSubnet.
-func (mr *MockServiceMockRecorder) CreateSubnet(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateSubnet(ctx, createRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSubnet", reflect.TypeOf((*MockService)(nil).CreateSubnet), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSubnet", reflect.TypeOf((*MockService)(nil).CreateSubnet), ctx, createRequest)
 }
 
 // CreateUser mocks base method.
-func (m *MockService) CreateUser(arg0 context.Context, arg1 *v3.UserIntentInput) (*v3.UserIntentResponse, error) {
+func (m *MockService) CreateUser(ctx context.Context, request *v3.UserIntentInput) (*v3.UserIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateUser", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateUser", ctx, request)
 	ret0, _ := ret[0].(*v3.UserIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateUser indicates an expected call of CreateUser.
-func (mr *MockServiceMockRecorder) CreateUser(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateUser(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockService)(nil).CreateUser), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockService)(nil).CreateUser), ctx, request)
 }
 
 // CreateVM mocks base method.
-func (m *MockService) CreateVM(arg0 context.Context, arg1 *v3.VMIntentInput) (*v3.VMIntentResponse, error) {
+func (m *MockService) CreateVM(ctx context.Context, createRequest *v3.VMIntentInput) (*v3.VMIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateVM", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateVM", ctx, createRequest)
 	ret0, _ := ret[0].(*v3.VMIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateVM indicates an expected call of CreateVM.
-func (mr *MockServiceMockRecorder) CreateVM(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateVM(ctx, createRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateVM", reflect.TypeOf((*MockService)(nil).CreateVM), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateVM", reflect.TypeOf((*MockService)(nil).CreateVM), ctx, createRequest)
 }
 
 // CreateVolumeGroup mocks base method.
-func (m *MockService) CreateVolumeGroup(arg0 context.Context, arg1 *v3.VolumeGroupInput) (*v3.VolumeGroupResponse, error) {
+func (m *MockService) CreateVolumeGroup(ctx context.Context, request *v3.VolumeGroupInput) (*v3.VolumeGroupResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateVolumeGroup", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateVolumeGroup", ctx, request)
 	ret0, _ := ret[0].(*v3.VolumeGroupResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateVolumeGroup indicates an expected call of CreateVolumeGroup.
-func (mr *MockServiceMockRecorder) CreateVolumeGroup(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) CreateVolumeGroup(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateVolumeGroup", reflect.TypeOf((*MockService)(nil).CreateVolumeGroup), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateVolumeGroup", reflect.TypeOf((*MockService)(nil).CreateVolumeGroup), ctx, request)
 }
 
 // DeleteAccessControlPolicy mocks base method.
-func (m *MockService) DeleteAccessControlPolicy(arg0 context.Context, arg1 string) (*v3.DeleteResponse, error) {
+func (m *MockService) DeleteAccessControlPolicy(ctx context.Context, uuid string) (*v3.DeleteResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteAccessControlPolicy", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteAccessControlPolicy", ctx, uuid)
 	ret0, _ := ret[0].(*v3.DeleteResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteAccessControlPolicy indicates an expected call of DeleteAccessControlPolicy.
-func (mr *MockServiceMockRecorder) DeleteAccessControlPolicy(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteAccessControlPolicy(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAccessControlPolicy", reflect.TypeOf((*MockService)(nil).DeleteAccessControlPolicy), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAccessControlPolicy", reflect.TypeOf((*MockService)(nil).DeleteAccessControlPolicy), ctx, uuid)
 }
 
 // DeleteAddressGroup mocks base method.
-func (m *MockService) DeleteAddressGroup(arg0 context.Context, arg1 string) error {
+func (m *MockService) DeleteAddressGroup(ctx context.Context, uuid string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteAddressGroup", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteAddressGroup", ctx, uuid)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteAddressGroup indicates an expected call of DeleteAddressGroup.
-func (mr *MockServiceMockRecorder) DeleteAddressGroup(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteAddressGroup(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAddressGroup", reflect.TypeOf((*MockService)(nil).DeleteAddressGroup), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAddressGroup", reflect.TypeOf((*MockService)(nil).DeleteAddressGroup), ctx, uuid)
 }
 
 // DeleteCategoryKey mocks base method.
-func (m *MockService) DeleteCategoryKey(arg0 context.Context, arg1 string) error {
+func (m *MockService) DeleteCategoryKey(ctx context.Context, name string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteCategoryKey", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteCategoryKey", ctx, name)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteCategoryKey indicates an expected call of DeleteCategoryKey.
-func (mr *MockServiceMockRecorder) DeleteCategoryKey(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteCategoryKey(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCategoryKey", reflect.TypeOf((*MockService)(nil).DeleteCategoryKey), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCategoryKey", reflect.TypeOf((*MockService)(nil).DeleteCategoryKey), ctx, name)
 }
 
 // DeleteCategoryValue mocks base method.
-func (m *MockService) DeleteCategoryValue(arg0 context.Context, arg1, arg2 string) error {
+func (m *MockService) DeleteCategoryValue(ctx context.Context, name, value string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteCategoryValue", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "DeleteCategoryValue", ctx, name, value)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteCategoryValue indicates an expected call of DeleteCategoryValue.
-func (mr *MockServiceMockRecorder) DeleteCategoryValue(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteCategoryValue(ctx, name, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCategoryValue", reflect.TypeOf((*MockService)(nil).DeleteCategoryValue), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCategoryValue", reflect.TypeOf((*MockService)(nil).DeleteCategoryValue), ctx, name, value)
 }
 
 // DeleteIdempotenceIdentifiers mocks base method.
-func (m *MockService) DeleteIdempotenceIdentifiers(arg0 context.Context, arg1 string) error {
+func (m *MockService) DeleteIdempotenceIdentifiers(ctx context.Context, clientIdentifier string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteIdempotenceIdentifiers", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteIdempotenceIdentifiers", ctx, clientIdentifier)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteIdempotenceIdentifiers indicates an expected call of DeleteIdempotenceIdentifiers.
-func (mr *MockServiceMockRecorder) DeleteIdempotenceIdentifiers(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteIdempotenceIdentifiers(ctx, clientIdentifier any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIdempotenceIdentifiers", reflect.TypeOf((*MockService)(nil).DeleteIdempotenceIdentifiers), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIdempotenceIdentifiers", reflect.TypeOf((*MockService)(nil).DeleteIdempotenceIdentifiers), ctx, clientIdentifier)
 }
 
 // DeleteImage mocks base method.
-func (m *MockService) DeleteImage(arg0 context.Context, arg1 string) (*v3.DeleteResponse, error) {
+func (m *MockService) DeleteImage(ctx context.Context, uuid string) (*v3.DeleteResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteImage", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteImage", ctx, uuid)
 	ret0, _ := ret[0].(*v3.DeleteResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteImage indicates an expected call of DeleteImage.
-func (mr *MockServiceMockRecorder) DeleteImage(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteImage(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteImage", reflect.TypeOf((*MockService)(nil).DeleteImage), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteImage", reflect.TypeOf((*MockService)(nil).DeleteImage), ctx, uuid)
 }
 
 // DeleteNetworkSecurityRule mocks base method.
-func (m *MockService) DeleteNetworkSecurityRule(arg0 context.Context, arg1 string) (*v3.DeleteResponse, error) {
+func (m *MockService) DeleteNetworkSecurityRule(ctx context.Context, uuid string) (*v3.DeleteResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteNetworkSecurityRule", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteNetworkSecurityRule", ctx, uuid)
 	ret0, _ := ret[0].(*v3.DeleteResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteNetworkSecurityRule indicates an expected call of DeleteNetworkSecurityRule.
-func (mr *MockServiceMockRecorder) DeleteNetworkSecurityRule(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteNetworkSecurityRule(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNetworkSecurityRule", reflect.TypeOf((*MockService)(nil).DeleteNetworkSecurityRule), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNetworkSecurityRule", reflect.TypeOf((*MockService)(nil).DeleteNetworkSecurityRule), ctx, uuid)
 }
 
 // DeleteProject mocks base method.
-func (m *MockService) DeleteProject(arg0 context.Context, arg1 string) (*v3.DeleteResponse, error) {
+func (m *MockService) DeleteProject(ctx context.Context, uuid string) (*v3.DeleteResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteProject", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteProject", ctx, uuid)
 	ret0, _ := ret[0].(*v3.DeleteResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteProject indicates an expected call of DeleteProject.
-func (mr *MockServiceMockRecorder) DeleteProject(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteProject(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteProject", reflect.TypeOf((*MockService)(nil).DeleteProject), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteProject", reflect.TypeOf((*MockService)(nil).DeleteProject), ctx, uuid)
 }
 
 // DeleteProtectionRule mocks base method.
-func (m *MockService) DeleteProtectionRule(arg0 context.Context, arg1 string) (*v3.DeleteResponse, error) {
+func (m *MockService) DeleteProtectionRule(ctx context.Context, uuid string) (*v3.DeleteResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteProtectionRule", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteProtectionRule", ctx, uuid)
 	ret0, _ := ret[0].(*v3.DeleteResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteProtectionRule indicates an expected call of DeleteProtectionRule.
-func (mr *MockServiceMockRecorder) DeleteProtectionRule(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteProtectionRule(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteProtectionRule", reflect.TypeOf((*MockService)(nil).DeleteProtectionRule), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteProtectionRule", reflect.TypeOf((*MockService)(nil).DeleteProtectionRule), ctx, uuid)
 }
 
 // DeleteRecoveryPlan mocks base method.
-func (m *MockService) DeleteRecoveryPlan(arg0 context.Context, arg1 string) (*v3.DeleteResponse, error) {
+func (m *MockService) DeleteRecoveryPlan(ctx context.Context, uuid string) (*v3.DeleteResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteRecoveryPlan", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteRecoveryPlan", ctx, uuid)
 	ret0, _ := ret[0].(*v3.DeleteResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteRecoveryPlan indicates an expected call of DeleteRecoveryPlan.
-func (mr *MockServiceMockRecorder) DeleteRecoveryPlan(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteRecoveryPlan(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRecoveryPlan", reflect.TypeOf((*MockService)(nil).DeleteRecoveryPlan), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRecoveryPlan", reflect.TypeOf((*MockService)(nil).DeleteRecoveryPlan), ctx, uuid)
 }
 
 // DeleteRecoveryPlanJob mocks base method.
-func (m *MockService) DeleteRecoveryPlanJob(arg0 context.Context, arg1 string) error {
+func (m *MockService) DeleteRecoveryPlanJob(ctx context.Context, uuid string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteRecoveryPlanJob", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteRecoveryPlanJob", ctx, uuid)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteRecoveryPlanJob indicates an expected call of DeleteRecoveryPlanJob.
-func (mr *MockServiceMockRecorder) DeleteRecoveryPlanJob(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteRecoveryPlanJob(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRecoveryPlanJob", reflect.TypeOf((*MockService)(nil).DeleteRecoveryPlanJob), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRecoveryPlanJob", reflect.TypeOf((*MockService)(nil).DeleteRecoveryPlanJob), ctx, uuid)
 }
 
 // DeleteRole mocks base method.
-func (m *MockService) DeleteRole(arg0 context.Context, arg1 string) (*v3.DeleteResponse, error) {
+func (m *MockService) DeleteRole(ctx context.Context, uuid string) (*v3.DeleteResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteRole", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteRole", ctx, uuid)
 	ret0, _ := ret[0].(*v3.DeleteResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteRole indicates an expected call of DeleteRole.
-func (mr *MockServiceMockRecorder) DeleteRole(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteRole(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRole", reflect.TypeOf((*MockService)(nil).DeleteRole), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRole", reflect.TypeOf((*MockService)(nil).DeleteRole), ctx, uuid)
 }
 
 // DeleteServiceGroup mocks base method.
-func (m *MockService) DeleteServiceGroup(arg0 context.Context, arg1 string) error {
+func (m *MockService) DeleteServiceGroup(ctx context.Context, uuid string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteServiceGroup", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteServiceGroup", ctx, uuid)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteServiceGroup indicates an expected call of DeleteServiceGroup.
-func (mr *MockServiceMockRecorder) DeleteServiceGroup(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteServiceGroup(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteServiceGroup", reflect.TypeOf((*MockService)(nil).DeleteServiceGroup), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteServiceGroup", reflect.TypeOf((*MockService)(nil).DeleteServiceGroup), ctx, uuid)
 }
 
 // DeleteSubnet mocks base method.
-func (m *MockService) DeleteSubnet(arg0 context.Context, arg1 string) (*v3.DeleteResponse, error) {
+func (m *MockService) DeleteSubnet(ctx context.Context, uuid string) (*v3.DeleteResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteSubnet", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteSubnet", ctx, uuid)
 	ret0, _ := ret[0].(*v3.DeleteResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteSubnet indicates an expected call of DeleteSubnet.
-func (mr *MockServiceMockRecorder) DeleteSubnet(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteSubnet(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSubnet", reflect.TypeOf((*MockService)(nil).DeleteSubnet), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSubnet", reflect.TypeOf((*MockService)(nil).DeleteSubnet), ctx, uuid)
 }
 
 // DeleteUser mocks base method.
-func (m *MockService) DeleteUser(arg0 context.Context, arg1 string) (*v3.DeleteResponse, error) {
+func (m *MockService) DeleteUser(ctx context.Context, uuid string) (*v3.DeleteResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteUser", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteUser", ctx, uuid)
 	ret0, _ := ret[0].(*v3.DeleteResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteUser indicates an expected call of DeleteUser.
-func (mr *MockServiceMockRecorder) DeleteUser(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteUser(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUser", reflect.TypeOf((*MockService)(nil).DeleteUser), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUser", reflect.TypeOf((*MockService)(nil).DeleteUser), ctx, uuid)
 }
 
 // DeleteVM mocks base method.
-func (m *MockService) DeleteVM(arg0 context.Context, arg1 string) (*v3.DeleteResponse, error) {
+func (m *MockService) DeleteVM(ctx context.Context, uuid string) (*v3.DeleteResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteVM", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteVM", ctx, uuid)
 	ret0, _ := ret[0].(*v3.DeleteResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteVM indicates an expected call of DeleteVM.
-func (mr *MockServiceMockRecorder) DeleteVM(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteVM(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVM", reflect.TypeOf((*MockService)(nil).DeleteVM), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVM", reflect.TypeOf((*MockService)(nil).DeleteVM), ctx, uuid)
 }
 
 // DeleteVolumeGroup mocks base method.
-func (m *MockService) DeleteVolumeGroup(arg0 context.Context, arg1 string) error {
+func (m *MockService) DeleteVolumeGroup(ctx context.Context, uuid string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteVolumeGroup", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteVolumeGroup", ctx, uuid)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteVolumeGroup indicates an expected call of DeleteVolumeGroup.
-func (mr *MockServiceMockRecorder) DeleteVolumeGroup(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) DeleteVolumeGroup(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVolumeGroup", reflect.TypeOf((*MockService)(nil).DeleteVolumeGroup), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVolumeGroup", reflect.TypeOf((*MockService)(nil).DeleteVolumeGroup), ctx, uuid)
 }
 
 // GetAccessControlPolicy mocks base method.
-func (m *MockService) GetAccessControlPolicy(arg0 context.Context, arg1 string) (*v3.AccessControlPolicy, error) {
+func (m *MockService) GetAccessControlPolicy(ctx context.Context, accessControlPolicyUUID string) (*v3.AccessControlPolicy, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAccessControlPolicy", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetAccessControlPolicy", ctx, accessControlPolicyUUID)
 	ret0, _ := ret[0].(*v3.AccessControlPolicy)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAccessControlPolicy indicates an expected call of GetAccessControlPolicy.
-func (mr *MockServiceMockRecorder) GetAccessControlPolicy(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetAccessControlPolicy(ctx, accessControlPolicyUUID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccessControlPolicy", reflect.TypeOf((*MockService)(nil).GetAccessControlPolicy), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccessControlPolicy", reflect.TypeOf((*MockService)(nil).GetAccessControlPolicy), ctx, accessControlPolicyUUID)
 }
 
 // GetAddressGroup mocks base method.
-func (m *MockService) GetAddressGroup(arg0 context.Context, arg1 string) (*v3.AddressGroupResponse, error) {
+func (m *MockService) GetAddressGroup(ctx context.Context, uuid string) (*v3.AddressGroupResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAddressGroup", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetAddressGroup", ctx, uuid)
 	ret0, _ := ret[0].(*v3.AddressGroupResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAddressGroup indicates an expected call of GetAddressGroup.
-func (mr *MockServiceMockRecorder) GetAddressGroup(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetAddressGroup(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAddressGroup", reflect.TypeOf((*MockService)(nil).GetAddressGroup), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAddressGroup", reflect.TypeOf((*MockService)(nil).GetAddressGroup), ctx, uuid)
 }
 
 // GetAvailabilityZone mocks base method.
-func (m *MockService) GetAvailabilityZone(arg0 context.Context, arg1 string) (*v3.AvailabilityZoneIntentResponse, error) {
+func (m *MockService) GetAvailabilityZone(ctx context.Context, uuid string) (*v3.AvailabilityZoneIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAvailabilityZone", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetAvailabilityZone", ctx, uuid)
 	ret0, _ := ret[0].(*v3.AvailabilityZoneIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAvailabilityZone indicates an expected call of GetAvailabilityZone.
-func (mr *MockServiceMockRecorder) GetAvailabilityZone(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetAvailabilityZone(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAvailabilityZone", reflect.TypeOf((*MockService)(nil).GetAvailabilityZone), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAvailabilityZone", reflect.TypeOf((*MockService)(nil).GetAvailabilityZone), ctx, uuid)
 }
 
 // GetCategoryKey mocks base method.
-func (m *MockService) GetCategoryKey(arg0 context.Context, arg1 string) (*v3.CategoryKeyStatus, error) {
+func (m *MockService) GetCategoryKey(ctx context.Context, name string) (*v3.CategoryKeyStatus, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCategoryKey", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetCategoryKey", ctx, name)
 	ret0, _ := ret[0].(*v3.CategoryKeyStatus)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetCategoryKey indicates an expected call of GetCategoryKey.
-func (mr *MockServiceMockRecorder) GetCategoryKey(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetCategoryKey(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCategoryKey", reflect.TypeOf((*MockService)(nil).GetCategoryKey), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCategoryKey", reflect.TypeOf((*MockService)(nil).GetCategoryKey), ctx, name)
 }
 
 // GetCategoryQuery mocks base method.
-func (m *MockService) GetCategoryQuery(arg0 context.Context, arg1 *v3.CategoryQueryInput) (*v3.CategoryQueryResponse, error) {
+func (m *MockService) GetCategoryQuery(ctx context.Context, query *v3.CategoryQueryInput) (*v3.CategoryQueryResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCategoryQuery", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetCategoryQuery", ctx, query)
 	ret0, _ := ret[0].(*v3.CategoryQueryResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetCategoryQuery indicates an expected call of GetCategoryQuery.
-func (mr *MockServiceMockRecorder) GetCategoryQuery(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetCategoryQuery(ctx, query any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCategoryQuery", reflect.TypeOf((*MockService)(nil).GetCategoryQuery), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCategoryQuery", reflect.TypeOf((*MockService)(nil).GetCategoryQuery), ctx, query)
 }
 
 // GetCategoryValue mocks base method.
-func (m *MockService) GetCategoryValue(arg0 context.Context, arg1, arg2 string) (*v3.CategoryValueStatus, error) {
+func (m *MockService) GetCategoryValue(ctx context.Context, name, value string) (*v3.CategoryValueStatus, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCategoryValue", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "GetCategoryValue", ctx, name, value)
 	ret0, _ := ret[0].(*v3.CategoryValueStatus)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetCategoryValue indicates an expected call of GetCategoryValue.
-func (mr *MockServiceMockRecorder) GetCategoryValue(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetCategoryValue(ctx, name, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCategoryValue", reflect.TypeOf((*MockService)(nil).GetCategoryValue), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCategoryValue", reflect.TypeOf((*MockService)(nil).GetCategoryValue), ctx, name, value)
 }
 
 // GetCluster mocks base method.
-func (m *MockService) GetCluster(arg0 context.Context, arg1 string) (*v3.ClusterIntentResponse, error) {
+func (m *MockService) GetCluster(ctx context.Context, uuid string) (*v3.ClusterIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCluster", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetCluster", ctx, uuid)
 	ret0, _ := ret[0].(*v3.ClusterIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetCluster indicates an expected call of GetCluster.
-func (mr *MockServiceMockRecorder) GetCluster(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetCluster(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCluster", reflect.TypeOf((*MockService)(nil).GetCluster), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCluster", reflect.TypeOf((*MockService)(nil).GetCluster), ctx, uuid)
 }
 
 // GetCurrentLoggedInUser mocks base method.
-func (m *MockService) GetCurrentLoggedInUser(arg0 context.Context) (*v3.UserIntentResponse, error) {
+func (m *MockService) GetCurrentLoggedInUser(ctx context.Context) (*v3.UserIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCurrentLoggedInUser", arg0)
+	ret := m.ctrl.Call(m, "GetCurrentLoggedInUser", ctx)
 	ret0, _ := ret[0].(*v3.UserIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetCurrentLoggedInUser indicates an expected call of GetCurrentLoggedInUser.
-func (mr *MockServiceMockRecorder) GetCurrentLoggedInUser(arg0 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetCurrentLoggedInUser(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentLoggedInUser", reflect.TypeOf((*MockService)(nil).GetCurrentLoggedInUser), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentLoggedInUser", reflect.TypeOf((*MockService)(nil).GetCurrentLoggedInUser), ctx)
 }
 
 // GetHost mocks base method.
-func (m *MockService) GetHost(arg0 context.Context, arg1 string) (*v3.HostResponse, error) {
+func (m *MockService) GetHost(ctx context.Context, taskUUID string) (*v3.HostResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetHost", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetHost", ctx, taskUUID)
 	ret0, _ := ret[0].(*v3.HostResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetHost indicates an expected call of GetHost.
-func (mr *MockServiceMockRecorder) GetHost(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetHost(ctx, taskUUID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHost", reflect.TypeOf((*MockService)(nil).GetHost), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHost", reflect.TypeOf((*MockService)(nil).GetHost), ctx, taskUUID)
 }
 
 // GetIdempotenceIdentifiers mocks base method.
-func (m *MockService) GetIdempotenceIdentifiers(arg0 context.Context, arg1 string) (*models.IdempotenceIdentifiersResponse, error) {
+func (m *MockService) GetIdempotenceIdentifiers(ctx context.Context, clientIdentifier string) (*models.IdempotenceIdentifiersResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetIdempotenceIdentifiers", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetIdempotenceIdentifiers", ctx, clientIdentifier)
 	ret0, _ := ret[0].(*models.IdempotenceIdentifiersResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetIdempotenceIdentifiers indicates an expected call of GetIdempotenceIdentifiers.
-func (mr *MockServiceMockRecorder) GetIdempotenceIdentifiers(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetIdempotenceIdentifiers(ctx, clientIdentifier any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIdempotenceIdentifiers", reflect.TypeOf((*MockService)(nil).GetIdempotenceIdentifiers), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIdempotenceIdentifiers", reflect.TypeOf((*MockService)(nil).GetIdempotenceIdentifiers), ctx, clientIdentifier)
 }
 
 // GetImage mocks base method.
-func (m *MockService) GetImage(arg0 context.Context, arg1 string) (*v3.ImageIntentResponse, error) {
+func (m *MockService) GetImage(ctx context.Context, uuid string) (*v3.ImageIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetImage", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetImage", ctx, uuid)
 	ret0, _ := ret[0].(*v3.ImageIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetImage indicates an expected call of GetImage.
-func (mr *MockServiceMockRecorder) GetImage(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetImage(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetImage", reflect.TypeOf((*MockService)(nil).GetImage), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetImage", reflect.TypeOf((*MockService)(nil).GetImage), ctx, uuid)
 }
 
 // GetNetworkSecurityRule mocks base method.
-func (m *MockService) GetNetworkSecurityRule(arg0 context.Context, arg1 string) (*v3.NetworkSecurityRuleIntentResponse, error) {
+func (m *MockService) GetNetworkSecurityRule(ctx context.Context, uuid string) (*v3.NetworkSecurityRuleIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetNetworkSecurityRule", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetNetworkSecurityRule", ctx, uuid)
 	ret0, _ := ret[0].(*v3.NetworkSecurityRuleIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetNetworkSecurityRule indicates an expected call of GetNetworkSecurityRule.
-func (mr *MockServiceMockRecorder) GetNetworkSecurityRule(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetNetworkSecurityRule(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkSecurityRule", reflect.TypeOf((*MockService)(nil).GetNetworkSecurityRule), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkSecurityRule", reflect.TypeOf((*MockService)(nil).GetNetworkSecurityRule), ctx, uuid)
 }
 
 // GetPermission mocks base method.
-func (m *MockService) GetPermission(arg0 context.Context, arg1 string) (*v3.PermissionIntentResponse, error) {
+func (m *MockService) GetPermission(ctx context.Context, permissionUUID string) (*v3.PermissionIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPermission", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetPermission", ctx, permissionUUID)
 	ret0, _ := ret[0].(*v3.PermissionIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetPermission indicates an expected call of GetPermission.
-func (mr *MockServiceMockRecorder) GetPermission(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetPermission(ctx, permissionUUID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPermission", reflect.TypeOf((*MockService)(nil).GetPermission), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPermission", reflect.TypeOf((*MockService)(nil).GetPermission), ctx, permissionUUID)
 }
 
 // GetPrismCentral mocks base method.
-func (m *MockService) GetPrismCentral(arg0 context.Context) (*models.PrismCentral, error) {
+func (m *MockService) GetPrismCentral(ctx context.Context) (*models.PrismCentral, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPrismCentral", arg0)
+	ret := m.ctrl.Call(m, "GetPrismCentral", ctx)
 	ret0, _ := ret[0].(*models.PrismCentral)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetPrismCentral indicates an expected call of GetPrismCentral.
-func (mr *MockServiceMockRecorder) GetPrismCentral(arg0 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetPrismCentral(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPrismCentral", reflect.TypeOf((*MockService)(nil).GetPrismCentral), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPrismCentral", reflect.TypeOf((*MockService)(nil).GetPrismCentral), ctx)
 }
 
 // GetProject mocks base method.
-func (m *MockService) GetProject(arg0 context.Context, arg1 string) (*v3.Project, error) {
+func (m *MockService) GetProject(ctx context.Context, projectUUID string) (*v3.Project, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetProject", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetProject", ctx, projectUUID)
 	ret0, _ := ret[0].(*v3.Project)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetProject indicates an expected call of GetProject.
-func (mr *MockServiceMockRecorder) GetProject(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetProject(ctx, projectUUID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProject", reflect.TypeOf((*MockService)(nil).GetProject), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProject", reflect.TypeOf((*MockService)(nil).GetProject), ctx, projectUUID)
 }
 
 // GetProtectionRule mocks base method.
-func (m *MockService) GetProtectionRule(arg0 context.Context, arg1 string) (*v3.ProtectionRuleResponse, error) {
+func (m *MockService) GetProtectionRule(ctx context.Context, uuid string) (*v3.ProtectionRuleResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetProtectionRule", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetProtectionRule", ctx, uuid)
 	ret0, _ := ret[0].(*v3.ProtectionRuleResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetProtectionRule indicates an expected call of GetProtectionRule.
-func (mr *MockServiceMockRecorder) GetProtectionRule(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetProtectionRule(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProtectionRule", reflect.TypeOf((*MockService)(nil).GetProtectionRule), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProtectionRule", reflect.TypeOf((*MockService)(nil).GetProtectionRule), ctx, uuid)
 }
 
 // GetRecoveryPlan mocks base method.
-func (m *MockService) GetRecoveryPlan(arg0 context.Context, arg1 string) (*models.RecoveryPlanIntentResponse, error) {
+func (m *MockService) GetRecoveryPlan(ctx context.Context, uuid string) (*models.RecoveryPlanIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRecoveryPlan", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetRecoveryPlan", ctx, uuid)
 	ret0, _ := ret[0].(*models.RecoveryPlanIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetRecoveryPlan indicates an expected call of GetRecoveryPlan.
-func (mr *MockServiceMockRecorder) GetRecoveryPlan(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetRecoveryPlan(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRecoveryPlan", reflect.TypeOf((*MockService)(nil).GetRecoveryPlan), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRecoveryPlan", reflect.TypeOf((*MockService)(nil).GetRecoveryPlan), ctx, uuid)
 }
 
 // GetRecoveryPlanJob mocks base method.
-func (m *MockService) GetRecoveryPlanJob(arg0 context.Context, arg1 string) (*v3.RecoveryPlanJobIntentResponse, error) {
+func (m *MockService) GetRecoveryPlanJob(ctx context.Context, uuid string) (*v3.RecoveryPlanJobIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRecoveryPlanJob", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetRecoveryPlanJob", ctx, uuid)
 	ret0, _ := ret[0].(*v3.RecoveryPlanJobIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetRecoveryPlanJob indicates an expected call of GetRecoveryPlanJob.
-func (mr *MockServiceMockRecorder) GetRecoveryPlanJob(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetRecoveryPlanJob(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRecoveryPlanJob", reflect.TypeOf((*MockService)(nil).GetRecoveryPlanJob), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRecoveryPlanJob", reflect.TypeOf((*MockService)(nil).GetRecoveryPlanJob), ctx, uuid)
 }
 
 // GetRecoveryPlanJobStatus mocks base method.
-func (m *MockService) GetRecoveryPlanJobStatus(arg0 context.Context, arg1, arg2 string) (*v3.RecoveryPlanJobExecutionStatus, error) {
+func (m *MockService) GetRecoveryPlanJobStatus(ctx context.Context, uuid, status string) (*v3.RecoveryPlanJobExecutionStatus, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRecoveryPlanJobStatus", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "GetRecoveryPlanJobStatus", ctx, uuid, status)
 	ret0, _ := ret[0].(*v3.RecoveryPlanJobExecutionStatus)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetRecoveryPlanJobStatus indicates an expected call of GetRecoveryPlanJobStatus.
-func (mr *MockServiceMockRecorder) GetRecoveryPlanJobStatus(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetRecoveryPlanJobStatus(ctx, uuid, status any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRecoveryPlanJobStatus", reflect.TypeOf((*MockService)(nil).GetRecoveryPlanJobStatus), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRecoveryPlanJobStatus", reflect.TypeOf((*MockService)(nil).GetRecoveryPlanJobStatus), ctx, uuid, status)
 }
 
 // GetRole mocks base method.
-func (m *MockService) GetRole(arg0 context.Context, arg1 string) (*v3.Role, error) {
+func (m *MockService) GetRole(ctx context.Context, uuid string) (*v3.Role, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRole", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetRole", ctx, uuid)
 	ret0, _ := ret[0].(*v3.Role)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetRole indicates an expected call of GetRole.
-func (mr *MockServiceMockRecorder) GetRole(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetRole(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRole", reflect.TypeOf((*MockService)(nil).GetRole), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRole", reflect.TypeOf((*MockService)(nil).GetRole), ctx, uuid)
 }
 
 // GetServiceGroup mocks base method.
-func (m *MockService) GetServiceGroup(arg0 context.Context, arg1 string) (*v3.ServiceGroupResponse, error) {
+func (m *MockService) GetServiceGroup(ctx context.Context, uuid string) (*v3.ServiceGroupResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetServiceGroup", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetServiceGroup", ctx, uuid)
 	ret0, _ := ret[0].(*v3.ServiceGroupResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetServiceGroup indicates an expected call of GetServiceGroup.
-func (mr *MockServiceMockRecorder) GetServiceGroup(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetServiceGroup(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceGroup", reflect.TypeOf((*MockService)(nil).GetServiceGroup), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceGroup", reflect.TypeOf((*MockService)(nil).GetServiceGroup), ctx, uuid)
 }
 
 // GetSubnet mocks base method.
-func (m *MockService) GetSubnet(arg0 context.Context, arg1 string) (*v3.SubnetIntentResponse, error) {
+func (m *MockService) GetSubnet(ctx context.Context, uuid string) (*v3.SubnetIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSubnet", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetSubnet", ctx, uuid)
 	ret0, _ := ret[0].(*v3.SubnetIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetSubnet indicates an expected call of GetSubnet.
-func (mr *MockServiceMockRecorder) GetSubnet(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetSubnet(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSubnet", reflect.TypeOf((*MockService)(nil).GetSubnet), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSubnet", reflect.TypeOf((*MockService)(nil).GetSubnet), ctx, uuid)
 }
 
 // GetTask mocks base method.
-func (m *MockService) GetTask(arg0 context.Context, arg1 string) (*v3.TasksResponse, error) {
+func (m *MockService) GetTask(ctx context.Context, taskUUID string) (*v3.TasksResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTask", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetTask", ctx, taskUUID)
 	ret0, _ := ret[0].(*v3.TasksResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetTask indicates an expected call of GetTask.
-func (mr *MockServiceMockRecorder) GetTask(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetTask(ctx, taskUUID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTask", reflect.TypeOf((*MockService)(nil).GetTask), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTask", reflect.TypeOf((*MockService)(nil).GetTask), ctx, taskUUID)
 }
 
 // GetUser mocks base method.
-func (m *MockService) GetUser(arg0 context.Context, arg1 string) (*v3.UserIntentResponse, error) {
+func (m *MockService) GetUser(ctx context.Context, userUUID string) (*v3.UserIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUser", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetUser", ctx, userUUID)
 	ret0, _ := ret[0].(*v3.UserIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetUser indicates an expected call of GetUser.
-func (mr *MockServiceMockRecorder) GetUser(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetUser(ctx, userUUID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUser", reflect.TypeOf((*MockService)(nil).GetUser), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUser", reflect.TypeOf((*MockService)(nil).GetUser), ctx, userUUID)
 }
 
 // GetUserGroup mocks base method.
-func (m *MockService) GetUserGroup(arg0 context.Context, arg1 string) (*v3.UserGroupIntentResponse, error) {
+func (m *MockService) GetUserGroup(ctx context.Context, userUUID string) (*v3.UserGroupIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserGroup", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetUserGroup", ctx, userUUID)
 	ret0, _ := ret[0].(*v3.UserGroupIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetUserGroup indicates an expected call of GetUserGroup.
-func (mr *MockServiceMockRecorder) GetUserGroup(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetUserGroup(ctx, userUUID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserGroup", reflect.TypeOf((*MockService)(nil).GetUserGroup), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserGroup", reflect.TypeOf((*MockService)(nil).GetUserGroup), ctx, userUUID)
 }
 
 // GetVM mocks base method.
-func (m *MockService) GetVM(arg0 context.Context, arg1 string) (*v3.VMIntentResponse, error) {
+func (m *MockService) GetVM(ctx context.Context, uuid string) (*v3.VMIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVM", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetVM", ctx, uuid)
 	ret0, _ := ret[0].(*v3.VMIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetVM indicates an expected call of GetVM.
-func (mr *MockServiceMockRecorder) GetVM(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetVM(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVM", reflect.TypeOf((*MockService)(nil).GetVM), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVM", reflect.TypeOf((*MockService)(nil).GetVM), ctx, uuid)
 }
 
 // GetVolumeGroup mocks base method.
-func (m *MockService) GetVolumeGroup(arg0 context.Context, arg1 string) (*v3.VolumeGroupResponse, error) {
+func (m *MockService) GetVolumeGroup(ctx context.Context, uuid string) (*v3.VolumeGroupResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVolumeGroup", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetVolumeGroup", ctx, uuid)
 	ret0, _ := ret[0].(*v3.VolumeGroupResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetVolumeGroup indicates an expected call of GetVolumeGroup.
-func (mr *MockServiceMockRecorder) GetVolumeGroup(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GetVolumeGroup(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVolumeGroup", reflect.TypeOf((*MockService)(nil).GetVolumeGroup), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVolumeGroup", reflect.TypeOf((*MockService)(nil).GetVolumeGroup), ctx, uuid)
 }
 
 // GroupsGetEntities mocks base method.
-func (m *MockService) GroupsGetEntities(arg0 context.Context, arg1 *v3.GroupsGetEntitiesRequest) (*v3.GroupsGetEntitiesResponse, error) {
+func (m *MockService) GroupsGetEntities(ctx context.Context, request *v3.GroupsGetEntitiesRequest) (*v3.GroupsGetEntitiesResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GroupsGetEntities", arg0, arg1)
+	ret := m.ctrl.Call(m, "GroupsGetEntities", ctx, request)
 	ret0, _ := ret[0].(*v3.GroupsGetEntitiesResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GroupsGetEntities indicates an expected call of GroupsGetEntities.
-func (mr *MockServiceMockRecorder) GroupsGetEntities(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) GroupsGetEntities(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GroupsGetEntities", reflect.TypeOf((*MockService)(nil).GroupsGetEntities), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GroupsGetEntities", reflect.TypeOf((*MockService)(nil).GroupsGetEntities), ctx, request)
 }
 
 // ListAccessControlPolicy mocks base method.
-func (m *MockService) ListAccessControlPolicy(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.AccessControlPolicyListResponse, error) {
+func (m *MockService) ListAccessControlPolicy(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.AccessControlPolicyListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAccessControlPolicy", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAccessControlPolicy", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.AccessControlPolicyListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAccessControlPolicy indicates an expected call of ListAccessControlPolicy.
-func (mr *MockServiceMockRecorder) ListAccessControlPolicy(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAccessControlPolicy(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAccessControlPolicy", reflect.TypeOf((*MockService)(nil).ListAccessControlPolicy), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAccessControlPolicy", reflect.TypeOf((*MockService)(nil).ListAccessControlPolicy), ctx, getEntitiesRequest)
 }
 
 // ListAddressGroups mocks base method.
-func (m *MockService) ListAddressGroups(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.AddressGroupListResponse, error) {
+func (m *MockService) ListAddressGroups(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.AddressGroupListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAddressGroups", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAddressGroups", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.AddressGroupListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAddressGroups indicates an expected call of ListAddressGroups.
-func (mr *MockServiceMockRecorder) ListAddressGroups(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAddressGroups(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAddressGroups", reflect.TypeOf((*MockService)(nil).ListAddressGroups), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAddressGroups", reflect.TypeOf((*MockService)(nil).ListAddressGroups), ctx, getEntitiesRequest)
 }
 
 // ListAllAccessControlPolicy mocks base method.
-func (m *MockService) ListAllAccessControlPolicy(arg0 context.Context, arg1 string) (*v3.AccessControlPolicyListResponse, error) {
+func (m *MockService) ListAllAccessControlPolicy(ctx context.Context, filter string) (*v3.AccessControlPolicyListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllAccessControlPolicy", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAllAccessControlPolicy", ctx, filter)
 	ret0, _ := ret[0].(*v3.AccessControlPolicyListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllAccessControlPolicy indicates an expected call of ListAllAccessControlPolicy.
-func (mr *MockServiceMockRecorder) ListAllAccessControlPolicy(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllAccessControlPolicy(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllAccessControlPolicy", reflect.TypeOf((*MockService)(nil).ListAllAccessControlPolicy), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllAccessControlPolicy", reflect.TypeOf((*MockService)(nil).ListAllAccessControlPolicy), ctx, filter)
 }
 
 // ListAllAddressGroups mocks base method.
-func (m *MockService) ListAllAddressGroups(arg0 context.Context, arg1 string) (*v3.AddressGroupListResponse, error) {
+func (m *MockService) ListAllAddressGroups(ctx context.Context, filter string) (*v3.AddressGroupListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllAddressGroups", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAllAddressGroups", ctx, filter)
 	ret0, _ := ret[0].(*v3.AddressGroupListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllAddressGroups indicates an expected call of ListAllAddressGroups.
-func (mr *MockServiceMockRecorder) ListAllAddressGroups(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllAddressGroups(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllAddressGroups", reflect.TypeOf((*MockService)(nil).ListAllAddressGroups), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllAddressGroups", reflect.TypeOf((*MockService)(nil).ListAllAddressGroups), ctx, filter)
 }
 
 // ListAllCategoryValues mocks base method.
-func (m *MockService) ListAllCategoryValues(arg0 context.Context, arg1, arg2 string) (*v3.CategoryValueListResponse, error) {
+func (m *MockService) ListAllCategoryValues(ctx context.Context, categoryName, filter string) (*v3.CategoryValueListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllCategoryValues", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "ListAllCategoryValues", ctx, categoryName, filter)
 	ret0, _ := ret[0].(*v3.CategoryValueListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllCategoryValues indicates an expected call of ListAllCategoryValues.
-func (mr *MockServiceMockRecorder) ListAllCategoryValues(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllCategoryValues(ctx, categoryName, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllCategoryValues", reflect.TypeOf((*MockService)(nil).ListAllCategoryValues), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllCategoryValues", reflect.TypeOf((*MockService)(nil).ListAllCategoryValues), ctx, categoryName, filter)
 }
 
 // ListAllCluster mocks base method.
-func (m *MockService) ListAllCluster(arg0 context.Context, arg1 string) (*v3.ClusterListIntentResponse, error) {
+func (m *MockService) ListAllCluster(ctx context.Context, filter string) (*v3.ClusterListIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllCluster", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAllCluster", ctx, filter)
 	ret0, _ := ret[0].(*v3.ClusterListIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllCluster indicates an expected call of ListAllCluster.
-func (mr *MockServiceMockRecorder) ListAllCluster(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllCluster(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllCluster", reflect.TypeOf((*MockService)(nil).ListAllCluster), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllCluster", reflect.TypeOf((*MockService)(nil).ListAllCluster), ctx, filter)
 }
 
 // ListAllHost mocks base method.
-func (m *MockService) ListAllHost(arg0 context.Context) (*v3.HostListResponse, error) {
+func (m *MockService) ListAllHost(ctx context.Context) (*v3.HostListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllHost", arg0)
+	ret := m.ctrl.Call(m, "ListAllHost", ctx)
 	ret0, _ := ret[0].(*v3.HostListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllHost indicates an expected call of ListAllHost.
-func (mr *MockServiceMockRecorder) ListAllHost(arg0 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllHost(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllHost", reflect.TypeOf((*MockService)(nil).ListAllHost), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllHost", reflect.TypeOf((*MockService)(nil).ListAllHost), ctx)
 }
 
 // ListAllImage mocks base method.
-func (m *MockService) ListAllImage(arg0 context.Context, arg1 string) (*v3.ImageListIntentResponse, error) {
+func (m *MockService) ListAllImage(ctx context.Context, filter string) (*v3.ImageListIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllImage", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAllImage", ctx, filter)
 	ret0, _ := ret[0].(*v3.ImageListIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllImage indicates an expected call of ListAllImage.
-func (mr *MockServiceMockRecorder) ListAllImage(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllImage(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllImage", reflect.TypeOf((*MockService)(nil).ListAllImage), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllImage", reflect.TypeOf((*MockService)(nil).ListAllImage), ctx, filter)
 }
 
 // ListAllNetworkSecurityRule mocks base method.
-func (m *MockService) ListAllNetworkSecurityRule(arg0 context.Context, arg1 string) (*v3.NetworkSecurityRuleListIntentResponse, error) {
+func (m *MockService) ListAllNetworkSecurityRule(ctx context.Context, filter string) (*v3.NetworkSecurityRuleListIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllNetworkSecurityRule", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAllNetworkSecurityRule", ctx, filter)
 	ret0, _ := ret[0].(*v3.NetworkSecurityRuleListIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllNetworkSecurityRule indicates an expected call of ListAllNetworkSecurityRule.
-func (mr *MockServiceMockRecorder) ListAllNetworkSecurityRule(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllNetworkSecurityRule(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllNetworkSecurityRule", reflect.TypeOf((*MockService)(nil).ListAllNetworkSecurityRule), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllNetworkSecurityRule", reflect.TypeOf((*MockService)(nil).ListAllNetworkSecurityRule), ctx, filter)
 }
 
 // ListAllPermission mocks base method.
-func (m *MockService) ListAllPermission(arg0 context.Context, arg1 string) (*v3.PermissionListResponse, error) {
+func (m *MockService) ListAllPermission(ctx context.Context, filter string) (*v3.PermissionListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllPermission", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAllPermission", ctx, filter)
 	ret0, _ := ret[0].(*v3.PermissionListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllPermission indicates an expected call of ListAllPermission.
-func (mr *MockServiceMockRecorder) ListAllPermission(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllPermission(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllPermission", reflect.TypeOf((*MockService)(nil).ListAllPermission), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllPermission", reflect.TypeOf((*MockService)(nil).ListAllPermission), ctx, filter)
 }
 
 // ListAllProject mocks base method.
-func (m *MockService) ListAllProject(arg0 context.Context, arg1 string) (*v3.ProjectListResponse, error) {
+func (m *MockService) ListAllProject(ctx context.Context, filter string) (*v3.ProjectListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllProject", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAllProject", ctx, filter)
 	ret0, _ := ret[0].(*v3.ProjectListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllProject indicates an expected call of ListAllProject.
-func (mr *MockServiceMockRecorder) ListAllProject(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllProject(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllProject", reflect.TypeOf((*MockService)(nil).ListAllProject), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllProject", reflect.TypeOf((*MockService)(nil).ListAllProject), ctx, filter)
 }
 
 // ListAllProtectionRules mocks base method.
-func (m *MockService) ListAllProtectionRules(arg0 context.Context, arg1 string) (*v3.ProtectionRulesListResponse, error) {
+func (m *MockService) ListAllProtectionRules(ctx context.Context, filter string) (*v3.ProtectionRulesListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllProtectionRules", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAllProtectionRules", ctx, filter)
 	ret0, _ := ret[0].(*v3.ProtectionRulesListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllProtectionRules indicates an expected call of ListAllProtectionRules.
-func (mr *MockServiceMockRecorder) ListAllProtectionRules(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllProtectionRules(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllProtectionRules", reflect.TypeOf((*MockService)(nil).ListAllProtectionRules), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllProtectionRules", reflect.TypeOf((*MockService)(nil).ListAllProtectionRules), ctx, filter)
 }
 
 // ListAllRecoveryPlans mocks base method.
-func (m *MockService) ListAllRecoveryPlans(arg0 context.Context, arg1 string) (*models.RecoveryPlanListIntentResponse, error) {
+func (m *MockService) ListAllRecoveryPlans(ctx context.Context, filter string) (*models.RecoveryPlanListIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllRecoveryPlans", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAllRecoveryPlans", ctx, filter)
 	ret0, _ := ret[0].(*models.RecoveryPlanListIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllRecoveryPlans indicates an expected call of ListAllRecoveryPlans.
-func (mr *MockServiceMockRecorder) ListAllRecoveryPlans(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllRecoveryPlans(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllRecoveryPlans", reflect.TypeOf((*MockService)(nil).ListAllRecoveryPlans), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllRecoveryPlans", reflect.TypeOf((*MockService)(nil).ListAllRecoveryPlans), ctx, filter)
 }
 
 // ListAllRole mocks base method.
-func (m *MockService) ListAllRole(arg0 context.Context, arg1 string) (*v3.RoleListResponse, error) {
+func (m *MockService) ListAllRole(ctx context.Context, filter string) (*v3.RoleListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllRole", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAllRole", ctx, filter)
 	ret0, _ := ret[0].(*v3.RoleListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllRole indicates an expected call of ListAllRole.
-func (mr *MockServiceMockRecorder) ListAllRole(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllRole(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllRole", reflect.TypeOf((*MockService)(nil).ListAllRole), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllRole", reflect.TypeOf((*MockService)(nil).ListAllRole), ctx, filter)
 }
 
 // ListAllServiceGroups mocks base method.
-func (m *MockService) ListAllServiceGroups(arg0 context.Context, arg1 string) (*v3.ServiceGroupListResponse, error) {
+func (m *MockService) ListAllServiceGroups(ctx context.Context, filter string) (*v3.ServiceGroupListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllServiceGroups", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAllServiceGroups", ctx, filter)
 	ret0, _ := ret[0].(*v3.ServiceGroupListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllServiceGroups indicates an expected call of ListAllServiceGroups.
-func (mr *MockServiceMockRecorder) ListAllServiceGroups(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllServiceGroups(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllServiceGroups", reflect.TypeOf((*MockService)(nil).ListAllServiceGroups), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllServiceGroups", reflect.TypeOf((*MockService)(nil).ListAllServiceGroups), ctx, filter)
 }
 
 // ListAllSubnet mocks base method.
-func (m *MockService) ListAllSubnet(arg0 context.Context, arg1 string, arg2 []*prismgoclient.AdditionalFilter) (*v3.SubnetListIntentResponse, error) {
+func (m *MockService) ListAllSubnet(ctx context.Context, filter string, clientSideFilters []*prismgoclient.AdditionalFilter) (*v3.SubnetListIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllSubnet", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "ListAllSubnet", ctx, filter, clientSideFilters)
 	ret0, _ := ret[0].(*v3.SubnetListIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllSubnet indicates an expected call of ListAllSubnet.
-func (mr *MockServiceMockRecorder) ListAllSubnet(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllSubnet(ctx, filter, clientSideFilters any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllSubnet", reflect.TypeOf((*MockService)(nil).ListAllSubnet), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllSubnet", reflect.TypeOf((*MockService)(nil).ListAllSubnet), ctx, filter, clientSideFilters)
 }
 
 // ListAllUser mocks base method.
-func (m *MockService) ListAllUser(arg0 context.Context, arg1 string) (*v3.UserListResponse, error) {
+func (m *MockService) ListAllUser(ctx context.Context, filter string) (*v3.UserListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllUser", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAllUser", ctx, filter)
 	ret0, _ := ret[0].(*v3.UserListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllUser indicates an expected call of ListAllUser.
-func (mr *MockServiceMockRecorder) ListAllUser(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllUser(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllUser", reflect.TypeOf((*MockService)(nil).ListAllUser), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllUser", reflect.TypeOf((*MockService)(nil).ListAllUser), ctx, filter)
 }
 
 // ListAllUserGroup mocks base method.
-func (m *MockService) ListAllUserGroup(arg0 context.Context, arg1 string) (*v3.UserGroupListResponse, error) {
+func (m *MockService) ListAllUserGroup(ctx context.Context, filter string) (*v3.UserGroupListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllUserGroup", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAllUserGroup", ctx, filter)
 	ret0, _ := ret[0].(*v3.UserGroupListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllUserGroup indicates an expected call of ListAllUserGroup.
-func (mr *MockServiceMockRecorder) ListAllUserGroup(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllUserGroup(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllUserGroup", reflect.TypeOf((*MockService)(nil).ListAllUserGroup), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllUserGroup", reflect.TypeOf((*MockService)(nil).ListAllUserGroup), ctx, filter)
 }
 
 // ListAllVM mocks base method.
-func (m *MockService) ListAllVM(arg0 context.Context, arg1 string) (*v3.VMListIntentResponse, error) {
+func (m *MockService) ListAllVM(ctx context.Context, filter string) (*v3.VMListIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllVM", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListAllVM", ctx, filter)
 	ret0, _ := ret[0].(*v3.VMListIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAllVM indicates an expected call of ListAllVM.
-func (mr *MockServiceMockRecorder) ListAllVM(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListAllVM(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllVM", reflect.TypeOf((*MockService)(nil).ListAllVM), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllVM", reflect.TypeOf((*MockService)(nil).ListAllVM), ctx, filter)
 }
 
 // ListCategories mocks base method.
-func (m *MockService) ListCategories(arg0 context.Context, arg1 *v3.CategoryListMetadata) (*v3.CategoryKeyListResponse, error) {
+func (m *MockService) ListCategories(ctx context.Context, getEntitiesRequest *v3.CategoryListMetadata) (*v3.CategoryKeyListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListCategories", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListCategories", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.CategoryKeyListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListCategories indicates an expected call of ListCategories.
-func (mr *MockServiceMockRecorder) ListCategories(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListCategories(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCategories", reflect.TypeOf((*MockService)(nil).ListCategories), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCategories", reflect.TypeOf((*MockService)(nil).ListCategories), ctx, getEntitiesRequest)
 }
 
 // ListCategoryValues mocks base method.
-func (m *MockService) ListCategoryValues(arg0 context.Context, arg1 string, arg2 *v3.CategoryListMetadata) (*v3.CategoryValueListResponse, error) {
+func (m *MockService) ListCategoryValues(ctx context.Context, name string, getEntitiesRequest *v3.CategoryListMetadata) (*v3.CategoryValueListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListCategoryValues", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "ListCategoryValues", ctx, name, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.CategoryValueListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListCategoryValues indicates an expected call of ListCategoryValues.
-func (mr *MockServiceMockRecorder) ListCategoryValues(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListCategoryValues(ctx, name, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCategoryValues", reflect.TypeOf((*MockService)(nil).ListCategoryValues), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCategoryValues", reflect.TypeOf((*MockService)(nil).ListCategoryValues), ctx, name, getEntitiesRequest)
 }
 
 // ListCluster mocks base method.
-func (m *MockService) ListCluster(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.ClusterListIntentResponse, error) {
+func (m *MockService) ListCluster(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.ClusterListIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListCluster", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListCluster", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.ClusterListIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListCluster indicates an expected call of ListCluster.
-func (mr *MockServiceMockRecorder) ListCluster(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListCluster(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCluster", reflect.TypeOf((*MockService)(nil).ListCluster), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCluster", reflect.TypeOf((*MockService)(nil).ListCluster), ctx, getEntitiesRequest)
 }
 
 // ListHost mocks base method.
-func (m *MockService) ListHost(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.HostListResponse, error) {
+func (m *MockService) ListHost(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.HostListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListHost", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListHost", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.HostListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListHost indicates an expected call of ListHost.
-func (mr *MockServiceMockRecorder) ListHost(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListHost(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListHost", reflect.TypeOf((*MockService)(nil).ListHost), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListHost", reflect.TypeOf((*MockService)(nil).ListHost), ctx, getEntitiesRequest)
 }
 
 // ListImage mocks base method.
-func (m *MockService) ListImage(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.ImageListIntentResponse, error) {
+func (m *MockService) ListImage(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.ImageListIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListImage", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListImage", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.ImageListIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListImage indicates an expected call of ListImage.
-func (mr *MockServiceMockRecorder) ListImage(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListImage(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListImage", reflect.TypeOf((*MockService)(nil).ListImage), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListImage", reflect.TypeOf((*MockService)(nil).ListImage), ctx, getEntitiesRequest)
 }
 
 // ListNetworkSecurityRule mocks base method.
-func (m *MockService) ListNetworkSecurityRule(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.NetworkSecurityRuleListIntentResponse, error) {
+func (m *MockService) ListNetworkSecurityRule(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.NetworkSecurityRuleListIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListNetworkSecurityRule", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListNetworkSecurityRule", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.NetworkSecurityRuleListIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListNetworkSecurityRule indicates an expected call of ListNetworkSecurityRule.
-func (mr *MockServiceMockRecorder) ListNetworkSecurityRule(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListNetworkSecurityRule(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListNetworkSecurityRule", reflect.TypeOf((*MockService)(nil).ListNetworkSecurityRule), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListNetworkSecurityRule", reflect.TypeOf((*MockService)(nil).ListNetworkSecurityRule), ctx, getEntitiesRequest)
 }
 
 // ListPermission mocks base method.
-func (m *MockService) ListPermission(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.PermissionListResponse, error) {
+func (m *MockService) ListPermission(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.PermissionListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListPermission", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListPermission", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.PermissionListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListPermission indicates an expected call of ListPermission.
-func (mr *MockServiceMockRecorder) ListPermission(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListPermission(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPermission", reflect.TypeOf((*MockService)(nil).ListPermission), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPermission", reflect.TypeOf((*MockService)(nil).ListPermission), ctx, getEntitiesRequest)
 }
 
 // ListProject mocks base method.
-func (m *MockService) ListProject(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.ProjectListResponse, error) {
+func (m *MockService) ListProject(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.ProjectListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListProject", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListProject", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.ProjectListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListProject indicates an expected call of ListProject.
-func (mr *MockServiceMockRecorder) ListProject(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListProject(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProject", reflect.TypeOf((*MockService)(nil).ListProject), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProject", reflect.TypeOf((*MockService)(nil).ListProject), ctx, getEntitiesRequest)
 }
 
 // ListProtectionRules mocks base method.
-func (m *MockService) ListProtectionRules(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.ProtectionRulesListResponse, error) {
+func (m *MockService) ListProtectionRules(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.ProtectionRulesListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListProtectionRules", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListProtectionRules", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.ProtectionRulesListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListProtectionRules indicates an expected call of ListProtectionRules.
-func (mr *MockServiceMockRecorder) ListProtectionRules(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListProtectionRules(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProtectionRules", reflect.TypeOf((*MockService)(nil).ListProtectionRules), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProtectionRules", reflect.TypeOf((*MockService)(nil).ListProtectionRules), ctx, getEntitiesRequest)
 }
 
 // ListRecoveryPlanJobs mocks base method.
-func (m *MockService) ListRecoveryPlanJobs(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.RecoveryPlanJobListResponse, error) {
+func (m *MockService) ListRecoveryPlanJobs(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.RecoveryPlanJobListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListRecoveryPlanJobs", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListRecoveryPlanJobs", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.RecoveryPlanJobListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListRecoveryPlanJobs indicates an expected call of ListRecoveryPlanJobs.
-func (mr *MockServiceMockRecorder) ListRecoveryPlanJobs(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListRecoveryPlanJobs(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRecoveryPlanJobs", reflect.TypeOf((*MockService)(nil).ListRecoveryPlanJobs), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRecoveryPlanJobs", reflect.TypeOf((*MockService)(nil).ListRecoveryPlanJobs), ctx, getEntitiesRequest)
 }
 
 // ListRecoveryPlans mocks base method.
-func (m *MockService) ListRecoveryPlans(arg0 context.Context, arg1 *v3.DSMetadata) (*models.RecoveryPlanListIntentResponse, error) {
+func (m *MockService) ListRecoveryPlans(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*models.RecoveryPlanListIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListRecoveryPlans", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListRecoveryPlans", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*models.RecoveryPlanListIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListRecoveryPlans indicates an expected call of ListRecoveryPlans.
-func (mr *MockServiceMockRecorder) ListRecoveryPlans(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListRecoveryPlans(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRecoveryPlans", reflect.TypeOf((*MockService)(nil).ListRecoveryPlans), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRecoveryPlans", reflect.TypeOf((*MockService)(nil).ListRecoveryPlans), ctx, getEntitiesRequest)
 }
 
 // ListRole mocks base method.
-func (m *MockService) ListRole(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.RoleListResponse, error) {
+func (m *MockService) ListRole(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.RoleListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListRole", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListRole", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.RoleListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListRole indicates an expected call of ListRole.
-func (mr *MockServiceMockRecorder) ListRole(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListRole(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRole", reflect.TypeOf((*MockService)(nil).ListRole), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRole", reflect.TypeOf((*MockService)(nil).ListRole), ctx, getEntitiesRequest)
 }
 
 // ListSubnet mocks base method.
-func (m *MockService) ListSubnet(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.SubnetListIntentResponse, error) {
+func (m *MockService) ListSubnet(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.SubnetListIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListSubnet", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListSubnet", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.SubnetListIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListSubnet indicates an expected call of ListSubnet.
-func (mr *MockServiceMockRecorder) ListSubnet(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListSubnet(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSubnet", reflect.TypeOf((*MockService)(nil).ListSubnet), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSubnet", reflect.TypeOf((*MockService)(nil).ListSubnet), ctx, getEntitiesRequest)
 }
 
 // ListUser mocks base method.
-func (m *MockService) ListUser(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.UserListResponse, error) {
+func (m *MockService) ListUser(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.UserListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListUser", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListUser", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.UserListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListUser indicates an expected call of ListUser.
-func (mr *MockServiceMockRecorder) ListUser(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListUser(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUser", reflect.TypeOf((*MockService)(nil).ListUser), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUser", reflect.TypeOf((*MockService)(nil).ListUser), ctx, getEntitiesRequest)
 }
 
 // ListUserGroup mocks base method.
-func (m *MockService) ListUserGroup(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.UserGroupListResponse, error) {
+func (m *MockService) ListUserGroup(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.UserGroupListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListUserGroup", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListUserGroup", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.UserGroupListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListUserGroup indicates an expected call of ListUserGroup.
-func (mr *MockServiceMockRecorder) ListUserGroup(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListUserGroup(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserGroup", reflect.TypeOf((*MockService)(nil).ListUserGroup), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserGroup", reflect.TypeOf((*MockService)(nil).ListUserGroup), ctx, getEntitiesRequest)
 }
 
 // ListVM mocks base method.
-func (m *MockService) ListVM(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.VMListIntentResponse, error) {
+func (m *MockService) ListVM(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.VMListIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListVM", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListVM", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.VMListIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListVM indicates an expected call of ListVM.
-func (mr *MockServiceMockRecorder) ListVM(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListVM(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListVM", reflect.TypeOf((*MockService)(nil).ListVM), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListVM", reflect.TypeOf((*MockService)(nil).ListVM), ctx, getEntitiesRequest)
 }
 
 // ListVolumeGroup mocks base method.
-func (m *MockService) ListVolumeGroup(arg0 context.Context, arg1 *v3.DSMetadata) (*v3.VolumeGroupListResponse, error) {
+func (m *MockService) ListVolumeGroup(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.VolumeGroupListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListVolumeGroup", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListVolumeGroup", ctx, getEntitiesRequest)
 	ret0, _ := ret[0].(*v3.VolumeGroupListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListVolumeGroup indicates an expected call of ListVolumeGroup.
-func (mr *MockServiceMockRecorder) ListVolumeGroup(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ListVolumeGroup(ctx, getEntitiesRequest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListVolumeGroup", reflect.TypeOf((*MockService)(nil).ListVolumeGroup), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListVolumeGroup", reflect.TypeOf((*MockService)(nil).ListVolumeGroup), ctx, getEntitiesRequest)
 }
 
 // PerformRecoveryPlanJobAction mocks base method.
-func (m *MockService) PerformRecoveryPlanJobAction(arg0 context.Context, arg1, arg2 string, arg3 *v3.RecoveryPlanJobActionRequest) (*v3.RecoveryPlanJobResponse, error) {
+func (m *MockService) PerformRecoveryPlanJobAction(ctx context.Context, uuid, action string, request *v3.RecoveryPlanJobActionRequest) (*v3.RecoveryPlanJobResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PerformRecoveryPlanJobAction", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "PerformRecoveryPlanJobAction", ctx, uuid, action, request)
 	ret0, _ := ret[0].(*v3.RecoveryPlanJobResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PerformRecoveryPlanJobAction indicates an expected call of PerformRecoveryPlanJobAction.
-func (mr *MockServiceMockRecorder) PerformRecoveryPlanJobAction(arg0, arg1, arg2, arg3 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) PerformRecoveryPlanJobAction(ctx, uuid, action, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PerformRecoveryPlanJobAction", reflect.TypeOf((*MockService)(nil).PerformRecoveryPlanJobAction), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PerformRecoveryPlanJobAction", reflect.TypeOf((*MockService)(nil).PerformRecoveryPlanJobAction), ctx, uuid, action, request)
 }
 
 // ProcessProtectionRule mocks base method.
-func (m *MockService) ProcessProtectionRule(arg0 context.Context, arg1 string) error {
+func (m *MockService) ProcessProtectionRule(ctx context.Context, uuid string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProcessProtectionRule", arg0, arg1)
+	ret := m.ctrl.Call(m, "ProcessProtectionRule", ctx, uuid)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ProcessProtectionRule indicates an expected call of ProcessProtectionRule.
-func (mr *MockServiceMockRecorder) ProcessProtectionRule(arg0, arg1 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) ProcessProtectionRule(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessProtectionRule", reflect.TypeOf((*MockService)(nil).ProcessProtectionRule), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessProtectionRule", reflect.TypeOf((*MockService)(nil).ProcessProtectionRule), ctx, uuid)
 }
 
 // UpdateAccessControlPolicy mocks base method.
-func (m *MockService) UpdateAccessControlPolicy(arg0 context.Context, arg1 string, arg2 *v3.AccessControlPolicy) (*v3.AccessControlPolicy, error) {
+func (m *MockService) UpdateAccessControlPolicy(ctx context.Context, uuid string, body *v3.AccessControlPolicy) (*v3.AccessControlPolicy, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateAccessControlPolicy", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateAccessControlPolicy", ctx, uuid, body)
 	ret0, _ := ret[0].(*v3.AccessControlPolicy)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateAccessControlPolicy indicates an expected call of UpdateAccessControlPolicy.
-func (mr *MockServiceMockRecorder) UpdateAccessControlPolicy(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) UpdateAccessControlPolicy(ctx, uuid, body any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAccessControlPolicy", reflect.TypeOf((*MockService)(nil).UpdateAccessControlPolicy), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAccessControlPolicy", reflect.TypeOf((*MockService)(nil).UpdateAccessControlPolicy), ctx, uuid, body)
 }
 
 // UpdateAddressGroup mocks base method.
-func (m *MockService) UpdateAddressGroup(arg0 context.Context, arg1 string, arg2 *v3.AddressGroupInput) error {
+func (m *MockService) UpdateAddressGroup(ctx context.Context, uuid string, body *v3.AddressGroupInput) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateAddressGroup", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateAddressGroup", ctx, uuid, body)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateAddressGroup indicates an expected call of UpdateAddressGroup.
-func (mr *MockServiceMockRecorder) UpdateAddressGroup(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) UpdateAddressGroup(ctx, uuid, body any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAddressGroup", reflect.TypeOf((*MockService)(nil).UpdateAddressGroup), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAddressGroup", reflect.TypeOf((*MockService)(nil).UpdateAddressGroup), ctx, uuid, body)
 }
 
 // UpdateImage mocks base method.
-func (m *MockService) UpdateImage(arg0 context.Context, arg1 string, arg2 *v3.ImageIntentInput) (*v3.ImageIntentResponse, error) {
+func (m *MockService) UpdateImage(ctx context.Context, uuid string, body *v3.ImageIntentInput) (*v3.ImageIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateImage", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateImage", ctx, uuid, body)
 	ret0, _ := ret[0].(*v3.ImageIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateImage indicates an expected call of UpdateImage.
-func (mr *MockServiceMockRecorder) UpdateImage(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) UpdateImage(ctx, uuid, body any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateImage", reflect.TypeOf((*MockService)(nil).UpdateImage), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateImage", reflect.TypeOf((*MockService)(nil).UpdateImage), ctx, uuid, body)
 }
 
 // UpdateNetworkSecurityRule mocks base method.
-func (m *MockService) UpdateNetworkSecurityRule(arg0 context.Context, arg1 string, arg2 *v3.NetworkSecurityRuleIntentInput) (*v3.NetworkSecurityRuleIntentResponse, error) {
+func (m *MockService) UpdateNetworkSecurityRule(ctx context.Context, uuid string, body *v3.NetworkSecurityRuleIntentInput) (*v3.NetworkSecurityRuleIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateNetworkSecurityRule", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateNetworkSecurityRule", ctx, uuid, body)
 	ret0, _ := ret[0].(*v3.NetworkSecurityRuleIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateNetworkSecurityRule indicates an expected call of UpdateNetworkSecurityRule.
-func (mr *MockServiceMockRecorder) UpdateNetworkSecurityRule(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) UpdateNetworkSecurityRule(ctx, uuid, body any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNetworkSecurityRule", reflect.TypeOf((*MockService)(nil).UpdateNetworkSecurityRule), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNetworkSecurityRule", reflect.TypeOf((*MockService)(nil).UpdateNetworkSecurityRule), ctx, uuid, body)
 }
 
 // UpdateProject mocks base method.
-func (m *MockService) UpdateProject(arg0 context.Context, arg1 string, arg2 *v3.Project) (*v3.Project, error) {
+func (m *MockService) UpdateProject(ctx context.Context, uuid string, body *v3.Project) (*v3.Project, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateProject", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateProject", ctx, uuid, body)
 	ret0, _ := ret[0].(*v3.Project)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateProject indicates an expected call of UpdateProject.
-func (mr *MockServiceMockRecorder) UpdateProject(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) UpdateProject(ctx, uuid, body any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProject", reflect.TypeOf((*MockService)(nil).UpdateProject), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProject", reflect.TypeOf((*MockService)(nil).UpdateProject), ctx, uuid, body)
 }
 
 // UpdateProtectionRule mocks base method.
-func (m *MockService) UpdateProtectionRule(arg0 context.Context, arg1 string, arg2 *v3.ProtectionRuleInput) (*v3.ProtectionRuleResponse, error) {
+func (m *MockService) UpdateProtectionRule(ctx context.Context, uuid string, body *v3.ProtectionRuleInput) (*v3.ProtectionRuleResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateProtectionRule", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateProtectionRule", ctx, uuid, body)
 	ret0, _ := ret[0].(*v3.ProtectionRuleResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateProtectionRule indicates an expected call of UpdateProtectionRule.
-func (mr *MockServiceMockRecorder) UpdateProtectionRule(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) UpdateProtectionRule(ctx, uuid, body any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProtectionRule", reflect.TypeOf((*MockService)(nil).UpdateProtectionRule), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProtectionRule", reflect.TypeOf((*MockService)(nil).UpdateProtectionRule), ctx, uuid, body)
 }
 
 // UpdateRecoveryPlan mocks base method.
-func (m *MockService) UpdateRecoveryPlan(arg0 context.Context, arg1 string, arg2 *models.RecoveryPlanIntentInput) (*models.RecoveryPlanIntentResponse, error) {
+func (m *MockService) UpdateRecoveryPlan(ctx context.Context, uuid string, body *models.RecoveryPlanIntentInput) (*models.RecoveryPlanIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateRecoveryPlan", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateRecoveryPlan", ctx, uuid, body)
 	ret0, _ := ret[0].(*models.RecoveryPlanIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateRecoveryPlan indicates an expected call of UpdateRecoveryPlan.
-func (mr *MockServiceMockRecorder) UpdateRecoveryPlan(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) UpdateRecoveryPlan(ctx, uuid, body any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRecoveryPlan", reflect.TypeOf((*MockService)(nil).UpdateRecoveryPlan), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRecoveryPlan", reflect.TypeOf((*MockService)(nil).UpdateRecoveryPlan), ctx, uuid, body)
 }
 
 // UpdateRole mocks base method.
-func (m *MockService) UpdateRole(arg0 context.Context, arg1 string, arg2 *v3.Role) (*v3.Role, error) {
+func (m *MockService) UpdateRole(ctx context.Context, uuid string, body *v3.Role) (*v3.Role, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateRole", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateRole", ctx, uuid, body)
 	ret0, _ := ret[0].(*v3.Role)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateRole indicates an expected call of UpdateRole.
-func (mr *MockServiceMockRecorder) UpdateRole(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) UpdateRole(ctx, uuid, body any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRole", reflect.TypeOf((*MockService)(nil).UpdateRole), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRole", reflect.TypeOf((*MockService)(nil).UpdateRole), ctx, uuid, body)
 }
 
 // UpdateServiceGroup mocks base method.
-func (m *MockService) UpdateServiceGroup(arg0 context.Context, arg1 string, arg2 *v3.ServiceGroupInput) error {
+func (m *MockService) UpdateServiceGroup(ctx context.Context, uuid string, body *v3.ServiceGroupInput) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateServiceGroup", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateServiceGroup", ctx, uuid, body)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateServiceGroup indicates an expected call of UpdateServiceGroup.
-func (mr *MockServiceMockRecorder) UpdateServiceGroup(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) UpdateServiceGroup(ctx, uuid, body any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateServiceGroup", reflect.TypeOf((*MockService)(nil).UpdateServiceGroup), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateServiceGroup", reflect.TypeOf((*MockService)(nil).UpdateServiceGroup), ctx, uuid, body)
 }
 
 // UpdateSubnet mocks base method.
-func (m *MockService) UpdateSubnet(arg0 context.Context, arg1 string, arg2 *v3.SubnetIntentInput) (*v3.SubnetIntentResponse, error) {
+func (m *MockService) UpdateSubnet(ctx context.Context, uuid string, body *v3.SubnetIntentInput) (*v3.SubnetIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateSubnet", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateSubnet", ctx, uuid, body)
 	ret0, _ := ret[0].(*v3.SubnetIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateSubnet indicates an expected call of UpdateSubnet.
-func (mr *MockServiceMockRecorder) UpdateSubnet(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) UpdateSubnet(ctx, uuid, body any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSubnet", reflect.TypeOf((*MockService)(nil).UpdateSubnet), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSubnet", reflect.TypeOf((*MockService)(nil).UpdateSubnet), ctx, uuid, body)
 }
 
 // UpdateUser mocks base method.
-func (m *MockService) UpdateUser(arg0 context.Context, arg1 string, arg2 *v3.UserIntentInput) (*v3.UserIntentResponse, error) {
+func (m *MockService) UpdateUser(ctx context.Context, uuid string, body *v3.UserIntentInput) (*v3.UserIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUser", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateUser", ctx, uuid, body)
 	ret0, _ := ret[0].(*v3.UserIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateUser indicates an expected call of UpdateUser.
-func (mr *MockServiceMockRecorder) UpdateUser(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) UpdateUser(ctx, uuid, body any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUser", reflect.TypeOf((*MockService)(nil).UpdateUser), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUser", reflect.TypeOf((*MockService)(nil).UpdateUser), ctx, uuid, body)
 }
 
 // UpdateVM mocks base method.
-func (m *MockService) UpdateVM(arg0 context.Context, arg1 string, arg2 *v3.VMIntentInput) (*v3.VMIntentResponse, error) {
+func (m *MockService) UpdateVM(ctx context.Context, uuid string, body *v3.VMIntentInput) (*v3.VMIntentResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateVM", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateVM", ctx, uuid, body)
 	ret0, _ := ret[0].(*v3.VMIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateVM indicates an expected call of UpdateVM.
-func (mr *MockServiceMockRecorder) UpdateVM(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) UpdateVM(ctx, uuid, body any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateVM", reflect.TypeOf((*MockService)(nil).UpdateVM), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateVM", reflect.TypeOf((*MockService)(nil).UpdateVM), ctx, uuid, body)
 }
 
 // UpdateVolumeGroup mocks base method.
-func (m *MockService) UpdateVolumeGroup(arg0 context.Context, arg1 string, arg2 *v3.VolumeGroupInput) (*v3.VolumeGroupResponse, error) {
+func (m *MockService) UpdateVolumeGroup(ctx context.Context, uuid string, body *v3.VolumeGroupInput) (*v3.VolumeGroupResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateVolumeGroup", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateVolumeGroup", ctx, uuid, body)
 	ret0, _ := ret[0].(*v3.VolumeGroupResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateVolumeGroup indicates an expected call of UpdateVolumeGroup.
-func (mr *MockServiceMockRecorder) UpdateVolumeGroup(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) UpdateVolumeGroup(ctx, uuid, body any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateVolumeGroup", reflect.TypeOf((*MockService)(nil).UpdateVolumeGroup), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateVolumeGroup", reflect.TypeOf((*MockService)(nil).UpdateVolumeGroup), ctx, uuid, body)
 }
 
 // UploadImage mocks base method.
-func (m *MockService) UploadImage(arg0 context.Context, arg1, arg2 string) error {
+func (m *MockService) UploadImage(ctx context.Context, uuid, filepath string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UploadImage", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UploadImage", ctx, uuid, filepath)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UploadImage indicates an expected call of UploadImage.
-func (mr *MockServiceMockRecorder) UploadImage(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockServiceMockRecorder) UploadImage(ctx, uuid, filepath any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UploadImage", reflect.TypeOf((*MockService)(nil).UploadImage), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UploadImage", reflect.TypeOf((*MockService)(nil).UploadImage), ctx, uuid, filepath)
 }

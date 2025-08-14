@@ -134,12 +134,12 @@ type ExtendedResult struct {
 
 type NutanixUnitOfWork[T any] struct {
 	Step      capiv1.ConditionType
-	Actions   map[PrismCondition]func(nctx NutanixExtendedContext, scope T) (ExtendedResult, error)
-	OnSuccess func(nctx NutanixExtendedContext, scope T, result ExtendedResult) error
-	OnFailure func(nctx NutanixExtendedContext, scope T, result ExtendedResult) error
+	Actions   map[PrismCondition]func(nctx *NutanixExtendedContext, scope *T) (ExtendedResult, error)
+	OnSuccess func(nctx *NutanixExtendedContext, scope *T, result ExtendedResult) error
+	OnFailure func(nctx *NutanixExtendedContext, scope *T, result ExtendedResult) error
 }
 
-func (uow *NutanixUnitOfWork[T]) Execute(nctx NutanixExtendedContext, scope T) (ExtendedResult, error) {
+func (uow *NutanixUnitOfWork[T]) Execute(nctx *NutanixExtendedContext, scope *T) (ExtendedResult, error) {
 	var result ExtendedResult
 	var err error
 
@@ -170,7 +170,7 @@ func (uow *NutanixUnitOfWork[T]) Execute(nctx NutanixExtendedContext, scope T) (
 	return result, err
 }
 
-func (uow *NutanixUnitOfWork[T]) PostExecute(nctx NutanixExtendedContext, scope T, result ExtendedResult) error {
+func (uow *NutanixUnitOfWork[T]) PostExecute(nctx *NutanixExtendedContext, scope *T, result ExtendedResult) error {
 	log := ctrl.LoggerFrom(nctx.Context)
 	if result.ActionError == nil {
 		if uow.OnSuccess != nil {
@@ -191,10 +191,10 @@ func (uow *NutanixUnitOfWork[T]) PostExecute(nctx NutanixExtendedContext, scope 
 }
 
 type NutanixUoWBatch[T any] struct {
-	UoWs []NutanixUnitOfWork[T]
+	UoWs []*NutanixUnitOfWork[T]
 }
 
-func (batch *NutanixUoWBatch[T]) Execute(nctx NutanixExtendedContext, scope T) (reconcile.Result, error) {
+func (batch *NutanixUoWBatch[T]) Execute(nctx *NutanixExtendedContext, scope *T) (reconcile.Result, error) {
 	var lastResult ExtendedResult
 	var err error
 

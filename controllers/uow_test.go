@@ -42,22 +42,22 @@ func TestNutanixUoWBatchExecuteNormal(t *testing.T) {
 		},
 	}
 
-	defaultOnSuccess := func(nctx NutanixExtendedContext, scope NutanixClusterScope, result ExtendedResult) error {
+	defaultOnSuccess := func(nctx *NutanixExtendedContext, scope *NutanixClusterScope, result ExtendedResult) error {
 		stepResults[result.Step] = true
 		return nil
 	}
 
-	defaultOnFailure := func(nctx NutanixExtendedContext, scope NutanixClusterScope, result ExtendedResult) error {
+	defaultOnFailure := func(nctx *NutanixExtendedContext, scope *NutanixClusterScope, result ExtendedResult) error {
 		stepResults[result.Step] = false
 		return nil
 	}
 
 	batch := NutanixUoWBatch[NutanixClusterScope]{
-		UoWs: []NutanixUnitOfWork[NutanixClusterScope]{
+		UoWs: []*NutanixUnitOfWork[NutanixClusterScope]{
 			{
 				Step: step1,
-				Actions: map[PrismCondition]func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error){
-					PrismConditionV3andV4FacadeClientReady: func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error) {
+				Actions: map[PrismCondition]func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error){
+					PrismConditionV3andV4FacadeClientReady: func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error) {
 						return ExtendedResult{}, nil
 					},
 				},
@@ -66,8 +66,8 @@ func TestNutanixUoWBatchExecuteNormal(t *testing.T) {
 			},
 			{
 				Step: step2,
-				Actions: map[PrismCondition]func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error){
-					PrismConditionV3andV4FacadeClientReady: func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error) {
+				Actions: map[PrismCondition]func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error){
+					PrismConditionV3andV4FacadeClientReady: func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error) {
 						return ExtendedResult{}, nil
 					},
 				},
@@ -77,7 +77,7 @@ func TestNutanixUoWBatchExecuteNormal(t *testing.T) {
 		},
 	}
 
-	_, err := batch.Execute(nctx, NutanixClusterScope{})
+	_, err := batch.Execute(&nctx, &NutanixClusterScope{})
 	if err != nil {
 		t.Fatalf("error executing batch: %v", err)
 	}
@@ -95,22 +95,22 @@ func TestNutanixUoWBatchExecuteWithStopReconcile(t *testing.T) {
 
 	stepResults := map[capiv1.ConditionType]bool{}
 
-	defaultOnSuccess := func(nctx NutanixExtendedContext, scope NutanixClusterScope, result ExtendedResult) error {
+	defaultOnSuccess := func(nctx *NutanixExtendedContext, scope *NutanixClusterScope, result ExtendedResult) error {
 		stepResults[result.Step] = true
 		return nil
 	}
 
-	defaultOnFailure := func(nctx NutanixExtendedContext, scope NutanixClusterScope, result ExtendedResult) error {
+	defaultOnFailure := func(nctx *NutanixExtendedContext, scope *NutanixClusterScope, result ExtendedResult) error {
 		stepResults[result.Step] = false
 		return nil
 	}
 
 	batch := NutanixUoWBatch[NutanixClusterScope]{
-		UoWs: []NutanixUnitOfWork[NutanixClusterScope]{
+		UoWs: []*NutanixUnitOfWork[NutanixClusterScope]{
 			{
 				Step: step1,
-				Actions: map[PrismCondition]func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error){
-					PrismConditionV3andV4FacadeClientReady: func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error) {
+				Actions: map[PrismCondition]func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error){
+					PrismConditionV3andV4FacadeClientReady: func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error) {
 						return ExtendedResult{StopReconcile: true}, nil
 					},
 				},
@@ -119,8 +119,8 @@ func TestNutanixUoWBatchExecuteWithStopReconcile(t *testing.T) {
 			},
 			{
 				Step: step2,
-				Actions: map[PrismCondition]func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error){
-					PrismConditionV3andV4FacadeClientReady: func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error) {
+				Actions: map[PrismCondition]func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error){
+					PrismConditionV3andV4FacadeClientReady: func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error) {
 						return ExtendedResult{}, nil
 					},
 				},
@@ -139,7 +139,7 @@ func TestNutanixUoWBatchExecuteWithStopReconcile(t *testing.T) {
 			V4Facade: &mocknutanixv4.MockFacadeClientV4{},
 		},
 	}
-	_, err := batch.Execute(nctx, NutanixClusterScope{})
+	_, err := batch.Execute(&nctx, &NutanixClusterScope{})
 	if err != nil {
 		t.Fatalf("error executing batch: %v", err)
 	}
@@ -165,22 +165,22 @@ func TestNutanixUoWBatchExecuteWithError(t *testing.T) {
 
 	stepResults := map[capiv1.ConditionType]bool{}
 
-	defaultOnSuccess := func(nctx NutanixExtendedContext, scope NutanixClusterScope, result ExtendedResult) error {
+	defaultOnSuccess := func(nctx *NutanixExtendedContext, scope *NutanixClusterScope, result ExtendedResult) error {
 		stepResults[result.Step] = true
 		return nil
 	}
 
-	defaultOnFailure := func(nctx NutanixExtendedContext, scope NutanixClusterScope, result ExtendedResult) error {
+	defaultOnFailure := func(nctx *NutanixExtendedContext, scope *NutanixClusterScope, result ExtendedResult) error {
 		stepResults[result.Step] = false
 		return nil
 	}
 
 	batch := NutanixUoWBatch[NutanixClusterScope]{
-		UoWs: []NutanixUnitOfWork[NutanixClusterScope]{
+		UoWs: []*NutanixUnitOfWork[NutanixClusterScope]{
 			{
 				Step: step1,
-				Actions: map[PrismCondition]func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error){
-					PrismConditionV3andV4FacadeClientReady: func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error) {
+				Actions: map[PrismCondition]func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error){
+					PrismConditionV3andV4FacadeClientReady: func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error) {
 						return ExtendedResult{}, errors.New("test error")
 					},
 				},
@@ -189,8 +189,8 @@ func TestNutanixUoWBatchExecuteWithError(t *testing.T) {
 			},
 			{
 				Step: step2,
-				Actions: map[PrismCondition]func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error){
-					PrismConditionV3andV4FacadeClientReady: func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error) {
+				Actions: map[PrismCondition]func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error){
+					PrismConditionV3andV4FacadeClientReady: func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error) {
 						return ExtendedResult{}, nil
 					},
 				},
@@ -209,7 +209,7 @@ func TestNutanixUoWBatchExecuteWithError(t *testing.T) {
 			V4Facade: &mocknutanixv4.MockFacadeClientV4{},
 		},
 	}
-	_, err := batch.Execute(nctx, NutanixClusterScope{})
+	_, err := batch.Execute(&nctx, &NutanixClusterScope{})
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -233,22 +233,22 @@ func TestNutanixUoWBatchExecuteWithRequeue(t *testing.T) {
 
 	stepResults := map[capiv1.ConditionType]bool{}
 
-	defaultOnSuccess := func(nctx NutanixExtendedContext, scope NutanixClusterScope, result ExtendedResult) error {
+	defaultOnSuccess := func(nctx *NutanixExtendedContext, scope *NutanixClusterScope, result ExtendedResult) error {
 		stepResults[result.Step] = true
 		return nil
 	}
 
-	defaultOnFailure := func(nctx NutanixExtendedContext, scope NutanixClusterScope, result ExtendedResult) error {
+	defaultOnFailure := func(nctx *NutanixExtendedContext, scope *NutanixClusterScope, result ExtendedResult) error {
 		stepResults[result.Step] = false
 		return nil
 	}
 
 	batch := NutanixUoWBatch[NutanixClusterScope]{
-		UoWs: []NutanixUnitOfWork[NutanixClusterScope]{
+		UoWs: []*NutanixUnitOfWork[NutanixClusterScope]{
 			{
 				Step: step1,
-				Actions: map[PrismCondition]func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error){
-					PrismConditionV3andV4FacadeClientReady: func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error) {
+				Actions: map[PrismCondition]func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error){
+					PrismConditionV3andV4FacadeClientReady: func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error) {
 						return ExtendedResult{Result: reconcile.Result{Requeue: true}}, nil
 					},
 				},
@@ -257,8 +257,8 @@ func TestNutanixUoWBatchExecuteWithRequeue(t *testing.T) {
 			},
 			{
 				Step: step2,
-				Actions: map[PrismCondition]func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error){
-					PrismConditionV3andV4FacadeClientReady: func(nctx NutanixExtendedContext, scope NutanixClusterScope) (ExtendedResult, error) {
+				Actions: map[PrismCondition]func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error){
+					PrismConditionV3andV4FacadeClientReady: func(nctx *NutanixExtendedContext, scope *NutanixClusterScope) (ExtendedResult, error) {
 						return ExtendedResult{}, nil
 					},
 				},
@@ -277,7 +277,7 @@ func TestNutanixUoWBatchExecuteWithRequeue(t *testing.T) {
 			V4Facade: &mocknutanixv4.MockFacadeClientV4{},
 		},
 	}
-	_, err := batch.Execute(nctx, NutanixClusterScope{})
+	_, err := batch.Execute(&nctx, &NutanixClusterScope{})
 	if err != nil {
 		t.Fatalf("error executing batch: %v", err)
 	}
