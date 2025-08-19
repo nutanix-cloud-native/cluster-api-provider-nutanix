@@ -196,7 +196,7 @@ func (mr *MockFacadeClientV4MockRecorder) GetImage(uuid any) *gomock.Call {
 }
 
 // GetListIteratorAntiAffinityPolicies mocks base method.
-func (m *MockFacadeClientV4) GetListIteratorAntiAffinityPolicies(opts ...facade.ODataOption) (facade.ODataListIterator[policies.VmAntiAffinityPolicy], error) {
+func (m *MockFacadeClientV4) GetListIteratorAntiAffinityPolicies(opts ...facade.ODataOption) facade.ODataListIterator[policies.VmAntiAffinityPolicy] {
 	m.ctrl.T.Helper()
 	varargs := []any{}
 	for _, a := range opts {
@@ -204,8 +204,7 @@ func (m *MockFacadeClientV4) GetListIteratorAntiAffinityPolicies(opts ...facade.
 	}
 	ret := m.ctrl.Call(m, "GetListIteratorAntiAffinityPolicies", varargs...)
 	ret0, _ := ret[0].(facade.ODataListIterator[policies.VmAntiAffinityPolicy])
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // GetListIteratorAntiAffinityPolicies indicates an expected call of GetListIteratorAntiAffinityPolicies.
@@ -215,7 +214,7 @@ func (mr *MockFacadeClientV4MockRecorder) GetListIteratorAntiAffinityPolicies(op
 }
 
 // GetListIteratorCategories mocks base method.
-func (m *MockFacadeClientV4) GetListIteratorCategories(opts ...facade.ODataOption) (facade.ODataListIterator[config1.Category], error) {
+func (m *MockFacadeClientV4) GetListIteratorCategories(opts ...facade.ODataOption) facade.ODataListIterator[config1.Category] {
 	m.ctrl.T.Helper()
 	varargs := []any{}
 	for _, a := range opts {
@@ -223,8 +222,7 @@ func (m *MockFacadeClientV4) GetListIteratorCategories(opts ...facade.ODataOptio
 	}
 	ret := m.ctrl.Call(m, "GetListIteratorCategories", varargs...)
 	ret0, _ := ret[0].(facade.ODataListIterator[config1.Category])
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // GetListIteratorCategories indicates an expected call of GetListIteratorCategories.
@@ -234,7 +232,7 @@ func (mr *MockFacadeClientV4MockRecorder) GetListIteratorCategories(opts ...any)
 }
 
 // GetListIteratorClusters mocks base method.
-func (m *MockFacadeClientV4) GetListIteratorClusters(opts ...facade.ODataOption) (facade.ODataListIterator[config.Cluster], error) {
+func (m *MockFacadeClientV4) GetListIteratorClusters(opts ...facade.ODataOption) facade.ODataListIterator[config.Cluster] {
 	m.ctrl.T.Helper()
 	varargs := []any{}
 	for _, a := range opts {
@@ -242,8 +240,7 @@ func (m *MockFacadeClientV4) GetListIteratorClusters(opts ...facade.ODataOption)
 	}
 	ret := m.ctrl.Call(m, "GetListIteratorClusters", varargs...)
 	ret0, _ := ret[0].(facade.ODataListIterator[config.Cluster])
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // GetListIteratorClusters indicates an expected call of GetListIteratorClusters.
@@ -253,7 +250,7 @@ func (mr *MockFacadeClientV4MockRecorder) GetListIteratorClusters(opts ...any) *
 }
 
 // GetListIteratorImages mocks base method.
-func (m *MockFacadeClientV4) GetListIteratorImages(opts ...facade.ODataOption) (facade.ODataListIterator[content.Image], error) {
+func (m *MockFacadeClientV4) GetListIteratorImages(opts ...facade.ODataOption) facade.ODataListIterator[content.Image] {
 	m.ctrl.T.Helper()
 	varargs := []any{}
 	for _, a := range opts {
@@ -261,8 +258,7 @@ func (m *MockFacadeClientV4) GetListIteratorImages(opts ...facade.ODataOption) (
 	}
 	ret := m.ctrl.Call(m, "GetListIteratorImages", varargs...)
 	ret0, _ := ret[0].(facade.ODataListIterator[content.Image])
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // GetListIteratorImages indicates an expected call of GetListIteratorImages.
@@ -272,7 +268,7 @@ func (mr *MockFacadeClientV4MockRecorder) GetListIteratorImages(opts ...any) *go
 }
 
 // GetListIteratorStorageContainers mocks base method.
-func (m *MockFacadeClientV4) GetListIteratorStorageContainers(opts ...facade.ODataOption) (facade.ODataListIterator[config.StorageContainer], error) {
+func (m *MockFacadeClientV4) GetListIteratorStorageContainers(opts ...facade.ODataOption) facade.ODataListIterator[config.StorageContainer] {
 	m.ctrl.T.Helper()
 	varargs := []any{}
 	for _, a := range opts {
@@ -280,8 +276,7 @@ func (m *MockFacadeClientV4) GetListIteratorStorageContainers(opts ...facade.ODa
 	}
 	ret := m.ctrl.Call(m, "GetListIteratorStorageContainers", varargs...)
 	ret0, _ := ret[0].(facade.ODataListIterator[config.StorageContainer])
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // GetListIteratorStorageContainers indicates an expected call of GetListIteratorStorageContainers.
@@ -291,7 +286,7 @@ func (mr *MockFacadeClientV4MockRecorder) GetListIteratorStorageContainers(opts 
 }
 
 // GetListIteratorSubnets mocks base method.
-func (m *MockFacadeClientV4) GetListIteratorSubnets(opts ...facade.ODataOption) (facade.ODataListIterator[config0.Subnet], error) {
+func (m *MockFacadeClientV4) GetListIteratorSubnets(opts ...facade.ODataOption) facade.ODataListIterator[config0.Subnet] {
 	m.ctrl.T.Helper()
 	varargs := []any{}
 	for _, a := range opts {
@@ -299,8 +294,7 @@ func (m *MockFacadeClientV4) GetListIteratorSubnets(opts ...facade.ODataOption) 
 	}
 	ret := m.ctrl.Call(m, "GetListIteratorSubnets", varargs...)
 	ret0, _ := ret[0].(facade.ODataListIterator[config0.Subnet])
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // GetListIteratorSubnets indicates an expected call of GetListIteratorSubnets.
@@ -310,7 +304,7 @@ func (mr *MockFacadeClientV4MockRecorder) GetListIteratorSubnets(opts ...any) *g
 }
 
 // GetListIteratorVMs mocks base method.
-func (m *MockFacadeClientV4) GetListIteratorVMs(opts ...facade.ODataOption) (facade.ODataListIterator[config2.Vm], error) {
+func (m *MockFacadeClientV4) GetListIteratorVMs(opts ...facade.ODataOption) facade.ODataListIterator[config2.Vm] {
 	m.ctrl.T.Helper()
 	varargs := []any{}
 	for _, a := range opts {
@@ -318,8 +312,7 @@ func (m *MockFacadeClientV4) GetListIteratorVMs(opts ...facade.ODataOption) (fac
 	}
 	ret := m.ctrl.Call(m, "GetListIteratorVMs", varargs...)
 	ret0, _ := ret[0].(facade.ODataListIterator[config2.Vm])
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // GetListIteratorVMs indicates an expected call of GetListIteratorVMs.
