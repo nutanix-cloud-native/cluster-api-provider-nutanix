@@ -23,7 +23,11 @@ import (
 func (r *NutanixMachineReconciler) GetUoWNormalBatch() *controllers.NutanixUoWBatch[NutanixMachineScope] {
 	NutanixMachineUoWAddFinalizer := r.NewNutanixMachineUoW(
 		NutanixMachineAddFinalizer,
-		map[controllers.PrismCondition]func(nctx *controllers.NutanixExtendedContext, scope *NutanixMachineScope) (controllers.ExtendedResult, error){},
+		map[controllers.PrismCondition]func(nctx *controllers.NutanixExtendedContext, scope *NutanixMachineScope) (controllers.ExtendedResult, error){
+			controllers.PrismConditionV3andV4FacadeClientReady: r.AddFinalizer,
+			controllers.PrismConditionV3OnlyClientReady:        r.AddFinalizer,
+			controllers.PrismConditionNoClientsReady:           r.FatalPrismCondtion,
+		},
 	)
 
 	NutanixMachineProviderIdReady := r.NewNutanixMachineUoW(

@@ -103,6 +103,7 @@ func (c *ExtendedContext) GetPatchHelper() *patch.Helper {
 type NutanixExtendedContext struct {
 	ExtendedContext
 	NutanixClients *NutanixClients
+	PrismCondition PrismCondition
 }
 
 func (ntnxCtx *NutanixExtendedContext) GetV3Client() *prismclientv3.Client {
@@ -146,7 +147,7 @@ func (uow *NutanixUnitOfWork[T]) Execute(nctx *NutanixExtendedContext, scope *T)
 	log := ctrl.LoggerFrom(nctx.Context)
 	log.Info("Executing unit of work", "step", uow.Step)
 
-	prismCondition := nctx.NutanixClients.GetPrismCondition()
+	prismCondition := nctx.PrismCondition
 
 	action, ok := uow.Actions[prismCondition]
 	if !ok {

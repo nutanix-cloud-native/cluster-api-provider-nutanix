@@ -168,6 +168,7 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			PatchHelper: patchHelper,
 		},
 		NutanixClients: clients,
+		PrismCondition: clients.GetPrismCondition(),
 	}
 
 	// Create a NutanixMachineScope.
