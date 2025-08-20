@@ -165,6 +165,10 @@ spec:
                         required:
                         - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: exactly one of 'name' or 'uuid' must be specified
+                          rule: (!has(self.name) && has(self.uuid)) || (has(self.name)
+                            && !has(self.uuid))
                       dataDisks:
                         description: dataDisks hold the list of data disks to be attached
                           to the VM
@@ -193,6 +197,10 @@ spec:
                               required:
                               - type
                               type: object
+                              x-kubernetes-validations:
+                              - message: exactly one of 'name' or 'uuid' must be specified
+                                rule: (!has(self.name) && has(self.uuid)) || (has(self.name)
+                                  && !has(self.uuid))
                             deviceProperties:
                               description: deviceProperties are the properties of
                                 the disk device.
@@ -278,6 +286,11 @@ spec:
                                   required:
                                   - type
                                   type: object
+                                  x-kubernetes-validations:
+                                  - message: exactly one of 'name' or 'uuid' must
+                                      be specified
+                                    rule: (!has(self.name) && has(self.uuid)) || (has(self.name)
+                                      && !has(self.uuid))
                               required:
                               - diskMode
                               type: object
@@ -330,6 +343,10 @@ spec:
                         required:
                         - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: exactly one of 'name' or 'uuid' must be specified
+                          rule: (!has(self.name) && has(self.uuid)) || (has(self.name)
+                            && !has(self.uuid))
                       imageLookup:
                         description: imageLookup is a container that holds how to
                           look up rhcos images for the cluster.
@@ -387,6 +404,10 @@ spec:
                         required:
                         - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: exactly one of 'name' or 'uuid' must be specified
+                          rule: (!has(self.name) && has(self.uuid)) || (has(self.name)
+                            && !has(self.uuid))
                       providerID:
                         description: ProviderID is the unique identifier as specified
                           by the cloud provider.
@@ -417,6 +438,10 @@ spec:
                           required:
                           - type
                           type: object
+                          x-kubernetes-validations:
+                          - message: exactly one of 'name' or 'uuid' must be specified
+                            rule: (!has(self.name) && has(self.uuid)) || (has(self.name)
+                              && !has(self.uuid))
                         type: array
                       systemDiskSize:
                         anyOf:

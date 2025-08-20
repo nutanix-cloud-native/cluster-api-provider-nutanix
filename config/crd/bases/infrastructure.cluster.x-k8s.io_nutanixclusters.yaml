@@ -132,6 +132,10 @@ spec:
                       required:
                       - type
                       type: object
+                      x-kubernetes-validations:
+                      - message: exactly one of 'name' or 'uuid' must be specified
+                        rule: (!has(self.name) && has(self.uuid)) || (has(self.name)
+                          && !has(self.uuid))
                     controlPlane:
                       description: indicates if a failure domain is suited for control
                         plane nodes
@@ -172,6 +176,10 @@ spec:
                         required:
                         - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: exactly one of 'name' or 'uuid' must be specified
+                          rule: (!has(self.name) && has(self.uuid)) || (has(self.name)
+                            && !has(self.uuid))
                       minItems: 1
                       type: array
                   required:
