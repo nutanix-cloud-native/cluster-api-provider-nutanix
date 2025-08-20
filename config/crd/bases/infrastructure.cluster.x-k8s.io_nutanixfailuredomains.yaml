@@ -68,6 +68,9 @@ spec:
                 x-kubernetes-validations:
                 - message: prismElementCluster is immutable once set
                   rule: self == oldSelf
+                - message: exactly one of 'name' or 'uuid' must be specified
+                  rule: (!has(self.name) && has(self.uuid)) || (has(self.name) &&
+                    !has(self.uuid))
               subnets:
                 description: |-
                   subnets holds a list of identifiers (one or more) of the PE cluster's network subnets
@@ -91,6 +94,10 @@ spec:
                   required:
                   - type
                   type: object
+                  x-kubernetes-validations:
+                  - message: exactly one of 'name' or 'uuid' must be specified
+                    rule: (!has(self.name) && has(self.uuid)) || (has(self.name) &&
+                      !has(self.uuid))
                 minItems: 1
                 type: array
                 x-kubernetes-validations:
