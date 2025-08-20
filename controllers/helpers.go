@@ -929,20 +929,14 @@ func GetGPUsForPE(ctx context.Context, client *prismclientv3.Client, peUUID stri
 	return gpus, nil
 }
 
-// GetFailureDomain gets the failure domain with a given name from a NutanixCluster object.
-func GetFailureDomain(failureDomainName string, nutanixCluster *infrav1.NutanixCluster) (*infrav1.NutanixFailureDomainConfig, error) { //nolint:staticcheck // suppress complaining on Deprecated type
-	if failureDomainName == "" {
-		return nil, fmt.Errorf("failure domain name must be set when searching for failure domains on a Nutanix cluster object")
-	}
-	if nutanixCluster == nil {
-		return nil, fmt.Errorf("nutanixCluster cannot be nil when searching for failure domains")
-	}
+// GetLegacyFailureDomainFromNutanixCluster gets the failure domain with a given name from a NutanixCluster object.
+func GetLegacyFailureDomainFromNutanixCluster(failureDomainName string, nutanixCluster *infrav1.NutanixCluster) *infrav1.NutanixFailureDomainConfig { //nolint:staticcheck // suppress complaining on Deprecated type
 	for _, fd := range nutanixCluster.Spec.FailureDomains { //nolint:staticcheck // suppress complaining on Deprecated field
 		if fd.Name == failureDomainName {
-			return &fd, nil
+			return &fd
 		}
 	}
-	return nil, fmt.Errorf("failed to find failure domain %s on nutanix cluster object", failureDomainName)
+	return nil
 }
 
 func ListStorageContainers(ctx context.Context, client *prismclientv3.Client) ([]*StorageContainerIntentResponse, error) {
@@ -1171,4 +1165,30 @@ func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Clien
 	}
 
 	return nil
+}
+
+func resourceIdsEquals(nris1, nris2 []infrav1.NutanixResourceIdentifier) bool {
+	if nris1 == nil && nris2 == nil {
+		return true
+	}
+	if (nris1 == nil && nris2 != nil) ||
+		(nris1 != nil && nris2 == nil) ||
+		len(nris1) != len(nris2) {
+		return false
+	}
+
+	for i := range nris1 {
+		found := false
+		for j := range nris2 {
+			if nris1[i].EqualTo(&nris2[j]) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	return true
 }

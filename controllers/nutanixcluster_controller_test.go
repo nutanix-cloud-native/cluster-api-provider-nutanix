@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -580,6 +581,230 @@ func TestNutanixClusterReconciler(t *testing.T) {
 		})
 	})
 }
+
+var _ = Describe("NutanixCluster FailureDomain CEL validation", func() {
+	var (
+		ntnxCluster *infrav1.NutanixCluster
+		ctx         context.Context
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		r := util.RandomString(10)
+
+		ntnxCluster = &infrav1.NutanixCluster{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       infrav1.NutanixClusterKind,
+				APIVersion: infrav1.GroupVersion.String(),
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-cluster-" + r,
+				Namespace: "default",
+				UID:       utilruntime.NewUUID(),
+			},
+			Spec: infrav1.NutanixClusterSpec{
+				PrismCentral: &credentialtypes.NutanixPrismEndpoint{
+					Port: 9440,
+				},
+			},
+		}
+	})
+
+	Context("Validate failure domain field constraints via envtest", func() {
+		It("should reject creation when both failureDomains and controlPlaneFailureDomains are set", func() {
+			// Create a cluster with both failure domain fields set
+			invalidCluster := ntnxCluster.DeepCopy()
+			invalidCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{ //nolint:staticcheck // deprecated field
+				{
+					Name: "fd1",
+					Cluster: infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierName,
+						Name: ptr.To("test-cluster"),
+					},
+					Subnets: []infrav1.NutanixResourceIdentifier{
+						{
+							Type: infrav1.NutanixIdentifierName,
+							Name: ptr.To("test-subnet"),
+						},
+					},
+					ControlPlane: true,
+				},
+			}
+			invalidCluster.Spec.ControlPlaneFailureDomains = []corev1.LocalObjectReference{
+				{Name: "fd1"},
+			}
+
+			// Attempt to create the cluster should fail with validation error
+			err := k8sClient.Create(ctx, invalidCluster)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("Cannot set both 'failureDomains' and 'controlPlaneFailureDomains' fields simultaneously"))
+		})
+
+		It("should allow creation when only failureDomains is set", func() {
+			// Create a cluster with only failureDomains set (deprecated field)
+			validCluster := ntnxCluster.DeepCopy()
+			validCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{ //nolint:staticcheck // deprecated field
+				{
+					Name: "fd1",
+					Cluster: infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierName,
+						Name: ptr.To("test-cluster"),
+					},
+					Subnets: []infrav1.NutanixResourceIdentifier{
+						{
+							Type: infrav1.NutanixIdentifierName,
+							Name: ptr.To("test-subnet"),
+						},
+					},
+					ControlPlane: true,
+				},
+			}
+
+			// Creation should succeed
+			Expect(k8sClient.Create(ctx, validCluster)).To(Succeed())
+
+			// Clean up
+			Expect(k8sClient.Delete(ctx, validCluster)).To(Succeed())
+		})
+
+		It("should allow creation when only controlPlaneFailureDomains is set", func() {
+			// Create a cluster with only controlPlaneFailureDomains set (new field)
+			validCluster := ntnxCluster.DeepCopy()
+			validCluster.Spec.ControlPlaneFailureDomains = []corev1.LocalObjectReference{
+				{Name: "fd1"},
+			}
+
+			// Creation should succeed
+			Expect(k8sClient.Create(ctx, validCluster)).To(Succeed())
+
+			// Clean up
+			Expect(k8sClient.Delete(ctx, validCluster)).To(Succeed())
+		})
+
+		It("should allow creation when neither failure domain field is set", func() {
+			// Create a cluster with neither failure domain field set
+			validCluster := ntnxCluster.DeepCopy()
+
+			// Creation should succeed (both fields are optional)
+			Expect(k8sClient.Create(ctx, validCluster)).To(Succeed())
+
+			// Clean up
+			Expect(k8sClient.Delete(ctx, validCluster)).To(Succeed())
+		})
+
+		It("should reject update when both fields are set via update", func() {
+			// First create a valid cluster
+			validCluster := ntnxCluster.DeepCopy()
+			Expect(k8sClient.Create(ctx, validCluster)).To(Succeed())
+
+			// Now try to update it to set both fields
+			updatedCluster := validCluster.DeepCopy()
+			updatedCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{ //nolint:staticcheck // deprecated field
+				{
+					Name: "fd1",
+					Cluster: infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierName,
+						Name: ptr.To("test-cluster"),
+					},
+					Subnets: []infrav1.NutanixResourceIdentifier{
+						{
+							Type: infrav1.NutanixIdentifierName,
+							Name: ptr.To("test-subnet"),
+						},
+					},
+					ControlPlane: true,
+				},
+			}
+			updatedCluster.Spec.ControlPlaneFailureDomains = []corev1.LocalObjectReference{
+				{Name: "fd1"},
+			}
+
+			// Update should fail with validation error
+			err := k8sClient.Update(ctx, updatedCluster)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("Cannot set both 'failureDomains' and 'controlPlaneFailureDomains' fields simultaneously"))
+
+			// Clean up the created cluster
+			Expect(k8sClient.Delete(ctx, validCluster)).To(Succeed())
+		})
+
+		It("should allow migration from legacy failureDomains to new controlPlaneFailureDomains", func() {
+			// First create a cluster with the legacy failureDomains field
+			clusterWithLegacy := ntnxCluster.DeepCopy()
+			clusterWithLegacy.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{ //nolint:staticcheck // deprecated field
+				{
+					Name: "fd1",
+					Cluster: infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierName,
+						Name: ptr.To("test-cluster"),
+					},
+					Subnets: []infrav1.NutanixResourceIdentifier{
+						{
+							Type: infrav1.NutanixIdentifierName,
+							Name: ptr.To("test-subnet"),
+						},
+					},
+					ControlPlane: true,
+				},
+			}
+
+			// Create the cluster with legacy field
+			Expect(k8sClient.Create(ctx, clusterWithLegacy)).To(Succeed())
+
+			// Now migrate: remove legacy field and add new field
+			migratedCluster := clusterWithLegacy.DeepCopy()
+			migratedCluster.Spec.FailureDomains = nil //nolint:staticcheck // Deprecated field
+			migratedCluster.Spec.ControlPlaneFailureDomains = []corev1.LocalObjectReference{
+				{Name: "fd1"},
+			}
+
+			// Migration update should succeed
+			Expect(k8sClient.Update(ctx, migratedCluster)).To(Succeed())
+
+			// Clean up the migrated cluster
+			Expect(k8sClient.Delete(ctx, migratedCluster)).To(Succeed())
+		})
+
+		It("should reject adding new controlPlaneFailureDomains to existing cluster with legacy failureDomains", func() {
+			// First create a cluster with the legacy failureDomains field
+			clusterWithLegacy := ntnxCluster.DeepCopy()
+			clusterWithLegacy.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{ //nolint:staticcheck // deprecated field
+				{
+					Name: "fd1",
+					Cluster: infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierName,
+						Name: ptr.To("test-cluster"),
+					},
+					Subnets: []infrav1.NutanixResourceIdentifier{
+						{
+							Type: infrav1.NutanixIdentifierName,
+							Name: ptr.To("test-subnet"),
+						},
+					},
+					ControlPlane: true,
+				},
+			}
+
+			// Create the cluster with legacy field
+			Expect(k8sClient.Create(ctx, clusterWithLegacy)).To(Succeed())
+
+			// Now try to add the new field without removing the legacy one (bad migration)
+			badMigrationCluster := clusterWithLegacy.DeepCopy()
+			// Keep the legacy field AND add the new field (this should fail)
+			badMigrationCluster.Spec.ControlPlaneFailureDomains = []corev1.LocalObjectReference{
+				{Name: "fd1"},
+			}
+
+			// Bad migration update should fail with validation error
+			err := k8sClient.Update(ctx, badMigrationCluster)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("Cannot set both 'failureDomains' and 'controlPlaneFailureDomains' fields simultaneously"))
+
+			// Clean up the original cluster
+			Expect(k8sClient.Delete(ctx, clusterWithLegacy)).To(Succeed())
+		})
+	})
+})
 
 func TestReconcileCredentialRefWithPrismCentralNotSetOnCluster(t *testing.T) {
 	mockCtrl := gomock.NewController(t)

@@ -100,7 +100,7 @@ var _ = Describe("Nutanix failure domains", Label("capx-feature-test", "failure-
 		})
 
 		By("Checking if machines are spread across failure domains", func() {
-			testHelper.verifyFailureDomainsOnClusterMachines(ctx, verifyFailureDomainsOnClusterMachinesParams{
+			testHelper.verifyLegacyFailureDomainsOnClusterMachines(ctx, verifyFailureDomainsOnClusterMachinesParams{
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,

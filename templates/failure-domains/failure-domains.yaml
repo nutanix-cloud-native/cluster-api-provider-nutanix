@@ -1,0 +1,39 @@
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixFailureDomain
+metadata:
+  name: "${NUTANIX_FAILURE_DOMAIN_1_NAME}"
+  namespace: "${NAMESPACE}"
+spec:
+  prismElementCluster:
+    type: name
+    name: "${NUTANIX_FAILURE_DOMAIN_1_PRISM_ELEMENT_NAME}"
+  subnets:
+    - type: name
+      name: "${NUTANIX_FAILURE_DOMAIN_1_SUBNET_NAME}"
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixFailureDomain
+metadata:
+  name: "${NUTANIX_FAILURE_DOMAIN_2_NAME}"
+  namespace: "${NAMESPACE}"
+spec:
+  prismElementCluster:
+    type: name
+    name: "${NUTANIX_FAILURE_DOMAIN_2_PRISM_ELEMENT_NAME}"
+  subnets:
+    - type: name
+      name: "${NUTANIX_FAILURE_DOMAIN_2_SUBNET_NAME}"
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixFailureDomain
+metadata:
+  name: "${NUTANIX_FAILURE_DOMAIN_3_NAME}"
+  namespace: "${NAMESPACE}"
+spec:
+  prismElementCluster:
+    type: name
+    name: "${NUTANIX_FAILURE_DOMAIN_3_PRISM_ELEMENT_NAME}"
+  subnets:
+    - type: name
+      name: "${NUTANIX_FAILURE_DOMAIN_3_SUBNET_NAME}"
