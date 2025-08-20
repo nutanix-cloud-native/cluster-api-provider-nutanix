@@ -51,7 +51,7 @@ spec:
       - name: project
         value:
           type: uuid
-          name: 00000000-0000-0000-0000-000000000001
+          uuid: 00000000-0000-0000-0000-000000000001
     version: v1.29.2
     workers:
       machineDeployments:
