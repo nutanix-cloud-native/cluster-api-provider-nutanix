@@ -168,9 +168,10 @@ spec:
                         - type
                         type: object
                         x-kubernetes-validations:
-                        - message: '''name'' configuration is required when type is
+                        - message: '''name'' must be set and non-empty when type is
                             ''name'', and forbidden otherwise'
-                          rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
+                          rule: 'self.type == ''name'' ? (has(self.name) && size(self.name)
+                            > 0) : !has(self.name)'
                         - message: '''uuid'' configuration is required when type is
                             ''uuid'', and forbidden otherwise'
                           rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
@@ -206,9 +207,10 @@ spec:
                               - type
                               type: object
                               x-kubernetes-validations:
-                              - message: '''name'' configuration is required when
+                              - message: '''name'' must be set and non-empty when
                                   type is ''name'', and forbidden otherwise'
-                                rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
+                                rule: 'self.type == ''name'' ? (has(self.name) &&
+                                  size(self.name) > 0) : !has(self.name)'
                               - message: '''uuid'' configuration is required when
                                   type is ''uuid'', and forbidden otherwise'
                                 rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
@@ -301,10 +303,10 @@ spec:
                                   - type
                                   type: object
                                   x-kubernetes-validations:
-                                  - message: '''name'' configuration is required when
+                                  - message: '''name'' must be set and non-empty when
                                       type is ''name'', and forbidden otherwise'
-                                    rule: 'self.type == ''name'' ? has(self.name)
-                                      : !has(self.name)'
+                                    rule: 'self.type == ''name'' ? (has(self.name)
+                                      && size(self.name) > 0) : !has(self.name)'
                                   - message: '''uuid'' configuration is required when
                                       type is ''uuid'', and forbidden otherwise'
                                     rule: 'self.type == ''uuid'' ? has(self.uuid)
@@ -364,9 +366,10 @@ spec:
                         - type
                         type: object
                         x-kubernetes-validations:
-                        - message: '''name'' configuration is required when type is
+                        - message: '''name'' must be set and non-empty when type is
                             ''name'', and forbidden otherwise'
-                          rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
+                          rule: 'self.type == ''name'' ? (has(self.name) && size(self.name)
+                            > 0) : !has(self.name)'
                         - message: '''uuid'' configuration is required when type is
                             ''uuid'', and forbidden otherwise'
                           rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
@@ -431,9 +434,10 @@ spec:
                         - type
                         type: object
                         x-kubernetes-validations:
-                        - message: '''name'' configuration is required when type is
+                        - message: '''name'' must be set and non-empty when type is
                             ''name'', and forbidden otherwise'
-                          rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
+                          rule: 'self.type == ''name'' ? (has(self.name) && size(self.name)
+                            > 0) : !has(self.name)'
                         - message: '''uuid'' configuration is required when type is
                             ''uuid'', and forbidden otherwise'
                           rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
@@ -472,9 +476,10 @@ spec:
                           type: object
                         maxItems: 32
                           x-kubernetes-validations:
-                          - message: '''name'' configuration is required when type
+                          - message: '''name'' must be set and non-empty when type
                               is ''name'', and forbidden otherwise'
-                            rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
+                            rule: 'self.type == ''name'' ? (has(self.name) && size(self.name)
+                              > 0) : !has(self.name)'
                           - message: '''uuid'' configuration is required when type
                               is ''uuid'', and forbidden otherwise'
                             rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
