@@ -417,6 +417,7 @@ spec:
                           required:
                           - type
                           type: object
+                        maxItems: 32
                         type: array
                       systemDiskSize:
                         anyOf:
@@ -449,6 +450,9 @@ spec:
                     - message: Either 'image' or 'imageLookup' must be set, but not
                         both
                       rule: has(self.image) != has(self.imageLookup)
+                    - message: each subnet must be unique
+                      rule: 'has(self.subnet) && size(self.subnet) > 1 ? self.subnet.all(x,
+                        self.subnet.exists_one(y, x == y)) : true'
                 required:
                 - spec
                 type: object

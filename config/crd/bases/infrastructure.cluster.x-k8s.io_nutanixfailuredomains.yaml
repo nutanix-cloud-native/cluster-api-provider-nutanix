@@ -91,6 +91,7 @@ spec:
                   required:
                   - type
                   type: object
+                maxItems: 32
                 minItems: 1
                 type: array
                 x-kubernetes-validations:
@@ -100,6 +101,10 @@ spec:
             - prismElementCluster
             - subnets
             type: object
+            x-kubernetes-validations:
+            - message: each subnet must be unique
+              rule: 'size(self.subnets) > 1 ? self.subnets.all(x, self.subnets.exists_one(y,
+                x == y)) : true'
           status:
             description: NutanixFailureDomainStatus defines the observed state of
               NutanixFailureDomain resource.
