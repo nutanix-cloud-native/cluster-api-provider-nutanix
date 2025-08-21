@@ -61,7 +61,7 @@ const (
 
 // NutanixResourceIdentifier holds the identity of a Nutanix PC resource (cluster, image, subnet, etc.)
 // +union
-// +kubebuilder:validation:XValidation:rule="self.type == 'name' ? has(self.name) : !has(self.name)",message="'name' configuration is required when type is 'name', and forbidden otherwise"
+// +kubebuilder:validation:XValidation:rule="self.type == 'name' ? (has(self.name) && size(self.name) > 0) : !has(self.name)",message="'name' must be set and non-empty when type is 'name', and forbidden otherwise"
 // +kubebuilder:validation:XValidation:rule="self.type == 'uuid' ? has(self.uuid) && self.uuid.contains('-') : !has(self.uuid)",message="'uuid' configuration is required when type is 'uuid', and forbidden otherwise"
 type NutanixResourceIdentifier struct {
 	// Type is the identifier type to use for this resource.
