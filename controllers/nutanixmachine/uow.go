@@ -17,6 +17,7 @@ limitations under the License.
 package nutanixmachine
 
 import (
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
 )
 
@@ -46,7 +47,7 @@ func (r *NutanixMachineReconciler) GetUoWNormalBatch() *controllers.NutanixUoWBa
 	)
 
 	NutanixMachineVMReady := r.NewNutanixMachineUoW(
-		NutanixMachineVMReady,
+		infrav1.VMProvisionedCondition,
 		map[controllers.PrismCondition]func(nctx *controllers.NutanixExtendedContext, scope *NutanixMachineScope) (controllers.ExtendedResult, error){},
 	)
 

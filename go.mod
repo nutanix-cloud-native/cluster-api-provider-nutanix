@@ -36,8 +36,9 @@ require (
 )
 
 require (
+	github.com/joho/godotenv v1.5.1
 	github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4 v4.0.1
-	github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.0.2-beta.1
+	github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.0.1
 	github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4 v4.0.1
 	github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4 v4.0.1
 )
@@ -160,7 +161,6 @@ require (
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
-	golang.org/x/mod v0.24.0 // indirect
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/oauth2 v0.28.0 // indirect
 	golang.org/x/sync v0.12.0 // indirect

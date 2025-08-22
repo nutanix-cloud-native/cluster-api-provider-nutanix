@@ -350,6 +350,14 @@ unit-test: mocks  ## Run unit tests.
 	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" \
 	$(GOTEST) $(GOTESTPKGS)
 
+.PHONY: integration-test
+integration-test:  ## Run integration tests for nutanixmachine controllers.
+	@echo "Running integration tests for nutanixmachine controllers..."
+	@echo "Note: Requires environment variables for Nutanix credentials (see controllers/nutanixmachine/integration_test/README.md)"
+	@echo "These tests validate NutanixMachineVMReady reconciliation functions with real Nutanix API clients"
+	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" \
+	$(GOTEST) -tags=integration -v ./controllers/nutanixmachine/integration_test/... -timeout 30m
+
 .PHONY: coverage
 coverage: mocks ## Run the tests of the project and export the coverage
 	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" \
