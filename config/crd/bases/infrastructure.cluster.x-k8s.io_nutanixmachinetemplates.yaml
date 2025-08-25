@@ -161,8 +161,7 @@ spec:
                             type: string
                           uuid:
                             description: uuid is the UUID of the resource in the PC.
-                            maxLength: 36
-                            minLength: 36
+                            format: uuid
                             type: string
                         required:
                         - type
@@ -200,8 +199,7 @@ spec:
                                 uuid:
                                   description: uuid is the UUID of the resource in
                                     the PC.
-                                  maxLength: 36
-                                  minLength: 36
+                                  format: uuid
                                   type: string
                               required:
                               - type
@@ -296,8 +294,7 @@ spec:
                                     uuid:
                                       description: uuid is the UUID of the resource
                                         in the PC.
-                                      maxLength: 36
-                                      minLength: 36
+                                      format: uuid
                                       type: string
                                   required:
                                   - type
@@ -359,8 +356,7 @@ spec:
                             type: string
                           uuid:
                             description: uuid is the UUID of the resource in the PC.
-                            maxLength: 36
-                            minLength: 36
+                            format: uuid
                             type: string
                         required:
                         - type
@@ -427,8 +423,7 @@ spec:
                             type: string
                           uuid:
                             description: uuid is the UUID of the resource in the PC.
-                            maxLength: 36
-                            minLength: 36
+                            format: uuid
                             type: string
                         required:
                         - type
@@ -468,8 +463,7 @@ spec:
                             uuid:
                               description: uuid is the UUID of the resource in the
                                 PC.
-                              maxLength: 36
-                              minLength: 36
+                              format: uuid
                               type: string
                           required:
                           - type
