@@ -482,7 +482,6 @@ spec:
                           required:
                           - type
                           type: object
-                        maxItems: 32
                           x-kubernetes-validations:
                           - message: '''name'' must be set when type is ''name'',
                               and forbidden otherwise'
