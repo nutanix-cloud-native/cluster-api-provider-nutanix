@@ -260,7 +260,7 @@ func TestNutanixFailureDomainReconciler(t *testing.T) {
 				}
 				err := k8sClient.Create(ctx, nfd)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("MinItems"))
+				Expect(err.Error()).To(ContainSubstring("spec.subnets: Invalid value: 0: spec.subnets in body should have at least 1 items"))
 			})
 
 			It("should reject NutanixFailureDomain with more than 32 subnets", func() {
@@ -288,7 +288,7 @@ func TestNutanixFailureDomainReconciler(t *testing.T) {
 				}
 				err := k8sClient.Create(ctx, nfd)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("MaxItems"))
+				Expect(err.Error()).To(ContainSubstring("must have at most 32 items"))
 			})
 		})
 
@@ -369,7 +369,12 @@ func TestNutanixFailureDomainReconciler(t *testing.T) {
 						VCPUsPerSocket: 1,
 						VCPUSockets:    1,
 						MemorySize:     resource.MustParse("2Gi"),
+						SystemDiskSize: resource.MustParse("20Gi"),
 						Cluster: infrav1.NutanixResourceIdentifier{
+							Type: infrav1.NutanixIdentifierUUID,
+							UUID: ptr.To("550e8400-e29b-41d4-a716-446655440000"),
+						},
+						Image: &infrav1.NutanixResourceIdentifier{
 							Type: infrav1.NutanixIdentifierUUID,
 							UUID: ptr.To("550e8400-e29b-41d4-a716-446655440000"),
 						},
