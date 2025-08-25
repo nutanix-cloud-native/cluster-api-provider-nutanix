@@ -189,10 +189,8 @@ func TestNutanixFailureDomainReconciler(t *testing.T) {
 		})
 	})
 
-	var _ = Describe("NutanixFailureDomain CEL Validation", func() {
-		var (
-			ctx context.Context
-		)
+	_ = Describe("NutanixFailureDomain CEL Validation", func() {
+		var ctx context.Context
 
 		BeforeEach(func() {
 			ctx = context.Background()
