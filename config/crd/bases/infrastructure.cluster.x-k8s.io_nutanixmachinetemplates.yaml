@@ -151,6 +151,7 @@ spec:
                         properties:
                           name:
                             description: name is the resource name in the PC
+                            minLength: 1
                             type: string
                           type:
                             description: Type is the identifier type to use for this
@@ -161,6 +162,7 @@ spec:
                             type: string
                           uuid:
                             description: uuid is the UUID of the resource in the PC.
+                            format: uuid
                             maxLength: 36
                             minLength: 36
                             type: string
@@ -168,10 +170,9 @@ spec:
                         - type
                         type: object
                         x-kubernetes-validations:
-                        - message: '''name'' must be set and non-empty when type is
-                            ''name'', and forbidden otherwise'
-                          rule: 'self.type == ''name'' ? (has(self.name) && size(self.name)
-                            > 0) : !has(self.name)'
+                        - message: '''name'' must be set when type is ''name'', and
+                            forbidden otherwise'
+                          rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
                         - message: '''uuid'' configuration is required when type is
                             ''uuid'', and forbidden otherwise'
                           rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
@@ -189,6 +190,7 @@ spec:
                               properties:
                                 name:
                                   description: name is the resource name in the PC
+                                  minLength: 1
                                   type: string
                                 type:
                                   description: Type is the identifier type to use
@@ -200,6 +202,7 @@ spec:
                                 uuid:
                                   description: uuid is the UUID of the resource in
                                     the PC.
+                                  format: uuid
                                   maxLength: 36
                                   minLength: 36
                                   type: string
@@ -207,10 +210,9 @@ spec:
                               - type
                               type: object
                               x-kubernetes-validations:
-                              - message: '''name'' must be set and non-empty when
-                                  type is ''name'', and forbidden otherwise'
-                                rule: 'self.type == ''name'' ? (has(self.name) &&
-                                  size(self.name) > 0) : !has(self.name)'
+                              - message: '''name'' must be set when type is ''name'',
+                                  and forbidden otherwise'
+                                rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
                               - message: '''uuid'' configuration is required when
                                   type is ''uuid'', and forbidden otherwise'
                                 rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
@@ -285,6 +287,7 @@ spec:
                                     name:
                                       description: name is the resource name in the
                                         PC
+                                      minLength: 1
                                       type: string
                                     type:
                                       description: Type is the identifier type to
@@ -296,6 +299,7 @@ spec:
                                     uuid:
                                       description: uuid is the UUID of the resource
                                         in the PC.
+                                      format: uuid
                                       maxLength: 36
                                       minLength: 36
                                       type: string
@@ -303,10 +307,10 @@ spec:
                                   - type
                                   type: object
                                   x-kubernetes-validations:
-                                  - message: '''name'' must be set and non-empty when
-                                      type is ''name'', and forbidden otherwise'
-                                    rule: 'self.type == ''name'' ? (has(self.name)
-                                      && size(self.name) > 0) : !has(self.name)'
+                                  - message: '''name'' must be set when type is ''name'',
+                                      and forbidden otherwise'
+                                    rule: 'self.type == ''name'' ? has(self.name)
+                                      : !has(self.name)'
                                   - message: '''uuid'' configuration is required when
                                       type is ''uuid'', and forbidden otherwise'
                                     rule: 'self.type == ''uuid'' ? has(self.uuid)
@@ -349,6 +353,7 @@ spec:
                         properties:
                           name:
                             description: name is the resource name in the PC
+                            minLength: 1
                             type: string
                           type:
                             description: Type is the identifier type to use for this
@@ -359,6 +364,7 @@ spec:
                             type: string
                           uuid:
                             description: uuid is the UUID of the resource in the PC.
+                            format: uuid
                             maxLength: 36
                             minLength: 36
                             type: string
@@ -366,10 +372,9 @@ spec:
                         - type
                         type: object
                         x-kubernetes-validations:
-                        - message: '''name'' must be set and non-empty when type is
-                            ''name'', and forbidden otherwise'
-                          rule: 'self.type == ''name'' ? (has(self.name) && size(self.name)
-                            > 0) : !has(self.name)'
+                        - message: '''name'' must be set when type is ''name'', and
+                            forbidden otherwise'
+                          rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
                         - message: '''uuid'' configuration is required when type is
                             ''uuid'', and forbidden otherwise'
                           rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
@@ -417,6 +422,7 @@ spec:
                         properties:
                           name:
                             description: name is the resource name in the PC
+                            minLength: 1
                             type: string
                           type:
                             description: Type is the identifier type to use for this
@@ -427,6 +433,7 @@ spec:
                             type: string
                           uuid:
                             description: uuid is the UUID of the resource in the PC.
+                            format: uuid
                             maxLength: 36
                             minLength: 36
                             type: string
@@ -434,10 +441,9 @@ spec:
                         - type
                         type: object
                         x-kubernetes-validations:
-                        - message: '''name'' must be set and non-empty when type is
-                            ''name'', and forbidden otherwise'
-                          rule: 'self.type == ''name'' ? (has(self.name) && size(self.name)
-                            > 0) : !has(self.name)'
+                        - message: '''name'' must be set when type is ''name'', and
+                            forbidden otherwise'
+                          rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
                         - message: '''uuid'' configuration is required when type is
                             ''uuid'', and forbidden otherwise'
                           rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
@@ -457,6 +463,7 @@ spec:
                           properties:
                             name:
                               description: name is the resource name in the PC
+                              minLength: 1
                               type: string
                             type:
                               description: Type is the identifier type to use for
@@ -468,6 +475,7 @@ spec:
                             uuid:
                               description: uuid is the UUID of the resource in the
                                 PC.
+                              format: uuid
                               maxLength: 36
                               minLength: 36
                               type: string
@@ -475,10 +483,9 @@ spec:
                           - type
                           type: object
                           x-kubernetes-validations:
-                          - message: '''name'' must be set and non-empty when type
-                              is ''name'', and forbidden otherwise'
-                            rule: 'self.type == ''name'' ? (has(self.name) && size(self.name)
-                              > 0) : !has(self.name)'
+                          - message: '''name'' must be set when type is ''name'',
+                              and forbidden otherwise'
+                            rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
                           - message: '''uuid'' configuration is required when type
                               is ''uuid'', and forbidden otherwise'
                             rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
