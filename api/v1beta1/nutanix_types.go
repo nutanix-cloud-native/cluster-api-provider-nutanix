@@ -71,7 +71,8 @@ type NutanixResourceIdentifier struct {
 
 	// uuid is the UUID of the resource in the PC.
 	// +optional
-	// +kubebuilder:validation:Format=`uuid`
+	// +kubebuilder:validation:MaxLength=36
+	// +kubebuilder:validation:MinLength=36
 	UUID *string `json:"uuid,omitempty"`
 
 	// name is the resource name in the PC
