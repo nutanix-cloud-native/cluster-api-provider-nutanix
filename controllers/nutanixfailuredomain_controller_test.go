@@ -353,8 +353,8 @@ func TestNutanixFailureDomainReconciler(t *testing.T) {
 		})
 
 		Context("NutanixMachineSpec Subnets Uniqueness Validation", func() {
-			It("should reject NutanixMachine with duplicate subnets", func() {
-				cluster := infrav1.NutanixResourceIdentifier{
+			It("should accept NutanixMachine with unique subnets", func() {
+				subnet1 := infrav1.NutanixResourceIdentifier{
 					Type: infrav1.NutanixIdentifierUUID,
 					UUID: ptr.To("550e8400-e29b-41d4-a716-446655440000"),
 				}
@@ -362,25 +362,51 @@ func TestNutanixFailureDomainReconciler(t *testing.T) {
 					Type: infrav1.NutanixIdentifierUUID,
 					UUID: ptr.To("123e4567-e89b-12d3-a456-426614174000"),
 				}
-				nfd := &infrav1.NutanixFailureDomain{
+				nm := &infrav1.NutanixMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "nfd-duplicate-subnets",
+						Name:      "machine-unique-subnets",
 						Namespace: "default",
 					},
-					Spec: infrav1.NutanixFailureDomainSpec{
-						PrismElementCluster: cluster,
-						Subnets:             []infrav1.NutanixResourceIdentifier{cluster, subnet2},
+					Spec: infrav1.NutanixMachineSpec{
+						VCPUsPerSocket: 1,
+						VCPUSockets:    1,
+						MemorySize:     resource.MustParse("2Gi"),
+						Cluster: infrav1.NutanixResourceIdentifier{
+							Type: infrav1.NutanixIdentifierUUID,
+							UUID: ptr.To("550e8400-e29b-41d4-a716-446655440000"),
+						},
+						Subnets: []infrav1.NutanixResourceIdentifier{subnet1, subnet2},
 					},
 				}
-				Expect(k8sClient.Create(ctx, nfd)).To(Succeed())
+				err := k8sClient.Create(ctx, nm)
+				Expect(err).NotTo(HaveOccurred())
+				_ = k8sClient.Delete(ctx, nm)
+			})
 
-				patch := client.MergeFrom(nfd.DeepCopy())
-				nfd.Spec.Subnets = append(nfd.Spec.Subnets, subnet2)
-				err := k8sClient.Patch(ctx, nfd, patch)
+			It("should reject NutanixMachine with duplicate subnets", func() {
+				subnet := infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierUUID,
+					UUID: ptr.To("550e8400-e29b-41d4-a716-446655440000"),
+				}
+				nm := &infrav1.NutanixMachine{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "machine-duplicate-subnets",
+						Namespace: "default",
+					},
+					Spec: infrav1.NutanixMachineSpec{
+						VCPUsPerSocket: 1,
+						VCPUSockets:    1,
+						MemorySize:     resource.MustParse("2Gi"),
+						Cluster: infrav1.NutanixResourceIdentifier{
+							Type: infrav1.NutanixIdentifierUUID,
+							UUID: ptr.To("550e8400-e29b-41d4-a716-446655440000"),
+						},
+						Subnets: []infrav1.NutanixResourceIdentifier{subnet, subnet},
+					},
+				}
+				err := k8sClient.Create(ctx, nm)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("duplicate"))
-
-				_ = k8sClient.Delete(ctx, nfd)
+				Expect(err.Error()).To(ContainSubstring("each subnet must be unique"))
 			})
 		})
 	})
