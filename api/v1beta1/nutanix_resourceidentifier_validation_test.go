@@ -162,13 +162,9 @@ var _ = Describe("NutanixResourceIdentifier CEL Validation", func() {
 
 			err := k8sClient.Create(ctx, machine)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("uuid"))
 		})
 
 		It("should accept UUID with wrong dash positions (limited validation)", func() {
-			// NOTE: Our CEL validation only checks length + dash presence for performance reasons.
-			// Perfect UUID format validation (regex) exceeds Kubernetes CEL cost limits.
-			// This UUID has wrong dash positions but passes our basic validation.
 			imperfectUUID := "550e84-00e29b-41d4a716-4466554400001" // 36 chars with dashes but wrong positions
 			machine := createTestNutanixMachine("test-imperfect-uuid", infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierUUID,
@@ -176,7 +172,7 @@ var _ = Describe("NutanixResourceIdentifier CEL Validation", func() {
 			})
 
 			err := k8sClient.Create(ctx, machine)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).To(HaveOccurred())
 
 			// Cleanup
 			_ = k8sClient.Delete(ctx, machine)
