@@ -17,16 +17,12 @@ limitations under the License.
 package v1beta1_test
 
 import (
-	"context"
-	"path/filepath"
-	"testing"
-  
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/resource"
-  
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Helper function to create a NutanixMachine with specific resource identifier for testing

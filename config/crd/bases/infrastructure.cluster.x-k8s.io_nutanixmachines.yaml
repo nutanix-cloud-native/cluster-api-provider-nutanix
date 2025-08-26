@@ -463,6 +463,7 @@ spec:
                       otherwise'
                     rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
                       : !has(self.uuid)'
+                maxItems: 32
                 type: array
               systemDiskSize:
                 anyOf:

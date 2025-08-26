@@ -17,7 +17,6 @@ limitations under the License.
 package v1beta1_test
 
 import (
-	"context"
 	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -31,9 +30,6 @@ import (
 )
 
 var _ = Describe("NutanixFailureDomain CEL Validation", func() {
-	BeforeEach(func() {
-		ctx = context.Background()
-	})
 
 	Context("Subnet uniqueness validation", func() {
 		It("should accept NutanixFailureDomain with unique subnets", func() {
@@ -249,6 +245,36 @@ var _ = Describe("NutanixFailureDomain CEL Validation", func() {
 			err := k8sClient.Create(ctx, nm)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("each subnet must be unique"))
+		})
+
+		It("NutanixMachineSpec Subnet max items validation", func() {
+			subnets := make([]infrav1.NutanixResourceIdentifier, 33)
+			for i := range subnets {
+				uuid := fmt.Sprintf("550e8400-e29b-41d4-a716-44665544%04d", i)
+				subnets[i] = infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierUUID,
+					UUID: &uuid,
+				}
+			}
+			nm := &infrav1.NutanixMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "machine-duplicate-subnets",
+					Namespace: "default",
+				},
+				Spec: infrav1.NutanixMachineSpec{
+					VCPUsPerSocket: 1,
+					VCPUSockets:    1,
+					MemorySize:     resource.MustParse("2Gi"),
+					Cluster: infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierUUID,
+						UUID: ptr.To("550e8400-e29b-41d4-a716-446655440000"),
+					},
+					Subnets: subnets,
+				},
+			}
+			err := k8sClient.Create(ctx, nm)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("must have at most 32 items"))
 		})
 	})
 })
