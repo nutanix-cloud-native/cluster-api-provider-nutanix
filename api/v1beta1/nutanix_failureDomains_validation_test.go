@@ -30,7 +30,6 @@ import (
 )
 
 var _ = Describe("NutanixFailureDomain CEL Validation", func() {
-
 	Context("Subnet uniqueness validation", func() {
 		It("should accept NutanixFailureDomain with unique subnets", func() {
 			subnet1 := infrav1.NutanixResourceIdentifier{
