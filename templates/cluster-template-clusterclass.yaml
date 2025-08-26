@@ -169,9 +169,11 @@ spec:
         valueFrom:
           variable: controlPlaneMachineDetails.imageName
       - op: add
-        path: /spec/template/spec/cluster/name
+        path: /spec/template/spec/cluster
         valueFrom:
-          variable: controlPlaneMachineDetails.clusterName
+          template: |
+            type: name
+            name: {{ .controlPlaneMachineDetails.clusterName }}
       - op: add
         path: /spec/template/spec/subnet
         valueFrom:
@@ -231,9 +233,11 @@ spec:
         valueFrom:
           variable: workerMachineDetails.imageName
       - op: add
-        path: /spec/template/spec/cluster/name
+        path: /spec/template/spec/cluster
         valueFrom:
-          variable: workerMachineDetails.clusterName
+          template: |
+            type: name
+            name: {{ .workerMachineDetails.clusterName }}
       - op: add
         path: /spec/template/spec/subnet
         valueFrom:
@@ -720,16 +724,10 @@ spec:
   template:
     spec:
       bootType: legacy
-      cluster:
-        name: ""
-        type: name
       image:
-        name: ""
+        name: placeholder-image
         type: name
       memorySize: 4Gi
-      subnet:
-      - name: ""
-        type: name
       systemDiskSize: 40Gi
       vcpuSockets: 2
       vcpusPerSocket: 1
@@ -742,16 +740,10 @@ spec:
   template:
     spec:
       bootType: legacy
-      cluster:
-        name: ""
-        type: name
       image:
-        name: ""
+        name: placeholder-image
         type: name
       memorySize: 4Gi
-      subnet:
-      - name: ""
-        type: name
       systemDiskSize: 40Gi
       vcpuSockets: 2
       vcpusPerSocket: 1
