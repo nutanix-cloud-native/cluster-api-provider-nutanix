@@ -173,8 +173,8 @@ spec:
                         - message: '''name'' must be set when type is ''name'', and
                             forbidden otherwise'
                           rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                        - message: '''uuid'' configuration is required when type is
-                            ''uuid'', and forbidden otherwise'
+                        - message: '''uuid'' must be set when type is ''uuid'', and
+                            forbidden otherwise'
                           rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
                             : !has(self.uuid)'
                       dataDisks:
@@ -213,8 +213,8 @@ spec:
                               - message: '''name'' must be set when type is ''name'',
                                   and forbidden otherwise'
                                 rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                              - message: '''uuid'' configuration is required when
-                                  type is ''uuid'', and forbidden otherwise'
+                              - message: '''uuid'' must be set when type is ''uuid'',
+                                  and forbidden otherwise'
                                 rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
                                   : !has(self.uuid)'
                             deviceProperties:
@@ -311,8 +311,8 @@ spec:
                                       and forbidden otherwise'
                                     rule: 'self.type == ''name'' ? has(self.name)
                                       : !has(self.name)'
-                                  - message: '''uuid'' configuration is required when
-                                      type is ''uuid'', and forbidden otherwise'
+                                  - message: '''uuid'' must be set when type is ''uuid'',
+                                      and forbidden otherwise'
                                     rule: 'self.type == ''uuid'' ? has(self.uuid)
                                       && self.uuid.contains(''-'') : !has(self.uuid)'
                               required:
@@ -375,8 +375,8 @@ spec:
                         - message: '''name'' must be set when type is ''name'', and
                             forbidden otherwise'
                           rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                        - message: '''uuid'' configuration is required when type is
-                            ''uuid'', and forbidden otherwise'
+                        - message: '''uuid'' must be set when type is ''uuid'', and
+                            forbidden otherwise'
                           rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
                             : !has(self.uuid)'
                       imageLookup:
@@ -444,8 +444,8 @@ spec:
                         - message: '''name'' must be set when type is ''name'', and
                             forbidden otherwise'
                           rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                        - message: '''uuid'' configuration is required when type is
-                            ''uuid'', and forbidden otherwise'
+                        - message: '''uuid'' must be set when type is ''uuid'', and
+                            forbidden otherwise'
                           rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
                             : !has(self.uuid)'
                       providerID:
@@ -486,11 +486,10 @@ spec:
                           - message: '''name'' must be set when type is ''name'',
                               and forbidden otherwise'
                             rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                          - message: '''uuid'' configuration is required when type
-                              is ''uuid'', and forbidden otherwise'
+                          - message: '''uuid'' must be set when type is ''uuid'',
+                              and forbidden otherwise'
                             rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
                               : !has(self.uuid)'
-                        maxItems: 32
                         type: array
                       systemDiskSize:
                         anyOf:

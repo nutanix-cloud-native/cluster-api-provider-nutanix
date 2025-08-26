@@ -140,8 +140,8 @@ spec:
                       - message: '''name'' must be set when type is ''name'', and
                           forbidden otherwise'
                         rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                      - message: '''uuid'' configuration is required when type is
-                          ''uuid'', and forbidden otherwise'
+                      - message: '''uuid'' must be set when type is ''uuid'', and
+                          forbidden otherwise'
                         rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
                           : !has(self.uuid)'
                     controlPlane:
@@ -192,8 +192,8 @@ spec:
                         - message: '''name'' must be set when type is ''name'', and
                             forbidden otherwise'
                           rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                        - message: '''uuid'' configuration is required when type is
-                            ''uuid'', and forbidden otherwise'
+                        - message: '''uuid'' must be set when type is ''uuid'', and
+                            forbidden otherwise'
                           rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
                             : !has(self.uuid)'
                       minItems: 1

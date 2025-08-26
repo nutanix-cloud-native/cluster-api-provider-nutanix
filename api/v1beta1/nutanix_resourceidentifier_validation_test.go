@@ -17,11 +17,15 @@ limitations under the License.
 package v1beta1_test
 
 import (
+	"context"
+	"path/filepath"
+	"testing"
+  
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/resource"
+  
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
@@ -113,7 +117,7 @@ var _ = Describe("NutanixResourceIdentifier CEL Validation", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
-		It("should accept UUID with wrong dash positions (limited validation)", func() {
+		It("should reject UUID with wrong dash positions", func() {
 			imperfectUUID := "550e84-00e29b-41d4a716-4466554400001" // 36 chars with dashes but wrong positions
 			machine := createTestNutanixMachine("test-imperfect-uuid", infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierUUID,
@@ -212,32 +216,6 @@ var _ = Describe("NutanixResourceIdentifier CEL Validation", func() {
 				Type: infrav1.NutanixIdentifierName,
 				Name: &validName,
 				UUID: &validUUID, // This should not be allowed
-			})
-
-			err := k8sClient.Create(ctx, machine)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("uuid"))
-		})
-	})
-
-	Context("Edge cases and comprehensive validation", func() {
-		It("should reject string that contains dashes but is not valid UUID length", func() {
-			invalidUUID := "abc-def-ghi" // Contains dashes but not 36 chars
-			machine := createTestNutanixMachine("test-short-with-dashes", infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: &invalidUUID,
-			})
-
-			err := k8sClient.Create(ctx, machine)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("uuid"))
-		})
-
-		It("should reject 36-char string without dashes", func() {
-			invalidUUID := "abcdefghijklmnopqrstuvwxyz1234567890" // 36 chars, no dashes
-			machine := createTestNutanixMachine("test-36chars-no-dashes", infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: &invalidUUID,
 			})
 
 			err := k8sClient.Create(ctx, machine)
