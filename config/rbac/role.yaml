@@ -60,6 +60,7 @@ rules:
   - nutanixclusters
   - nutanixfailuredomains
   - nutanixmachines
+  - nutanixmachinetemplates
   verbs:
   - create
   - delete
@@ -73,6 +74,7 @@ rules:
   resources:
   - nutanixclusters/finalizers
   - nutanixmachines/finalizers
+  - nutanixmachinetemplates/finalizers
   verbs:
   - update
 - apiGroups:
@@ -82,6 +84,7 @@ rules:
   - nutanixfailuredomains/finalizers
   - nutanixfailuredomains/status
   - nutanixmachines/status
+  - nutanixmachinetemplates/status
   verbs:
   - get
   - patch
