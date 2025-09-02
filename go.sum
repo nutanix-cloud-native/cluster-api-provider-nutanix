@@ -219,6 +219,8 @@ github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/jhump/protoreflect v1.14.0 h1:MBbQK392K3u8NTLbKOCIi3XdI+y+c6yt5oMq0X3xviw=
 github.com/jhump/protoreflect v1.14.0/go.mod h1:JytZfP5d0r8pVNLZvai7U/MCuTWITgrI4tTg7puQFKI=
+github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
+github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
 github.com/jonboulle/clockwork v0.4.0 h1:p4Cf1aMWXnXAUh8lVfewRBx1zaTSYKrKMF2g3ST4RZ4=
 github.com/jonboulle/clockwork v0.4.0/go.mod h1:xgRqUGwRcjKCO1vbZUEtSLrqKoPSsUpK7fnezOII0kc=
 github.com/josharian/intern v1.0.0 h1:vlS4z54oSdjm0bgjRigI+G1HpF+tI+9rE5LLzOg8HmY=
@@ -270,8 +272,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4 v4.0.1 h1:OmOuXNY2DSsR4GUwECV2N6YK5OywXjwEFQSZou6x2HQ=
 github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4 v4.0.1/go.mod h1:sd4Fnk6MVfEDVY+8WyRoQTmLhi2SgZ3riySWErVHf8E=
-github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.0.2-beta.1 h1:PvZQwYhhJtxmzLpnzEhHTpp2fV6woc6W65PHGsHzVfs=
-github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.0.2-beta.1/go.mod h1:+eZgV1+xL/r84qmuFSVt5R8OFRO70rEz92jOnVgJNco=
+github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.0.1 h1:2D2ZJd5Cn0fMeWYnTEHsR1Fcv2G1BSrOAl1fVURtfn4=
+github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.0.1/go.mod h1:+eZgV1+xL/r84qmuFSVt5R8OFRO70rEz92jOnVgJNco=
 github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4 v4.0.1 h1:cPQ5RczmwE98P24bhWrMtJzuPKrnCMB48G7Dzzfca1g=
 github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4 v4.0.1/go.mod h1:Yhk+xD4mN90OKEHnk5ARf97CX5p4+MEC/B/YIVoZeZ0=
 github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4 v4.0.1 h1:4/neYUoEkERd08WwqE4vQSb8RsZdtp1RxpoYLnVFJGE=
@@ -438,8 +440,6 @@ golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4/go.mod h1:jJ57K6gSWd91
 golang.org/x/mod v0.12.0/go.mod h1:iBbtSCu2XBx23ZKBPSOrRkjjQPZFPuis4dIYUhu/chs=
 golang.org/x/mod v0.15.0/go.mod h1:hTbmBsO62+eylJbnUtE2MGJUyE7QWk4xUqPFrRgJ+7c=
 golang.org/x/mod v0.17.0/go.mod h1:hTbmBsO62+eylJbnUtE2MGJUyE7QWk4xUqPFrRgJ+7c=
-golang.org/x/mod v0.24.0 h1:ZfthKaKaT4NrhGVZHO1/WDTwGES4De8KtWO0SIbNJMU=
-golang.org/x/mod v0.24.0/go.mod h1:IXM97Txy2VM4PJ3gI61r1YEk/gAj6zAHN3AdZt6S9Ww=
 golang.org/x/net v0.33.0 h1:74SYHlV8BIgHIFC/LrYkOGIwL19eTYXQ5wc6TBuO36I=
 golang.org/x/net v0.33.0/go.mod h1:HXLR5J+9DxmrqMwG9qjGCxZ+zKXxBru04zlTvWlWuN4=
 golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be/go.mod h1:N/0e6XlmueqKjAGxoOufVs8QHGRruUQn6yWY3a++T0U=
