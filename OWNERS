@@ -1,12 +1,16 @@
-reviewers:
-- adiantum
-- deepakm-ntnx
-- thunderboltsid
-- tuxtof
-- yannickstruyf3
+component: "Cloud Compute"
+subcomponent: "Cluster API Providers"
 approvers:
-- adiantum
-- deepakm-ntnx
-- thunderboltsid
-- tuxtof
-- yannickstruyf3
+  - JoelSpeed
+  - RadekManak
+  - damdo
+  - nrb
+  - racheljpg
+  - theobarberbany
+reviewers:
+  - RadekManak
+  - damdo
+  - mdbooth
+  - nrb
+  - racheljpg
+  - theobarberbany
