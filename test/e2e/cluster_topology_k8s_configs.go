@@ -66,6 +66,14 @@ func NewE2eConfigK8SVersion130() *E2eConfigK8SVersion {
 	}
 }
 
+// returns E2eConfigK8SVersion with Kube134 specific e2e config vars
+func NewE2eConfigK8SVersion134() *E2eConfigK8SVersion {
+	return &E2eConfigK8SVersion{
+		E2eConfigK8sVersionEnvVar:      "KUBERNETES_VERSION_v1_34",
+		E2eConfigK8sVersionImageEnvVar: "NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_34",
+	}
+}
+
 // TestConfig holds required parameters for each supported k8s target config
 type TestConfig struct {
 	targetKube   *E2eConfigK8SVersion
@@ -79,4 +87,5 @@ var SupportedK8STargetConfigs = []TestConfig{
 	{targetKube: NewE2eConfigK8SVersion128(), targetLabels: []string{"Kube128"}},
 	{targetKube: NewE2eConfigK8SVersion129(), targetLabels: []string{"Kube129"}},
 	{targetKube: NewE2eConfigK8SVersion130(), targetLabels: []string{"Kube130"}},
+	{targetKube: NewE2eConfigK8SVersion134(), targetLabels: []string{"Kube134"}},
 }
