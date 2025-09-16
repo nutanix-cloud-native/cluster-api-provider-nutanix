@@ -11,6 +11,8 @@ spec:
         # Use System category Apptype:Kubernetes
         - key: AppType
           value: Kubernetes
+        - key: AppType
+          value: k8s
         # Use System category Environment:Dev
         - key: Environment
           value: Dev

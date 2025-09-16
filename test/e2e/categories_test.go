@@ -124,6 +124,7 @@ var _ = Describe("Nutanix categories", Label("nutanix-feature-test", "categories
 			expectedCategories := map[string]string{
 				expectedClusterNameCategoryKey: clusterName,
 				"AppType":                      "Kubernetes",
+				"AppType":                      "k8s",
 				"Environment":                  "Dev",
 			}
 
