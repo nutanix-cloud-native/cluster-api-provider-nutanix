@@ -10,8 +10,18 @@ LOCAL_IMAGE_REGISTRY ?= ko.local
 IMG_REPO=${LOCAL_IMAGE_REGISTRY}/cluster-api-provider-nutanix
 IMG_TAG=e2e-${GIT_COMMIT_HASH}
 MANAGER_IMAGE=${IMG_REPO}:${IMG_TAG}
-DOCKER_SOCKET := $(shell docker context inspect --format '{{.Endpoints.docker.Host}}')
 
+# Detect container engine: Docker preferred, fallback to Podman
+CONTAINER_ENGINE := $(shell (command -v docker >/dev/null 2>&1 && echo docker) || (command -v podman >/dev/null 2>&1 && echo podman) || echo none)
+ifeq ($(CONTAINER_ENGINE),none)
+$(error "No container engine found, please install docker or podman")
+endif
+
+ifeq ($(CONTAINER_ENGINE),docker)
+DOCKER_SOCKET := $(shell docker context inspect --format '{{.Endpoints.docker.Host}}')
+else ifeq ($(CONTAINER_ENGINE),podman)
+DOCKER_SOCKET := unix:///run/podman/podman.sock
+endif
 # Extract base and tag from IMG
 LOCAL_PROVIDER_VERSION ?= ${IMG_TAG}
 
