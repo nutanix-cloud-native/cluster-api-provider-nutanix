@@ -31,8 +31,8 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
+	bootstrapv1 "sigs.k8s.io/cluster-api/api/bootstrap/kubeadm/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	yaml "sigs.k8s.io/cluster-api/cmd/clusterctl/client/yamlprocessor"
 	capie2e "sigs.k8s.io/cluster-api/test/e2e"
 	"sigs.k8s.io/cluster-api/test/framework"
@@ -41,27 +41,20 @@ import (
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/test/e2e/log"
 )
 
-var _ = Describe("clusterctl upgrade CAPX (v1.6.1 => current)", Label("clusterctl-upgrade"), func() {
-	// TODO: revert to KUBERNETES_VERSION after v1.7.0 is released and CAPX v1.7.0 is used as the infrastructure version
-	// for this test. this is a temporary workaround to use the KUBERNETES_VERSION_UPGRADE_FROM as the KUBERNETES_VERSION
-	// to ensure the tests pass as 1.6.1 does not work w/ 1.33
+var _ = Describe("clusterctl upgrade CAPX (v1.7.0 => current)", Label("clusterctl-upgrade"), func() {
 	var (
-		kubernetesVersion                      string
-		kubernetesVersionUpgradeFrom           string
-		nutanixMachineTemplateImageName        string
-		nutanixMachineTemplateImageUpgradeFrom string
+		kubernetesVersion               string
+		nutanixMachineTemplateImageName string
 	)
 
 	BeforeEach(func() {
 		kubernetesVersion = e2eConfig.MustGetVariable("KUBERNETES_VERSION")
-		kubernetesVersionUpgradeFrom = e2eConfig.MustGetVariable("KUBERNETES_VERSION_UPGRADE_FROM")
 		nutanixMachineTemplateImageName = e2eConfig.MustGetVariable("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME")
-		nutanixMachineTemplateImageUpgradeFrom = e2eConfig.MustGetVariable("NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_FROM")
 	})
 
 	BeforeEach(func() {
-		os.Setenv("KUBERNETES_VERSION", kubernetesVersionUpgradeFrom)
-		os.Setenv("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME", nutanixMachineTemplateImageUpgradeFrom)
+		os.Setenv("KUBERNETES_VERSION", kubernetesVersion)
+		os.Setenv("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME", nutanixMachineTemplateImageName)
 	})
 
 	AfterEach(func() {
@@ -94,12 +87,12 @@ var _ = Describe("clusterctl upgrade CAPX (v1.6.1 => current)", Label("clusterct
 			BootstrapClusterProxy:           bootstrapClusterProxy,
 			ArtifactFolder:                  artifactFolder,
 			SkipCleanup:                     skipCleanup,
-			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.10.3/clusterctl-{OS}-{ARCH}",
-			InitWithKubernetesVersion:       kubernetesVersionUpgradeFrom, // TODO: revert to KUBERNETES_VERSION after v1.7.0 is released and CAPX v1.7.0 is used as the infrastructure version
-			InitWithCoreProvider:            "cluster-api:v1.10.3",
-			InitWithBootstrapProviders:      []string{"kubeadm:v1.10.3"},
-			InitWithControlPlaneProviders:   []string{"kubeadm:v1.10.3"},
-			InitWithInfrastructureProviders: []string{"nutanix:v1.6.1"},
+			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.11.1/clusterctl-{OS}-{ARCH}",
+			InitWithKubernetesVersion:       kubernetesVersion,
+			InitWithCoreProvider:            "cluster-api:v1.11.1",
+			InitWithBootstrapProviders:      []string{"kubeadm:v1.11.1"},
+			InitWithControlPlaneProviders:   []string{"kubeadm:v1.11.1"},
+			InitWithInfrastructureProviders: []string{"nutanix:v1.7.0"},
 			PreWaitForCluster:               preWaitForCluster,
 			PostUpgrade:                     postUpgradeFunc,
 		}
@@ -115,7 +108,7 @@ func createPreWaitForClusterFunc(testInputFunc func() capie2e.ClusterctlUpgradeS
 
 		By("Get latest version of CAPX provider")
 
-		latestVersionString := "v1.6.1"
+		latestVersionString := "v1.7.0"
 		latestVersion, err := semver.ParseTolerant(latestVersionString)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -174,7 +167,7 @@ func createPostUpgradeFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInp
 
 		yamlProc := yaml.NewSimpleProcessor()
 
-		latestVersionString := "v1.6.1"
+		latestVersionString := "v1.7.0"
 		latestVersion, err := semver.ParseTolerant(latestVersionString)
 		Expect(err).NotTo(HaveOccurred())
 

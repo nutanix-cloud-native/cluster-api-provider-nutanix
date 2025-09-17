@@ -21,11 +21,12 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -207,7 +208,10 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 	}
 
 	if len(ntxMachines) == 0 {
-		conditions.MarkTrue(fd, infrav1.FailureDomainSafeForDeletionCondition)
+		conditions.Set(fd, metav1.Condition{
+			Type:   infrav1.FailureDomainSafeForDeletionCondition,
+			Status: metav1.ConditionTrue,
+		})
 
 		// Remove the finalizer from the failure domain object
 		ctrlutil.RemoveFinalizer(fd, infrav1.NutanixFailureDomainFinalizer)
@@ -215,8 +219,12 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 	}
 
 	errMsg := fmt.Sprintf("The failure domain is used by machines: %v", ntxMachines)
-	conditions.MarkFalse(fd, infrav1.FailureDomainSafeForDeletionCondition,
-		infrav1.FailureDomainInUseReason, capiv1.ConditionSeverityError, "%s", errMsg)
+	conditions.Set(fd, metav1.Condition{
+		Type:    infrav1.FailureDomainSafeForDeletionCondition,
+		Status:  metav1.ConditionTrue,
+		Reason:  infrav1.FailureDomainInUseReason,
+		Message: errMsg,
+	})
 
 	reterr := fmt.Errorf("the failure domain %q is not safe for deletion since it is in use", fd.Name)
 	log.Error(reterr, errMsg)

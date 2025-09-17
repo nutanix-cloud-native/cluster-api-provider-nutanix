@@ -257,10 +257,10 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 ##@ Templates
 
 .PHONY: cluster-e2e-templates
-cluster-e2e-templates: cluster-e2e-templates-v1beta1 cluster-e2e-templates-v161 ## Generate cluster templates for all versions
+cluster-e2e-templates: cluster-e2e-templates-v1beta1 cluster-e2e-templates-v170 ## Generate cluster templates for all versions
 
-cluster-e2e-templates-v161: ## Generate cluster templates for CAPX v1.6.1
-	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1.6.1/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1.6.1/cluster-template.yaml
+cluster-e2e-templates-v170: ## Generate cluster templates for CAPX v1.7.0
+	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1.7.0/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1.7.0/cluster-template.yaml
 
 cluster-e2e-templates-v1beta1: ## Generate cluster templates for v1beta1
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template.yaml
