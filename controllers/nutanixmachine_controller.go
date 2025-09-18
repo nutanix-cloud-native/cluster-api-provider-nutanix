@@ -35,12 +35,10 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	capiutil "sigs.k8s.io/cluster-api/util"
-	"sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/conditions"
-	"sigs.k8s.io/cluster-api/util/patch"
-	"sigs.k8s.io/cluster-api/util/predicates"
+	"sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"
+	"sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -51,6 +49,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	capiutilv1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/capiutils"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
@@ -136,7 +135,7 @@ func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctr
 		Watches(
 			&capiv1.Cluster{},
 			handler.EnqueueRequestsFromMapFunc(clusterToObjectFunc),
-			builder.WithPredicates(predicates.ClusterPausedTransitionsOrInfrastructureReady(r.Scheme, ctrl.LoggerFrom(ctx))),
+			builder.WithPredicates(capiutilv1beta1.ClusterPausedTransitionsOrInfrastructureReady(r.Scheme, ctrl.LoggerFrom(ctx))),
 		).
 		WithOptions(copts).
 		Complete(r)
@@ -219,7 +218,7 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// Fetch the CAPI Machine.
-	machine, err := capiutil.GetOwnerMachine(ctx, r.Client, ntxMachine.ObjectMeta)
+	machine, err := capiutilv1beta1.GetOwnerMachine(ctx, r.Client, ntxMachine.ObjectMeta)
 	if err != nil {
 		log.Error(err, "Failed to fetch the owner CAPI Machine object")
 		return reconcile.Result{}, err
@@ -231,12 +230,12 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	log.Info(fmt.Sprintf("Fetched the owner Machine: %s", machine.Name))
 
 	// Fetch the CAPI Cluster.
-	cluster, err := capiutil.GetClusterFromMetadata(ctx, r.Client, machine.ObjectMeta)
+	cluster, err := capiutilv1beta1.GetClusterFromMetadata(ctx, r.Client, machine.ObjectMeta)
 	if err != nil {
 		log.Error(err, "Machine is missing cluster label or cluster does not exist")
 		return reconcile.Result{}, nil
 	}
-	if annotations.IsPaused(cluster, machine) {
+	if capiutilv1beta1.IsPaused(cluster, machine) {
 		log.V(1).Info("linked to a cluster that is paused")
 		return reconcile.Result{}, nil
 	}

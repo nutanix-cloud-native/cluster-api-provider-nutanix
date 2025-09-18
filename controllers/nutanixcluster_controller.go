@@ -32,12 +32,10 @@ import (
 	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	capiutil "sigs.k8s.io/cluster-api/util"
-	"sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/conditions"
-	"sigs.k8s.io/cluster-api/util/patch"
-	"sigs.k8s.io/cluster-api/util/predicates"
+	"sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"
+	"sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -47,6 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	capiutilv1beta1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/capiutils"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
@@ -97,7 +96,7 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 					&infrav1.NutanixCluster{},
 				),
 			),
-			builder.WithPredicates(predicates.ClusterPausedTransitionsOrInfrastructureReady(r.Scheme, ctrl.LoggerFrom(ctx))),
+			builder.WithPredicates(capiutilv1beta1.ClusterPausedTransitionsOrInfrastructureReady(r.Scheme, ctrl.LoggerFrom(ctx))),
 		).
 		Watches(
 			&infrav1.NutanixFailureDomain{},
@@ -180,7 +179,7 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// Fetch the CAPI Cluster.
-	capiCluster, err := capiutil.GetOwnerCluster(ctx, r.Client, cluster.ObjectMeta)
+	capiCluster, err := capiutilv1beta1.GetOwnerCluster(ctx, r.Client, cluster.ObjectMeta)
 	if err != nil {
 		log.Error(err, "failed to fetch the owner CAPI Cluster object")
 		return reconcile.Result{}, err
@@ -189,7 +188,7 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		log.Info("Waiting for Cluster Controller to set OwnerRef for the NutanixCluster object")
 		return reconcile.Result{}, nil
 	}
-	if annotations.IsPaused(capiCluster, cluster) {
+	if capiutilv1beta1.IsPaused(capiCluster, cluster) {
 		log.Info("The NutanixCluster object linked to a cluster that is paused")
 		return reconcile.Result{}, nil
 	}
