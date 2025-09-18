@@ -173,13 +173,13 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 			Expect(err).To(BeNil())
 			now := metav1.Now()
 			kcpCopy := kcp.DeepCopy()
-			kcpCopy.Spec.RolloutAfter = &now
+			kcpCopy.Spec.Rollout.After = now
 			err = bootstrapClient.Update(ctx, kcpCopy)
 			Expect(err).To(BeNil())
 
 			waitForMachineUpgrade := e2eConfig.GetIntervals("", "wait-machine-upgrade")
 			Eventually(
-				func() []capiv1.Condition {
+				func() []metav1.Condition {
 					err := bootstrapClient.Get(ctx, client.ObjectKeyFromObject(kcp), kcp)
 					Expect(err).To(BeNil())
 					return kcp.Status.Conditions
