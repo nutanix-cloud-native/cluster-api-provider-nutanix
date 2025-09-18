@@ -25,7 +25,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
-	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
@@ -95,10 +95,10 @@ var _ = Describe("Nutanix projects", Label("nutanix-feature-test", "projects"), 
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
+				expectedCondition: clusterv1beta1.Condition{
 					Type:     infrav1.ProjectAssignedCondition,
 					Reason:   infrav1.ProjectAssignationFailed,
-					Severity: clusterv1.ConditionSeverityError,
+					Severity: clusterv1beta1.ConditionSeverityError,
 					Status:   corev1.ConditionFalse,
 				},
 			})
@@ -138,7 +138,7 @@ var _ = Describe("Nutanix projects", Label("nutanix-feature-test", "projects"), 
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
+				expectedCondition: clusterv1beta1.Condition{
 					Type:   infrav1.ProjectAssignedCondition,
 					Status: corev1.ConditionTrue,
 				},
@@ -185,7 +185,7 @@ var _ = Describe("Nutanix projects", Label("nutanix-feature-test", "projects"), 
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
+				expectedCondition: clusterv1beta1.Condition{
 					Type:   infrav1.ProjectAssignedCondition,
 					Status: corev1.ConditionTrue,
 				},

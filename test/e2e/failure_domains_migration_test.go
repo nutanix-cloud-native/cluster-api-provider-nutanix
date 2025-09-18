@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	controlplanev1 "sigs.k8s.io/cluster-api/api/controlplane/kubeadm/v1beta1"
 	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -87,7 +88,7 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: capiv1.Condition{
+				expectedCondition: capiv1beta1.Condition{
 					Type:   infrav1.FailureDomainsValidatedCondition,
 					Status: corev1.ConditionTrue,
 				},
@@ -159,7 +160,7 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 				bootstrapClusterProxy,
 				clusterName,
 				namespace,
-				capiv1.Condition{
+				capiv1beta1.Condition{
 					Type:   infrav1.FailureDomainsValidatedCondition,
 					Status: corev1.ConditionTrue,
 				},
@@ -173,7 +174,7 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 			Expect(err).To(BeNil())
 			now := metav1.Now()
 			kcpCopy := kcp.DeepCopy()
-			kcpCopy.Spec.RolloutAfter = &now
+			kcpCopy.Spec.Rollout.After = now
 			err = bootstrapClient.Update(ctx, kcpCopy)
 			Expect(err).To(BeNil())
 
@@ -182,7 +183,7 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 				func() []capiv1.Condition {
 					err := bootstrapClient.Get(ctx, client.ObjectKeyFromObject(kcp), kcp)
 					Expect(err).To(BeNil())
-					return kcp.Status.Conditions
+					return kcp.GetV1Beta1Conditions()
 				},
 				waitForMachineUpgrade...,
 			).Should(

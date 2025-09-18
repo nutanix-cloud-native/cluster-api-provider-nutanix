@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/test/framework/bootstrap"
@@ -371,7 +372,7 @@ func (t testHelper) createDefaultNutanixCluster(clusterName, namespace, controlP
 			Namespace: namespace,
 		},
 		Spec: infrav1.NutanixClusterSpec{
-			ControlPlaneEndpoint: capiv1.APIEndpoint{
+			ControlPlaneEndpoint: capiv1beta1.APIEndpoint{
 				Host: controlPlaneEndpointIP,
 				Port: controlPlanePort,
 			},
@@ -563,7 +564,7 @@ func (t testHelper) getNutanixVMsForCluster(ctx context.Context, clusterName, na
 	for _, m := range nutanixMachines.Items {
 		machineProviderID := m.Spec.ProviderID
 		Expect(machineProviderID).NotTo(BeNil())
-		machineVmUUID := t.stripNutanixIDFromProviderID(*machineProviderID)
+		machineVmUUID := t.stripNutanixIDFromProviderID(machineProviderID)
 		vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 		Expect(err).ShouldNot(HaveOccurred())
 		vms = append(vms, vm)
@@ -646,7 +647,7 @@ func (t testHelper) verifyCategoriesNutanixMachines(ctx context.Context, cluster
 	for _, m := range nutanixMachines.Items {
 		machineProviderID := m.Spec.ProviderID
 		Expect(machineProviderID).NotTo(BeNil())
-		machineVmUUID := t.stripNutanixIDFromProviderID(*machineProviderID)
+		machineVmUUID := t.stripNutanixIDFromProviderID(machineProviderID)
 		vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 		Expect(err).ShouldNot(HaveOccurred())
 		categoriesMeta := vm.Metadata.Categories
@@ -676,7 +677,7 @@ func (t testHelper) verifyResourceConfigOnNutanixMachines(ctx context.Context, p
 			for _, m := range nutanixMachines.Items {
 				machineProviderID := m.Spec.ProviderID
 				g.Expect(machineProviderID).NotTo(BeNil())
-				machineVmUUID := t.stripNutanixIDFromProviderID(*machineProviderID)
+				machineVmUUID := t.stripNutanixIDFromProviderID(machineProviderID)
 				vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 				g.Expect(err).ShouldNot(HaveOccurred())
 				vmMemorySizeInMib := *vm.Status.Resources.MemorySizeMib
@@ -697,12 +698,12 @@ type verifyConditionParams struct {
 	bootstrapClusterProxy framework.ClusterProxy
 	clusterName           string
 	namespace             *corev1.Namespace
-	expectedCondition     capiv1.Condition
+	expectedCondition     capiv1beta1.Condition
 }
 
 func (t testHelper) verifyConditionOnNutanixCluster(params verifyConditionParams) {
 	Eventually(
-		func() []capiv1.Condition {
+		func() []capiv1beta1.Condition {
 			cluster := t.getNutanixClusterByName(ctx, getNutanixClusterByNameInput{
 				Getter:    params.bootstrapClusterProxy.GetClient(),
 				Name:      params.clusterName,
@@ -782,14 +783,14 @@ func (t testHelper) verifyLegacyFailureDomainsOnClusterMachines(ctx context.Cont
 			nutanixMachines := t.getMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
 			for _, m := range nutanixMachines.Items {
 				machineSpec := m.Spec
-				if *machineSpec.FailureDomain == fdName {
+				if machineSpec.FailureDomain == fdName {
 					// failure domain had a match
 					match = true
 					// Search for failure domain
 					fd := controllers.GetLegacyFailureDomainFromNutanixCluster(fdName, nutanixCluster)
 					Expect(fd).ToNot(BeNil())
 					// Search for VM
-					machineVmUUID := t.stripNutanixIDFromProviderID(*machineSpec.ProviderID)
+					machineVmUUID := t.stripNutanixIDFromProviderID(machineSpec.ProviderID)
 					vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(vm).ToNot(BeNil())
@@ -820,7 +821,7 @@ func (t testHelper) verifyNewFailureDomainsOnClusterMachines(ctx context.Context
 			nutanixMachines := t.getMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
 			for _, m := range nutanixMachines.Items {
 				machineSpec := m.Spec
-				if *machineSpec.FailureDomain == fdName {
+				if machineSpec.FailureDomain == fdName {
 					// failure domain had a match
 					match = true
 
@@ -832,7 +833,7 @@ func (t testHelper) verifyNewFailureDomainsOnClusterMachines(ctx context.Context
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(fdObj).ToNot(BeNil())
 					// Search for VM
-					machineVmUUID := t.stripNutanixIDFromProviderID(*machineSpec.ProviderID)
+					machineVmUUID := t.stripNutanixIDFromProviderID(machineSpec.ProviderID)
 					vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(vm).ToNot(BeNil())
@@ -863,7 +864,7 @@ func (t testHelper) verifyFailureMessageOnClusterMachines(ctx context.Context, p
 		nutanixMachines := t.getMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
 		for _, m := range nutanixMachines.Items {
 			machineStatus := m.Status
-			if machineStatus.Phase == params.expectedPhase && machineStatus.FailureMessage != nil && strings.Contains(*machineStatus.FailureMessage, params.expectedFailureMessage) { //nolint:staticcheck // deprecated field needed for compatibility
+			if machineStatus.Phase == params.expectedPhase && machineStatus.Deprecated.V1Beta1.FailureMessage != nil && strings.Contains(*machineStatus.Deprecated.V1Beta1.FailureMessage, params.expectedFailureMessage) { //nolint:staticcheck // deprecated field needed for compatibility
 				return true
 			}
 		}

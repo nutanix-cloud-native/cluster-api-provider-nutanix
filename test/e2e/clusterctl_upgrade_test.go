@@ -53,8 +53,8 @@ var _ = Describe("clusterctl upgrade CAPX (v1.7.0 => current)", Label("clusterct
 	})
 
 	BeforeEach(func() {
-		os.Setenv("KUBERNETES_VERSION", kubernetesVersionUpgradeFrom)
-		os.Setenv("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME", nutanixMachineTemplateImageUpgradeFrom)
+		os.Setenv("KUBERNETES_VERSION", kubernetesVersion)
+		os.Setenv("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME", nutanixMachineTemplateImageName)
 	})
 
 	AfterEach(func() {
