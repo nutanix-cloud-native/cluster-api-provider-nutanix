@@ -894,6 +894,37 @@ func TestListStorageContainers(t *testing.T) {
 	}
 }
 
+func TestGetCategoryVMSpecMapping_MultiValues(t *testing.T) {
+	t.Run("returns flat map first value and mapping with all values", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		mockv3 := mocknutanixv3.NewMockService(ctrl)
+		client := &prismclientv3.Client{V3: mockv3}
+
+		key := "CategoryKey"
+		v1 := "CategoryValue1"
+		v2 := "CategoryValue2"
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: key, Value: v1}, {Key: key, Value: v2}}
+
+		// Expect lookups for both values to succeed
+		mockv3.EXPECT().GetCategoryValue(ctx, key, v1).Return(&prismclientv3.CategoryValueStatus{Value: &v1}, nil)
+		mockv3.EXPECT().GetCategoryValue(ctx, key, v2).Return(&prismclientv3.CategoryValueStatus{Value: &v2}, nil)
+
+		flat, mapping, err := GetCategoryVMSpecMapping(ctx, client, ids)
+		require.NoError(t, err)
+
+		// Flat should keep the first value for the key
+		require.Equal(t, v1, flat[key])
+
+		// Mapping should include both values in order
+		require.Len(t, mapping[key], 2)
+		require.Equal(t, []string{v1, v2}, mapping[key])
+	})
+}
+
 func TestGetStorageContainerByNtnxResourceIdentifier(t *testing.T) {
 	mockctl := gomock.NewController(t)
 

@@ -804,6 +804,56 @@ func GetCategoryVMSpec(ctx context.Context, client *prismclientv3.Client, catego
 	return categorySpec, nil
 }
 
+// GetCategoryVMSpecMapping returns both the flat categories map (first value per key) and the categories_mapping supporting multiple values per key.
+func GetCategoryVMSpecMapping(
+	ctx context.Context,
+	client *prismclientv3.Client,
+	categoryIdentifiers []*infrav1.NutanixCategoryIdentifier,
+) (map[string]string, map[string][]string, error) {
+	log := ctrl.LoggerFrom(ctx)
+	flat := map[string]string{}
+	mapping := map[string][]string{}
+
+	for _, ci := range categoryIdentifiers {
+		if ci == nil {
+			return nil, nil, fmt.Errorf("category identifier cannot be nil")
+		}
+		categoryValue, err := getCategoryValue(ctx, client, ci.Key, ci.Value)
+		if err != nil {
+			errorMsg := fmt.Errorf("error occurred while to retrieving category value %s in category %s. error: %v", ci.Value, ci.Key, err)
+			log.Error(errorMsg, "failed to retrieve category")
+			return nil, nil, errorMsg
+		}
+		if categoryValue == nil {
+			errorMsg := fmt.Errorf("category value %s not found in category %s. error", ci.Value, ci.Key)
+			log.Error(errorMsg, "category value not found")
+			return nil, nil, errorMsg
+		}
+
+		// Fill flat, first value wins
+		if _, exists := flat[ci.Key]; !exists {
+			flat[ci.Key] = ci.Value
+		}
+		// Fill mapping, de-duplication
+		if _, ok := mapping[ci.Key]; !ok {
+			mapping[ci.Key] = []string{}
+		}
+		// Avoid duplicate same value in mapping
+		present := false
+		for _, v := range mapping[ci.Key] {
+			if strings.EqualFold(v, ci.Value) {
+				present = true
+				break
+			}
+		}
+		if !present {
+			mapping[ci.Key] = append(mapping[ci.Key], ci.Value)
+		}
+	}
+
+	return flat, mapping, nil
+}
+
 // GetProjectUUID returns the UUID of the project with the given name
 func GetProjectUUID(ctx context.Context, client *prismclientv3.Client, projectName, projectUUID *string) (string, error) {
 	var foundProjectUUID string
