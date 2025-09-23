@@ -467,7 +467,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 				conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.BootstrapDataNotReady, capiv1.ConditionSeverityInfo, "")
 				log.Info("Waiting for bootstrap data to be available")
 			}
-			return reconcile.Result{}, nil
+			return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 
 		rctx.NutanixMachine.Spec.BootstrapRef = &corev1.ObjectReference{
