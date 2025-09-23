@@ -1141,11 +1141,7 @@ func TestReconcile_VMMetadataCategoriesMapping_MultipleValues(t *testing.T) {
 		{Key: "TestCategory", Value: "TestValue1"},
 		{Key: "TestCategory", Value: "TestValue2"},
 	}
-	flat, mapping, err := GetCategoryVMSpecMapping(ctx, client, ids)
+	mapping, err := GetCategoryVMSpec(ctx, client, ids)
 	require.NoError(t, err)
-	// Verify first-value behavior in flat map
-	require.Equal(t, "TestValue1", mapping["TestCategory"][0])
 	require.ElementsMatch(t, []string{"TestValue1", "TestValue2"}, mapping["TestCategory"])
-	// flat should have only first value for the duplicate key
-	require.Equal(t, "TestValue1", flat["TestCategory"])
 }

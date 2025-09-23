@@ -783,56 +783,29 @@ func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, cate
 	return categoryValue, nil
 }
 
-// GetCategoryVMSpec returns a flatmap of categories and their values
-func GetCategoryVMSpec(ctx context.Context, client *prismclientv3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) (map[string]string, error) {
-	log := ctrl.LoggerFrom(ctx)
-	categorySpec := map[string]string{}
-	for _, ci := range categoryIdentifiers {
-		categoryValue, err := getCategoryValue(ctx, client, ci.Key, ci.Value)
-		if err != nil {
-			errorMsg := fmt.Errorf("error occurred while to retrieving category value %s in category %s. error: %v", ci.Value, ci.Key, err)
-			log.Error(errorMsg, "failed to retrieve category")
-			return nil, errorMsg
-		}
-		if categoryValue == nil {
-			errorMsg := fmt.Errorf("category value %s not found in category %s. error", ci.Value, ci.Key)
-			log.Error(errorMsg, "category value not found")
-			return nil, errorMsg
-		}
-		categorySpec[ci.Key] = ci.Value
-	}
-	return categorySpec, nil
-}
-
-// GetCategoryVMSpecMapping returns both the flat categories map (first value per key) and the categories_mapping supporting multiple values per key.
-func GetCategoryVMSpecMapping(
+// GetCategoryVMSpec returns the categories_mapping supporting multiple values per key.
+func GetCategoryVMSpec(
 	ctx context.Context,
 	client *prismclientv3.Client,
 	categoryIdentifiers []*infrav1.NutanixCategoryIdentifier,
-) (map[string]string, map[string][]string, error) {
+) (map[string][]string, error) {
 	log := ctrl.LoggerFrom(ctx)
-	flat := map[string]string{}
 	mapping := map[string][]string{}
 
 	for _, ci := range categoryIdentifiers {
 		if ci == nil {
-			return nil, nil, fmt.Errorf("category identifier cannot be nil")
+			return nil, fmt.Errorf("category identifier cannot be nil")
 		}
 		categoryValue, err := getCategoryValue(ctx, client, ci.Key, ci.Value)
 		if err != nil {
 			errorMsg := fmt.Errorf("error occurred while to retrieving category value %s in category %s. error: %v", ci.Value, ci.Key, err)
 			log.Error(errorMsg, "failed to retrieve category")
-			return nil, nil, errorMsg
+			return nil, errorMsg
 		}
 		if categoryValue == nil {
 			errorMsg := fmt.Errorf("category value %s not found in category %s. error", ci.Value, ci.Key)
 			log.Error(errorMsg, "category value not found")
-			return nil, nil, errorMsg
-		}
-
-		// Fill flat, first value wins
-		if _, exists := flat[ci.Key]; !exists {
-			flat[ci.Key] = ci.Value
+			return nil, errorMsg
 		}
 		// Fill mapping, de-duplication
 		if _, ok := mapping[ci.Key]; !ok {
@@ -851,7 +824,7 @@ func GetCategoryVMSpecMapping(
 		}
 	}
 
-	return flat, mapping, nil
+	return mapping, nil
 }
 
 // GetProjectUUID returns the UUID of the project with the given name

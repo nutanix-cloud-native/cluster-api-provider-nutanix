@@ -22,7 +22,7 @@ jobs:
       # Install nix using cachix/install-nix-action if running on ARC runners
       # See: https://github.com/DeterminateSystems/nix-installer-action/issues/68
       - name: Install Nix on self-hosted ARC runners
-        uses: cachix/install-nix-action@v27
+        uses: cachix/install-nix-action@V27
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 

@@ -828,7 +828,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	}
 
 	// Set categories on VM; support multiple values via categories_mapping when possible
-	flatCategories, categoriesMapping, err := GetCategoryVMSpecMapping(ctx, v3Client, r.getMachineCategoryIdentifiers(rctx))
+	categoriesMapping, err := GetCategoryVMSpec(ctx, v3Client, r.getMachineCategoryIdentifiers(rctx))
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %v", vmName, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
@@ -836,13 +836,11 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	}
 
 	vmMetadata := &prismclientv3.Metadata{
-		Kind:        utils.StringPtr("vm"),
-		SpecVersion: utils.Int64Ptr(1),
-		Categories:  flatCategories,
+		Kind:                 utils.StringPtr("vm"),
+		SpecVersion:          utils.Int64Ptr(1),
+		UseCategoriesMapping: ptr.To(true),
+		CategoriesMapping:    categoriesMapping,
 	}
-
-	vmMetadata.UseCategoriesMapping = utils.BoolPtr(true)
-	vmMetadata.CategoriesMapping = categoriesMapping
 	// Set Project in VM Spec before creating VM
 	err = r.addVMToProject(rctx, vmMetadata)
 	if err != nil {

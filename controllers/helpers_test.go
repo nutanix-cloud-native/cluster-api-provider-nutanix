@@ -913,12 +913,8 @@ func TestGetCategoryVMSpecMapping_MultiValues(t *testing.T) {
 		mockv3.EXPECT().GetCategoryValue(ctx, key, v1).Return(&prismclientv3.CategoryValueStatus{Value: &v1}, nil)
 		mockv3.EXPECT().GetCategoryValue(ctx, key, v2).Return(&prismclientv3.CategoryValueStatus{Value: &v2}, nil)
 
-		flat, mapping, err := GetCategoryVMSpecMapping(ctx, client, ids)
+		mapping, err := GetCategoryVMSpec(ctx, client, ids)
 		require.NoError(t, err)
-
-		// Flat should keep the first value for the key
-		require.Equal(t, v1, flat[key])
-
 		// Mapping should include both values in order
 		require.Len(t, mapping[key], 2)
 		require.Equal(t, []string{v1, v2}, mapping[key])
