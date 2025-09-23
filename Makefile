@@ -50,7 +50,7 @@ endif
 
 # PLATFORMS is a list of platforms to build for.
 PLATFORMS ?= linux/amd64,linux/arm64,linux/arm
-PLATFORMS_E2E ?= linux/amd64
+PLATFORMS_E2E ?= linux/amd64,linux/arm64,linux/arm
 
 # KIND_CLUSTER_NAME is the name of the kind cluster to use.
 KIND_CLUSTER_NAME ?= capi-test
