@@ -19,15 +19,19 @@ jobs:
         with:
           ref: "${{ github.event.pull_request.head.sha }}"
 
-      # Install nix using cachix/install-nix-action if running on ARC runners
-      # See: https://github.com/DeterminateSystems/nix-installer-action/issues/68
+      # Install nix using DeterminateSystems/nix-installer-action if running on ARC runners
+      # This can be removed once jetify-com/devbox-install-action has a release that includes
+      # at least `DeterminateSystems/nix-installer-action@v19` which includes the fix in
+      # https://github.com/DeterminateSystems/nix-installer-action/issues/68
       - name: Install Nix on self-hosted ARC runners
-        uses: cachix/install-nix-action@V27
+        uses: DeterminateSystems/nix-installer-action@v20
         with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          logger: pretty
+          extra-conf: experimental-features = ca-derivations fetch-closure
 
       - name: Install devbox
-        uses: jetify-com/devbox-install-action@v0.11.0
+        uses: jetify-com/devbox-install-action@v0.13.0
         with:
           enable-cache: "false"
           skip-nix-installation: "true"
