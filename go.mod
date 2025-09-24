@@ -180,5 +180,6 @@ require (
 replace (
 	// CVE fixes for https://avd.aquasec.com/nvd/2024/cve-2024-45338
 	golang.org/x/net => golang.org/x/net v0.33.0
+	golang.org/x/oauth2 => golang.org/x/oauth2 v0.27.0
 	sigs.k8s.io/kind v0.20.0 => sigs.k8s.io/kind v0.22.0
 )
