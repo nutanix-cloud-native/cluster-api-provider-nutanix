@@ -13,20 +13,20 @@ images:
     loadBehavior: mustLoad
   # ## PLEASE KEEP THESE UP TO DATE WITH THE COMPONENTS
   # Cluster API v1beta1 Preloads
-  - name: registry.k8s.io/cluster-api/cluster-api-controller:v1.10.3
+  - name: registry.k8s.io/cluster-api/cluster-api-controller:v1.11.1
     loadBehavior: tryLoad
-  - name: registry.k8s.io/cluster-api/kubeadm-bootstrap-controller:v1.10.3
+  - name: registry.k8s.io/cluster-api/kubeadm-bootstrap-controller:v1.11.1
     loadBehavior: tryLoad
-  - name: registry.k8s.io/cluster-api/kubeadm-control-plane-controller:v1.10.3
+  - name: registry.k8s.io/cluster-api/kubeadm-control-plane-controller:v1.11.1
     loadBehavior: tryLoad
 
 providers:
   - name: cluster-api
     type: CoreProvider
     versions:
-      - name: v1.10.3
+      - name: v1.11.1
         # Use manifest from source files
-        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.10.3/core-components.yaml"
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.11.1/core-components.yaml"
         type: "url"
         contract: v1beta1
         files:
@@ -37,9 +37,9 @@ providers:
   - name: kubeadm
     type: BootstrapProvider
     versions:
-      - name: v1.10.3
+      - name: v1.11.1
         # Use manifest from source files
-        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.10.3/bootstrap-components.yaml"
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.11.1/bootstrap-components.yaml"
         type: "url"
         contract: "v1beta1"
         files:
@@ -50,9 +50,9 @@ providers:
   - name: kubeadm
     type: ControlPlaneProvider
     versions:
-      - name: v1.10.3
+      - name: v1.11.1
         # Use manifest from source files
-        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.10.3/control-plane-components.yaml"
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.11.1/control-plane-components.yaml"
         type: "url"
         contract: v1beta1
         files:
@@ -63,13 +63,13 @@ providers:
   - name: nutanix
     type: InfrastructureProvider
     versions:
-      - name: v1.6.1
+      - name: v1.7.0
         type: url
-        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.6.1/infrastructure-components.yaml
+        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.7.0/infrastructure-components.yaml
         contract: v1beta1
         files:
           - sourcePath: "../../../metadata.yaml"
-          - sourcePath: "../data/infrastructure-nutanix/v1.6.1/cluster-template.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1.7.0/cluster-template.yaml"
           - sourcePath: "../data/infrastructure-nutanix/ccm-update.yaml"
       - name: ${LOCAL_PROVIDER_VERSION}
         type: kustomize
@@ -107,7 +107,7 @@ variables:
   # allowing the same e2e config file to be re-used in different Prow jobs e.g. each one with a K8s version permutation.
   # The following Kubernetes versions should be the latest versions with already published kindest/node images.
   # This avoids building node images in the default case which improves the test duration significantly.
-  KUBERNETES_VERSION_MANAGEMENT: "v1.33.0"
+  KUBERNETES_VERSION_MANAGEMENT: "v1.34.0"
   IP_FAMILY: "IPv4"
   CLUSTERCTL_LOG_LEVEL: 10
   CLUSTER_TOPOLOGY: "true"
@@ -121,18 +121,18 @@ variables:
   IMAGE_LOOKUP_FORMAT: "\"{{.BaseOS}}-kube-v{{.K8sVersion}}.*\""
   NUTANIX_INSECURE: true
   NUTANIX_ADDITIONAL_TRUST_BUNDLE: ""
-  KUBERNETES_VERSION: "v1.33.0"
+  KUBERNETES_VERSION: "v1.34.0"
   NUTANIX_SSH_AUTHORIZED_KEY: ""
   CONTROL_PLANE_ENDPOINT_IP: ""
   CONTROL_PLANE_ENDPOINT_IP_V124: ""
   CONTROL_PLANE_MACHINE_COUNT: 1
   WORKER_MACHINE_COUNT: 1
   NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ""
-  NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: "rockylinux-9-kube-v1.33.0.qcow2"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: "rockylinux-9-kube-v1.34.0.qcow2"
   CONTROL_PLANE_MACHINE_TEMPLATE_UPGRADE_TO: "cluster-upgrade-conformance"
   WORKERS_MACHINE_TEMPLATE_UPGRADE_TO: "cluster-upgrade-conformance"
-  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_TO: "rockylinux-9-kube-v1.33.0.qcow2"
-  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_FROM: "rockylinux-9-kube-v1.32.0.qcow2"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_TO: "rockylinux-9-kube-v1.34.0.qcow2"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_FROM: "rockylinux-9-kube-v1.33.0.qcow2"
   NUTANIX_SUBNET_NAME: ""
   # NOTE: 'NUTANIX_ADDITIONAL_SUBNET_NAME' is required for multi network interface e2e tests
   NUTANIX_ADDITIONAL_SUBNET_NAME: ""
@@ -146,8 +146,8 @@ variables:
   EXP_CLUSTER_RESOURCE_SET: "true"
   EXP_CLUSTER_TOPOLOGY: "true"
   DOCKER_POD_CIDRS: "192.168.0.0/16"
-  KUBERNETES_VERSION_UPGRADE_TO: "v1.33.0"
-  KUBERNETES_VERSION_UPGRADE_FROM: "v1.32.0"
+  KUBERNETES_VERSION_UPGRADE_TO: "v1.34.0"
+  KUBERNETES_VERSION_UPGRADE_FROM: "v1.33.0"
   ETCD_VERSION_UPGRADE_TO: "3.5.16-0"
   COREDNS_VERSION_UPGRADE_TO: "v1.11.3"
   KUBETEST_CONFIGURATION: "./data/kubetest/conformance.yaml"
@@ -172,8 +172,11 @@ variables:
   # NOTE: INIT_WITH_BINARY and INIT_WITH_KUBERNETES_VERSION are only used by the clusterctl upgrade test to initialize
   # the management cluster to be upgraded.
   # NOTE: We test the latest release with a previous contract.
-  INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.10.3/clusterctl-{OS}-{ARCH}"
-  INIT_WITH_KUBERNETES_VERSION: "v1.33.0"
+  INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.11.1/clusterctl-{OS}-{ARCH}"
+  INIT_WITH_KUBERNETES_VERSION: "v1.34.0"
+  # K8s 1.34 specific variables for E2E testing
+  KUBERNETES_VERSION_v1_34: "v1.34.0"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME_v1_34: "rockylinux-9-kube-v1.34.0.qcow2"
 
 intervals:
   default/wait-controllers: ["3m", "10s"]
