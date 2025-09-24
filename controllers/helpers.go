@@ -902,7 +902,9 @@ func GetGPU(ctx context.Context, client *prismclientv3.Client, peUUID string, gp
 
 func GetGPUsForPE(ctx context.Context, client *prismclientv3.Client, peUUID string) ([]*prismclientv3.GPU, error) {
 	gpus := make([]*prismclientv3.GPU, 0)
-	hosts, err := client.V3.ListAllHost(ctx)
+	// We use ListHost, because it returns all hosts, since the endpoint does not support pagination,
+	// and ListAllHost incorrectly handles pagination. https://jira.nutanix.com/browse/NCN-110045
+	hosts, err := client.V3.ListHost(ctx, &prismclientv3.DSMetadata{})
 	if err != nil {
 		return gpus, err
 	}
