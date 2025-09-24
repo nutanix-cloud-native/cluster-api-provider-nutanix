@@ -7,11 +7,12 @@ on:
       - main
       - 'release-*'
   pull_request:
-    paths:
-    - '.github/**'
+    types: [opened, synchronize, reopened, labeled]
   pull_request_target:
-    paths-ignore:
-    - '.github/**'
+    types: [opened, synchronize, reopened, labeled]
+    branches:
+      - main
+      - 'release-*'
 jobs:
   check_approvals:
     runs-on: ubuntu-latest
@@ -108,8 +109,7 @@ jobs:
           - "capx-feature-test"
           - "scaling"
       fail-fast: false
-    if: ${{ (github.event_name == 'pull_request' && needs.check_approvals.outputs.external_pr == 'false') || (github.event_name == 'pull_request_target' && needs.check_approvals.outputs.external_pr == 'true' && needs.check_approvals.outputs.check_approvals == 'true') }}
-    needs: check_approvals  
+    needs: check_approvals
     uses: ./.github/workflows/e2e.yaml
     with:
       e2e-labels: ${{ matrix.e2e-labels }}
