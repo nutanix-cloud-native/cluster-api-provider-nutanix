@@ -907,11 +907,12 @@ func TestGetCategoryVMSpecMapping_MultiValues(t *testing.T) {
 		v1 := "CategoryValue1"
 		v2 := "CategoryValue2"
 
-		ids := []*infrav1.NutanixCategoryIdentifier{{Key: key, Value: v1}, {Key: key, Value: v2}}
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: key, Value: v1}, {Key: key, Value: v2}, {Key: key, Value: v1}}
 
 		// Expect lookups for both values to succeed
 		mockv3.EXPECT().GetCategoryValue(ctx, key, v1).Return(&prismclientv3.CategoryValueStatus{Value: &v1}, nil)
 		mockv3.EXPECT().GetCategoryValue(ctx, key, v2).Return(&prismclientv3.CategoryValueStatus{Value: &v2}, nil)
+		mockv3.EXPECT().GetCategoryValue(ctx, key, v1).Return(&prismclientv3.CategoryValueStatus{Value: &v1}, nil)
 
 		mapping, err := GetCategoryVMSpec(ctx, client, ids)
 		require.NoError(t, err)

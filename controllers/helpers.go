@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"text/template"
@@ -790,7 +791,7 @@ func GetCategoryVMSpec(
 	categoryIdentifiers []*infrav1.NutanixCategoryIdentifier,
 ) (map[string][]string, error) {
 	log := ctrl.LoggerFrom(ctx)
-	mapping := map[string][]string{}
+	categorySpec := map[string][]string{}
 
 	for _, ci := range categoryIdentifiers {
 		if ci == nil {
@@ -807,24 +808,12 @@ func GetCategoryVMSpec(
 			log.Error(errorMsg, "category value not found")
 			return nil, errorMsg
 		}
-		// Fill mapping, de-duplication
-		if _, ok := mapping[ci.Key]; !ok {
-			mapping[ci.Key] = []string{}
-		}
-		// Avoid duplicate same value in mapping
-		present := false
-		for _, v := range mapping[ci.Key] {
-			if strings.EqualFold(v, ci.Value) {
-				present = true
-				break
-			}
-		}
-		if !present {
-			mapping[ci.Key] = append(mapping[ci.Key], ci.Value)
+		if !slices.Contains(categorySpec[ci.Key], ci.Value) {
+			categorySpec[ci.Key] = append(categorySpec[ci.Key], ci.Value)
 		}
 	}
 
-	return mapping, nil
+	return categorySpec, nil
 }
 
 // GetProjectUUID returns the UUID of the project with the given name
