@@ -29,7 +29,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/uuid"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/conditions"
 
@@ -180,7 +179,6 @@ func TestNutanixFailureDomainReconciler(t *testing.T) {
 				cond := conditions.Get(fdObj, infrav1.FailureDomainSafeForDeletionCondition)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(corev1.ConditionFalse))
-				g.Expect(cond.Severity).To(Equal(capiv1.ConditionSeverityError))
 				g.Expect(cond.Reason).To(Equal(infrav1.FailureDomainInUseReason))
 			})
 		})

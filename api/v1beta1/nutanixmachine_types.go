@@ -20,7 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -268,7 +268,7 @@ type NutanixMachineStatus struct {
 
 	// Conditions defines current service state of the NutanixMachine.
 	// +optional
-	Conditions capiv1.Conditions `json:"conditions,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// Will be set in case of failure of Machine instance
 	// +optional
@@ -301,12 +301,12 @@ type NutanixMachine struct {
 }
 
 // GetConditions returns the set of conditions for this object.
-func (nm *NutanixMachine) GetConditions() capiv1.Conditions {
+func (nm *NutanixMachine) GetConditions() []metav1.Condition {
 	return nm.Status.Conditions
 }
 
 // SetConditions sets the conditions on this object.
-func (nm *NutanixMachine) SetConditions(conditions capiv1.Conditions) {
+func (nm *NutanixMachine) SetConditions(conditions []metav1.Condition) {
 	nm.Status.Conditions = conditions
 }
 
