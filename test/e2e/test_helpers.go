@@ -651,14 +651,14 @@ func (t testHelper) verifyCategoriesNutanixMachines(ctx context.Context, cluster
 				machineVmUUID := t.stripNutanixIDFromProviderID(*machineProviderID)
 				vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 				g.Expect(err).ShouldNot(HaveOccurred())
-				categoriesMeta := vm.Metadata.CategoriesMapping
+				categoriesMappingMeta := vm.Metadata.CategoriesMapping
 				for k, v := range expectedCategories {
-					g.Expect(categoriesMeta).To(HaveKey(k))
+					g.Expect(categoriesMappingMeta).To(HaveKey(k))
 					vals := make([]interface{}, len(v))
 					for i := range v {
 						vals[i] = v[i]
 					}
-					g.Expect(categoriesMeta[k]).To(ConsistOf(vals...))
+					g.Expect(categoriesMappingMeta[k]).To(ConsistOf(vals...))
 				}
 			}
 		},
