@@ -7,7 +7,9 @@ on:
       - main
       - 'release-*'
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
   pull_request_target:
+    types: [opened, synchronize, reopened, labeled]
     branches:
       - main
       - 'release-*'
@@ -36,6 +38,7 @@ jobs:
         uses: nutanix-cloud-native/action-check-approvals@v1
 
   build-container:
+    if: ${{ (github.event_name == 'pull_request' && needs.check_approvals.outputs.external_pr == 'false') || (github.event_name == 'pull_request_target' && needs.check_approvals.outputs.external_pr == 'true' && needs.check_approvals.outputs.check_approvals == 'true') }}
     needs: check_approvals
     runs-on: ubuntu-latest
     steps:
@@ -104,7 +107,10 @@ jobs:
           - "clusterctl-upgrade"
           - "clusterclass"
           - "capx-feature-test"
+          - "nutanix-feature-test"
+          - "nutanix-storage-test"
           - "scaling"
+          - "kubernetes-upgrade"
       fail-fast: false
     needs: check_approvals
     uses: ./.github/workflows/e2e.yaml
