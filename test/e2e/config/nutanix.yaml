@@ -99,13 +99,13 @@ providers:
   - name: nutanix
     type: InfrastructureProvider
     versions:
-      - name: v1.5.2
+      - name: v1.5.5
         type: url
-        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.5.2/infrastructure-components.yaml
+        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.5.5/infrastructure-components.yaml
         contract: v1beta1
         files:
           - sourcePath: "../../../metadata.yaml"
-          - sourcePath: "../data/infrastructure-nutanix/v1.5.2/cluster-template.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1.5.5/cluster-template.yaml"
           - sourcePath: "../data/infrastructure-nutanix/ccm-update.yaml"
       - name: ${LOCAL_PROVIDER_VERSION}
         type: kustomize

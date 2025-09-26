@@ -18,6 +18,7 @@ LOCAL_PROVIDER_VERSION ?= ${IMG_TAG}
 ifeq (${LOCAL_PROVIDER_VERSION},${IMG_TAG})
 # TODO(release-blocker): Change this versions after release when required here
 LOCAL_PROVIDER_VERSION := v1.6.99
+LOCAL_PROVIDER_VERSION := v1.6.99
 endif
 
 # PLATFORMS is a list of platforms to build for.
@@ -257,10 +258,10 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 ##@ Templates
 
 .PHONY: cluster-e2e-templates
-cluster-e2e-templates: cluster-e2e-templates-v1beta1 cluster-e2e-templates-v152 ## Generate cluster templates for all versions
+cluster-e2e-templates: cluster-e2e-templates-v1beta1 cluster-e2e-templates-v155 ## Generate cluster templates for all versions
 
-cluster-e2e-templates-v152: ## Generate cluster templates for CAPX v1.5.2
-	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1.5.2/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1.5.2/cluster-template.yaml
+cluster-e2e-templates-v155: ## Generate cluster templates for CAPX v1.5.5
+	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1.5.5/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1.5.5/cluster-template.yaml
 
 cluster-e2e-templates-v1beta1: ## Generate cluster templates for v1beta1
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template.yaml
