@@ -649,7 +649,7 @@ func (t testHelper) verifyCategoriesNutanixMachines(ctx context.Context, cluster
 			for _, m := range nutanixMachines.Items {
 				machineProviderID := m.Spec.ProviderID
 				g.Expect(machineProviderID).NotTo(BeNil())
-				machineVmUUID := t.stripNutanixIDFromProviderID(*machineProviderID)
+				machineVmUUID := t.stripNutanixIDFromProviderID(machineProviderID)
 				vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 				g.Expect(err).ShouldNot(HaveOccurred())
 				categoriesMappingMeta := vm.Metadata.CategoriesMapping
