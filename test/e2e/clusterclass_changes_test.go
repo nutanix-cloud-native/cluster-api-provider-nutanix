@@ -38,7 +38,7 @@ var _ = Describe("When mutating ClusterClass fields", Label("clusterclass"), fun
 			// ControlPlaneTemplate of the ClusterClass after the initial Cluster creation.
 			// The test verifies that these fields are rolled out to the ControlPlane.
 			ModifyControlPlaneFields: map[string]interface{}{
-				"spec.machineTemplate.spec.deletion.nodeDrainTimeoutSeconds": 10,
+				"spec.kubeadmConfigSpec.clusterConfiguration.apiServer.certSANs": []interface{}{"localhost", "127.0.0.1", "0.0.0.0", "0.0.0.0"},
 			},
 			// ModifyMachineDeploymentBootstrapConfigTemplateFields are the fields which will be set on the
 			// BootstrapConfigTemplate of all MachineDeploymentClasses of the ClusterClass after the initial Cluster creation.

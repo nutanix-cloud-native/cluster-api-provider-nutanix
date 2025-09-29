@@ -36,7 +36,9 @@ import (
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated type
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2" //nolint:staticcheck // suppress complaining on Deprecated type
 	capiutil "sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/predicates"
 	"sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions" //nolint:staticcheck // suppress complaining on Deprecated type
 	"sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"      //nolint:staticcheck // suppress complaining on Deprecated type
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -125,6 +127,13 @@ func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctr
 					infrav1.GroupVersion.WithKind("NutanixMachine"),
 				),
 			),
+		).Watches(
+			&capiv1beta2.Machine{},
+			handler.EnqueueRequestsFromMapFunc(
+				capiutil.MachineToInfrastructureMapFunc(
+					infrav1.GroupVersion.WithKind("NutanixMachine"),
+				),
+			),
 		).
 		Watches(
 			&infrav1.NutanixCluster{},
@@ -136,6 +145,11 @@ func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctr
 			&capiv1.Cluster{},
 			handler.EnqueueRequestsFromMapFunc(clusterToObjectFunc),
 			builder.WithPredicates(capiutilv1beta1.ClusterPausedTransitionsOrInfrastructureReady(r.Scheme, ctrl.LoggerFrom(ctx))),
+		).
+		Watches(
+			&capiv1beta2.Cluster{},
+			handler.EnqueueRequestsFromMapFunc(clusterToObjectFunc),
+			builder.WithPredicates(predicates.ClusterPausedTransitionsOrInfrastructureProvisioned(r.Scheme, ctrl.LoggerFrom(ctx))),
 		).
 		WithOptions(copts).
 		Complete(r)
@@ -467,7 +481,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 				conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.BootstrapDataNotReady, capiv1.ConditionSeverityInfo, "")
 				log.Info("Waiting for bootstrap data to be available")
 			}
-			return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+			return reconcile.Result{}, nil
 		}
 
 		rctx.NutanixMachine.Spec.BootstrapRef = &corev1.ObjectReference{
