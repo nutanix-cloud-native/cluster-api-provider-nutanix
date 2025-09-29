@@ -605,3 +605,32 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 		})
 	}
 }
+
+func TestReconcile_VMMetadataCategoriesMapping_MultipleValues(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockV3 := mocknutanixv3.NewMockService(ctrl)
+	client := &prismclientv3.Client{V3: mockV3}
+
+	// Prepare inputs
+	clusterName := "TestCluster"
+
+	// Default category key/value lookups used by GetCategoryVMSpecMapping
+	defaultKey := infrav1.DefaultCAPICategoryKeyForName
+	mockV3.EXPECT().GetCategoryValue(ctx, defaultKey, clusterName).Return(&prismclientv3.CategoryValueStatus{Value: &clusterName}, nil)
+	mockV3.EXPECT().GetCategoryValue(ctx, "TestCategory", "TestValue1").Return(&prismclientv3.CategoryValueStatus{Value: ptr.To("TestValue1")}, nil)
+	mockV3.EXPECT().GetCategoryValue(ctx, "TestCategory", "TestValue2").Return(&prismclientv3.CategoryValueStatus{Value: ptr.To("TestValue2")}, nil)
+	mockV3.EXPECT().GetCategoryValue(ctx, "TestCategory", "TestValue1").Return(&prismclientv3.CategoryValueStatus{Value: ptr.To("TestValue1")}, nil)
+
+	ids := []*infrav1.NutanixCategoryIdentifier{
+		{Key: defaultKey, Value: clusterName},
+		{Key: "TestCategory", Value: "TestValue1"},
+		{Key: "TestCategory", Value: "TestValue2"},
+		{Key: "TestCategory", Value: "TestValue1"},
+	}
+	mapping, err := GetCategoryVMSpec(ctx, client, ids)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"TestValue1", "TestValue2"}, mapping["TestCategory"])
+}

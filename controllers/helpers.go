@@ -20,6 +20,9 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"regexp"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -599,11 +602,19 @@ func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, cate
 	return categoryValue, nil
 }
 
-// GetCategoryVMSpec returns a flatmap of categories and their values
-func GetCategoryVMSpec(ctx context.Context, client *prismclientv3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) (map[string]string, error) {
+// GetCategoryVMSpec returns the categories_mapping supporting multiple values per key.
+func GetCategoryVMSpec(
+	ctx context.Context,
+	client *prismclientv3.Client,
+	categoryIdentifiers []*infrav1.NutanixCategoryIdentifier,
+) (map[string][]string, error) {
 	log := ctrl.LoggerFrom(ctx)
-	categorySpec := map[string]string{}
+	categorySpec := map[string][]string{}
+
 	for _, ci := range categoryIdentifiers {
+		if ci == nil {
+			return nil, fmt.Errorf("category identifier cannot be nil")
+		}
 		categoryValue, err := getCategoryValue(ctx, client, ci.Key, ci.Value)
 		if err != nil {
 			errorMsg := fmt.Errorf("error occurred while to retrieving category value %s in category %s. error: %v", ci.Value, ci.Key, err)
@@ -615,8 +626,11 @@ func GetCategoryVMSpec(ctx context.Context, client *prismclientv3.Client, catego
 			log.Error(errorMsg, "category value not found")
 			return nil, errorMsg
 		}
-		categorySpec[ci.Key] = ci.Value
+		if !slices.Contains(categorySpec[ci.Key], ci.Value) {
+			categorySpec[ci.Key] = append(categorySpec[ci.Key], ci.Value)
+		}
 	}
+
 	return categorySpec, nil
 }
 
