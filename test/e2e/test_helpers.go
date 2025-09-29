@@ -654,11 +654,7 @@ func (t testHelper) verifyCategoriesNutanixMachines(ctx context.Context, cluster
 				categoriesMappingMeta := vm.Metadata.CategoriesMapping
 				for k, v := range expectedCategories {
 					g.Expect(categoriesMappingMeta).To(HaveKey(k))
-					vals := make([]interface{}, len(v))
-					for i := range v {
-						vals[i] = v[i]
-					}
-					g.Expect(categoriesMappingMeta[k]).To(ConsistOf(vals...))
+					g.Expect(categoriesMappingMeta[k]).To(ConsistOf(v...))
 				}
 			}
 		},

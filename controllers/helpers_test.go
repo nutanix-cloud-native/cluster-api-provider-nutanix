@@ -915,7 +915,7 @@ func TestGetCategoryVMSpecMapping_MultiValues(t *testing.T) {
 		mockv3.EXPECT().GetCategoryValue(ctx, key, v1).Return(&prismclientv3.CategoryValueStatus{Value: &v1}, nil)
 
 		mapping, err := GetCategoryVMSpec(ctx, client, ids)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, mapping[key], 2)
 		assert.ElementsMatch(t, []string{v1, v2}, mapping[key])
 	})
