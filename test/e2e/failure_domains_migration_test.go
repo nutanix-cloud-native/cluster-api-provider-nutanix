@@ -28,7 +28,7 @@ import (
 	"github.com/onsi/gomega/gstruct"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	controlplanev1 "sigs.k8s.io/cluster-api/api/controlplane/kubeadm/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated type
+	controlplanev1 "sigs.k8s.io/cluster-api/api/controlplane/kubeadm/v1beta2"
 	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -190,7 +190,7 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 					gstruct.MatchFields(
 						gstruct.IgnoreExtras,
 						gstruct.Fields{
-							"Type":   Equal(controlplanev1.MachinesSpecUpToDateCondition),
+							"Type":   Equal(controlplanev1.MachinesSpecUpToDateV1Beta1Condition),
 							"Status": Equal(corev1.ConditionTrue),
 						},
 					),

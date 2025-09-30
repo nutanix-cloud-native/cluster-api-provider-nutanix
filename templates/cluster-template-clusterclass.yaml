@@ -1,4 +1,4 @@
-apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
 kind: KubeadmConfigTemplate
 metadata:
   name: nutanix-quick-start-kcfg-0
@@ -18,7 +18,7 @@ spec:
       - hostnamectl set-hostname "{{ ds.meta_data.hostname }}"
       verbosity: 10
 ---
-apiVersion: cluster.x-k8s.io/v1beta1
+apiVersion: cluster.x-k8s.io/v1beta2
 kind: ClusterClass
 metadata:
   name: nutanix-quick-start
@@ -52,7 +52,7 @@ spec:
         kind: NutanixMachineTemplate
         name: nutanix-quick-start-cp-nmt
     ref:
-      apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+      apiVersion: controlplane.cluster.x-k8s.io/v1beta2
       kind: KubeadmControlPlaneTemplate
       name: nutanix-quick-start-kcpt
   infrastructure:
@@ -73,7 +73,7 @@ spec:
               sshAuthorizedKeys:
                 - '{{ .sshKey }}'
       selector:
-        apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+        apiVersion: controlplane.cluster.x-k8s.io/v1beta2
         kind: KubeadmControlPlaneTemplate
         matchResources:
           controlPlane: true
@@ -88,7 +88,7 @@ spec:
               sshAuthorizedKeys:
                 - '{{ .sshKey }}'
       selector:
-        apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+        apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
         kind: KubeadmConfigTemplate
         matchResources:
           machineDeploymentClass:
@@ -120,7 +120,7 @@ spec:
           template: |
             sed -i 's/control_plane_endpoint_port/{{ .controlPlaneEndpoint.port }}/g' /etc/kubernetes/manifests/kube-vip.yaml
       selector:
-        apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+        apiVersion: controlplane.cluster.x-k8s.io/v1beta2
         kind: KubeadmControlPlaneTemplate
         matchResources:
           controlPlane: true
@@ -334,7 +334,7 @@ spec:
         path: /spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs/cloud-provider
         value: external
       selector:
-        apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+        apiVersion: controlplane.cluster.x-k8s.io/v1beta2
         kind: KubeadmControlPlaneTemplate
         matchResources:
           controlPlane: true
@@ -568,7 +568,7 @@ spec:
       template:
         bootstrap:
           ref:
-            apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
             kind: KubeadmConfigTemplate
             name: nutanix-quick-start-kcfg-0
         infrastructure:
@@ -577,7 +577,7 @@ spec:
             kind: NutanixMachineTemplate
             name: nutanix-quick-start-md-nmt
 ---
-apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+apiVersion: controlplane.cluster.x-k8s.io/v1beta2
 kind: KubeadmControlPlaneTemplate
 metadata:
   name: nutanix-quick-start-kcpt

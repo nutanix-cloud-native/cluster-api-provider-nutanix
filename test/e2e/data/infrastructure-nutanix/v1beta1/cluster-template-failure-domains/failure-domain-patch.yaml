@@ -30,14 +30,14 @@ spec:
         - name: ${NUTANIX_FAILURE_DOMAIN_3_SUBNET_NAME}
           type: name
 ---
-apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+apiVersion: controlplane.cluster.x-k8s.io/v1beta2
 kind: KubeadmControlPlane
 metadata:
   name: ${CLUSTER_NAME}-kcp
 spec:
   replicas: 3
 ---
-apiVersion: cluster.x-k8s.io/v1beta1
+apiVersion: cluster.x-k8s.io/v1beta2
 kind: MachineDeployment
 metadata:
   labels:

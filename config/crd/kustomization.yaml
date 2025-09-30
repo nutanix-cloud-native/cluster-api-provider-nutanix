@@ -40,7 +40,7 @@ kind: Kustomization
 labels:
 - includeSelectors: true
   pairs:
-    cluster.x-k8s.io/v1beta1: v1beta1
+    cluster.x-k8s.io/v1beta2: v1beta2
 patches:
 - patch: |-
     - op: add

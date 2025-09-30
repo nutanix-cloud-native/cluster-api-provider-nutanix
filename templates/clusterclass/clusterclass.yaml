@@ -1,11 +1,11 @@
-apiVersion: cluster.x-k8s.io/v1beta1
+apiVersion: cluster.x-k8s.io/v1beta2
 kind: ClusterClass
 metadata:
   name: "nutanix-quick-start"
 spec:
   controlPlane:
     ref:
-      apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+      apiVersion: controlplane.cluster.x-k8s.io/v1beta2
       kind: KubeadmControlPlaneTemplate
       name: nutanix-quick-start-kcpt
     machineInfrastructure:
@@ -41,7 +41,7 @@ spec:
       template:
         bootstrap:
           ref:
-            apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
             kind: KubeadmConfigTemplate
             name: "nutanix-quick-start-kcfg-0"
         infrastructure:
@@ -80,7 +80,7 @@ spec:
   - name: add-ssh-user
     definitions:
     - selector:
-        apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+        apiVersion: controlplane.cluster.x-k8s.io/v1beta2
         kind: KubeadmControlPlaneTemplate
         matchResources:
           controlPlane: true
@@ -95,7 +95,7 @@ spec:
               sshAuthorizedKeys:
                 - '{{ .sshKey }}'
     - selector:
-        apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+        apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
         kind: KubeadmConfigTemplate
         matchResources:
           machineDeploymentClass:
@@ -126,7 +126,7 @@ spec:
                 host: '{{ .controlPlaneEndpoint.IP }}'
                 port: {{ .controlPlaneEndpoint.port }}
     - selector:
-        apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+        apiVersion: controlplane.cluster.x-k8s.io/v1beta2
         kind: KubeadmControlPlaneTemplate
         matchResources:
           controlPlane: true
@@ -348,7 +348,7 @@ spec:
     enabledIf: '{{semverCompare "< 1.33.0-0" .builtin.controlPlane.version}}'
     definitions:
       - selector:
-          apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+          apiVersion: controlplane.cluster.x-k8s.io/v1beta2
           kind: KubeadmControlPlaneTemplate
           matchResources:
             controlPlane: true

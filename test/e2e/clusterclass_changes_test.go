@@ -38,7 +38,7 @@ var _ = Describe("When mutating ClusterClass fields", Label("clusterclass"), fun
 			// ControlPlaneTemplate of the ClusterClass after the initial Cluster creation.
 			// The test verifies that these fields are rolled out to the ControlPlane.
 			ModifyControlPlaneFields: map[string]interface{}{
-				"spec.machineTemplate.nodeDrainTimeout": "10s",
+				"spec.machineTemplate.spec.deletion.nodeDrainTimeoutSeconds": int64(10),
 			},
 			// ModifyMachineDeploymentBootstrapConfigTemplateFields are the fields which will be set on the
 			// BootstrapConfigTemplate of all MachineDeploymentClasses of the ClusterClass after the initial Cluster creation.

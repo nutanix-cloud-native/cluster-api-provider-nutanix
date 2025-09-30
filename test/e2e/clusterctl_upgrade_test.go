@@ -31,7 +31,8 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	bootstrapv1 "sigs.k8s.io/cluster-api/api/bootstrap/kubeadm/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated type
+	"k8s.io/utils/ptr"
+	bootstrapv1 "sigs.k8s.io/cluster-api/api/bootstrap/kubeadm/v1beta2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	yaml "sigs.k8s.io/cluster-api/cmd/clusterctl/client/yamlprocessor"
 	capie2e "sigs.k8s.io/cluster-api/test/e2e"
@@ -259,16 +260,10 @@ func createPostUpgradeFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInp
 
 		// Update all KubeadmConfigTemplates
 		for _, kubeadmConfigTemplate := range kubeadmConfigTemplateList.Items {
-			if kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration == nil {
-				kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration = &bootstrapv1.JoinConfiguration{
-					NodeRegistration: bootstrapv1.NodeRegistrationOptions{},
-				}
-			}
-			if kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs == nil {
-				kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs = map[string]string{}
-			}
+			kubeletExtraArgs := kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs
+			kubeletExtraArgs = append(kubeletExtraArgs, bootstrapv1.Arg{Name: "cloud-provider", Value: ptr.To("external")})
+			kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs = kubeletExtraArgs
 
-			kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs["cloud-provider"] = "external"
 			err = managementClusterProxy.GetClient().Update(context.Background(), &kubeadmConfigTemplate)
 			Expect(err).NotTo(HaveOccurred())
 			log.Debugf("Updated KubeadmConfigTemplate %s/%s with kubeletExtraArgs cloud-provider: external", kubeadmConfigTemplate.Namespace, kubeadmConfigTemplate.Name)

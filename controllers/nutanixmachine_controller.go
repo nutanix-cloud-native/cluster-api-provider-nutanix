@@ -475,7 +475,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, nil
 	}
 
-	// Make sure Cluster.Status.InfrastructureReady is true
+	// Make sure Cluster.Status.Initialization.InfrastructureProvisioned is true
 	log.Info("Checking if cluster infrastructure is ready")
 	clusterInfraProvisioned := rctx.Cluster.Status.Initialization.InfrastructureProvisioned != nil && *rctx.Cluster.Status.Initialization.InfrastructureProvisioned
 	if !clusterInfraProvisioned {

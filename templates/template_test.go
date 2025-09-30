@@ -21,7 +21,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2/textlogger"
 	"k8s.io/utils/ptr"
-	controlplanev1 "sigs.k8s.io/cluster-api/api/controlplane/kubeadm/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated type
+	controlplanev1 "sigs.k8s.io/cluster-api/api/controlplane/kubeadm/v1beta2"
 	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	clusterctllog "sigs.k8s.io/cluster-api/cmd/clusterctl/log"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
@@ -293,7 +293,7 @@ func fetchControlPlaneMachineTemplate(clnt client.Client, clusterName string) (*
 	}
 
 	for _, nmt := range nmts {
-		if nmt.Name == kcp.Spec.MachineTemplate.InfrastructureRef.Name {
+		if nmt.Name == kcp.Spec.MachineTemplate.Spec.InfrastructureRef.Name {
 			return nmt, nil
 		}
 	}
@@ -314,7 +314,7 @@ func fetchWorkerMachineTemplates(clnt client.Client, clusterName string) ([]*v1b
 
 	workerNmts := make([]*v1beta1.NutanixMachineTemplate, 0)
 	for _, nmt := range nmts {
-		if nmt.Name == kcp.Spec.MachineTemplate.InfrastructureRef.Name {
+		if nmt.Name == kcp.Spec.MachineTemplate.Spec.InfrastructureRef.Name {
 			continue
 		}
 
