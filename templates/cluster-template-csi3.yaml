@@ -2464,30 +2464,33 @@ metadata:
   namespace: kube-system
 spec:
   clusterName: ${CLUSTER_NAME}
-  maxUnhealthy: 40%
-  nodeStartupTimeout: 10m0s
+  remediation:
+    triggerIf:
+      unhealthyLessThanOrEqualTo: 40%
   selector:
     matchLabels:
       cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
-  unhealthyConditions:
-  - status: "False"
-    timeout: 5m0s
-    type: Ready
-  - status: Unknown
-    timeout: 5m0s
-    type: Ready
-  - status: "True"
-    timeout: 5m0s
-    type: MemoryPressure
-  - status: "True"
-    timeout: 5m0s
-    type: DiskPressure
-  - status: "True"
-    timeout: 5m0s
-    type: PIDPressure
-  - status: "True"
-    timeout: 5m0s
-    type: NetworkUnavailable
+  checks:
+    nodeStartupTimeoutSeconds: 600
+    unhealthyNodeConditions:
+      - status: "False"
+        timeoutSeconds: 300
+        type: Ready
+      - status: Unknown
+        timeoutSeconds: 300
+        type: Ready
+      - status: "True"
+        timeoutSeconds: 300
+        type: MemoryPressure
+      - status: "True"
+        timeoutSeconds: 300
+        type: DiskPressure
+      - status: "True"
+        timeoutSeconds: 300
+        type: PIDPressure
+      - status: "True"
+        timeoutSeconds: 300
+        type: NetworkUnavailable
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1beta2
 kind: KubeadmControlPlane

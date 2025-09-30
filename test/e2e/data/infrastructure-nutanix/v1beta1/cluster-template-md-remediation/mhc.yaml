@@ -11,11 +11,14 @@ metadata:
   namespace: "${NAMESPACE}"
 spec:
   clusterName: "${CLUSTER_NAME}"
-  maxUnhealthy: 100%
+  remediation:
+    triggerIf:
+      unhealthyLessThanOrEqualTo: 100%
   selector:
     matchLabels:
       e2e.remediation.label: ""
-  unhealthyConditions:
-    - type: e2e.remediation.condition
-      status: "False"
-      timeout: 10s
+  checks:
+    unhealthyNodeConditions:
+      - type: e2e.remediation.condition
+        status: "False"
+        timeoutSeconds: 10
