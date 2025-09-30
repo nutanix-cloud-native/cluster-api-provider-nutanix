@@ -306,7 +306,8 @@ spec:
       cidrBlocks:
       - 172.19.0.0/16
   topology:
-    class: nutanix-quick-start
+    classRef:
+      name: nutanix-quick-start
     controlPlane:
       metadata: {}
       replicas: ${CONTROL_PLANE_MACHINE_COUNT}
