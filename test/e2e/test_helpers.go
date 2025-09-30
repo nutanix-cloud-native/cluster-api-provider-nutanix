@@ -150,7 +150,7 @@ type testHelperInterface interface {
 	updateVariableInE2eConfig(variableKey string, variableValue string)
 	stripNutanixIDFromProviderID(providerID string) string
 	verifyCategoryExists(ctx context.Context, categoryKey, categoyValue string)
-	verifyCategoriesNutanixMachines(ctx context.Context, clusterName, namespace string, expectedCategories map[string]string)
+	verifyCategoriesNutanixMachines(ctx context.Context, clusterName, namespace string, expectedCategories map[string][]string)
 	verifyConditionOnNutanixCluster(params verifyConditionParams)
 	verifyConditionOnNutanixMachines(params verifyConditionParams)
 	verifyDisksOnNutanixMachines(ctx context.Context, params verifyDisksOnNutanixMachinesParams)
@@ -641,19 +641,29 @@ func (t testHelper) verifyCategoryExists(ctx context.Context, categoryKey, categ
 	Expect(err).ShouldNot(HaveOccurred())
 }
 
-func (t testHelper) verifyCategoriesNutanixMachines(ctx context.Context, clusterName, namespace string, expectedCategories map[string]string) {
-	nutanixMachines := t.getMachinesForCluster(ctx, clusterName, namespace, bootstrapClusterProxy)
-	for _, m := range nutanixMachines.Items {
-		machineProviderID := m.Spec.ProviderID
-		Expect(machineProviderID).NotTo(BeNil())
-		machineVmUUID := t.stripNutanixIDFromProviderID(machineProviderID)
-		vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
-		Expect(err).ShouldNot(HaveOccurred())
-		categoriesMeta := vm.Metadata.Categories
-		for k, v := range expectedCategories {
-			Expect(categoriesMeta).To(HaveKeyWithValue(k, v))
-		}
-	}
+func (t testHelper) verifyCategoriesNutanixMachines(ctx context.Context, clusterName, namespace string, expectedCategories map[string][]string) {
+	Eventually(
+		func(g Gomega) {
+			nutanixMachines := t.getMachinesForCluster(ctx, clusterName, namespace, bootstrapClusterProxy)
+			for _, m := range nutanixMachines.Items {
+				machineProviderID := m.Spec.ProviderID
+				machineVmUUID := t.stripNutanixIDFromProviderID(machineProviderID)
+				vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
+				g.Expect(err).ShouldNot(HaveOccurred())
+				categoriesMappingMeta := vm.Metadata.CategoriesMapping
+				for k, v := range expectedCategories {
+					g.Expect(categoriesMappingMeta).To(HaveKey(k))
+					vals := make([]any, len(v))
+					for i := range v {
+						vals[i] = v[i]
+					}
+					g.Expect(categoriesMappingMeta[k]).To(ConsistOf(vals...))
+				}
+			}
+		},
+		defaultTimeout,
+		defaultInterval,
+	).Should(Succeed())
 }
 
 type verifyResourceConfigOnNutanixMachinesParams struct {
