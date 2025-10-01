@@ -2060,14 +2060,18 @@ spec:
         - 127.0.0.1
         - 0.0.0.0
         extraArgs:
-          tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
+        - name: tls-cipher-suites
+          value: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
       controllerManager:
         extraArgs:
-          cloud-provider: external
-          tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
+        - name: cloud-provider
+          value: external
+        - name: tls-cipher-suites
+          value: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
       scheduler:
         extraArgs:
-          tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
+        - name: tls-cipher-suites
+          value: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
     files:
     - content: |
         apiVersion: v1
@@ -2133,15 +2137,21 @@ spec:
     initConfiguration:
       nodeRegistration:
         kubeletExtraArgs:
-          cloud-provider: external
-          eviction-hard: nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,memory.available<100Mi,imagefs.inodesFree<10%
-          tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
+        - name: cloud-provider
+          value: external
+        - name: eviction-hard
+          value: nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,memory.available<100Mi,imagefs.inodesFree<10%
+        - name: tls-cipher-suites
+          value: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
     joinConfiguration:
       nodeRegistration:
         kubeletExtraArgs:
-          cloud-provider: external
-          eviction-hard: nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,memory.available<100Mi,imagefs.inodesFree<10%
-          tls-cipher-suites: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
+        - name: cloud-provider
+          value: external
+        - name: eviction-hard
+          value: nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,memory.available<100Mi,imagefs.inodesFree<10%
+        - name: tls-cipher-suites
+          value: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
     postKubeadmCommands:
     - echo export KUBECONFIG=/etc/kubernetes/admin.conf >> /root/.bashrc
     - |
@@ -2180,7 +2190,6 @@ spec:
           echo "Added cloud-provider: external to apiServer configuration in list format" > /var/log/cloud-provider-config.log
         fi
       fi
-    useExperimentalRetryJoin: true
     users:
     - lockPassword: false
       name: capiuser
@@ -2189,10 +2198,11 @@ spec:
       sudo: ALL=(ALL) NOPASSWD:ALL
     verbosity: 10
   machineTemplate:
-    infrastructureRef:
-      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-      kind: NutanixMachineTemplate
-      name: ${CLUSTER_NAME}-mt-0
+    spec:
+      infrastructureRef:
+        apiGroup: infrastructure.cluster.x-k8s.io
+        kind: NutanixMachineTemplate
+        name: ${CLUSTER_NAME}-mt-0
   replicas: ${CONTROL_PLANE_MACHINE_COUNT=1}
   version: ${KUBERNETES_VERSION}
 ---

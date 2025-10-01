@@ -4,6 +4,7 @@ kind: KubeadmControlPlane
 metadata:
   name: "${CLUSTER_NAME}-kcp"
 spec:
-  rolloutStrategy:
-    rollingUpdate:
-      maxSurge: 0
+  rollout:
+    strategy:
+      rollingUpdate:
+        maxSurge: 0

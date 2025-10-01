@@ -7,15 +7,18 @@ spec:
     clusterConfiguration:
       controllerManager:
         extraArgs:
-          cloud-provider: external
+        - name: cloud-provider
+          value: external
     initConfiguration:
       nodeRegistration:
         kubeletExtraArgs:
-          cloud-provider: external
+        - name: cloud-provider
+          value: external
     joinConfiguration:
       nodeRegistration:
         kubeletExtraArgs:
-          cloud-provider: external
+        - name: cloud-provider
+          value: external
 ---
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster

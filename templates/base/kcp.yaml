@@ -6,10 +6,11 @@ spec:
   replicas: ${CONTROL_PLANE_MACHINE_COUNT=1}
   version: ${KUBERNETES_VERSION}
   machineTemplate:
-    infrastructureRef:
-      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-      kind: NutanixMachineTemplate
-      name: "${CLUSTER_NAME}-mt-0"
+    spec:
+      infrastructureRef:
+        apiGroup: infrastructure.cluster.x-k8s.io
+        kind: NutanixMachineTemplate
+        name: "${CLUSTER_NAME}-mt-0"
   kubeadmConfigSpec:
     clusterConfiguration:
       apiServer:
@@ -18,13 +19,16 @@ spec:
           - 127.0.0.1
           - 0.0.0.0
         extraArgs:
-          tls-cipher-suites: "${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}"
+        - name: tls-cipher-suites
+          value: "${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}"
       controllerManager:
         extraArgs:
-          tls-cipher-suites: "${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}"
+        - name: tls-cipher-suites
+          value: "${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}"
       scheduler:
         extraArgs:
-          tls-cipher-suites: "${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}"
+        - name: tls-cipher-suites
+          value: "${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}"
     files:
       - content: |
           apiVersion: v1
@@ -90,19 +94,23 @@ spec:
     initConfiguration:
       nodeRegistration:
         kubeletExtraArgs:
-          # We have to pin the cgroupDriver to cgroupfs as kubeadm >=1.21 defaults to systemd
-          # kind will implement systemd support in: https://github.com/kubernetes-sigs/kind/issues/1726
-          #cgroup-driver: cgroupfs
-          eviction-hard: nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,memory.available<100Mi,imagefs.inodesFree<10%
-          tls-cipher-suites: "${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}"
+        # We have to pin the cgroupDriver to cgroupfs as kubeadm >=1.21 defaults to systemd
+        # kind will implement systemd support in: https://github.com/kubernetes-sigs/kind/issues/1726
+        #cgroup-driver: cgroupfs
+        - name: eviction-hard
+          value: nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,memory.available<100Mi,imagefs.inodesFree<10%
+        - name: tls-cipher-suites
+          value: "${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}"
     joinConfiguration:
       nodeRegistration:
         kubeletExtraArgs:
-          # We have to pin the cgroupDriver to cgroupfs as kubeadm >=1.21 defaults to systemd
-          # kind will implement systemd support in: https://github.com/kubernetes-sigs/kind/issues/1726
-          #cgroup-driver: cgroupfs
-          eviction-hard: nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,memory.available<100Mi,imagefs.inodesFree<10%
-          tls-cipher-suites: "${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}"
+        # We have to pin the cgroupDriver to cgroupfs as kubeadm >=1.21 defaults to systemd
+        # kind will implement systemd support in: https://github.com/kubernetes-sigs/kind/issues/1726
+        #cgroup-driver: cgroupfs
+        - name: eviction-hard
+          value: nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,memory.available<100Mi,imagefs.inodesFree<10%
+        - name: tls-cipher-suites
+          value: "${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}"
     users:
       - name: capiuser
         lockPassword: false
@@ -147,5 +155,4 @@ spec:
           fi
         fi
       - echo "after kubeadm call" > /var/log/postkubeadm.log
-    useExperimentalRetryJoin: true
     verbosity: 10
