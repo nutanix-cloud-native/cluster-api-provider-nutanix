@@ -10,7 +10,6 @@ spec:
     classRef:
       name: nutanix-quick-start
     controlPlane:
-      metadata: {}
       replicas: 1
     variables:
       - name: sshKey

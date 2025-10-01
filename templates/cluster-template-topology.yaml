@@ -309,7 +309,6 @@ spec:
     classRef:
       name: nutanix-quick-start
     controlPlane:
-      metadata: {}
       replicas: ${CONTROL_PLANE_MACHINE_COUNT}
     variables:
     - name: sshKey
@@ -353,6 +352,5 @@ spec:
     workers:
       machineDeployments:
       - class: nutanix-quick-start-worker
-        metadata: {}
         name: md-0
         replicas: ${WORKER_MACHINE_COUNT}

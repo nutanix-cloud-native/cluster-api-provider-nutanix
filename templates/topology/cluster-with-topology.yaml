@@ -17,13 +17,11 @@ spec:
     version: ${KUBERNETES_VERSION}
     controlPlane:
       replicas: ${CONTROL_PLANE_MACHINE_COUNT}
-      metadata: {}
     workers:
       machineDeployments:
       - class: nutanix-quick-start-worker
         name: md-0
         replicas: ${WORKER_MACHINE_COUNT}
-        metadata: {}
     variables:
     - name: sshKey
       value: '${NUTANIX_SSH_AUTHORIZED_KEY}'
