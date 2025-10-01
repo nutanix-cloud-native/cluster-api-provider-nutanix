@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
@@ -181,7 +180,7 @@ func FindVMByName(ctx context.Context, client *prismclientv3.Client, vmName stri
 	log.Info(fmt.Sprintf("Checking if VM with name %s exists.", vmName))
 
 	res, err := client.V3.ListVM(ctx, &prismclientv3.DSMetadata{
-		Filter: utils.StringPtr(fmt.Sprintf("vm_name==%s", vmName)),
+		Filter: ptr.To(fmt.Sprintf("vm_name==%s", vmName)),
 	})
 	if err != nil {
 		return nil, err
@@ -254,10 +253,10 @@ func CreateSystemDiskSpec(imageUUID string, systemDiskSize int64) (*prismclientv
 	}
 	systemDisk := &prismclientv3.VMDisk{
 		DataSourceReference: &prismclientv3.Reference{
-			Kind: utils.StringPtr("image"),
-			UUID: utils.StringPtr(imageUUID),
+			Kind: ptr.To("image"),
+			UUID: ptr.To(imageUUID),
 		},
-		DiskSizeMib: utils.Int64Ptr(systemDiskSize),
+		DiskSizeMib: ptr.To(systemDiskSize),
 	}
 	return systemDisk, nil
 }
@@ -284,7 +283,7 @@ func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, dataD
 
 	for _, dataDiskSpec := range dataDiskSpecs {
 		dataDisk := &prismclientv3.VMDisk{
-			DiskSizeMib: utils.Int64Ptr(GetMibValueOfQuantity(dataDiskSpec.DiskSize)),
+			DiskSizeMib: ptr.To(GetMibValueOfQuantity(dataDiskSpec.DiskSize)),
 		}
 
 		// If data source is provided, get the image UUID
@@ -300,8 +299,8 @@ func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, dataD
 			imageUUID := *image.Metadata.UUID
 
 			dataSourceReference := &prismclientv3.Reference{
-				Kind: utils.StringPtr("image"),
-				UUID: utils.StringPtr(imageUUID),
+				Kind: ptr.To("image"),
+				UUID: ptr.To(imageUUID),
 			}
 
 			dataDisk.DataSourceReference = dataSourceReference
@@ -319,15 +318,15 @@ func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, dataD
 
 		// Set device properties
 		deviceProperties := &prismclientv3.VMDiskDeviceProperties{
-			DeviceType: utils.StringPtr(strings.ToUpper(string(deviceType))),
+			DeviceType: ptr.To(strings.ToUpper(string(deviceType))),
 			DiskAddress: &prismclientv3.DiskAddress{
-				AdapterType: utils.StringPtr(strings.ToUpper(string(adapterType))),
-				DeviceIndex: utils.Int64Ptr(getDeviceIndex(string(adapterType))),
+				AdapterType: ptr.To(strings.ToUpper(string(adapterType))),
+				DeviceIndex: ptr.To(getDeviceIndex(string(adapterType))),
 			},
 		}
 
 		if dataDiskSpec.DeviceProperties != nil && dataDiskSpec.DeviceProperties.DeviceIndex != 0 {
-			deviceProperties.DiskAddress.DeviceIndex = utils.Int64Ptr(int64(dataDiskSpec.DeviceProperties.DeviceIndex))
+			deviceProperties.DiskAddress.DeviceIndex = ptr.To(int64(dataDiskSpec.DeviceProperties.DeviceIndex))
 		}
 
 		dataDisk.DeviceProperties = deviceProperties
@@ -755,8 +754,8 @@ func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, cate
 	if categoryKey == nil {
 		log.V(1).Info(fmt.Sprintf("Category with key %s did not exist.", categoryIdentifier.Key))
 		categoryKey, err = client.V3.CreateOrUpdateCategoryKey(ctx, &prismclientv3.CategoryKey{
-			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
-			Name:        utils.StringPtr(categoryIdentifier.Key),
+			Description: ptr.To(infrav1.DefaultCAPICategoryDescription),
+			Name:        ptr.To(categoryIdentifier.Key),
 		})
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to create category with key %s. error: %v", categoryIdentifier.Key, err)
@@ -772,8 +771,8 @@ func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, cate
 	}
 	if categoryValue == nil {
 		categoryValue, err = client.V3.CreateOrUpdateCategoryValue(ctx, *categoryKey.Name, &prismclientv3.CategoryValue{
-			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
-			Value:       utils.StringPtr(categoryIdentifier.Value),
+			Description: ptr.To(infrav1.DefaultCAPICategoryDescription),
+			Value:       ptr.To(categoryIdentifier.Value),
 		})
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to create category value %s in category key %s: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
@@ -956,16 +955,16 @@ func GetLegacyFailureDomainFromNutanixCluster(failureDomainName string, nutanixC
 func ListStorageContainers(ctx context.Context, client *prismclientv3.Client) ([]*StorageContainerIntentResponse, error) {
 	result := make([]*StorageContainerIntentResponse, 0)
 	request := &prismclientv3.GroupsGetEntitiesRequest{
-		EntityType: utils.StringPtr("storage_container"),
+		EntityType: ptr.To("storage_container"),
 		GroupMemberAttributes: []*prismclientv3.GroupsRequestedAttribute{
 			{
-				Attribute: utils.StringPtr("container_name"),
+				Attribute: ptr.To("container_name"),
 			},
 			{
-				Attribute: utils.StringPtr("cluster_name"),
+				Attribute: ptr.To("cluster_name"),
 			},
 			{
-				Attribute: utils.StringPtr("cluster"),
+				Attribute: ptr.To("cluster"),
 			},
 		},
 	}
@@ -990,11 +989,11 @@ func ListStorageContainers(ctx context.Context, client *prismclientv3.Client) ([
 					if len(d.Values) > 0 {
 						switch d.Name {
 						case "container_name":
-							storageContainer.Name = utils.StringPtr(d.Values[0].Values[0])
+							storageContainer.Name = ptr.To(d.Values[0].Values[0])
 						case "cluster_name":
-							storageContainer.ClusterName = utils.StringPtr(d.Values[0].Values[0])
+							storageContainer.ClusterName = ptr.To(d.Values[0].Values[0])
 						case "cluster":
-							storageContainer.ClusterUUID = utils.StringPtr(d.Values[0].Values[0])
+							storageContainer.ClusterUUID = ptr.To(d.Values[0].Values[0])
 						}
 					}
 				}
