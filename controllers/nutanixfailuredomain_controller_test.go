@@ -29,9 +29,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/uuid"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
@@ -155,7 +155,7 @@ func TestNutanixFailureDomainReconciler(t *testing.T) {
 				// Expect calling reconciler.reconcileDelete() without error, because no NutanixMachine uses the failure domain
 				_, err := reconciler.reconcileDelete(ctx, fdObj)
 				g.Expect(err).NotTo(HaveOccurred())
-				cond := conditions.Get(fdObj, infrav1.FailureDomainSafeForDeletionCondition)
+				cond := v1beta1conditions.Get(fdObj, infrav1.FailureDomainSafeForDeletionCondition)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(corev1.ConditionTrue))
 
@@ -177,7 +177,7 @@ func TestNutanixFailureDomainReconciler(t *testing.T) {
 				// Expect calling reconciler.reconcileDelete() returns error, because there is NutanixMachine using the failure domain
 				_, err = reconciler.reconcileDelete(ctx, fdObj)
 				g.Expect(err).To(HaveOccurred())
-				cond := conditions.Get(fdObj, infrav1.FailureDomainSafeForDeletionCondition)
+				cond := v1beta1conditions.Get(fdObj, infrav1.FailureDomainSafeForDeletionCondition)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(corev1.ConditionFalse))
 				g.Expect(cond.Severity).To(Equal(capiv1.ConditionSeverityError))

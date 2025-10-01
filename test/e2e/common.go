@@ -1,5 +1,3 @@
-//go:build e2e
-
 /*
 Copyright 2020 The Kubernetes Authors.
 
@@ -28,7 +26,7 @@ import (
 	"github.com/onsi/gomega/types"
 	corev1 "k8s.io/api/core/v1"
 
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/util"
 )

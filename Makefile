@@ -6,7 +6,7 @@ GOTOOL=$(GOCMD) tool
 EXPORT_RESULT?=false # for CI please set EXPORT_RESULT to true
 
 GIT_COMMIT_HASH=$(shell git rev-parse HEAD)
-LOCAL_IMAGE_REGISTRY ?= ko.local
+LOCAL_IMAGE_REGISTRY ?= harbor.eng.nutanix.com/atul-dev
 IMG_REPO=${LOCAL_IMAGE_REGISTRY}/cluster-api-provider-nutanix
 IMG_TAG=e2e-${GIT_COMMIT_HASH}
 MANAGER_IMAGE=${IMG_REPO}:${IMG_TAG}
@@ -22,7 +22,7 @@ endif
 
 # PLATFORMS is a list of platforms to build for.
 PLATFORMS ?= linux/amd64,linux/arm64,linux/arm
-PLATFORMS_E2E ?= linux/amd64
+PLATFORMS_E2E ?= linux/amd64,linux/arm64,linux/arm
 
 # KIND_CLUSTER_NAME is the name of the kind cluster to use.
 KIND_CLUSTER_NAME ?= capi-test

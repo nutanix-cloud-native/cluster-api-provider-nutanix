@@ -1,5 +1,3 @@
-//go:build e2e
-
 /*
 Copyright 2022 Nutanix
 
@@ -28,7 +26,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,7 +61,7 @@ var _ = Describe("Nutanix regression tests", Label("capx-feature-test", "regress
 
 	AfterEach(func() {
 		bcpClient := bootstrapClusterProxy.GetClient()
-		myCluster := &clusterv1.Cluster{
+		myCluster := &clusterv1beta2.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      clusterName,
 				Namespace: namespace.Name,
@@ -127,7 +126,7 @@ var _ = Describe("Nutanix regression tests", Label("capx-feature-test", "regress
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
+				expectedCondition: clusterv1beta1.Condition{
 					Type:   infrav1.CredentialRefSecretOwnerSetCondition,
 					Status: corev1.ConditionTrue,
 				},
@@ -139,7 +138,7 @@ var _ = Describe("Nutanix regression tests", Label("capx-feature-test", "regress
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
+				expectedCondition: clusterv1beta1.Condition{
 					Type:   infrav1.PrismCentralClientCondition,
 					Status: corev1.ConditionTrue,
 				},
@@ -161,7 +160,7 @@ var _ = Describe("Nutanix regression tests", Label("capx-feature-test", "regress
 			Byf("Deleting cluster %s/%s", namespace.Name, clusterName)
 			framework.DeleteCluster(ctx, framework.DeleteClusterInput{
 				Deleter: bootstrapClusterProxy.GetClient(),
-				Cluster: &clusterv1.Cluster{
+				Cluster: &clusterv1beta2.Cluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      clusterName,
 						Namespace: namespace.Name,
@@ -173,7 +172,7 @@ var _ = Describe("Nutanix regression tests", Label("capx-feature-test", "regress
 			framework.WaitForClusterDeleted(ctx, framework.WaitForClusterDeletedInput{
 				ClusterProxy:         bootstrapClusterProxy,
 				ClusterctlConfigPath: clusterctlConfigPath,
-				Cluster: &clusterv1.Cluster{
+				Cluster: &clusterv1beta2.Cluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      clusterName,
 						Namespace: namespace.Name,
@@ -199,7 +198,7 @@ var _ = Describe("Nutanix regression tests", Label("capx-feature-test", "regress
 				client.ObjectKey{
 					Name:      clusterName,
 					Namespace: namespace.Name,
-				}, &clusterv1.Cluster{})
+				}, &clusterv1beta2.Cluster{})
 			Expect(err).To(HaveOccurred())
 			Expect(apierrors.IsNotFound(err)).To(BeTrue())
 		})

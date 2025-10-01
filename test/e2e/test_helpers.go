@@ -1,5 +1,3 @@
-//go:build e2e
-
 /*
 Copyright 2022 Nutanix
 
@@ -36,7 +34,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/test/framework/bootstrap"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
@@ -133,12 +132,12 @@ type testHelperInterface interface {
 	deployClusterAndWait(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult)
 	deleteSecret(params deleteSecretParams)
 	deleteAllClustersAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, namespace *corev1.Namespace, intervalsGetter func(spec, key string) []interface{})
-	deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *capiv1.Cluster, intervalsGetter func(spec, key string) []interface{})
+	deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *capiv1beta2.Cluster, intervalsGetter func(spec, key string) []interface{})
 	findGPU(ctx context.Context, gpuName string) *prismGoClientV3.GPU
 	generateNMTName(clusterName string) string
 	generateNMTProviderID(clusterName string) string
 	generateTestClusterName(specName string) string
-	getMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *capiv1.MachineList
+	getMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *capiv1beta1.MachineList
 	getNutanixMachineForCluster(ctx context.Context, clusterName, namespace, machineName string, bootstrapClusterProxy framework.ClusterProxy) *infrav1.NutanixMachine
 	getNutanixMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *infrav1.NutanixMachineList
 	getNutanixClusterByName(ctx context.Context, input getNutanixClusterByNameInput) *infrav1.NutanixCluster
@@ -371,7 +370,7 @@ func (t testHelper) createDefaultNutanixCluster(clusterName, namespace, controlP
 			Namespace: namespace,
 		},
 		Spec: infrav1.NutanixClusterSpec{
-			ControlPlaneEndpoint: capiv1.APIEndpoint{
+			ControlPlaneEndpoint: capiv1beta1.APIEndpoint{
 				Host: controlPlaneEndpointIP,
 				Port: controlPlanePort,
 			},
@@ -493,7 +492,7 @@ func (t testHelper) deleteAllClustersAndWait(ctx context.Context, specName strin
 	}, intervalsGetter(specName, "wait-delete-cluster")...)
 }
 
-func (t testHelper) deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *capiv1.Cluster, intervalsGetter func(spec, key string) []interface{}) {
+func (t testHelper) deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *capiv1beta2.Cluster, intervalsGetter func(spec, key string) []interface{}) {
 	framework.DeleteClusterAndWait(ctx, framework.DeleteClusterAndWaitInput{
 		ClusterProxy:         bootstrapClusterProxy,
 		ClusterctlConfigPath: clusterctlConfigPath,
@@ -529,9 +528,9 @@ func (t testHelper) getNutanixClusterByName(ctx context.Context, input getNutani
 	return cluster
 }
 
-func (t testHelper) getMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *capiv1.MachineList {
-	machineList := &capiv1.MachineList{}
-	labels := map[string]string{capiv1.ClusterNameLabel: clusterName}
+func (t testHelper) getMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *capiv1beta1.MachineList {
+	machineList := &capiv1beta1.MachineList{}
+	labels := map[string]string{capiv1beta1.ClusterNameLabel: clusterName}
 	err := bootstrapClusterProxy.GetClient().List(ctx, machineList, client.InNamespace(namespace), client.MatchingLabels(labels))
 	Expect(err).ShouldNot(HaveOccurred())
 	return machineList
@@ -551,7 +550,7 @@ func (t testHelper) getNutanixMachineForCluster(ctx context.Context, clusterName
 
 func (t testHelper) getNutanixMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *infrav1.NutanixMachineList {
 	machineList := &infrav1.NutanixMachineList{}
-	labels := map[string]string{capiv1.ClusterNameLabel: clusterName}
+	labels := map[string]string{capiv1beta1.ClusterNameLabel: clusterName}
 	err := bootstrapClusterProxy.GetClient().List(ctx, machineList, client.InNamespace(namespace), client.MatchingLabels(labels))
 	Expect(err).ShouldNot(HaveOccurred())
 	return machineList
@@ -708,12 +707,12 @@ type verifyConditionParams struct {
 	bootstrapClusterProxy framework.ClusterProxy
 	clusterName           string
 	namespace             *corev1.Namespace
-	expectedCondition     capiv1.Condition
+	expectedCondition     capiv1beta1.Condition
 }
 
 func (t testHelper) verifyConditionOnNutanixCluster(params verifyConditionParams) {
 	Eventually(
-		func() []capiv1.Condition {
+		func() []capiv1beta1.Condition {
 			cluster := t.getNutanixClusterByName(ctx, getNutanixClusterByNameInput{
 				Getter:    params.bootstrapClusterProxy.GetClient(),
 				Name:      params.clusterName,
