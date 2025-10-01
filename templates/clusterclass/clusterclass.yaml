@@ -4,75 +4,80 @@ metadata:
   name: "nutanix-quick-start"
 spec:
   controlPlane:
-    ref:
+    templateRef:
       apiVersion: controlplane.cluster.x-k8s.io/v1beta2
       kind: KubeadmControlPlaneTemplate
       name: nutanix-quick-start-kcpt
     machineInfrastructure:
-      ref:
-        kind: NutanixMachineTemplate
+      templateRef:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
         name: nutanix-quick-start-cp-nmt
-    machineHealthCheck:
-      maxUnhealthy: 40%
-      nodeStartupTimeout: 10m
-      unhealthyConditions:
-        - type: Ready
-          status: "False"
-          timeout: 300s
-        - type: Ready
-          status: Unknown
-          timeout: 300s
-        - type: MemoryPressure
-          status: "True"
-          timeout: 300s
-        - type: DiskPressure
-          status: "True"
-          timeout: 300s
-        - type: PIDPressure
-          status: "True"
-          timeout: 300s
-        - type: NetworkUnavailable
-          status: "True"
-          timeout: 300s
+    healthCheck:
+      remediation:
+        triggerIf:
+          unhealthyLessThanOrEqualTo: 40%
+      checks:
+        nodeStartupTimeoutSeconds: 600
+        unhealthyNodeConditions:
+          - type: Ready
+            status: "False"
+            timeoutSeconds: 300
+          - type: Ready
+            status: Unknown
+            timeoutSeconds: 300
+          - type: MemoryPressure
+            status: "True"
+            timeoutSeconds: 300
+          - type: DiskPressure
+            status: "True"
+            timeoutSeconds: 300
+          - type: PIDPressure
+            status: "True"
+            timeoutSeconds: 300
+          - type: NetworkUnavailable
+            status: "True"
+            timeoutSeconds: 300
   workers:
     machineDeployments:
     - class: nutanix-quick-start-worker
-      template:
-        bootstrap:
-          ref:
-            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
-            kind: KubeadmConfigTemplate
-            name: "nutanix-quick-start-kcfg-0"
-        infrastructure:
-          ref:
-            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-            kind: NutanixMachineTemplate
-            name: nutanix-quick-start-md-nmt
-      machineHealthCheck:
-        maxUnhealthy: 40%
-        nodeStartupTimeout: 10m
-        unhealthyConditions:
-          - type: Ready
-            status: "False"
-            timeout: 300s
-          - type: Ready
-            status: Unknown
-            timeout: 300s
-          - type: MemoryPressure
-            status: "True"
-            timeout: 300s
-          - type: DiskPressure
-            status: "True"
-            timeout: 300s
-          - type: PIDPressure
-            status: "True"
-            timeout: 300s
-          - type: NetworkUnavailable
-            status: "True"
-            timeout: 300s
+      bootstrap:
+        templateRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+          kind: KubeadmConfigTemplate
+          name: "nutanix-quick-start-kcfg-0"
+      infrastructure:
+        templateRef:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+          kind: NutanixMachineTemplate
+          name: nutanix-quick-start-md-nmt
+      healthCheck:
+        remediation:
+          triggerIf:
+            unhealthyLessThanOrEqualTo: 40%
+        checks:
+          nodeStartupTimeoutSeconds: 600
+          unhealthyNodeConditions:
+            - type: Ready
+              status: "False"
+              timeoutSeconds: 300
+            - type: Ready
+              status: Unknown
+              timeoutSeconds: 300
+            - type: MemoryPressure
+              status: "True"
+              timeoutSeconds: 300
+            - type: DiskPressure
+              status: "True"
+              timeoutSeconds: 300
+            - type: PIDPressure
+              status: "True"
+              timeoutSeconds: 300
+            - type: NetworkUnavailable
+              status: "True"
+              timeoutSeconds: 300
   infrastructure:
-    ref:
+    templateRef:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
       kind: NutanixClusterTemplate
       name: nutanix-quick-start-nct
