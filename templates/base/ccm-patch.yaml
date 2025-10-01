@@ -34,4 +34,5 @@ spec:
       joinConfiguration:
         nodeRegistration:
           kubeletExtraArgs:
-            cloud-provider: external
+          - name: cloud-provider
+            value: external
