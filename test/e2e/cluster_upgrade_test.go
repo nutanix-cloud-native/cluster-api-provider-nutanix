@@ -1,3 +1,5 @@
+//go:build e2e
+
 /*
 Copyright 2022 Nutanix, Inc
 Copyright 2021 The Kubernetes Authors.
