@@ -1243,11 +1243,12 @@ data:
           serviceAccount: csi-snapshot-controller
           containers:
             - name: snapshot-controller
-              image: registry.k8s.io/sig-storage/snapshot-controller:v6.3.2
+              image: registry.k8s.io/sig-storage/snapshot-controller:v6.3.3
               imagePullPolicy: IfNotPresent
               args:
                 - "--v=2"
                 - "--leader-election=true"
+                - "--prevent-volume-mode-conversion=true"
               securityContext:
                 capabilities:
                   drop:
@@ -1298,7 +1299,7 @@ data:
           serviceAccountName: csi-snapshot-webhook
           containers:
           - name: snapshot-validation
-            image: registry.k8s.io/sig-storage/snapshot-validation-webhook:v6.3.2
+            image: registry.k8s.io/sig-storage/snapshot-validation-webhook:v6.3.3
             imagePullPolicy: IfNotPresent
             args:
               - --tls-cert-file=/etc/snapshot-validation-webhook/certs/tls.crt
