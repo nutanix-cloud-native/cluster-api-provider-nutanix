@@ -29,8 +29,8 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	bootstrapv1 "sigs.k8s.io/cluster-api/api/bootstrap/kubeadm/v1beta1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	bootstrapv1 "sigs.k8s.io/cluster-api/api/bootstrap/kubeadm/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"                //nolint:staticcheck // suppress complaining on Deprecated package
 	yaml "sigs.k8s.io/cluster-api/cmd/clusterctl/client/yamlprocessor"
 	capie2e "sigs.k8s.io/cluster-api/test/e2e"
 	"sigs.k8s.io/cluster-api/test/framework"
@@ -41,8 +41,8 @@ import (
 
 var _ = Describe("clusterctl upgrade CAPX (v1.7.0 => current)", Label("clusterctl-upgrade"), func() {
 	var (
-		kubernetesVersion                      string
-		nutanixMachineTemplateImageName        string
+		kubernetesVersion               string
+		nutanixMachineTemplateImageName string
 	)
 
 	BeforeEach(func() {

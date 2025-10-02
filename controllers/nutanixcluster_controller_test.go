@@ -36,7 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 	"sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -117,7 +117,6 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(result.RequeueAfter).To(BeZero())
-				g.Expect(result.Requeue).To(BeFalse())
 			})
 		})
 
@@ -131,7 +130,6 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(result.RequeueAfter).To(BeZero())
-				g.Expect(result.Requeue).To(BeFalse())
 			})
 			It("should not error and not requeue if no failure domains are configured and cluster is Ready", func() {
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
@@ -142,10 +140,9 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(result.RequeueAfter).To(BeZero())
-				g.Expect(result.Requeue).To(BeFalse())
 			})
 			It("should not error and not requeue if failure domains (deprecated) are configured and cluster is Ready", func() {
-				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{{ //nolint:staticcheck // suppress complaining on Deprecated type
+				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{{ //nolint:staticcheck // suppress complaining on Deprecated package
 					Name: "fd-1",
 					Cluster: infrav1.NutanixResourceIdentifier{
 						Type: infrav1.NutanixIdentifierName,
@@ -167,7 +164,6 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(result.RequeueAfter).To(BeZero())
-				g.Expect(result.Requeue).To(BeFalse())
 			})
 			It("should not error and not requeue if controlPlaneFailureDomains are configured and cluster is Ready", func() {
 				ntnxCluster.Spec.ControlPlaneFailureDomains = []corev1.LocalObjectReference{fdRef}
@@ -179,7 +175,6 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(result.RequeueAfter).To(BeZero())
-				g.Expect(result.Requeue).To(BeFalse())
 			})
 			It("should not error if controlPlaneFailureDomains are configured with unique failure domain names", func() {
 				fdRef1 := corev1.LocalObjectReference{Name: "test-1"}
