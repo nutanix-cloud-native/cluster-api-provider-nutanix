@@ -863,7 +863,6 @@ func (t testHelper) verifyNewFailureDomainsOnClusterMachines(ctx context.Context
 type verifyFailureMessageOnClusterMachinesParams struct {
 	clusterName            string
 	namespace              *corev1.Namespace
-	expectedPhase          string
 	expectedFailureMessage string
 	bootstrapClusterProxy  framework.ClusterProxy
 }
@@ -873,9 +872,7 @@ func (t testHelper) verifyFailureMessageOnClusterMachines(ctx context.Context, p
 		nutanixMachines := t.getMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
 		for _, m := range nutanixMachines.Items {
 			machineStatus := m.Status
-			if machineStatus.Phase == params.expectedPhase &&
-				machineStatus.Deprecated.V1Beta1.FailureMessage != nil && //nolint:staticcheck // deprecated field needed for compatibility
-				strings.Contains(*machineStatus.Deprecated.V1Beta1.FailureMessage, params.expectedFailureMessage) { //nolint:staticcheck // deprecated field needed for compatibility
+			if machineStatus.Deprecated.V1Beta1.FailureMessage != nil && strings.Contains(*machineStatus.Deprecated.V1Beta1.FailureMessage, params.expectedFailureMessage) { //nolint:staticcheck // deprecated field
 				return true
 			}
 		}

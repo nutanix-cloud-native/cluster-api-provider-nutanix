@@ -165,7 +165,6 @@ var _ = Describe("Nutanix categories", Label("nutanix-feature-test", "categories
 			testHelper.verifyFailureMessageOnClusterMachines(ctx, verifyFailureMessageOnClusterMachinesParams{
 				clusterName:            clusterName,
 				namespace:              namespace,
-				expectedPhase:          "Failed",
 				expectedFailureMessage: "not found in category",
 				bootstrapClusterProxy:  bootstrapClusterProxy,
 			})

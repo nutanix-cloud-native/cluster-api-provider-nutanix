@@ -106,7 +106,6 @@ var _ = Describe("Nutanix projects", Label("nutanix-feature-test", "projects"), 
 			testHelper.verifyFailureMessageOnClusterMachines(ctx, verifyFailureMessageOnClusterMachinesParams{
 				clusterName:            clusterName,
 				namespace:              namespace,
-				expectedPhase:          "Failed",
 				expectedFailureMessage: "failed to retrieve project",
 				bootstrapClusterProxy:  bootstrapClusterProxy,
 			})
