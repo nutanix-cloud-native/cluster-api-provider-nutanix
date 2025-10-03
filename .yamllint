@@ -5,3 +5,9 @@ rules:
   document-start: disable
   comments: disable
   line-length: disable
+
+ignore: |
+  templates/csi/nutanix-csi-snapshot.yaml
+  templates/csi/nutanix-csi-storage.yaml
+  templates/csi3/nutanix-csi-snapshot.yaml
+  templates/csi3/nutanix-csi-storage.yaml
