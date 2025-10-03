@@ -20,7 +20,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: csi-snapshot-webhook
-  namespace: ntnx-system
+  namespace:  ntnx-system
 ---
 # Source: nutanix-csi-snapshot/templates/volumesnapshotclasses_rel60.yaml
 apiVersion: apiextensions.k8s.io/v1
@@ -928,7 +928,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: csi-snapshot-webhook
-    namespace: ntnx-system
+    namespace:  ntnx-system
 roleRef:
   kind: ClusterRole
   name: csi-snapshot-webhook-runner
@@ -1004,11 +1004,12 @@ spec:
       serviceAccount: csi-snapshot-controller
       containers:
         - name: snapshot-controller
-          image: registry.k8s.io/sig-storage/snapshot-controller:v6.0.1
+          image: registry.k8s.io/sig-storage/snapshot-controller:v6.3.3
           imagePullPolicy: IfNotPresent
           args:
             - "--v=2"
             - "--leader-election=true"
+            - "--prevent-volume-mode-conversion=true"
           securityContext:
             capabilities:
               drop:
@@ -1059,7 +1060,7 @@ spec:
       serviceAccountName: csi-snapshot-webhook
       containers:
       - name: snapshot-validation
-        image: registry.k8s.io/sig-storage/snapshot-validation-webhook:v6.0.1
+        image: registry.k8s.io/sig-storage/snapshot-validation-webhook:v6.3.3
         imagePullPolicy: IfNotPresent
         args:
           - --tls-cert-file=/etc/snapshot-validation-webhook/certs/tls.crt
@@ -1113,11 +1114,11 @@ metadata:
 webhooks:
 - name: "validation-webhook.snapshot.storage.k8s.io"
   rules:
-  - apiGroups: ["snapshot.storage.k8s.io"]
+  - apiGroups:   ["snapshot.storage.k8s.io"]
     apiVersions: ["v1", "v1beta1"]
-    operations: ["CREATE", "UPDATE"]
-    resources: ["volumesnapshots", "volumesnapshotcontents"]
-    scope: "*"
+    operations:  ["CREATE", "UPDATE"]
+    resources:   ["volumesnapshots", "volumesnapshotcontents"]
+    scope:       "*"
   clientConfig:
     service:
       namespace: ntnx-system
