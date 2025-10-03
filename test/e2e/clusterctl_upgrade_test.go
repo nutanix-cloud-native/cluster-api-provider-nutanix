@@ -41,27 +41,23 @@ import (
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/test/e2e/log"
 )
 
+var kubernetesVersion = getKubernetesVersion()
+
+func getKubernetesVersion() string {
+	if e2eConfig != nil {
+		if result, ok := e2eConfig.Variables["KUBERNETES_VERSION"]; ok {
+			return result
+		}
+	} else {
+		if result, ok := os.LookupEnv("KUBERNETES_VERSION"); ok {
+			return result
+		}
+	}
+
+	return "undefined"
+}
+
 var _ = Describe("clusterctl upgrade CAPX (v1.7.0 => current)", Label("clusterctl-upgrade"), func() {
-	var (
-		kubernetesVersion               string
-		nutanixMachineTemplateImageName string
-	)
-
-	BeforeEach(func() {
-		kubernetesVersion = e2eConfig.MustGetVariable("KUBERNETES_VERSION")
-		nutanixMachineTemplateImageName = e2eConfig.MustGetVariable("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME")
-	})
-
-	BeforeEach(func() {
-		os.Setenv("KUBERNETES_VERSION", kubernetesVersion)
-		os.Setenv("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME", nutanixMachineTemplateImageName)
-	})
-
-	AfterEach(func() {
-		os.Setenv("KUBERNETES_VERSION", kubernetesVersion)
-		os.Setenv("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME", nutanixMachineTemplateImageName)
-	})
-
 	preWaitForCluster := createPreWaitForClusterFunc(func() capie2e.ClusterctlUpgradeSpecInput {
 		return capie2e.ClusterctlUpgradeSpecInput{
 			E2EConfig:             e2eConfig,
