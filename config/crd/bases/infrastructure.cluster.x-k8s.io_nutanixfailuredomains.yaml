@@ -52,7 +52,6 @@ spec:
                 properties:
                   name:
                     description: name is the resource name in the PC
-                    minLength: 1
                     type: string
                   type:
                     description: Type is the identifier type to use for this resource.
@@ -62,9 +61,6 @@ spec:
                     type: string
                   uuid:
                     description: uuid is the UUID of the resource in the PC.
-                    format: uuid
-                    maxLength: 36
-                    minLength: 36
                     type: string
                 required:
                 - type
@@ -72,13 +68,6 @@ spec:
                 x-kubernetes-validations:
                 - message: prismElementCluster is immutable once set
                   rule: self == oldSelf
-                - message: '''name'' must be set when type is ''name'', and forbidden
-                    otherwise'
-                  rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                - message: '''uuid'' must be set when type is ''uuid'', and forbidden
-                    otherwise'
-                  rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                    : !has(self.uuid)'
               subnets:
                 description: |-
                   subnets holds a list of identifiers (one or more) of the PE cluster's network subnets
@@ -89,7 +78,6 @@ spec:
                   properties:
                     name:
                       description: name is the resource name in the PC
-                      minLength: 1
                       type: string
                     type:
                       description: Type is the identifier type to use for this resource.
@@ -99,22 +87,10 @@ spec:
                       type: string
                     uuid:
                       description: uuid is the UUID of the resource in the PC.
-                      format: uuid
-                      maxLength: 36
-                      minLength: 36
                       type: string
                   required:
                   - type
                   type: object
-                  x-kubernetes-validations:
-                  - message: '''name'' must be set when type is ''name'', and forbidden
-                      otherwise'
-                    rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                  - message: '''uuid'' must be set when type is ''uuid'', and forbidden
-                      otherwise'
-                    rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                      : !has(self.uuid)'
-                maxItems: 32
                 minItems: 1
                 type: array
                 x-kubernetes-validations:
@@ -124,10 +100,6 @@ spec:
             - prismElementCluster
             - subnets
             type: object
-            x-kubernetes-validations:
-            - message: each subnet must be unique
-              rule: 'size(self.subnets) > 1 ? self.subnets.all(x, self.subnets.exists_one(y,
-                x == y)) : true'
           status:
             description: NutanixFailureDomainStatus defines the observed state of
               NutanixFailureDomain resource.

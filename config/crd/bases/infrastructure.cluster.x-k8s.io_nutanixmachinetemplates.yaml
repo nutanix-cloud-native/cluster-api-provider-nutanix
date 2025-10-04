@@ -151,7 +151,6 @@ spec:
                         properties:
                           name:
                             description: name is the resource name in the PC
-                            minLength: 1
                             type: string
                           type:
                             description: Type is the identifier type to use for this
@@ -162,21 +161,10 @@ spec:
                             type: string
                           uuid:
                             description: uuid is the UUID of the resource in the PC.
-                            format: uuid
-                            maxLength: 36
-                            minLength: 36
                             type: string
                         required:
                         - type
                         type: object
-                        x-kubernetes-validations:
-                        - message: '''name'' must be set when type is ''name'', and
-                            forbidden otherwise'
-                          rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                        - message: '''uuid'' must be set when type is ''uuid'', and
-                            forbidden otherwise'
-                          rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                            : !has(self.uuid)'
                       dataDisks:
                         description: dataDisks hold the list of data disks to be attached
                           to the VM
@@ -190,7 +178,6 @@ spec:
                               properties:
                                 name:
                                   description: name is the resource name in the PC
-                                  minLength: 1
                                   type: string
                                 type:
                                   description: Type is the identifier type to use
@@ -202,21 +189,10 @@ spec:
                                 uuid:
                                   description: uuid is the UUID of the resource in
                                     the PC.
-                                  format: uuid
-                                  maxLength: 36
-                                  minLength: 36
                                   type: string
                               required:
                               - type
                               type: object
-                              x-kubernetes-validations:
-                              - message: '''name'' must be set when type is ''name'',
-                                  and forbidden otherwise'
-                                rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                              - message: '''uuid'' must be set when type is ''uuid'',
-                                  and forbidden otherwise'
-                                rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                                  : !has(self.uuid)'
                             deviceProperties:
                               description: deviceProperties are the properties of
                                 the disk device.
@@ -287,7 +263,6 @@ spec:
                                     name:
                                       description: name is the resource name in the
                                         PC
-                                      minLength: 1
                                       type: string
                                     type:
                                       description: Type is the identifier type to
@@ -299,22 +274,10 @@ spec:
                                     uuid:
                                       description: uuid is the UUID of the resource
                                         in the PC.
-                                      format: uuid
-                                      maxLength: 36
-                                      minLength: 36
                                       type: string
                                   required:
                                   - type
                                   type: object
-                                  x-kubernetes-validations:
-                                  - message: '''name'' must be set when type is ''name'',
-                                      and forbidden otherwise'
-                                    rule: 'self.type == ''name'' ? has(self.name)
-                                      : !has(self.name)'
-                                  - message: '''uuid'' must be set when type is ''uuid'',
-                                      and forbidden otherwise'
-                                    rule: 'self.type == ''uuid'' ? has(self.uuid)
-                                      && self.uuid.contains(''-'') : !has(self.uuid)'
                               required:
                               - diskMode
                               type: object
@@ -353,7 +316,6 @@ spec:
                         properties:
                           name:
                             description: name is the resource name in the PC
-                            minLength: 1
                             type: string
                           type:
                             description: Type is the identifier type to use for this
@@ -364,21 +326,10 @@ spec:
                             type: string
                           uuid:
                             description: uuid is the UUID of the resource in the PC.
-                            format: uuid
-                            maxLength: 36
-                            minLength: 36
                             type: string
                         required:
                         - type
                         type: object
-                        x-kubernetes-validations:
-                        - message: '''name'' must be set when type is ''name'', and
-                            forbidden otherwise'
-                          rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                        - message: '''uuid'' must be set when type is ''uuid'', and
-                            forbidden otherwise'
-                          rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                            : !has(self.uuid)'
                       imageLookup:
                         description: imageLookup is a container that holds how to
                           look up rhcos images for the cluster.
@@ -422,7 +373,6 @@ spec:
                         properties:
                           name:
                             description: name is the resource name in the PC
-                            minLength: 1
                             type: string
                           type:
                             description: Type is the identifier type to use for this
@@ -433,21 +383,10 @@ spec:
                             type: string
                           uuid:
                             description: uuid is the UUID of the resource in the PC.
-                            format: uuid
-                            maxLength: 36
-                            minLength: 36
                             type: string
                         required:
                         - type
                         type: object
-                        x-kubernetes-validations:
-                        - message: '''name'' must be set when type is ''name'', and
-                            forbidden otherwise'
-                          rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                        - message: '''uuid'' must be set when type is ''uuid'', and
-                            forbidden otherwise'
-                          rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                            : !has(self.uuid)'
                       providerID:
                         description: ProviderID is the unique identifier as specified
                           by the cloud provider.
@@ -463,7 +402,6 @@ spec:
                           properties:
                             name:
                               description: name is the resource name in the PC
-                              minLength: 1
                               type: string
                             type:
                               description: Type is the identifier type to use for
@@ -475,22 +413,10 @@ spec:
                             uuid:
                               description: uuid is the UUID of the resource in the
                                 PC.
-                              format: uuid
-                              maxLength: 36
-                              minLength: 36
                               type: string
                           required:
                           - type
                           type: object
-                          x-kubernetes-validations:
-                          - message: '''name'' must be set when type is ''name'',
-                              and forbidden otherwise'
-                            rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                          - message: '''uuid'' must be set when type is ''uuid'',
-                              and forbidden otherwise'
-                            rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                              : !has(self.uuid)'
-                        maxItems: 32
                         type: array
                       systemDiskSize:
                         anyOf:
@@ -523,9 +449,6 @@ spec:
                     - message: Either 'image' or 'imageLookup' must be set, but not
                         both
                       rule: has(self.image) != has(self.imageLookup)
-                    - message: each subnet must be unique
-                      rule: 'has(self.subnet) && size(self.subnet) > 1 ? self.subnet.all(x,
-                        self.subnet.exists_one(y, x == y)) : true'
                 required:
                 - spec
                 type: object
