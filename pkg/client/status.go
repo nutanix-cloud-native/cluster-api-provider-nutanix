@@ -21,9 +21,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/nutanix-cloud-native/prism-go-client/utils"
+	nutanixClientConvergedV4 "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -35,7 +36,7 @@ const (
 // WaitForTaskToSucceed will poll every 2 seconds for the task with uuid to have status of "SUCCEEDED".
 // The polling will stop if the ctx is cancelled, it's used for HTTP requests in the client and to control the polling.
 // WaitForTaskToSucceed will exit immediately on an error getting the task.
-func WaitForTaskToSucceed(ctx context.Context, conn *nutanixClientV3.Client, uuid string) error {
+func WaitForTaskToSucceed(ctx context.Context, conn *nutanixClientV3.Client, conn1 *nutanixClientConvergedV4.Client, uuid string) error {
 	return wait.PollUntilContextCancel(ctx, pollingInterval, true, func(ctx context.Context) (done bool, err error) {
 		status, getErr := GetTaskStatus(ctx, conn, uuid)
 		return status == statusSucceeded, getErr
@@ -53,7 +54,7 @@ func GetTaskStatus(ctx context.Context, client *nutanixClientV3.Client, uuid str
 
 	if *v.Status == "INVALID_UUID" || *v.Status == "FAILED" {
 		return *v.Status,
-			fmt.Errorf("error_detail: %s, progress_message: %s", utils.StringValue(v.ErrorDetail), utils.StringValue(v.ProgressMessage))
+			fmt.Errorf("error_detail: %s, progress_message: %s", ptr.Deref(v.ErrorDetail, ""), ptr.Deref(v.ProgressMessage, ""))
 	}
 	taskStatus := *v.Status
 	log.V(1).Info(fmt.Sprintf("Status for task with UUID %s: %s", uuid, taskStatus))

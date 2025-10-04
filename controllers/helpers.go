@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/nutanix-cloud-native/prism-go-client/utils"
+	prismclientconvergedv4 "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
@@ -43,6 +43,7 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
 const (
@@ -71,7 +72,7 @@ type StorageContainerIntentResponse struct {
 }
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
-func DeleteVM(ctx context.Context, client *prismclientv3.Client, vmName, vmUUID string) (string, error) {
+func DeleteVM(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, vmName, vmUUID string) (string, error) {
 	log := ctrl.LoggerFrom(ctx)
 	var err error
 
@@ -92,7 +93,7 @@ func DeleteVM(ctx context.Context, client *prismclientv3.Client, vmName, vmUUID 
 }
 
 // FindVMByUUID retrieves the VM with the given vm UUID. Returns nil if not found
-func FindVMByUUID(ctx context.Context, client *prismclientv3.Client, uuid string) (*prismclientv3.VMIntentResponse, error) {
+func FindVMByUUID(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, uuid string) (*prismclientv3.VMIntentResponse, error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.V(1).Info(fmt.Sprintf("Checking if VM with UUID %s exists.", uuid))
 
@@ -138,7 +139,7 @@ func GetVMUUID(nutanixMachine *infrav1.NutanixMachine) (string, error) {
 }
 
 // FindVM retrieves the VM with the given uuid or name
-func FindVM(ctx context.Context, client *prismclientv3.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*prismclientv3.VMIntentResponse, error) {
+func FindVM(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*prismclientv3.VMIntentResponse, error) {
 	log := ctrl.LoggerFrom(ctx)
 	vmUUID, err := GetVMUUID(nutanixMachine)
 	if err != nil {
@@ -147,7 +148,7 @@ func FindVM(ctx context.Context, client *prismclientv3.Client, nutanixMachine *i
 	// Search via uuid if it is present
 	if vmUUID != "" {
 		log.V(1).Info(fmt.Sprintf("Searching for VM %s using UUID %s", vmName, vmUUID))
-		vm, err := FindVMByUUID(ctx, client, vmUUID)
+		vm, err := FindVMByUUID(ctx, client, convergedClient, vmUUID)
 		if err != nil {
 			return nil, err
 		}
@@ -166,7 +167,7 @@ func FindVM(ctx context.Context, client *prismclientv3.Client, nutanixMachine *i
 		// otherwise search via name
 	} else {
 		log.Info(fmt.Sprintf("Searching for VM %s using name", vmName))
-		vm, err := FindVMByName(ctx, client, vmName)
+		vm, err := FindVMByName(ctx, client, convergedClient, vmName)
 		if err != nil {
 			log.Error(err, fmt.Sprintf("error occurred finding VM %s by name", vmName))
 			return nil, err
@@ -176,12 +177,12 @@ func FindVM(ctx context.Context, client *prismclientv3.Client, nutanixMachine *i
 }
 
 // FindVMByName retrieves the VM with the given vm name
-func FindVMByName(ctx context.Context, client *prismclientv3.Client, vmName string) (*prismclientv3.VMIntentResponse, error) {
+func FindVMByName(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, vmName string) (*prismclientv3.VMIntentResponse, error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.Info(fmt.Sprintf("Checking if VM with name %s exists.", vmName))
 
 	res, err := client.V3.ListVM(ctx, &prismclientv3.DSMetadata{
-		Filter: utils.StringPtr(fmt.Sprintf("vm_name==%s", vmName)),
+		Filter: ptr.To(fmt.Sprintf("vm_name==%s", vmName)),
 	})
 	if err != nil {
 		return nil, err
@@ -195,11 +196,11 @@ func FindVMByName(ctx context.Context, client *prismclientv3.Client, vmName stri
 		return nil, nil
 	}
 
-	return FindVMByUUID(ctx, client, *res.Entities[0].Metadata.UUID)
+	return FindVMByUUID(ctx, client, convergedClient, *res.Entities[0].Metadata.UUID)
 }
 
 // GetPEUUID returns the UUID of the Prism Element cluster with the given name
-func GetPEUUID(ctx context.Context, client *prismclientv3.Client, peName, peUUID *string) (string, error) {
+func GetPEUUID(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, peName, peUUID *string) (string, error) {
 	if client == nil {
 		return "", fmt.Errorf("cannot retrieve Prism Element UUID if nutanix client is nil")
 	}
@@ -224,7 +225,7 @@ func GetPEUUID(ctx context.Context, client *prismclientv3.Client, peName, peUUID
 		foundPEs := make([]*prismclientv3.ClusterIntentResponse, 0)
 		for _, s := range responsePEs.Entities {
 			peSpec := s.Spec
-			if strings.EqualFold(*peSpec.Name, *peName) && hasPEClusterServiceEnabled(s, serviceNamePECluster) {
+			if strings.EqualFold(peSpec.Name, *peName) && hasPEClusterServiceEnabled(s, serviceNamePECluster) {
 				foundPEs = append(foundPEs, s)
 			}
 		}
@@ -254,16 +255,16 @@ func CreateSystemDiskSpec(imageUUID string, systemDiskSize int64) (*prismclientv
 	}
 	systemDisk := &prismclientv3.VMDisk{
 		DataSourceReference: &prismclientv3.Reference{
-			Kind: utils.StringPtr("image"),
-			UUID: utils.StringPtr(imageUUID),
+			Kind: ptr.To("image"),
+			UUID: ptr.To(imageUUID),
 		},
-		DiskSizeMib: utils.Int64Ptr(systemDiskSize),
+		DiskSizeMib: ptr.To(systemDiskSize),
 	}
 	return systemDisk, nil
 }
 
 // CreateDataDiskList creates a list of data disks with the given data disk specs
-func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, dataDiskSpecs []infrav1.NutanixMachineVMDisk, peUUID string) ([]*prismclientv3.VMDisk, error) {
+func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, dataDiskSpecs []infrav1.NutanixMachineVMDisk, peUUID string) ([]*prismclientv3.VMDisk, error) {
 	dataDisks := make([]*prismclientv3.VMDisk, 0)
 
 	latestDeviceIndexByAdapterType := make(map[string]int64)
@@ -284,12 +285,12 @@ func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, dataD
 
 	for _, dataDiskSpec := range dataDiskSpecs {
 		dataDisk := &prismclientv3.VMDisk{
-			DiskSizeMib: utils.Int64Ptr(GetMibValueOfQuantity(dataDiskSpec.DiskSize)),
+			DiskSizeMib: ptr.To(GetMibValueOfQuantity(dataDiskSpec.DiskSize)),
 		}
 
 		// If data source is provided, get the image UUID
 		if dataDiskSpec.DataSource != nil {
-			image, err := GetImage(ctx, client, infrav1.NutanixResourceIdentifier{
+			image, err := GetImage(ctx, client, convergedClient, infrav1.NutanixResourceIdentifier{
 				UUID: dataDiskSpec.DataSource.UUID,
 				Type: infrav1.NutanixIdentifierUUID,
 			})
@@ -300,8 +301,8 @@ func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, dataD
 			imageUUID := *image.Metadata.UUID
 
 			dataSourceReference := &prismclientv3.Reference{
-				Kind: utils.StringPtr("image"),
-				UUID: utils.StringPtr(imageUUID),
+				Kind: ptr.To("image"),
+				UUID: ptr.To(imageUUID),
 			}
 
 			dataDisk.DataSourceReference = dataSourceReference
@@ -319,15 +320,15 @@ func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, dataD
 
 		// Set device properties
 		deviceProperties := &prismclientv3.VMDiskDeviceProperties{
-			DeviceType: utils.StringPtr(strings.ToUpper(string(deviceType))),
+			DeviceType: ptr.To(strings.ToUpper(string(deviceType))),
 			DiskAddress: &prismclientv3.DiskAddress{
-				AdapterType: utils.StringPtr(strings.ToUpper(string(adapterType))),
-				DeviceIndex: utils.Int64Ptr(getDeviceIndex(string(adapterType))),
+				AdapterType: ptr.To(strings.ToUpper(string(adapterType))),
+				DeviceIndex: ptr.To(getDeviceIndex(string(adapterType))),
 			},
 		}
 
 		if dataDiskSpec.DeviceProperties != nil && dataDiskSpec.DeviceProperties.DeviceIndex != 0 {
-			deviceProperties.DiskAddress.DeviceIndex = utils.Int64Ptr(int64(dataDiskSpec.DeviceProperties.DeviceIndex))
+			deviceProperties.DiskAddress.DeviceIndex = ptr.To(int64(dataDiskSpec.DeviceProperties.DeviceIndex))
 		}
 
 		dataDisk.DeviceProperties = deviceProperties
@@ -347,7 +348,7 @@ func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, dataD
 					UUID: &peUUID,
 					Type: infrav1.NutanixIdentifierUUID,
 				}
-				sc, err := GetStorageContainerInCluster(ctx, client, *dataDiskSpec.StorageConfig.StorageContainer, peID)
+				sc, err := GetStorageContainerInCluster(ctx, client, convergedClient, *dataDiskSpec.StorageConfig.StorageContainer, peID)
 				if err != nil {
 					return nil, err
 				}
@@ -367,7 +368,7 @@ func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, dataD
 }
 
 // GetSubnetUUID returns the UUID of the subnet with the given name
-func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
+func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
 	var foundSubnetUUID string
 	if subnetUUID == nil && subnetName == nil {
 		return "", fmt.Errorf("subnet name or subnet uuid must be passed in order to retrieve the subnet")
@@ -421,7 +422,7 @@ func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID str
 
 // GetImage returns an image. If no UUID is provided, returns the unique image with the name.
 // Returns an error if no image has the UUID, if no image has the name, or more than one image has the name.
-func GetImage(ctx context.Context, client *prismclientv3.Client, id infrav1.NutanixResourceIdentifier) (*prismclientv3.ImageIntentResponse, error) {
+func GetImage(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, id infrav1.NutanixResourceIdentifier) (*prismclientv3.ImageIntentResponse, error) {
 	switch {
 	case id.IsUUID():
 		resp, err := client.V3.GetImage(ctx, *id.UUID)
@@ -464,7 +465,7 @@ type ImageLookup struct {
 
 func GetImageByLookup(
 	ctx context.Context,
-	client *prismclientv3.Client,
+	client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client,
 	imageTemplate,
 	imageLookupBaseOS,
 	k8sVersion *string,
@@ -527,7 +528,7 @@ func ImageMarkedForDeletion(image *prismclientv3.ImageIntentResponse) bool {
 }
 
 // HasTaskInProgress returns true if the given task is in progress
-func HasTaskInProgress(ctx context.Context, client *prismclientv3.Client, taskUUID string) (bool, error) {
+func HasTaskInProgress(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, taskUUID string) (bool, error) {
 	log := ctrl.LoggerFrom(ctx)
 	taskStatus, err := nutanixclient.GetTaskStatus(ctx, client, taskUUID)
 	if err != nil {
@@ -566,12 +567,13 @@ func GetTaskUUIDFromVM(vm *prismclientv3.VMIntentResponse) (string, error) {
 }
 
 // GetSubnetUUIDList returns a list of subnet UUIDs for the given list of subnet names
-func GetSubnetUUIDList(ctx context.Context, client *prismclientv3.Client, machineSubnets []infrav1.NutanixResourceIdentifier, peUUID string) ([]string, error) {
+func GetSubnetUUIDList(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, machineSubnets []infrav1.NutanixResourceIdentifier, peUUID string) ([]string, error) {
 	subnetUUIDs := make([]string, 0)
 	for _, machineSubnet := range machineSubnets {
 		subnetUUID, err := GetSubnetUUID(
 			ctx,
 			client,
+			convergedClient,
 			peUUID,
 			machineSubnet.Name,
 			machineSubnet.UUID,
@@ -605,13 +607,13 @@ func GetObsoleteDefaultCAPICategoryIdentifiers(clusterName string) []*infrav1.Nu
 }
 
 // GetOrCreateCategories returns the list of category UUIDs for the given list of category names
-func GetOrCreateCategories(ctx context.Context, client *prismclientv3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) ([]*prismclientv3.CategoryValueStatus, error) {
+func GetOrCreateCategories(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) ([]*prismclientv3.CategoryValueStatus, error) {
 	categories := make([]*prismclientv3.CategoryValueStatus, 0)
 	for _, ci := range categoryIdentifiers {
 		if ci == nil {
 			return categories, fmt.Errorf("cannot get or create nil category")
 		}
-		category, err := getOrCreateCategory(ctx, client, ci)
+		category, err := getOrCreateCategory(ctx, client, convergedClient, ci)
 		if err != nil {
 			return categories, err
 		}
@@ -620,7 +622,7 @@ func GetOrCreateCategories(ctx context.Context, client *prismclientv3.Client, ca
 	return categories, nil
 }
 
-func getCategoryKey(ctx context.Context, client *prismclientv3.Client, key string) (*prismclientv3.CategoryKeyStatus, error) {
+func getCategoryKey(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, key string) (*prismclientv3.CategoryKeyStatus, error) {
 	categoryKey, err := client.V3.GetCategoryKey(ctx, key)
 	if err != nil {
 		if !strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
@@ -632,7 +634,7 @@ func getCategoryKey(ctx context.Context, client *prismclientv3.Client, key strin
 	return categoryKey, nil
 }
 
-func getCategoryValue(ctx context.Context, client *prismclientv3.Client, key, value string) (*prismclientv3.CategoryValueStatus, error) {
+func getCategoryValue(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, key, value string) (*prismclientv3.CategoryValueStatus, error) {
 	categoryValue, err := client.V3.GetCategoryValue(ctx, key, value)
 	if err != nil {
 		if !strings.Contains(fmt.Sprint(err), "CATEGORY_NAME_VALUE_MISMATCH") {
@@ -644,7 +646,7 @@ func getCategoryValue(ctx context.Context, client *prismclientv3.Client, key, va
 	return categoryValue, nil
 }
 
-func deleteCategoryKeyValues(ctx context.Context, client *prismclientv3.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier, ignoreKeyDeletion bool) error {
+func deleteCategoryKeyValues(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier, ignoreKeyDeletion bool) error {
 	log := ctrl.LoggerFrom(ctx)
 	groupCategoriesByKey := make(map[string][]string, 0)
 	for _, ci := range categoryIdentifiers {
@@ -660,7 +662,7 @@ func deleteCategoryKeyValues(ctx context.Context, client *prismclientv3.Client, 
 
 	for key, values := range groupCategoriesByKey {
 		log.V(1).Info(fmt.Sprintf("Retrieving category with key %s", key))
-		categoryKey, err := getCategoryKey(ctx, client, key)
+		categoryKey, err := getCategoryKey(ctx, client, convergedClient, key)
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", key, err)
 			log.Error(errorMsg, "failed to retrieve category")
@@ -672,7 +674,7 @@ func deleteCategoryKeyValues(ctx context.Context, client *prismclientv3.Client, 
 			continue
 		}
 		for _, value := range values {
-			categoryValue, err := getCategoryValue(ctx, client, key, value)
+			categoryValue, err := getCategoryValue(ctx, client, convergedClient, key, value)
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
 				log.Error(errorMsg, "failed to retrieve category value")
@@ -719,14 +721,14 @@ func deleteCategoryKeyValues(ctx context.Context, client *prismclientv3.Client, 
 }
 
 // DeleteCategories deletes the given list of categories
-func DeleteCategories(ctx context.Context, client *prismclientv3.Client, categoryIdentifiers, obsoleteCategoryIdentifiers []*infrav1.NutanixCategoryIdentifier) error {
+func DeleteCategories(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, categoryIdentifiers, obsoleteCategoryIdentifiers []*infrav1.NutanixCategoryIdentifier) error {
 	// Dont delete keys with newer format as key is constant string
-	err := deleteCategoryKeyValues(ctx, client, categoryIdentifiers, true)
+	err := deleteCategoryKeyValues(ctx, client, convergedClient, categoryIdentifiers, true)
 	if err != nil {
 		return err
 	}
 	// Delete obsolete keys with older format to cleanup brownfield setups
-	err = deleteCategoryKeyValues(ctx, client, obsoleteCategoryIdentifiers, false)
+	err = deleteCategoryKeyValues(ctx, client, convergedClient, obsoleteCategoryIdentifiers, false)
 	if err != nil {
 		return err
 	}
@@ -734,7 +736,7 @@ func DeleteCategories(ctx context.Context, client *prismclientv3.Client, categor
 	return nil
 }
 
-func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, categoryIdentifier *infrav1.NutanixCategoryIdentifier) (*prismclientv3.CategoryValueStatus, error) {
+func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, categoryIdentifier *infrav1.NutanixCategoryIdentifier) (*prismclientv3.CategoryValueStatus, error) {
 	log := ctrl.LoggerFrom(ctx)
 	if categoryIdentifier == nil {
 		return nil, fmt.Errorf("category identifier cannot be nil when getting or creating categories")
@@ -746,7 +748,7 @@ func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, cate
 		return nil, fmt.Errorf("category identifier key must be set when when getting or creating categories")
 	}
 	log.V(1).Info(fmt.Sprintf("Checking existence of category with key %s", categoryIdentifier.Key))
-	categoryKey, err := getCategoryKey(ctx, client, categoryIdentifier.Key)
+	categoryKey, err := getCategoryKey(ctx, client, convergedClient, categoryIdentifier.Key)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", categoryIdentifier.Key, err)
 		log.Error(errorMsg, "failed to retrieve category")
@@ -755,8 +757,8 @@ func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, cate
 	if categoryKey == nil {
 		log.V(1).Info(fmt.Sprintf("Category with key %s did not exist.", categoryIdentifier.Key))
 		categoryKey, err = client.V3.CreateOrUpdateCategoryKey(ctx, &prismclientv3.CategoryKey{
-			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
-			Name:        utils.StringPtr(categoryIdentifier.Key),
+			Description: ptr.To(infrav1.DefaultCAPICategoryDescription),
+			Name:        ptr.To(categoryIdentifier.Key),
 		})
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to create category with key %s. error: %v", categoryIdentifier.Key, err)
@@ -764,7 +766,7 @@ func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, cate
 			return nil, errorMsg
 		}
 	}
-	categoryValue, err := getCategoryValue(ctx, client, *categoryKey.Name, categoryIdentifier.Value)
+	categoryValue, err := getCategoryValue(ctx, client, convergedClient, *categoryKey.Name, categoryIdentifier.Value)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
 		log.Error(errorMsg, "failed to retrieve category")
@@ -772,8 +774,8 @@ func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, cate
 	}
 	if categoryValue == nil {
 		categoryValue, err = client.V3.CreateOrUpdateCategoryValue(ctx, *categoryKey.Name, &prismclientv3.CategoryValue{
-			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
-			Value:       utils.StringPtr(categoryIdentifier.Value),
+			Description: ptr.To(infrav1.DefaultCAPICategoryDescription),
+			Value:       ptr.To(categoryIdentifier.Value),
 		})
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to create category value %s in category key %s: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
@@ -788,6 +790,7 @@ func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, cate
 func GetCategoryVMSpec(
 	ctx context.Context,
 	client *prismclientv3.Client,
+	convergedClient *prismclientconvergedv4.Client,
 	categoryIdentifiers []*infrav1.NutanixCategoryIdentifier,
 ) (map[string][]string, error) {
 	log := ctrl.LoggerFrom(ctx)
@@ -797,7 +800,7 @@ func GetCategoryVMSpec(
 		if ci == nil {
 			return nil, fmt.Errorf("category identifier cannot be nil")
 		}
-		categoryValue, err := getCategoryValue(ctx, client, ci.Key, ci.Value)
+		categoryValue, err := getCategoryValue(ctx, client, convergedClient, ci.Key, ci.Value)
 		if err != nil {
 			errorMsg := fmt.Errorf("error occurred while to retrieving category value %s in category %s. error: %v", ci.Value, ci.Key, err)
 			log.Error(errorMsg, "failed to retrieve category")
@@ -817,7 +820,7 @@ func GetCategoryVMSpec(
 }
 
 // GetProjectUUID returns the UUID of the project with the given name
-func GetProjectUUID(ctx context.Context, client *prismclientv3.Client, projectName, projectUUID *string) (string, error) {
+func GetProjectUUID(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, projectName, projectUUID *string) (string, error) {
 	var foundProjectUUID string
 	if projectUUID == nil && projectName == nil {
 		return "", fmt.Errorf("name or uuid must be passed in order to retrieve the project")
@@ -873,10 +876,10 @@ func hasPEClusterServiceEnabled(peCluster *prismclientv3.ClusterIntentResponse, 
 }
 
 // GetGPUList returns a list of GPU device IDs for the given list of GPUs
-func GetGPUList(ctx context.Context, client *prismclientv3.Client, gpus []infrav1.NutanixGPU, peUUID string) ([]*prismclientv3.VMGpu, error) {
+func GetGPUList(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, gpus []infrav1.NutanixGPU, peUUID string) ([]*prismclientv3.VMGpu, error) {
 	resultGPUs := make([]*prismclientv3.VMGpu, 0)
 	for _, gpu := range gpus {
-		foundGPU, err := GetGPU(ctx, client, peUUID, gpu)
+		foundGPU, err := GetGPU(ctx, client, convergedClient, peUUID, gpu)
 		if err != nil {
 			return nil, err
 		}
@@ -886,13 +889,13 @@ func GetGPUList(ctx context.Context, client *prismclientv3.Client, gpus []infrav
 }
 
 // GetGPUDeviceID returns the device ID of a GPU with the given name
-func GetGPU(ctx context.Context, client *prismclientv3.Client, peUUID string, gpu infrav1.NutanixGPU) (*prismclientv3.VMGpu, error) {
+func GetGPU(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, peUUID string, gpu infrav1.NutanixGPU) (*prismclientv3.VMGpu, error) {
 	gpuDeviceID := gpu.DeviceID
 	gpuDeviceName := gpu.Name
 	if gpuDeviceID == nil && gpuDeviceName == nil {
 		return nil, fmt.Errorf("gpu name or gpu device ID must be passed in order to retrieve the GPU")
 	}
-	allGPUs, err := GetGPUsForPE(ctx, client, peUUID)
+	allGPUs, err := GetGPUsForPE(ctx, client, convergedClient, peUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -914,7 +917,7 @@ func GetGPU(ctx context.Context, client *prismclientv3.Client, peUUID string, gp
 	return nil, fmt.Errorf("no available GPU found in Prism Element that matches required GPU inputs")
 }
 
-func GetGPUsForPE(ctx context.Context, client *prismclientv3.Client, peUUID string) ([]*prismclientv3.GPU, error) {
+func GetGPUsForPE(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, peUUID string) ([]*prismclientv3.GPU, error) {
 	gpus := make([]*prismclientv3.GPU, 0)
 	// We use ListHost, because it returns all hosts, since the endpoint does not support pagination,
 	// and ListAllHost incorrectly handles pagination. https://jira.nutanix.com/browse/NCN-110045
@@ -953,19 +956,19 @@ func GetLegacyFailureDomainFromNutanixCluster(failureDomainName string, nutanixC
 	return nil
 }
 
-func ListStorageContainers(ctx context.Context, client *prismclientv3.Client) ([]*StorageContainerIntentResponse, error) {
+func ListStorageContainers(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client) ([]*StorageContainerIntentResponse, error) {
 	result := make([]*StorageContainerIntentResponse, 0)
 	request := &prismclientv3.GroupsGetEntitiesRequest{
-		EntityType: utils.StringPtr("storage_container"),
+		EntityType: ptr.To("storage_container"),
 		GroupMemberAttributes: []*prismclientv3.GroupsRequestedAttribute{
 			{
-				Attribute: utils.StringPtr("container_name"),
+				Attribute: ptr.To("container_name"),
 			},
 			{
-				Attribute: utils.StringPtr("cluster_name"),
+				Attribute: ptr.To("cluster_name"),
 			},
 			{
-				Attribute: utils.StringPtr("cluster"),
+				Attribute: ptr.To("cluster"),
 			},
 		},
 	}
@@ -990,11 +993,11 @@ func ListStorageContainers(ctx context.Context, client *prismclientv3.Client) ([
 					if len(d.Values) > 0 {
 						switch d.Name {
 						case "container_name":
-							storageContainer.Name = utils.StringPtr(d.Values[0].Values[0])
+							storageContainer.Name = ptr.To(d.Values[0].Values[0])
 						case "cluster_name":
-							storageContainer.ClusterName = utils.StringPtr(d.Values[0].Values[0])
+							storageContainer.ClusterName = ptr.To(d.Values[0].Values[0])
 						case "cluster":
-							storageContainer.ClusterUUID = utils.StringPtr(d.Values[0].Values[0])
+							storageContainer.ClusterUUID = ptr.To(d.Values[0].Values[0])
 						}
 					}
 				}
@@ -1007,8 +1010,8 @@ func ListStorageContainers(ctx context.Context, client *prismclientv3.Client) ([
 	return result, nil
 }
 
-func GetStorageContainerByNtnxResourceIdentifier(ctx context.Context, client *prismclientv3.Client, storageContainerIdentifier infrav1.NutanixResourceIdentifier) (*StorageContainerIntentResponse, error) {
-	storageContainers, err := ListStorageContainers(ctx, client)
+func GetStorageContainerByNtnxResourceIdentifier(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, storageContainerIdentifier infrav1.NutanixResourceIdentifier) (*StorageContainerIntentResponse, error) {
+	storageContainers, err := ListStorageContainers(ctx, client, convergedClient)
 	if err != nil {
 		return nil, err
 	}
@@ -1037,8 +1040,8 @@ func GetStorageContainerByNtnxResourceIdentifier(ctx context.Context, client *pr
 	}
 }
 
-func GetStorageContainerInCluster(ctx context.Context, client *prismclientv3.Client, storageContainerIdentifier, clusterIdentifier infrav1.NutanixResourceIdentifier) (*StorageContainerIntentResponse, error) {
-	storageContainer, err := ListStorageContainers(ctx, client)
+func GetStorageContainerInCluster(ctx context.Context, client *prismclientv3.Client, convergedClient *prismclientconvergedv4.Client, storageContainerIdentifier, clusterIdentifier infrav1.NutanixResourceIdentifier) (*StorageContainerIntentResponse, error) {
+	storageContainer, err := ListStorageContainers(ctx, client, convergedClient)
 	if err != nil {
 		return nil, err
 	}
@@ -1095,7 +1098,7 @@ func getSCinClusterByUUID(storageContainer []*StorageContainerIntentResponse, st
 	return nil, fmt.Errorf("failed to find storage container %s for cluster %v", *storageContainerIdentifier.UUID, clusterIdentifier)
 }
 
-func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*prismclientv3.Client, error) {
+func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*nctx.NutanixClients, error) {
 	log := ctrl.LoggerFrom(ctx)
 
 	log.V(1).Info("Get client helper")
@@ -1120,8 +1123,21 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 		return nil, fmt.Errorf("nutanix prism v3 Client error: %w", err)
 	}
 
+	convergedV4Client, err := nutanixclient.NutanixClientCacheConvergedV4.GetOrCreate(&nutanixclient.CacheParams{
+		NutanixCluster:          cluster,
+		PrismManagementEndpoint: managementEndpoint,
+	})
+	if err != nil {
+		log.Error(err, "error occurred while getting nutanix prism converged v4 Client from cache")
+		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		return nil, fmt.Errorf("nutanix prism v3 Client error: %w", err)
+	}
+
 	conditions.MarkTrue(cluster, infrav1.PrismCentralClientCondition)
-	return v3Client, nil
+	return &nctx.NutanixClients{
+		V3:          v3Client,
+		ConvergedV4: convergedV4Client,
+	}, nil
 }
 
 func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*prismclientv4.Client, error) {

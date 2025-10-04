@@ -11,7 +11,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/nutanix-cloud-native/prism-go-client v0.5.0
-	github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4 v4.0.1-beta.1
+	github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4 v4.1.1
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.36.3
 	github.com/pkg/errors v0.9.1
@@ -19,7 +19,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/mock v0.4.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/crypto v0.36.0 // indirect; CVE fixes for https://avd.aquasec.com/nvd/cve-2025-22869
+	golang.org/x/crypto v0.41.0 // indirect; CVE fixes for https://avd.aquasec.com/nvd/cve-2025-22869
 	golang.org/x/time v0.8.0
 	k8s.io/api v0.32.3
 	k8s.io/apiextensions-apiserver v0.32.3
@@ -97,7 +97,7 @@ require (
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.20.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
-	github.com/hashicorp/go-retryablehttp v0.7.1 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -115,11 +115,10 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4 v4.0.1-beta.2 // indirect
-	github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.0.2-beta.1 // indirect
-	github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4 v4.0.1-beta.1 // indirect
-	github.com/nutanix/ntnx-api-golang-clients/storage-go-client/v4 v4.0.2-alpha.3 // indirect
-	github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4 v4.0.1-beta.1 // indirect
+	github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4 v4.1.1 // indirect
+	github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.1.1 // indirect
+	github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4 v4.1.1 // indirect
+	github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4 v4.1.1 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
@@ -158,13 +157,13 @@ require (
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
-	golang.org/x/net v0.38.0 // indirect
+	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/oauth2 v0.28.0 // indirect
-	golang.org/x/sync v0.12.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
-	golang.org/x/term v0.30.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
-	golang.org/x/tools v0.31.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/term v0.34.0 // indirect
+	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/tools v0.36.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241223144023-3abc09e42ca8 // indirect
@@ -185,6 +184,7 @@ require (
 )
 
 replace (
+	github.com/nutanix-cloud-native/prism-go-client => ../prism-go-client
 	// CVE fixes for https://avd.aquasec.com/nvd/2024/cve-2024-45338
 	golang.org/x/net => golang.org/x/net v0.33.0
 	sigs.k8s.io/kind v0.20.0 => sigs.k8s.io/kind v0.22.0

@@ -411,7 +411,7 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Log("Running test case ", tt.name)
 			ctx := context.Background()
-			got, err := GetImage(ctx, tt.clientBuilder(), tt.id)
+			got, err := GetImage(ctx, tt.clientBuilder(), nil, tt.id)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetImageByNameOrUUID() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -550,6 +550,7 @@ func TestGetImageByLookup(t *testing.T) {
 			got, err := GetImageByLookup(
 				ctx,
 				tt.clientBuilder(),
+				nil,
 				&tt.imageTemplate,
 				&tt.baseOS,
 				&tt.k8sVersion,
@@ -879,7 +880,7 @@ func TestListStorageContainers(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			got, err := ListStorageContainers(ctx, tt.mockBuilder())
+			got, err := ListStorageContainers(ctx, tt.mockBuilder(), nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ListStorageContainers() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -914,7 +915,7 @@ func TestGetCategoryVMSpecMapping_MultiValues(t *testing.T) {
 		mockv3.EXPECT().GetCategoryValue(ctx, key, v2).Return(&prismclientv3.CategoryValueStatus{Value: &v2}, nil)
 		mockv3.EXPECT().GetCategoryValue(ctx, key, v1).Return(&prismclientv3.CategoryValueStatus{Value: &v1}, nil)
 
-		mapping, err := GetCategoryVMSpec(ctx, client, ids)
+		mapping, err := GetCategoryVMSpec(ctx, client, nil, ids)
 		require.NoError(t, err)
 		assert.Len(t, mapping[key], 2)
 		assert.ElementsMatch(t, []string{v1, v2}, mapping[key])
@@ -1035,7 +1036,7 @@ func TestGetStorageContainerByNtnxResourceIdentifier(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			got, err := GetStorageContainerByNtnxResourceIdentifier(ctx, tt.mockBuilder(), tt.id)
+			got, err := GetStorageContainerByNtnxResourceIdentifier(ctx, tt.mockBuilder(), nil, tt.id)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetStorageContainerByNtnxResourceIdentifier() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -1347,7 +1348,7 @@ func TestGetStorageContainerInCluster(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			got, err := GetStorageContainerInCluster(ctx, tt.mockBuilder(), tt.storageContainerId, tt.clusterId)
+			got, err := GetStorageContainerInCluster(ctx, tt.mockBuilder(), nil, tt.storageContainerId, tt.clusterId)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetStorageContainerInCluster() error = %v, wantErr %v", err, tt.wantErr)
 				return

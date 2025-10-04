@@ -972,14 +972,14 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 
 	tt := []struct {
 		name         string
-		fixtures     func(*gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client)
+		fixtures     func(*gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *nctx.NutanixClients)
 		wantDisksLen int
 		wantErr      bool
 	}{
 		{
 			name:         "return get disk list",
 			wantDisksLen: 3,
-			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client) {
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *nctx.NutanixClients) {
 				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
 				mockV3Service.EXPECT().GetImage(gomock.Any(), *defaultSystemImage.Metadata.UUID).Return(defaultSystemImage, nil).MinTimes(1)
 				mockV3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(&prismclientv3.ImageListIntentResponse{
@@ -993,13 +993,13 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 					V3: mockV3Service,
 				}
 
-				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, prismClient
+				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, &nctx.NutanixClients{V3: prismClient}
 			},
 		},
 		{
 			name:    "return an error if the bootstrap disk is not found",
 			wantErr: true,
-			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client) {
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *nctx.NutanixClients) {
 				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
 				mockV3Service.EXPECT().GetImage(gomock.Any(), *defaultSystemImage.Metadata.UUID).Return(defaultSystemImage, nil).MinTimes(1)
 				mockV3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(&prismclientv3.ImageListIntentResponse{
@@ -1013,13 +1013,13 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 					V3: mockV3Service,
 				}
 
-				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, prismClient
+				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, &nctx.NutanixClients{V3: prismClient}
 			},
 		},
 		{
 			name:    "return an error if the system disk is not found",
 			wantErr: true,
-			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client) {
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *nctx.NutanixClients) {
 				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
 				mockV3Service.EXPECT().GetImage(gomock.Any(), *defaultSystemImage.Metadata.UUID).Return(nil, fmt.Errorf("ENTITY_NOT_FOUND")).MinTimes(1)
 				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
@@ -1028,13 +1028,13 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 					V3: mockV3Service,
 				}
 
-				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, prismClient
+				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, &nctx.NutanixClients{V3: prismClient}
 			},
 		},
 		{
 			name:    "return an error if the system disk is marked for deletion",
 			wantErr: true,
-			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client) {
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *nctx.NutanixClients) {
 				systemImage := &prismclientv3.ImageIntentResponse{
 					Metadata: &prismclientv3.Metadata{
 						Kind: ptr.To("image"),
@@ -1056,13 +1056,13 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 					V3: mockV3Service,
 				}
 
-				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, prismClient
+				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, &nctx.NutanixClients{V3: prismClient}
 			},
 		},
 		{
 			name:    "return an error if the bootstrap disk is marked for deletion",
 			wantErr: true,
-			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client) {
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *nctx.NutanixClients) {
 				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
 
 				bootstrapImage := &prismclientv3.ImageIntentResponse{
@@ -1089,7 +1089,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 					V3: mockV3Service,
 				}
 
-				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, prismClient
+				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, &nctx.NutanixClients{V3: prismClient}
 			},
 		},
 	}
@@ -1144,7 +1144,7 @@ func TestReconcile_VMMetadataCategoriesMapping_MultipleValues(t *testing.T) {
 		{Key: "TestCategory", Value: "TestValue2"},
 		{Key: "TestCategory", Value: "TestValue1"},
 	}
-	mapping, err := GetCategoryVMSpec(ctx, client, ids)
+	mapping, err := GetCategoryVMSpec(ctx, client, nil, ids)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{"TestValue1", "TestValue2"}, mapping["TestCategory"])
 }

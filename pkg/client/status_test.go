@@ -155,7 +155,7 @@ func Test_WaitForTaskCompletion(t *testing.T) {
 			t.Parallel()
 			client.AddMockHandler(nutanixtestclient.GetTaskURLPath(tt.taskUUID), tt.handler)
 
-			err := WaitForTaskToSucceed(tt.ctx, client.Client, tt.taskUUID)
+			err := WaitForTaskToSucceed(tt.ctx, client.Client, nil, tt.taskUUID)
 			if tt.expectedErr != nil {
 				assert.ErrorContains(t, err, tt.expectedErr.Error())
 			} else {

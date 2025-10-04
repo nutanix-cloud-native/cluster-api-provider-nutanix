@@ -222,7 +222,7 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return reconcile.Result{}, err
 	}
 
-	v3Client, err := getPrismCentralClientForCluster(ctx, cluster, r.SecretInformer, r.ConfigMapInformer)
+	clients, err := getPrismCentralClientForCluster(ctx, cluster, r.SecretInformer, r.ConfigMapInformer)
 	if err != nil {
 		log.Error(err, "error occurred while fetching prism central client")
 		return reconcile.Result{}, err
@@ -232,7 +232,7 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		Context:        ctx,
 		Cluster:        capiCluster,
 		NutanixCluster: cluster,
-		NutanixClient:  v3Client,
+		NutanixClient:  clients,
 	}
 	// Check for request action
 	if !cluster.DeletionTimestamp.IsZero() {
@@ -395,13 +395,13 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 // It returns error if validation fails, and returns nil if validation succeeds.
 func (r *NutanixClusterReconciler) validateFailureDomainSpec(rctx *nctx.ClusterContext, fd *infrav1.NutanixFailureDomain) error {
 	pe := fd.Spec.PrismElementCluster
-	peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixClient, pe.Name, pe.UUID)
+	peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixClient.V3, rctx.NutanixClient.ConvergedV4, pe.Name, pe.UUID)
 	if err != nil {
 		return err
 	}
 
 	subnets := fd.Spec.Subnets
-	_, err = GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, subnets, peUUID)
+	_, err = GetSubnetUUIDList(rctx.Context, rctx.NutanixClient.V3, rctx.NutanixClient.ConvergedV4, subnets, peUUID)
 	if err != nil {
 		return err
 	}
@@ -413,7 +413,7 @@ func (r *NutanixClusterReconciler) reconcileCategories(rctx *nctx.ClusterContext
 	log := ctrl.LoggerFrom(rctx.Context)
 	log.Info("Reconciling categories for cluster")
 	defaultCategories := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-	_, err := GetOrCreateCategories(rctx.Context, rctx.NutanixClient, defaultCategories)
+	_, err := GetOrCreateCategories(rctx.Context, rctx.NutanixClient.V3, rctx.NutanixClient.ConvergedV4, defaultCategories)
 	if err != nil {
 		conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.ClusterCategoryCreationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
 		return err
@@ -429,7 +429,7 @@ func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterC
 		conditions.GetReason(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) == infrav1.DeletionFailed {
 		defaultCategories := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
 		obsoleteCategories := GetObsoleteDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-		err := DeleteCategories(rctx.Context, rctx.NutanixClient, defaultCategories, obsoleteCategories)
+		err := DeleteCategories(rctx.Context, rctx.NutanixClient.V3, rctx.NutanixClient.ConvergedV4, defaultCategories, obsoleteCategories)
 		if err != nil {
 			conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, "%s", err.Error())
 			return err
