@@ -43,7 +43,7 @@ import (
 
 var _ = Describe("clusterctl upgrade CAPX (v1.7.0 => current)", Label("clusterctl-upgrade"), func() {
 	var (
-		kubernetesVersion string
+		kubernetesVersion               string
 		nutanixMachineTemplateImageName string
 	)
 
