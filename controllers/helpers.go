@@ -957,38 +957,6 @@ func GetLegacyFailureDomainFromNutanixCluster(failureDomainName string, nutanixC
 	return nil
 }
 
-func GetStorageContainerByNtnxResourceIdentifier(ctx context.Context, client *prismclientconvergedv4.Client, storageContainerIdentifier infrav1.NutanixResourceIdentifier) (scModels.StorageContainer, error) {
-	var zero scModels.StorageContainer
-
-	storageContainers, err := client.StorageContainers.List(ctx)
-	if err != nil {
-		return zero, err
-	}
-
-	switch {
-	case storageContainerIdentifier.IsUUID():
-		for _, sc := range storageContainers {
-			if *sc.ExtId == *storageContainerIdentifier.UUID {
-				return sc, nil
-			}
-		}
-
-		return zero, fmt.Errorf("failed to find storage container %s", *storageContainerIdentifier.UUID)
-
-	case storageContainerIdentifier.IsName():
-		for _, sc := range storageContainers {
-			if *sc.Name == *storageContainerIdentifier.Name {
-				return sc, nil
-			}
-		}
-
-		return zero, fmt.Errorf("failed to find storage container %s", *storageContainerIdentifier.Name)
-
-	default:
-		return zero, fmt.Errorf("storage container identifier is missing both name and uuid")
-	}
-}
-
 func GetStorageContainerInCluster(ctx context.Context, client *prismclientconvergedv4.Client, storageContainerIdentifier, clusterIdentifier infrav1.NutanixResourceIdentifier) (scModels.StorageContainer, error) {
 	var zero scModels.StorageContainer
 	
