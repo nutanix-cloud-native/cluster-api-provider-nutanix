@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
@@ -25,12 +26,21 @@ import (
 
 const (
 	// NutanixMachineTemplateKind represents the Kind of NutanixMachineTemplate
-	NutanixMachineTemplateKind = "NutanixMachineTemplate"
+	NutanixMachineTemplateKind                     = "NutanixMachineTemplate"
+	AutoscalerResourceCPU      corev1.ResourceName = "cpu"
+	AutoscalerResourceMemory   corev1.ResourceName = "memory"
+	// NutanixMachineTemplateFinalizer is the finalizer for NutanixMachineTemplate objects
+	NutanixMachineTemplateFinalizer = "infrastructure.cluster.x-k8s.io/nutanixmachinetemplate"
 )
 
 // NutanixMachineTemplateSpec defines the desired state of NutanixMachineTemplate
 type NutanixMachineTemplateSpec struct {
 	Template NutanixMachineTemplateResource `json:"template"`
+}
+
+// NutanixMachineTemplateStatus defines the observed state of a NutanixMachineTemplate
+type NutanixMachineTemplateStatus struct {
+	Capacity corev1.ResourceList `json:"capacity,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -42,7 +52,8 @@ type NutanixMachineTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec NutanixMachineTemplateSpec `json:"spec,omitempty"`
+	Spec   NutanixMachineTemplateSpec   `json:"spec,omitempty"`
+	Status NutanixMachineTemplateStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
