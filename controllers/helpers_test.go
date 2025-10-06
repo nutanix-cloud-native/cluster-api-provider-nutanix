@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	. "github.com/onsi/ginkgo/v2"
@@ -221,6 +222,76 @@ func TestGetPrismCentralClientForCluster(t *testing.T) {
 		secretInformer.EXPECT().Lister().Return(secretLister)
 
 		_, err = getPrismCentralClientForCluster(ctx, cluster, secretInformer, mapInformer)
+		assert.NoError(t, err)
+	})
+}
+
+func TestGetPrismCentralConvergedV4ClientForCluster(t *testing.T) {
+	ctx := context.Background()
+	cluster := &infrav1.NutanixCluster{
+		Spec: infrav1.NutanixClusterSpec{
+			PrismCentral: &credentialtypes.NutanixPrismEndpoint{
+				Address: "prismcentral.nutanix.com",
+				Port:    9440,
+				CredentialRef: &credentialtypes.NutanixCredentialReference{
+					Kind:      credentialtypes.SecretKind,
+					Name:      "test-credential",
+					Namespace: "test-ns",
+				},
+			},
+		},
+	}
+
+	t.Run("BuildManagementEndpoint Fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+
+		secretNamespaceLister := mockk8sclient.NewMockSecretNamespaceLister(ctrl)
+		secretNamespaceLister.EXPECT().Get("test-credential").Return(nil, errors.New("failed to get secret"))
+		secretLister := mockk8sclient.NewMockSecretLister(ctrl)
+		secretLister.EXPECT().Secrets("test-ns").Return(secretNamespaceLister)
+		secretInformer := mockk8sclient.NewMockSecretInformer(ctrl)
+		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
+		secretInformer.EXPECT().Lister().Return(secretLister)
+
+		_, err := getPrismCentralConvergedV4ClientForCluster(ctx, cluster, secretInformer, mapInformer)
+		assert.Error(t, err)
+	})
+
+	t.Run("GetOrCreate succeeds", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+
+		oldNutanixConvergedClientV4Cache := nutanixclient.NutanixConvergedClientV4Cache
+		defer func() {
+			nutanixclient.NutanixConvergedClientV4Cache = oldNutanixConvergedClientV4Cache
+		}()
+
+		// Create a new client cache with session auth disabled to avoid network calls in tests
+		nutanixclient.NutanixConvergedClientV4Cache = v4Converged.NewClientCache()
+
+		creds := []credentialtypes.Credential{
+			{
+				Type: credentialtypes.BasicAuthCredentialType,
+				Data: []byte(`{"prismCentral":{"username":"user","password":"password"}}`),
+			},
+		}
+
+		credsMarshal, err := json.Marshal(creds)
+		require.NoError(t, err)
+		secret := &corev1.Secret{
+			Data: map[string][]byte{
+				credentialtypes.KeyName: credsMarshal,
+			},
+		}
+
+		secretNamespaceLister := mockk8sclient.NewMockSecretNamespaceLister(ctrl)
+		secretNamespaceLister.EXPECT().Get("test-credential").Return(secret, nil)
+		secretLister := mockk8sclient.NewMockSecretLister(ctrl)
+		secretLister.EXPECT().Secrets("test-ns").Return(secretNamespaceLister)
+		secretInformer := mockk8sclient.NewMockSecretInformer(ctrl)
+		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
+		secretInformer.EXPECT().Lister().Return(secretLister)
+
+		_, err = getPrismCentralConvergedV4ClientForCluster(ctx, cluster, secretInformer, mapInformer)
 		assert.NoError(t, err)
 	})
 }
