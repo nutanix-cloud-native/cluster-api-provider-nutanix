@@ -257,6 +257,37 @@ func TestGetPrismCentralConvergedV4ClientForCluster(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("GetOrCreate Fails with malformed credentials", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+
+		// Use malformed credentials to force GetOrCreate to fail
+		creds := []credentialtypes.Credential{
+			{
+				Type: credentialtypes.BasicAuthCredentialType,
+				Data: []byte(`{"prismCentral":{"username":"user"}}`), // Missing password
+			},
+		}
+		credsMarshal, err := json.Marshal(creds)
+		require.NoError(t, err)
+
+		secret := &corev1.Secret{
+			Data: map[string][]byte{
+				credentialtypes.KeyName: credsMarshal,
+			},
+		}
+
+		secretNamespaceLister := mockk8sclient.NewMockSecretNamespaceLister(ctrl)
+		secretNamespaceLister.EXPECT().Get("test-credential").Return(secret, nil)
+		secretLister := mockk8sclient.NewMockSecretLister(ctrl)
+		secretLister.EXPECT().Secrets("test-ns").Return(secretNamespaceLister)
+		secretInformer := mockk8sclient.NewMockSecretInformer(ctrl)
+		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
+		secretInformer.EXPECT().Lister().Return(secretLister)
+
+		_, err = getPrismCentralConvergedV4ClientForCluster(ctx, cluster, secretInformer, mapInformer)
+		assert.Error(t, err)
+	})
+
 	t.Run("GetOrCreate succeeds", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 
@@ -293,6 +324,90 @@ func TestGetPrismCentralConvergedV4ClientForCluster(t *testing.T) {
 
 		_, err = getPrismCentralConvergedV4ClientForCluster(ctx, cluster, secretInformer, mapInformer)
 		assert.NoError(t, err)
+	})
+
+	t.Run("GetOrCreate succeeds with different credential types", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+
+		oldNutanixConvergedClientV4Cache := nutanixclient.NutanixConvergedClientV4Cache
+		defer func() {
+			nutanixclient.NutanixConvergedClientV4Cache = oldNutanixConvergedClientV4Cache
+		}()
+
+		// Create a new client cache with session auth disabled to avoid network calls in tests
+		nutanixclient.NutanixConvergedClientV4Cache = v4Converged.NewClientCache()
+
+		// Test with different credential types
+		creds := []credentialtypes.Credential{
+			{
+				Type: credentialtypes.BasicAuthCredentialType,
+				Data: []byte(`{"prismCentral":{"username":"user","password":"password"}}`),
+			},
+		}
+		credsMarshal, err := json.Marshal(creds)
+		require.NoError(t, err)
+		secret := &corev1.Secret{
+			Data: map[string][]byte{
+				credentialtypes.KeyName: credsMarshal,
+			},
+		}
+
+		secretNamespaceLister := mockk8sclient.NewMockSecretNamespaceLister(ctrl)
+		secretNamespaceLister.EXPECT().Get("test-credential").Return(secret, nil)
+		secretLister := mockk8sclient.NewMockSecretLister(ctrl)
+		secretLister.EXPECT().Secrets("test-ns").Return(secretNamespaceLister)
+		secretInformer := mockk8sclient.NewMockSecretInformer(ctrl)
+		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
+		secretInformer.EXPECT().Lister().Return(secretLister)
+
+		client, err := getPrismCentralConvergedV4ClientForCluster(ctx, cluster, secretInformer, mapInformer)
+		assert.NoError(t, err)
+		assert.NotNil(t, client)
+	})
+
+	t.Run("GetOrCreate succeeds with cached client", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+
+		oldNutanixConvergedClientV4Cache := nutanixclient.NutanixConvergedClientV4Cache
+		defer func() {
+			nutanixclient.NutanixConvergedClientV4Cache = oldNutanixConvergedClientV4Cache
+		}()
+
+		// Create a new client cache with session auth disabled to avoid network calls in tests
+		nutanixclient.NutanixConvergedClientV4Cache = v4Converged.NewClientCache()
+
+		creds := []credentialtypes.Credential{
+			{
+				Type: credentialtypes.BasicAuthCredentialType,
+				Data: []byte(`{"prismCentral":{"username":"user","password":"password"}}`),
+			},
+		}
+		credsMarshal, err := json.Marshal(creds)
+		require.NoError(t, err)
+		secret := &corev1.Secret{
+			Data: map[string][]byte{
+				credentialtypes.KeyName: credsMarshal,
+			},
+		}
+
+		secretNamespaceLister := mockk8sclient.NewMockSecretNamespaceLister(ctrl)
+		secretNamespaceLister.EXPECT().Get("test-credential").Return(secret, nil).Times(2) // Called twice for cache hit
+		secretLister := mockk8sclient.NewMockSecretLister(ctrl)
+		secretLister.EXPECT().Secrets("test-ns").Return(secretNamespaceLister).Times(2)
+		secretInformer := mockk8sclient.NewMockSecretInformer(ctrl)
+		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
+		secretInformer.EXPECT().Lister().Return(secretLister).Times(2)
+
+		// First call - should create and cache the client
+		client1, err := getPrismCentralConvergedV4ClientForCluster(ctx, cluster, secretInformer, mapInformer)
+		assert.NoError(t, err)
+		assert.NotNil(t, client1)
+
+		// Second call - should return cached client
+		client2, err := getPrismCentralConvergedV4ClientForCluster(ctx, cluster, secretInformer, mapInformer)
+		assert.NoError(t, err)
+		assert.NotNil(t, client2)
+		assert.Equal(t, client1, client2) // Should be the same cached instance
 	})
 }
 

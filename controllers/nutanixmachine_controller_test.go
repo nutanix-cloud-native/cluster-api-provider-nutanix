@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -40,10 +41,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/config"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	mockctlclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/ctlclient"
 	mockmeta "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sapimachinery"
+	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
 	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
@@ -213,7 +216,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 		Context("Reconcile an NutanixMachine", func() {
 			It("should not error or requeue the request", func() {
 				By("Calling reconcile")
-				result, err := reconciler.Reconcile(ctx, ctrl.Request{
+				result, err := reconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: client.ObjectKey{
 						Namespace: ntnxMachine.Namespace,
 						Name:      ntnxMachine.Name,
@@ -1147,4 +1150,151 @@ func TestReconcile_VMMetadataCategoriesMapping_MultipleValues(t *testing.T) {
 	mapping, err := GetCategoryVMSpec(ctx, client, ids)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{"TestValue1", "TestValue2"}, mapping["TestCategory"])
+}
+
+func TestNutanixMachineReconciler_ConvergedClient(t *testing.T) {
+	t.Run("should handle converged client initialization failure", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		ntnxCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "default",
+			},
+			Spec: infrav1.NutanixClusterSpec{
+				PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+					Address: "prismcentral.nutanix.com",
+					Port:    9440,
+					CredentialRef: &credentialTypes.NutanixCredentialReference{
+						Kind:      credentialTypes.SecretKind,
+						Name:      "test-credential",
+						Namespace: "test-ns",
+					},
+				},
+			},
+		}
+
+		secretInformer := mockk8sclient.NewMockSecretInformer(ctrl)
+		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
+
+		// Mock the secret lister to return an error
+		secretNamespaceLister := mockk8sclient.NewMockSecretNamespaceLister(ctrl)
+		secretNamespaceLister.EXPECT().Get("test-credential").Return(nil, errors.New("secret not found"))
+		secretLister := mockk8sclient.NewMockSecretLister(ctrl)
+		secretLister.EXPECT().Secrets("test-ns").Return(secretNamespaceLister)
+		secretInformer.EXPECT().Lister().Return(secretLister)
+
+		// Test the converged client function directly
+		_, err := getPrismCentralConvergedV4ClientForCluster(ctx, ntnxCluster, secretInformer, mapInformer)
+		assert.Error(t, err)
+	})
+
+	t.Run("should successfully initialize converged client", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		ntnxCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "default",
+			},
+			Spec: infrav1.NutanixClusterSpec{
+				PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+					Address: "prismcentral.nutanix.com",
+					Port:    9440,
+					CredentialRef: &credentialTypes.NutanixCredentialReference{
+						Kind:      credentialTypes.SecretKind,
+						Name:      "test-credential",
+						Namespace: "test-ns",
+					},
+				},
+			},
+		}
+
+		secretInformer := mockk8sclient.NewMockSecretInformer(ctrl)
+		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
+
+		// Mock the secret lister to return valid credentials
+		creds := []credentialTypes.Credential{
+			{
+				Type: credentialTypes.BasicAuthCredentialType,
+				Data: []byte(`{"prismCentral":{"username":"user","password":"password"}}`),
+			},
+		}
+		credsMarshal, err := json.Marshal(creds)
+		require.NoError(t, err)
+
+		secret := &corev1.Secret{
+			Data: map[string][]byte{
+				credentialTypes.KeyName: credsMarshal,
+			},
+		}
+
+		secretNamespaceLister := mockk8sclient.NewMockSecretNamespaceLister(ctrl)
+		secretNamespaceLister.EXPECT().Get("test-credential").Return(secret, nil)
+		secretLister := mockk8sclient.NewMockSecretLister(ctrl)
+		secretLister.EXPECT().Secrets("test-ns").Return(secretNamespaceLister)
+		secretInformer.EXPECT().Lister().Return(secretLister)
+
+		// Test the converged client function directly
+		client, err := getPrismCentralConvergedV4ClientForCluster(ctx, ntnxCluster, secretInformer, mapInformer)
+		assert.NoError(t, err)
+		assert.NotNil(t, client)
+	})
+
+	t.Run("should handle converged client initialization with malformed credentials", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		ntnxCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "default",
+			},
+			Spec: infrav1.NutanixClusterSpec{
+				PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+					Address: "prismcentral.nutanix.com",
+					Port:    9440,
+					CredentialRef: &credentialTypes.NutanixCredentialReference{
+						Kind:      credentialTypes.SecretKind,
+						Name:      "test-credential",
+						Namespace: "test-ns",
+					},
+				},
+			},
+		}
+
+		secretInformer := mockk8sclient.NewMockSecretInformer(ctrl)
+		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
+
+		// Mock the secret lister to return malformed credentials
+		creds := []credentialTypes.Credential{
+			{
+				Type: credentialTypes.BasicAuthCredentialType,
+				Data: []byte(`{"prismCentral":{"username":"user"}}`), // Missing password
+			},
+		}
+		credsMarshal, err := json.Marshal(creds)
+		require.NoError(t, err)
+
+		secret := &corev1.Secret{
+			Data: map[string][]byte{
+				credentialTypes.KeyName: credsMarshal,
+			},
+		}
+
+		secretNamespaceLister := mockk8sclient.NewMockSecretNamespaceLister(ctrl)
+		secretNamespaceLister.EXPECT().Get("test-credential").Return(secret, nil)
+		secretLister := mockk8sclient.NewMockSecretLister(ctrl)
+		secretLister.EXPECT().Secrets("test-ns").Return(secretNamespaceLister)
+		secretInformer.EXPECT().Lister().Return(secretLister)
+
+		// Test the converged client function directly
+		_, err = getPrismCentralConvergedV4ClientForCluster(ctx, ntnxCluster, secretInformer, mapInformer)
+		assert.Error(t, err)
+	})
 }
