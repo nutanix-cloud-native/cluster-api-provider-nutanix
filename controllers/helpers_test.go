@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -1746,7 +1745,7 @@ func TestDeleteVM(t *testing.T) {
 		vmUUID := "test-vm-uuid"
 
 		// Mock the VMs service to return a task (requeue case)
-		mockClientWrapper.MockVMs.EXPECT().DeleteAsync(ctx, vmUUID).Return(nil, fmt.Errorf("no task received for vm %s", vmName))
+		mockClientWrapper.MockVMs.EXPECT().DeleteAsync(ctx, vmUUID).Return(nil, nil)
 
 		result, err := DeleteVM(ctx, mockClientWrapper.Client, vmName, vmUUID)
 
