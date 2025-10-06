@@ -337,6 +337,15 @@ mocks: ## Generate mocks for the project
 	mockgen -destination=mocks/k8sclient/lister.go -package=mockk8sclient k8s.io/client-go/listers/core/v1 SecretLister,SecretNamespaceLister
 	mockgen -destination=mocks/k8sapimachinery/interfaces.go -package=mockmeta k8s.io/apimachinery/pkg/api/meta RESTMapper,RESTScope
 	mockgen -destination=mocks/nutanix/v3.go -package=mocknutanixv3 github.com/nutanix-cloud-native/prism-go-client/v3 Service
+	mockgen -destination=mocks/converged/vms.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged VMs
+	mockgen -destination=mocks/converged/operation.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Operation
+	mockgen -destination=mocks/converged/anti_affinity_policies.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged AntiAffinityPolicies
+	mockgen -destination=mocks/converged/clusters.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Clusters
+	mockgen -destination=mocks/converged/categories.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Categories
+	mockgen -destination=mocks/converged/images.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Images
+	mockgen -destination=mocks/converged/storage_containers.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged StorageContainers
+	mockgen -destination=mocks/converged/subnets.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Subnets
+	mockgen -destination=mocks/converged/tasks.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Tasks
 
 GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
 
