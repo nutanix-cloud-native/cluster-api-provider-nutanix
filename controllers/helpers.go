@@ -71,7 +71,7 @@ type StorageContainerIntentResponse struct {
 }
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
-func DeleteVM(ctx context.Context, client *prismclientv3.Client, vmName, vmUUID string) (string, error) {
+func DeleteVM(ctx context.Context, client *v4Converged.Client, vmName, vmUUID string) (string, error) {
 	log := ctrl.LoggerFrom(ctx)
 	var err error
 
@@ -81,14 +81,18 @@ func DeleteVM(ctx context.Context, client *prismclientv3.Client, vmName, vmUUID 
 	}
 
 	log.Info(fmt.Sprintf("Deleting VM %s with UUID: %s", vmName, vmUUID))
-	vmDeleteResponse, err := client.V3.DeleteVM(ctx, vmUUID)
+	task, err := client.VMs.DeleteAsync(ctx, vmUUID)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error deleting vm %s", vmName))
 		return "", err
 	}
-	deleteTaskUUID := vmDeleteResponse.Status.ExecutionContext.TaskUUID.(string)
 
-	return deleteTaskUUID, nil
+	if task == nil {
+		log.Error(fmt.Errorf("no task received for vm %s", vmName), "no task received")
+		return "", fmt.Errorf("no task received for vm %s", vmName)
+	}
+
+	return task.UUID(), nil
 }
 
 // FindVMByUUID retrieves the VM with the given vm UUID. Returns nil if not found

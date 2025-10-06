@@ -20,13 +20,28 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
 
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	mockconverged "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/converged"
+	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
+	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
+	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	converged "github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
+	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
+	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
+	prismErrors "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/error"
+	vmmModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
+	policyModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/policies"
+	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
@@ -36,11 +51,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/cluster-api/util"
-
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
-	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
-	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 )
 
 func TestControllerHelpers(t *testing.T) {
@@ -1673,5 +1683,137 @@ func TestGetStorageContainerInCluster(t *testing.T) {
 				assert.Contains(t, err.Error(), tt.errorMessage)
 			}
 		})
+	}
+}
+
+func TestDeleteVM(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	t.Run("should skip deletion when vmUUID is empty", func(t *testing.T) {
+		// Test the early return case when vmUUID is empty
+		result, err := DeleteVM(ctx, nil, "test-vm", "")
+
+		assert.Nil(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("should handle successful deletion", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+		mockOperation := mockconverged.NewMockOperation[converged.NoEntity](ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "test-vm-uuid"
+		taskUUID := "task-uuid"
+
+		// Mock the VMs service to return a task (requeue case)
+		mockClientWrapper.MockVMs.EXPECT().DeleteAsync(ctx, vmUUID).Return(mockOperation, nil)
+		mockOperation.EXPECT().UUID().Return(taskUUID).AnyTimes()
+
+		result, err := DeleteVM(ctx, mockClientWrapper.Client, vmName, vmUUID)
+
+		assert.NoError(t, err)
+		assert.NotEmpty(t, result)
+		assert.Equal(t, taskUUID, result)
+	})
+
+	t.Run("should return error when DeleteAsync fails", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "test-vm-uuid"
+		expectedError := errors.New("delete failed")
+
+		// Mock the VMs service to return an error
+		mockClientWrapper.MockVMs.EXPECT().DeleteAsync(ctx, vmUUID).Return(nil, expectedError)
+
+		result, err := DeleteVM(ctx, mockClientWrapper.Client, vmName, vmUUID)
+
+		assert.Error(t, err)
+		assert.Equal(t, expectedError, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("should return error when task is nil", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "test-vm-uuid"
+
+		// Mock the VMs service to return a task (requeue case)
+		mockClientWrapper.MockVMs.EXPECT().DeleteAsync(ctx, vmUUID).Return(nil, fmt.Errorf("no task received for vm %s", vmName))
+
+		result, err := DeleteVM(ctx, mockClientWrapper.Client, vmName, vmUUID)
+
+		assert.Error(t, err)
+		assert.Empty(t, result)
+	})
+}
+
+type MockConvergedClientWrapper struct {
+	Client *v4Converged.Client
+
+	MockAntiAffinityPolicies *mockconverged.MockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy]
+	MockClusters             *mockconverged.MockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile]
+	MockCategories           *mockconverged.MockCategories[prismModels.Category]
+	MockImages               *mockconverged.MockImages[imageModels.Image]
+	MockStorageContainers    *mockconverged.MockStorageContainers[clusterModels.StorageContainer]
+	MockSubnets              *mockconverged.MockSubnets[subnetModels.Subnet]
+	MockVMs                  *mockconverged.MockVMs[vmmModels.Vm]
+	MockTasks                *mockconverged.MockTasks[prismModels.Task, prismErrors.AppMessage]
+}
+
+// NewMockConvergedClient creates a new mock converged client
+func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper {
+	mockAntiAffinityPolicies := mockconverged.NewMockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy](ctrl)
+	mockClusters := mockconverged.NewMockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile](ctrl)
+	mockCategories := mockconverged.NewMockCategories[prismModels.Category](ctrl)
+	mockImages := mockconverged.NewMockImages[imageModels.Image](ctrl)
+	mockStorageContainers := mockconverged.NewMockStorageContainers[clusterModels.StorageContainer](ctrl)
+	mockSubnets := mockconverged.NewMockSubnets[subnetModels.Subnet](ctrl)
+	mockTasks := mockconverged.NewMockTasks[prismModels.Task, prismErrors.AppMessage](ctrl)
+	// Create mock VMs service with the correct type
+	mockVMs := mockconverged.NewMockVMs[vmmModels.Vm](ctrl)
+
+	realClient := &v4Converged.Client{
+		Client: converged.Client[
+			policyModels.VmAntiAffinityPolicy,
+			clusterModels.Cluster,
+			clusterModels.VirtualGpuProfile,
+			clusterModels.PhysicalGpuProfile,
+			prismModels.Category,
+			imageModels.Image,
+			clusterModels.StorageContainer,
+			subnetModels.Subnet,
+			vmmModels.Vm,
+			prismModels.Task,
+			prismErrors.AppMessage,
+		]{
+			AntiAffinityPolicies: mockAntiAffinityPolicies,
+			Clusters:             mockClusters,
+			Categories:           mockCategories,
+			Images:               mockImages,
+			StorageContainers:    mockStorageContainers,
+			Subnets:              mockSubnets,
+			VMs:                  mockVMs,
+			Tasks:                mockTasks,
+		},
+	}
+
+	return &MockConvergedClientWrapper{
+		Client:                   realClient,
+		MockAntiAffinityPolicies: mockAntiAffinityPolicies,
+		MockClusters:             mockClusters,
+		MockCategories:           mockCategories,
+		MockImages:               mockImages,
+		MockStorageContainers:    mockStorageContainers,
+		MockSubnets:              mockSubnets,
+		MockVMs:                  mockVMs,
+		MockTasks:                mockTasks,
 	}
 }
