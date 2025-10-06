@@ -25,6 +25,7 @@ import (
 	"strconv"
 
 	prismGoClient "github.com/nutanix-cloud-native/prism-go-client"
+	prismGoClientTypes "github.com/nutanix-cloud-native/prism-go-client/environment/types"
 	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"github.com/onsi/gomega"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
@@ -117,7 +118,7 @@ func initNutanixClient(e2eConfig clusterctl.E2EConfig) (*prismGoClientV3.Client,
 		return nil, err
 	}
 
-	opts := make([]prismGoClientV3.ClientOption, 0)
+	opts := make([]prismGoClientTypes.ClientOption[prismGoClientV3.Client], 0)
 	if nutanixAdditionalTrustBundle != "" {
 		opts = append(opts, prismGoClientV3.WithPEMEncodedCertBundle([]byte(nutanixAdditionalTrustBundle)))
 	}

@@ -4,8 +4,10 @@ import (
 	"net/url"
 	"testing"
 
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	"github.com/nutanix-cloud-native/prism-go-client/environment/types"
 	v3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+	v4 "github.com/nutanix-cloud-native/prism-go-client/v4"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -46,4 +48,14 @@ func TestCacheParamsManagementEndpoint(t *testing.T) {
 func TestNutanixClientCache(t *testing.T) {
 	assert.NotNil(t, NutanixClientCache)
 	assert.IsType(t, &v3.ClientCache{}, NutanixClientCache)
+}
+
+func TestNutanixClientCacheV4(t *testing.T) {
+	assert.NotNil(t, NutanixClientCacheV4)
+	assert.IsType(t, &v4.ClientCache{}, NutanixClientCacheV4)
+}
+
+func TestNutanixConvergedClientV4Cache(t *testing.T) {
+	assert.NotNil(t, NutanixConvergedClientV4Cache)
+	assert.IsType(t, &v4Converged.ClientCache{}, NutanixConvergedClientV4Cache)
 }
