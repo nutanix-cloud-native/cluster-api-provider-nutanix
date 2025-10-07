@@ -122,6 +122,10 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4 v4.1.1 // indirect
+	github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.1.1 // indirect
+	github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4 v4.1.1 // indirect
+	github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4 v4.1.1 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
@@ -187,7 +191,7 @@ require (
 )
 
 replace (
-	github.com/nutanix-cloud-native/prism-go-client => github.com/nutanix-cloud-native/prism-go-client v0.5.2-0.20251006115945-8df370a1e085
+	github.com/nutanix-cloud-native/prism-go-client => github.com/nutanix-cloud-native/prism-go-client v0.5.2-0.20251007035527-2603309773ae
 	// CVE fixes for https://avd.aquasec.com/nvd/2024/cve-2024-45338
 	golang.org/x/net => golang.org/x/net v0.33.0
 	sigs.k8s.io/kind v0.20.0 => sigs.k8s.io/kind v0.22.0
