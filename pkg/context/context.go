@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	ctrl "sigs.k8s.io/controller-runtime"
