@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
@@ -223,7 +224,7 @@ func GetPEUUID(ctx context.Context, client *prismclientv3.Client, peName, peUUID
 		foundPEs := make([]*prismclientv3.ClusterIntentResponse, 0)
 		for _, s := range responsePEs.Entities {
 			peSpec := s.Spec
-			if strings.EqualFold(*peSpec.Name, *peName) && hasPEClusterServiceEnabled(s, serviceNamePECluster) {
+			if strings.EqualFold(peSpec.Name, *peName) && hasPEClusterServiceEnabled(s, serviceNamePECluster) {
 				foundPEs = append(foundPEs, s)
 			}
 		}
@@ -1145,6 +1146,31 @@ func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.Nut
 	}
 
 	conditions.MarkTrue(cluster, infrav1.PrismCentralV4ClientCondition)
+	return client, nil
+}
+
+func getPrismCentralConvergedV4ClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*v4Converged.Client, error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	clientHelper := nutanixclient.NewHelper(secretInformer, mapInformer)
+	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
+	if err != nil {
+		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
+		conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		return nil, err
+	}
+
+	client, err := nutanixclient.NutanixConvergedClientV4Cache.GetOrCreate(&nutanixclient.CacheParams{
+		NutanixCluster:          cluster,
+		PrismManagementEndpoint: managementEndpoint,
+	})
+	if err != nil {
+		log.Error(err, "error occurred while getting nutanix prism converged v4 client from cache")
+		conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		return nil, fmt.Errorf("nutanix prism converged v4 client error: %w", err)
+	}
+
+	conditions.MarkTrue(cluster, infrav1.PrismCentralConvergedV4ClientCondition)
 	return client, nil
 }
 

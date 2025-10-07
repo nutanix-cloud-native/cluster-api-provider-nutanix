@@ -267,13 +267,20 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return reconcile.Result{}, err
 	}
 
+	convergedClient, err := getPrismCentralConvergedV4ClientForCluster(ctx, ntxCluster, r.SecretInformer, r.ConfigMapInformer)
+	if err != nil {
+		log.Error(err, "error occurred while fetching prism central converged client")
+		return reconcile.Result{}, err
+	}
+
 	rctx := &nctx.MachineContext{
-		Context:        ctx,
-		Cluster:        cluster,
-		Machine:        machine,
-		NutanixCluster: ntxCluster,
-		NutanixMachine: ntxMachine,
-		NutanixClient:  v3Client,
+		Context:         ctx,
+		Cluster:         cluster,
+		Machine:         machine,
+		NutanixCluster:  ntxCluster,
+		NutanixMachine:  ntxMachine,
+		NutanixClient:   v3Client,
+		ConvergedClient: convergedClient,
 	}
 
 	defer func() {

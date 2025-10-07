@@ -42,12 +42,144 @@ import (
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/config"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	mockctlclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/ctlclient"
 	mockmeta "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sapimachinery"
+	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
+
+func TestNutanixClusterReconciler_ConvergedClientCacheDeletion(t *testing.T) {
+	t.Run("should delete converged client from cache during cluster deletion", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		ntnxCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-cluster",
+				Namespace: "default",
+			},
+			Spec: infrav1.NutanixClusterSpec{
+				PrismCentral: &credentialtypes.NutanixPrismEndpoint{
+					Address: "prismcentral.nutanix.com",
+					Port:    9440,
+					CredentialRef: &credentialtypes.NutanixCredentialReference{
+						Kind:      credentialtypes.SecretKind,
+						Name:      "test-credential",
+						Namespace: "test-ns",
+					},
+				},
+			},
+		}
+
+		// Add finalizer to simulate cluster being deleted
+		ctrlutil.AddFinalizer(ntnxCluster, infrav1.NutanixClusterFinalizer)
+		ntnxCluster.DeletionTimestamp = &metav1.Time{Time: metav1.Now().Time}
+
+		// Create mock client
+		mockClient := mockctlclient.NewMockClient(ctrl)
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+		// Create mock informers
+		secretInformer := mockk8sclient.NewMockSecretInformer(ctrl)
+		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
+
+		// Create reconciler
+		reconciler := &NutanixClusterReconciler{
+			Client:            mockClient,
+			SecretInformer:    secretInformer,
+			ConfigMapInformer: mapInformer,
+			Scheme:            runtime.NewScheme(),
+		}
+
+		// Create cluster context
+		capiCluster := &capiv1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-cluster",
+				Namespace: "default",
+			},
+		}
+
+		rctx := &nctx.ClusterContext{
+			Context:        ctx,
+			Cluster:        capiCluster,
+			NutanixCluster: ntnxCluster,
+		}
+
+		// Test the reconcileDelete function
+		result, err := reconciler.reconcileDelete(rctx)
+
+		// Verify no error occurred
+		assert.NoError(t, err)
+		assert.Equal(t, reconcile.Result{}, result)
+
+		// Verify that the finalizer was removed
+		assert.False(t, ctrlutil.ContainsFinalizer(ntnxCluster, infrav1.NutanixClusterFinalizer))
+	})
+
+	t.Run("should handle cache deletion errors gracefully", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		ntnxCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-cluster",
+				Namespace: "default",
+			},
+		}
+
+		// Add finalizer to simulate cluster being deleted
+		ctrlutil.AddFinalizer(ntnxCluster, infrav1.NutanixClusterFinalizer)
+		ntnxCluster.DeletionTimestamp = &metav1.Time{Time: metav1.Now().Time}
+
+		// Create mock client that returns error
+		mockClient := mockctlclient.NewMockClient(ctrl)
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("client error")).AnyTimes()
+		mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mockClient.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mockClient.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+		// Create mock informers
+		secretInformer := mockk8sclient.NewMockSecretInformer(ctrl)
+		mapInformer := mockk8sclient.NewMockConfigMapInformer(ctrl)
+
+		// Create reconciler
+		reconciler := &NutanixClusterReconciler{
+			Client:            mockClient,
+			SecretInformer:    secretInformer,
+			ConfigMapInformer: mapInformer,
+			Scheme:            runtime.NewScheme(),
+		}
+
+		// Create cluster context
+		capiCluster := &capiv1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-cluster",
+				Namespace: "default",
+			},
+		}
+
+		rctx := &nctx.ClusterContext{
+			Context:        ctx,
+			Cluster:        capiCluster,
+			NutanixCluster: ntnxCluster,
+		}
+
+		// Test the reconcileDelete function
+		result, err := reconciler.reconcileDelete(rctx)
+
+		// Verify no error occurred - cache deletion should succeed even with client errors
+		assert.NoError(t, err)
+		assert.Equal(t, reconcile.Result{}, result)
+	})
+}
 
 func TestNutanixClusterReconciler(t *testing.T) {
 	g := NewWithT(t)

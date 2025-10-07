@@ -21,14 +21,15 @@ import (
 	"fmt"
 	"sync"
 
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
-
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
 var (
@@ -47,8 +48,9 @@ type ClusterContext struct {
 
 // MachineContext is a context used with a NutanixMachine reconciler
 type MachineContext struct {
-	Context       context.Context
-	NutanixClient *prismclientv3.Client
+	Context         context.Context
+	NutanixClient   *prismclientv3.Client
+	ConvergedClient *v4Converged.Client
 
 	Cluster        *capiv1.Cluster
 	Machine        *capiv1.Machine
