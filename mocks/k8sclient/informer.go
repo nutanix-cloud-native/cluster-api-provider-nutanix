@@ -21,6 +21,7 @@ import (
 type MockConfigMapInformer struct {
 	ctrl     *gomock.Controller
 	recorder *MockConfigMapInformerMockRecorder
+	isgomock struct{}
 }
 
 // MockConfigMapInformerMockRecorder is the mock recorder for MockConfigMapInformer.
@@ -72,6 +73,7 @@ func (mr *MockConfigMapInformerMockRecorder) Lister() *gomock.Call {
 type MockSecretInformer struct {
 	ctrl     *gomock.Controller
 	recorder *MockSecretInformerMockRecorder
+	isgomock struct{}
 }
 
 // MockSecretInformerMockRecorder is the mock recorder for MockSecretInformer.

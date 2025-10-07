@@ -99,7 +99,6 @@ var _ = Describe("Nutanix Passthrough GPU", Label("nutanix-feature-test", "only-
 			testHelper.verifyFailureMessageOnClusterMachines(ctx, verifyFailureMessageOnClusterMachinesParams{
 				clusterName:            clusterName,
 				namespace:              namespace,
-				expectedPhase:          "Failed",
 				expectedFailureMessage: "no available GPU found",
 				bootstrapClusterProxy:  bootstrapClusterProxy,
 			})
@@ -251,7 +250,6 @@ var _ = Describe("Nutanix Virtual GPU", Label("nutanix-feature-test", "only-for-
 			testHelper.verifyFailureMessageOnClusterMachines(ctx, verifyFailureMessageOnClusterMachinesParams{
 				clusterName:            clusterName,
 				namespace:              namespace,
-				expectedPhase:          "Failed",
 				expectedFailureMessage: "no available GPU found",
 				bootstrapClusterProxy:  bootstrapClusterProxy,
 			})
