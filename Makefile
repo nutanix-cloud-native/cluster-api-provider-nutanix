@@ -23,7 +23,7 @@ DOCKER_SOCKET = $(shell if [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
                         fi)
 
 # Function to setup container engine runtime
-define setup_container_engine
+define select_container_engine
 	@if [ "$(CONTAINER_ENGINE)" = "none" ]; then \
 		echo "Error: No container engine found (docker or podman required)"; \
 		exit 1; \
@@ -245,18 +245,18 @@ run: manifests generate ## Run a controller from your host.
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	$(setup_container_engine)
+	$(select_container_engine)
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
 	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push
 docker-push:  ## Push docker image with the manager.
-	$(setup_container_engine)
+	$(select_container_engine)
 	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=${IMG_REPO} GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push-kind
 docker-push-kind:  ## Make docker image available to kind cluster.
-	$(setup_container_engine)
+	$(select_container_engine)
 	DOCKER_HOST=$(DOCKER_SOCKET) GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local ko build -B -t ${IMG_TAG} .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${MANAGER_IMAGE}
 	kind load docker-image --name ${KIND_CLUSTER_NAME} ${MANAGER_IMAGE}
@@ -344,7 +344,7 @@ cluster-templates: ## Generate cluster templates for all flavors
 
 .PHONY: docker-build-e2e
 docker-build-e2e: ## Build docker image with the manager with e2e tag.
-	$(setup_container_engine)
+	$(select_container_engine)
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
 	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS_E2E} -t ${IMG_TAG} .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:${IMG_TAG}
@@ -390,14 +390,14 @@ coverage: mocks ## Run the tests of the project and export the coverage
 
 .PHONY: template-test
 template-test: docker-build prepare-local-clusterctl ## Run the template tests
-	$(setup_container_engine)
+	$(select_container_engine)
 	GOPROXY=off \
 	LOCAL_PROVIDER_VERSION=$(LOCAL_PROVIDER_VERSION) \
 		ginkgo --trace --v run templates
 
 .PHONY: test-e2e
 test-e2e: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the end-to-end tests
-	$(setup_container_engine)
+	$(select_container_engine)
 	echo "Image tag for E2E test is ${IMG_TAG}"
 	LOCAL_PROVIDER_VERSION=$(LOCAL_PROVIDER_VERSION) \
 		MANAGER_IMAGE=$(MANAGER_IMAGE) \
@@ -427,7 +427,7 @@ test-e2e: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the en
 
 .PHONY: test-e2e-no-kubeproxy
 test-e2e-no-kubeproxy: docker-build-e2e cluster-e2e-templates-no-kubeproxy cluster-templates ## Run the end-to-end tests without kubeproxy
-	$(setup_container_engine)
+	$(select_container_engine)
 	echo "Image tag for E2E test is ${IMG_TAG}"
 	MANAGER_IMAGE=$(MANAGER_IMAGE) envsubst < ${E2E_CONF_FILE} > ${E2E_CONF_FILE_TMP}
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:${IMG_TAG}
@@ -455,7 +455,7 @@ test-e2e-no-kubeproxy: docker-build-e2e cluster-e2e-templates-no-kubeproxy clust
 
 .PHONY: list-e2e
 list-e2e: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the end-to-end tests
-	$(setup_container_engine)
+	$(select_container_engine)
 	mkdir -p $(ARTIFACTS)
 	ginkgo -v \
 	    --trace \
@@ -480,7 +480,7 @@ test-e2e-calico:
 
 .PHONY: test-e2e-flannel
 test-e2e-flannel:
-	$(setup_container_engine)
+	$(select_container_engine)
 	CNI=$(CNI_PATH_FLANNEL) GIT_COMMIT="${GIT_COMMIT_HASH}" $(MAKE) test-e2e
 
 .PHONY: test-e2e-cilium
