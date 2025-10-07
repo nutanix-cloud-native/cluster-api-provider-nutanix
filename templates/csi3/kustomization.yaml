@@ -12,7 +12,7 @@ namespace: kube-system
 configMapGenerator:
   - behavior: merge
     files:
-      - nutanix-storage-csi.yaml
+      - nutanix-csi-storage.yaml
       - nutanix-csi-snapshot.yaml
       - nutanix-csi-webhook.yaml
     name: nutanix-csi

@@ -118,7 +118,7 @@ roleRef:
 ---
 # Source: nutanix-csi-storage/templates/service-prometheus-csi.yaml
 # Copyright 2021 Nutanix Inc
-#
+# 
 # example usage: kubectl create -f <this_file>
 #
 
@@ -160,7 +160,7 @@ spec:
   updateStrategy:
     type: "RollingUpdate"
     rollingUpdate:
-      maxUnavailable: 1
+      maxUnavailable: 10%
   template:
     metadata:
       labels:
@@ -170,7 +170,7 @@ spec:
       hostNetwork: true
       containers:
         - name: driver-registrar
-          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.5.1
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.9.1
           imagePullPolicy: IfNotPresent
           args:
             - --v=2
@@ -186,12 +186,9 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
           resources:
-            limits:
-              cpu: 100m
-              memory: 200Mi
             requests:
               cpu: 100m
-              memory: 200Mi
+              memory: 20Mi
           volumeMounts:
             - name: plugin-dir
               mountPath: /csi/
@@ -201,9 +198,9 @@ spec:
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
-          image: quay.io/karbon/ntnx-csi:v2.5.1
+          image: quay.io/karbon/ntnx-csi:v2.6.10
           imagePullPolicy: IfNotPresent
-          args:
+          args :
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--nodeid=$(NODE_ID)"
             - "--drivername=csi.nutanix.com"
@@ -219,9 +216,6 @@ spec:
                 fieldRef:
                   fieldPath: status.hostIP
           resources:
-            limits:
-              cpu: 100m
-              memory: 200Mi
             requests:
               cpu: 100m
               memory: 200Mi
@@ -254,10 +248,14 @@ spec:
             periodSeconds: 2
             failureThreshold: 3
         - name: liveness-probe
+          resources:
+            requests:
+              cpu: 5m
+              memory: 20Mi
           volumeMounts:
             - mountPath: /csi
               name: plugin-dir
-          image: registry.k8s.io/sig-storage/livenessprobe:v2.7.0
+          image: registry.k8s.io/sig-storage/livenessprobe:v2.11.0
           imagePullPolicy: IfNotPresent
           args:
             - --csi-address=/csi/csi.sock
@@ -326,7 +324,7 @@ spec:
       hostNetwork: true
       containers:
         - name: csi-provisioner
-          image: registry.k8s.io/sig-storage/csi-provisioner:v3.2.0
+          image: registry.k8s.io/sig-storage/csi-provisioner:v3.6.2
           imagePullPolicy: IfNotPresent
           args:
             - --csi-address=$(ADDRESS)
@@ -343,9 +341,6 @@ spec:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
           resources:
-            limits:
-              cpu: 100m
-              memory: 200Mi
             requests:
               cpu: 100m
               memory: 200Mi
@@ -353,7 +348,7 @@ spec:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
         - name: csi-resizer
-          image: registry.k8s.io/sig-storage/csi-resizer:v1.5.0
+          image: registry.k8s.io/sig-storage/csi-resizer:v1.9.2
           imagePullPolicy: IfNotPresent
           args:
             - --v=2
@@ -366,6 +361,10 @@ spec:
           env:
             - name: ADDRESS
               value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          resources:
+            requests:
+              cpu: 5m
+              memory: 30Mi
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
@@ -380,11 +379,15 @@ spec:
           env:
           - name: ADDRESS
             value: /csi/csi.sock
+          resources:
+            requests:
+              cpu: 5m
+              memory: 30Mi
           volumeMounts:
           - name: socket-dir
             mountPath: /csi
         - name: nutanix-csi-plugin
-          image: quay.io/karbon/ntnx-csi:v2.5.1
+          image: quay.io/karbon/ntnx-csi:v2.6.10
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: true
@@ -401,9 +404,6 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
           resources:
-            limits:
-              cpu: 100m
-              memory: 200Mi
             requests:
               cpu: 100m
               memory: 200Mi
@@ -426,10 +426,14 @@ spec:
             periodSeconds: 2
             failureThreshold: 3
         - name: liveness-probe
+          resources:
+            requests:
+              cpu: 5m
+              memory: 20Mi
           volumeMounts:
             - mountPath: /csi
               name: socket-dir
-          image: registry.k8s.io/sig-storage/livenessprobe:v2.7.0
+          image: registry.k8s.io/sig-storage/livenessprobe:v2.11.0
           imagePullPolicy: IfNotPresent
           args:
             - --csi-address=/csi/csi.sock
@@ -449,9 +453,6 @@ spec:
 # Configuration to deploy the Nutanix CSI driver
 #
 # example usage: kubectl create -f <this_file>
----
-# Source: nutanix-csi-storage/templates/ntnx-sc.yaml
----
 ---
 # Source: nutanix-csi-storage/templates/csi-driver.yaml
 apiVersion: storage.k8s.io/v1

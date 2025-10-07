@@ -94,8 +94,8 @@ var _ = Describe("Nutanix categories", Label("nutanix-feature-test", "categories
 		})
 
 		By("Checking if there are VMs assigned to this category", func() {
-			expectedCategories := map[string]string{
-				expectedClusterNameCategoryKey: clusterName,
+			expectedCategories := map[string][]string{
+				expectedClusterNameCategoryKey: {clusterName},
 			}
 			testHelper.verifyCategoriesNutanixMachines(ctx, clusterName, namespace.Name, expectedCategories)
 		})
@@ -121,10 +121,10 @@ var _ = Describe("Nutanix categories", Label("nutanix-feature-test", "categories
 
 		By("Verify if additional categories are assigned to the vms", func() {
 			expectedClusterNameCategoryKey := infrav1.DefaultCAPICategoryKeyForName
-			expectedCategories := map[string]string{
-				expectedClusterNameCategoryKey: clusterName,
-				"AppType":                      "Kubernetes",
-				"Environment":                  "Dev",
+			expectedCategories := map[string][]string{
+				expectedClusterNameCategoryKey: {clusterName},
+				"AppType":                      {"Kubernetes"},
+				"Environment":                  {"Dev", "Testing"},
 			}
 
 			testHelper.verifyCategoriesNutanixMachines(ctx, clusterName, namespace.Name, expectedCategories)
@@ -209,8 +209,8 @@ var _ = Describe("Nutanix categories", Label("nutanix-feature-test", "categories
 		})
 
 		By("Checking if there are VMs assigned to this category", func() {
-			expectedCategories := map[string]string{
-				expectedClusterNameCategoryKey: clusterName,
+			expectedCategories := map[string][]string{
+				expectedClusterNameCategoryKey: {clusterName},
 			}
 			testHelper.verifyCategoriesNutanixMachines(ctx, clusterName, namespace.Name, expectedCategories)
 		})
@@ -266,8 +266,8 @@ var _ = Describe("Nutanix categories", Label("nutanix-feature-test", "categories
 		})
 
 		By("Checking if there are VMs assigned to this category", func() {
-			expectedCategories := map[string]string{
-				expectedClusterNameCategoryKey: clusterName,
+			expectedCategories := map[string][]string{
+				expectedClusterNameCategoryKey: {clusterName},
 			}
 			testHelper.verifyCategoriesNutanixMachines(ctx, clusterName, namespace2.Name, expectedCategories)
 		})

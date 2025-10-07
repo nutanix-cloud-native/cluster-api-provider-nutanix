@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -815,20 +814,20 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	}
 
 	vmInput := &prismclientv3.VMIntentInput{}
-	vmSpec := &prismclientv3.VM{Name: utils.StringPtr(vmName)}
+	vmSpec := &prismclientv3.VM{Name: ptr.To(vmName)}
 
 	nicList := make([]*prismclientv3.VMNic, len(subnetUUIDs))
 	for idx, subnetUUID := range subnetUUIDs {
 		nicList[idx] = &prismclientv3.VMNic{
 			SubnetReference: &prismclientv3.Reference{
-				UUID: utils.StringPtr(subnetUUID),
-				Kind: utils.StringPtr("subnet"),
+				UUID: ptr.To(subnetUUID),
+				Kind: ptr.To("subnet"),
 			},
 		}
 	}
 
-	// Set Categories to VM Sepc before creating VM
-	categories, err := GetCategoryVMSpec(ctx, v3Client, r.getMachineCategoryIdentifiers(rctx))
+	// Set categories on VM; support multiple values via categories_mapping when possible
+	categoriesMapping, err := GetCategoryVMSpec(ctx, v3Client, r.getMachineCategoryIdentifiers(rctx))
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %v", vmName, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
@@ -836,9 +835,10 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	}
 
 	vmMetadata := &prismclientv3.Metadata{
-		Kind:        utils.StringPtr("vm"),
-		SpecVersion: utils.Int64Ptr(1),
-		Categories:  categories,
+		Kind:                 ptr.To("vm"),
+		SpecVersion:          ptr.To(int64(1)),
+		UseCategoriesMapping: ptr.To(true),
+		CategoriesMapping:    categoriesMapping,
 	}
 	// Set Project in VM Spec before creating VM
 	err = r.addVMToProject(rctx, vmMetadata)
@@ -865,18 +865,18 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 
 	memorySizeMib := GetMibValueOfQuantity(rctx.NutanixMachine.Spec.MemorySize)
 	vmSpec.Resources = &prismclientv3.VMResources{
-		PowerState:            utils.StringPtr("ON"),
-		HardwareClockTimezone: utils.StringPtr("UTC"),
-		NumVcpusPerSocket:     utils.Int64Ptr(int64(rctx.NutanixMachine.Spec.VCPUsPerSocket)),
-		NumSockets:            utils.Int64Ptr(int64(rctx.NutanixMachine.Spec.VCPUSockets)),
-		MemorySizeMib:         utils.Int64Ptr(memorySizeMib),
+		PowerState:            ptr.To("ON"),
+		HardwareClockTimezone: ptr.To("UTC"),
+		NumVcpusPerSocket:     ptr.To(int64(rctx.NutanixMachine.Spec.VCPUsPerSocket)),
+		NumSockets:            ptr.To(int64(rctx.NutanixMachine.Spec.VCPUSockets)),
+		MemorySizeMib:         ptr.To(memorySizeMib),
 		NicList:               nicList,
 		DiskList:              diskList,
 		GpuList:               gpuList,
 	}
 	vmSpec.ClusterReference = &prismclientv3.Reference{
-		Kind: utils.StringPtr("cluster"),
-		UUID: utils.StringPtr(peUUID),
+		Kind: ptr.To("cluster"),
+		UUID: ptr.To(peUUID),
 	}
 
 	if err := r.addGuestCustomizationToVM(rctx, vmSpec); err != nil {
@@ -963,10 +963,10 @@ func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineC
 		metadataEncoded := base64.StdEncoding.EncodeToString([]byte(metadata))
 
 		vmSpec.Resources.GuestCustomization = &prismclientv3.GuestCustomization{
-			IsOverridable: utils.BoolPtr(true),
+			IsOverridable: ptr.To(true),
 			CloudInit: &prismclientv3.GuestCustomizationCloudInit{
-				UserData: utils.StringPtr(bsdataEncoded),
-				MetaData: utils.StringPtr(metadataEncoded),
+				UserData: ptr.To(bsdataEncoded),
+				MetaData: ptr.To(metadataEncoded),
 			},
 		}
 	}
@@ -1197,7 +1197,7 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 		// Only modify VM spec if boot type is UEFI. Otherwise, assume default Legacy mode
 		if bootType == infrav1.NutanixBootTypeUEFI {
 			vmSpec.Resources.BootConfig = &prismclientv3.VMBootConfig{
-				BootType: utils.StringPtr(strings.ToUpper(string(bootType))),
+				BootType: ptr.To(strings.ToUpper(string(bootType))),
 			}
 		}
 	}
@@ -1230,8 +1230,8 @@ func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vmM
 	}
 
 	vmMetadata.ProjectReference = &prismclientv3.Reference{
-		Kind: utils.StringPtr(projectKind),
-		UUID: utils.StringPtr(projectUUID),
+		Kind: ptr.To(projectKind),
+		UUID: ptr.To(projectUUID),
 	}
 	conditions.MarkTrue(rctx.NutanixMachine, infrav1.ProjectAssignedCondition)
 	return nil

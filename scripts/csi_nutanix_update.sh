@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-NUTANIX_CSI_SNAPSHOT_VERSION=6.0.1
-NUTANIX_CSI_STORAGE_VERSION=2.5.4
+NUTANIX_CSI_SNAPSHOT_VERSION=6.3.3
+NUTANIX_CSI_STORAGE_VERSION=2.6.10
 
 helm repo add nutanix https://nutanix.github.io/helm/ --force-update && helm repo update
 
