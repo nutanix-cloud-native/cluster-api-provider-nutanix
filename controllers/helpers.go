@@ -622,13 +622,99 @@ func GetOrCreateCategories(ctx context.Context, client *prismclientv3.Client, ca
 func getCategoryKey(ctx context.Context, client *prismclientv3.Client, key string) (*prismclientv3.CategoryKeyStatus, error) {
 	categoryKey, err := client.V3.GetCategoryKey(ctx, key)
 	if err != nil {
-		if !strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-			return nil, fmt.Errorf("failed to retrieve category with key %s. error: %v", key, err)
-		} else {
+		errStr := strings.ToLower(fmt.Sprint(err))
+		if strings.Contains(errStr, "entity_not_found") {
 			return nil, nil
 		}
+		// Handle rare Prism duplicate-entity bug idempotently by listing and selecting an existing key
+		if strings.Contains(errStr, "duplicate") {
+			filter := fmt.Sprintf("name==%s", key)
+			listResp, listErr := client.V3.ListCategories(ctx, &prismclientv3.CategoryListMetadata{Filter: &filter})
+			if listErr != nil {
+				return nil, fmt.Errorf("failed to list categories for key %s after duplicate error: %v", key, listErr)
+			}
+			if listResp != nil && len(listResp.Entities) > 0 {
+				if len(listResp.Entities) > 1 {
+					ctrl.LoggerFrom(ctx).Info(fmt.Sprintf("Multiple category keys found for name=%s during duplicate GET handling; proceeding with one instance", key))
+				}
+				// Return the first matching key to proceed idempotently
+				return listResp.Entities[0], nil
+			}
+			return nil, fmt.Errorf("duplicate entities reported for key %s but none returned by list", key)
+		}
+		return nil, fmt.Errorf("failed to retrieve category with key %s. error: %v", key, err)
 	}
 	return categoryKey, nil
+}
+
+// ensureCategoryKey returns an existing category key if present or creates one idempotently.
+func ensureCategoryKey(ctx context.Context, client *prismclientv3.Client, key string) (*prismclientv3.CategoryKeyStatus, error) {
+	log := ctrl.LoggerFrom(ctx)
+	// 1) Try GET with duplicate-aware handling
+	categoryKey, err := getCategoryKey(ctx, client, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve category with key %s. error: %v", key, err)
+	}
+	if categoryKey != nil {
+		return categoryKey, nil
+	}
+
+	// 2) Pre-create list to avoid creating another duplicate in race conditions
+	filter := fmt.Sprintf("name==%s", key)
+	if listResp, lerr := client.V3.ListCategories(ctx, &prismclientv3.CategoryListMetadata{Filter: &filter}); lerr == nil && listResp != nil && len(listResp.Entities) > 0 {
+		if len(listResp.Entities) > 1 {
+			log.Info(fmt.Sprintf("Multiple category keys found for name=%s during pre-create check; proceeding with one instance", key))
+		}
+		return listResp.Entities[0], nil
+	}
+
+	// 3) Create and handle duplicate-on-create by fetching existing key
+	created, cerr := client.V3.CreateOrUpdateCategoryKey(ctx, &prismclientv3.CategoryKey{
+		Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
+		Name:        utils.StringPtr(key),
+	})
+	if cerr != nil {
+		if strings.Contains(strings.ToLower(fmt.Sprint(cerr)), "duplicate") {
+			log.V(1).Info(fmt.Sprintf("Duplicate detected while creating category key %s. Attempting to fetch existing key.", key))
+			existing, fetchErr := client.V3.GetCategoryKey(ctx, key)
+			if fetchErr != nil || existing == nil {
+				return nil, fmt.Errorf("failed to create category with key %s due to duplicate and could not fetch existing key: createErr: %v, fetchErr: %v", key, cerr, fetchErr)
+			}
+			return existing, nil
+		}
+		return nil, fmt.Errorf("failed to create category with key %s. error: %v", key, cerr)
+	}
+	return created, nil
+}
+
+// ensureCategoryValue returns an existing category value if present or creates one idempotently.
+func ensureCategoryValue(ctx context.Context, client *prismclientv3.Client, keyName, value string) (*prismclientv3.CategoryValueStatus, error) {
+	// 1) Try GET
+	categoryValue, err := getCategoryValue(ctx, client, keyName, value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, keyName, err)
+	}
+	if categoryValue != nil {
+		return categoryValue, nil
+	}
+
+	// 2) Create and handle duplicate
+	created, cerr := client.V3.CreateOrUpdateCategoryValue(ctx, keyName, &prismclientv3.CategoryValue{
+		Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
+		Value:       utils.StringPtr(value),
+	})
+	if cerr != nil {
+		errStr := strings.ToLower(fmt.Sprint(cerr))
+		if strings.Contains(errStr, "duplicate") {
+			existingVal, fetchErr := client.V3.GetCategoryValue(ctx, keyName, value)
+			if fetchErr != nil || existingVal == nil {
+				return nil, fmt.Errorf("failed to create category value %s due to duplicate and could not fetch existing value: createErr: %v, fetchErr: %v", value, cerr, fetchErr)
+			}
+			return existingVal, nil
+		}
+		return nil, fmt.Errorf("failed to create category value %s in category key %s: %v", value, keyName, cerr)
+	}
+	return created, nil
 }
 
 func getCategoryValue(ctx context.Context, client *prismclientv3.Client, key, value string) (*prismclientv3.CategoryValueStatus, error) {
@@ -745,40 +831,18 @@ func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, cate
 		return nil, fmt.Errorf("category identifier key must be set when when getting or creating categories")
 	}
 	log.V(1).Info(fmt.Sprintf("Checking existence of category with key %s", categoryIdentifier.Key))
-	categoryKey, err := getCategoryKey(ctx, client, categoryIdentifier.Key)
+	categoryKey, err := ensureCategoryKey(ctx, client, categoryIdentifier.Key)
 	if err != nil {
-		errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", categoryIdentifier.Key, err)
-		log.Error(errorMsg, "failed to retrieve category")
+		errorMsg := fmt.Errorf("failed ensuring category key %s: %v", categoryIdentifier.Key, err)
+		log.Error(errorMsg, "failed to ensure category key")
 		return nil, errorMsg
 	}
-	if categoryKey == nil {
-		log.V(1).Info(fmt.Sprintf("Category with key %s did not exist.", categoryIdentifier.Key))
-		categoryKey, err = client.V3.CreateOrUpdateCategoryKey(ctx, &prismclientv3.CategoryKey{
-			Description: ptr.To(infrav1.DefaultCAPICategoryDescription),
-			Name:        ptr.To(categoryIdentifier.Key),
-		})
-		if err != nil {
-			errorMsg := fmt.Errorf("failed to create category with key %s. error: %v", categoryIdentifier.Key, err)
-			log.Error(errorMsg, "failed to create category")
-			return nil, errorMsg
-		}
-	}
-	categoryValue, err := getCategoryValue(ctx, client, *categoryKey.Name, categoryIdentifier.Value)
+
+	categoryValue, err := ensureCategoryValue(ctx, client, *categoryKey.Name, categoryIdentifier.Value)
 	if err != nil {
-		errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
-		log.Error(errorMsg, "failed to retrieve category")
+		errorMsg := fmt.Errorf("failed ensuring category value %s for key %s: %v", categoryIdentifier.Value, *categoryKey.Name, err)
+		log.Error(errorMsg, "failed to ensure category value")
 		return nil, errorMsg
-	}
-	if categoryValue == nil {
-		categoryValue, err = client.V3.CreateOrUpdateCategoryValue(ctx, *categoryKey.Name, &prismclientv3.CategoryValue{
-			Description: ptr.To(infrav1.DefaultCAPICategoryDescription),
-			Value:       ptr.To(categoryIdentifier.Value),
-		})
-		if err != nil {
-			errorMsg := fmt.Errorf("failed to create category value %s in category key %s: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
-			log.Error(errorMsg, "failed to create category value")
-			return nil, errorMsg
-		}
 	}
 	return categoryValue, nil
 }

@@ -1361,3 +1361,70 @@ func TestGetStorageContainerInCluster(t *testing.T) {
 		})
 	}
 }
+
+func TestGetOrCreateCategory_DuplicateIdempotency(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := mocknutanixv3.NewMockService(ctrl)
+
+	key := "KubernetesClusterName"
+	value := "some-value"
+
+	categoryIdentifier := &infrav1.NutanixCategoryIdentifier{
+		Key:   key,
+		Value: value,
+	}
+
+	// Scenario:
+	// First call to getCategoryKey returns nil (category not found)
+	// CreateOrUpdateCategoryKey returns duplicate error
+	// A subsequent call to GetCategoryKey returns exactly one matching category key
+	// getCategoryValue returns nil (value not found)
+	// CreateOrUpdateCategoryValue succeeds
+
+	// Step 1: getCategoryKey returns nil, no error
+	mockClient.EXPECT().
+		GetCategoryKey(ctx, key).
+		Return(nil, nil).Times(1)
+
+	// Step 1b: Pre-create list returns empty (simulate no existing key found yet)
+	mockClient.EXPECT().
+		ListCategories(ctx, gomock.Any()).
+		Return(&prismclientv3.CategoryKeyListResponse{Entities: []*prismclientv3.CategoryKeyStatus{}}, nil).Times(1)
+
+	// Step 2: CreateOrUpdateCategoryKey returns duplicate error
+	dupErr := errors.New("Duplicate entities error")
+	mockClient.EXPECT().
+		CreateOrUpdateCategoryKey(ctx, gomock.Any()).
+		Return(nil, dupErr).Times(1)
+
+	// Step 3: GetCategoryKey now returns the existing key (status)
+	expectedCategoryKey := &prismclientv3.CategoryKeyStatus{
+		Name: &key,
+	}
+	mockClient.EXPECT().
+		GetCategoryKey(ctx, key).
+		Return(expectedCategoryKey, nil).Times(1)
+
+	// Step 4: getCategoryValue returns nil (value doesn't exist)
+	mockClient.EXPECT().
+		GetCategoryValue(ctx, key, value).
+		Return(nil, nil).Times(1)
+
+	// Step 5: CreateOrUpdateCategoryValue succeeds and returns a categoryValue
+	expectedCategoryValue := &prismclientv3.CategoryValueStatus{
+		Value: &value,
+	}
+	mockClient.EXPECT().
+		CreateOrUpdateCategoryValue(ctx, key, gomock.Any()).
+		Return(expectedCategoryValue, nil).Times(1)
+
+	// Call the function under test
+	categoryValue, err := getOrCreateCategory(ctx, &prismclientv3.Client{V3: mockClient}, categoryIdentifier)
+
+	require.NoError(t, err)
+	require.NotNil(t, categoryValue)
+	assert.Equal(t, value, *categoryValue.Value)
+}
