@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/nutanix-cloud-native/prism-go-client/utils"
 	nutanixClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -53,7 +53,7 @@ func GetTaskStatus(ctx context.Context, client *nutanixClientV3.Client, uuid str
 
 	if *v.Status == "INVALID_UUID" || *v.Status == "FAILED" {
 		return *v.Status,
-			fmt.Errorf("error_detail: %s, progress_message: %s", utils.StringValue(v.ErrorDetail), utils.StringValue(v.ProgressMessage))
+			fmt.Errorf("error_detail: %s, progress_message: %s", ptr.Deref(v.ErrorDetail, ""), ptr.Deref(v.ProgressMessage, ""))
 	}
 	taskStatus := *v.Status
 	log.V(1).Info(fmt.Sprintf("Status for task with UUID %s: %s", uuid, taskStatus))
