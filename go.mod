@@ -184,7 +184,7 @@ require (
 )
 
 replace (
-	github.com/nutanix-cloud-native/prism-go-client => github.com/nutanix-cloud-native/prism-go-client v0.5.2-0.20251006115945-8df370a1e085
+	github.com/nutanix-cloud-native/prism-go-client => github.com/nutanix-cloud-native/prism-go-client v0.5.2-0.20251007035527-2603309773ae
 	// CVE fixes for https://avd.aquasec.com/nvd/2024/cve-2024-45338
 	golang.org/x/net => golang.org/x/net v0.33.0
 	sigs.k8s.io/kind v0.20.0 => sigs.k8s.io/kind v0.22.0
