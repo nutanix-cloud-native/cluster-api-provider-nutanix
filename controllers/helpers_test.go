@@ -551,30 +551,31 @@ func TestGetPrismCentralConvergedV4ClientForCluster_EdgeCases(t *testing.T) {
 func TestGetImageByNameOrUUID(t *testing.T) {
 	tests := []struct {
 		name          string
-		clientBuilder func() *prismclientv3.Client
+		clientBuilder func() *v4Converged.Client
 		id            infrav1.NutanixResourceIdentifier
-		want          *prismclientv3.ImageIntentResponse
+		want          *imageModels.Image
 		wantErr       bool
 	}{
 		{
 			name: "missing name and UUID in the input",
-			clientBuilder: func() *prismclientv3.Client {
+			clientBuilder: func() *v4Converged.Client {
 				mockctrl := gomock.NewController(t)
-				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
+				convergedClient := NewMockConvergedClient(mockctrl)
 
-				return &prismclientv3.Client{V3: mockv3Service}
+				return convergedClient.Client
 			},
 			id:      infrav1.NutanixResourceIdentifier{},
 			wantErr: true,
 		},
 		{
 			name: "image UUID not found",
-			clientBuilder: func() *prismclientv3.Client {
+			clientBuilder: func() *v4Converged.Client {
 				mockctrl := gomock.NewController(t)
-				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
-				mockv3Service.EXPECT().GetImage(gomock.Any(), gomock.Any()).Return(nil, errors.New("ENTITY_NOT_FOUND"))
+				convergedClient := NewMockConvergedClient(mockctrl)
+				errorMessage := `Error getting image: failed to get image: API call failed: {"data":{"error":[{"$reserved":{"$fv":"v4.r1"},"$objectType":"vmm.v4.error.AppMessage","message":"Failed to perform the operation as the backend service could not find the entity.","severity":"ERROR","code":"VMM-20005","locale":"en_US"}],"$reserved":{"$fv":"v4.r1"},"$objectType":"vmm.v4.error.ErrorResponse"},"$reserved":{"$fv":"v4.r1"},"$objectType":"vmm.v4.content.GetImageApiResponse"}`
+				convergedClient.MockImages.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, errors.New(errorMessage))
 
-				return &prismclientv3.Client{V3: mockv3Service}
+				return convergedClient.Client
 			},
 			id: infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierUUID,
@@ -584,12 +585,12 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 		},
 		{
 			name: "image name query fails",
-			clientBuilder: func() *prismclientv3.Client {
+			clientBuilder: func() *v4Converged.Client {
 				mockctrl := gomock.NewController(t)
-				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
-				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(nil, errors.New("fake error"))
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("fake error"))
 
-				return &prismclientv3.Client{V3: mockv3Service}
+				return convergedClient.Client
 			},
 			id: infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierName,
@@ -599,81 +600,74 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 		},
 		{
 			name: "image UUID found",
-			clientBuilder: func() *prismclientv3.Client {
+			clientBuilder: func() *v4Converged.Client {
 				mockctrl := gomock.NewController(t)
-				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
-				mockv3Service.EXPECT().GetImage(gomock.Any(), gomock.Any()).Return(
-					&prismclientv3.ImageIntentResponse{
-						Spec: &prismclientv3.Image{
-							Name: ptr.To("example"),
-						},
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().Get(gomock.Any(), gomock.Any()).Return(
+					&imageModels.Image{
+						ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+						Name:  ptr.To("example"),
 					}, nil,
 				)
 
-				return &prismclientv3.Client{V3: mockv3Service}
+				return convergedClient.Client
 			},
 			id: infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierUUID,
 				UUID: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
 			},
-			want: &prismclientv3.ImageIntentResponse{
-				Spec: &prismclientv3.Image{
-					Name: ptr.To("example"),
-				},
+			want: &imageModels.Image{
+				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+				Name:  ptr.To("example"),
 			},
+			wantErr: false,
 		},
 		{
 			name: "image name found",
-			clientBuilder: func() *prismclientv3.Client {
+			clientBuilder: func() *v4Converged.Client {
 				mockctrl := gomock.NewController(t)
-				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
-				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(
-					&prismclientv3.ImageListIntentResponse{
-						Entities: []*prismclientv3.ImageIntentResponse{
-							{
-								Spec: &prismclientv3.Image{
-									Name: ptr.To("example"),
-								},
-							},
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]imageModels.Image{
+						{
+							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+							Name:  ptr.To("example"),
 						},
-					}, nil,
-				)
+					}, nil)
 
-				return &prismclientv3.Client{V3: mockv3Service}
+				return convergedClient.Client
 			},
 			id: infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierName,
 				Name: ptr.To("example"),
 			},
-			want: &prismclientv3.ImageIntentResponse{
-				Spec: &prismclientv3.Image{
-					Name: ptr.To("example"),
-				},
+			want: &imageModels.Image{
+				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+				Name:  ptr.To("example"),
 			},
 		},
 		{
 			name: "image name matches multiple images",
-			clientBuilder: func() *prismclientv3.Client {
+			clientBuilder: func() *v4Converged.Client {
 				mockctrl := gomock.NewController(t)
-				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
-				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(
-					&prismclientv3.ImageListIntentResponse{
-						Entities: []*prismclientv3.ImageIntentResponse{
-							{
-								Spec: &prismclientv3.Image{
-									Name: ptr.To("example"),
-								},
-							},
-							{
-								Spec: &prismclientv3.Image{
-									Name: ptr.To("example"),
-								},
-							},
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]imageModels.Image{
+						{
+							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+							Name:  ptr.To("example"),
 						},
-					}, nil,
-				)
+						{
+							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c6"),
+							Name:  ptr.To("example"),
+						},
+						{
+							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c7"),
+							Name:  ptr.To("example"),
+						},
+					}, nil)
 
-				return &prismclientv3.Client{V3: mockv3Service}
+				return convergedClient.Client
 			},
 			id: infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierName,
@@ -683,16 +677,31 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 		},
 		{
 			name: "image name matches zero images",
-			clientBuilder: func() *prismclientv3.Client {
+			clientBuilder: func() *v4Converged.Client {
 				mockctrl := gomock.NewController(t)
-				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
-				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(
-					&prismclientv3.ImageListIntentResponse{
-						Entities: []*prismclientv3.ImageIntentResponse{},
-					}, nil,
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]imageModels.Image{}, nil,
 				)
 
-				return &prismclientv3.Client{V3: mockv3Service}
+				return convergedClient.Client
+			},
+			id: infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierName,
+				Name: ptr.To("example"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "image name matches zero images",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]imageModels.Image{}, nil,
+				)
+
+				return convergedClient.Client
 			},
 			id: infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierName,
@@ -702,31 +711,27 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 		},
 		{
 			name: "image name matches one image",
-			clientBuilder: func() *prismclientv3.Client {
+			clientBuilder: func() *v4Converged.Client {
 				mockctrl := gomock.NewController(t)
-				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
-				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(
-					&prismclientv3.ImageListIntentResponse{
-						Entities: []*prismclientv3.ImageIntentResponse{
-							{
-								Spec: &prismclientv3.Image{
-									Name: ptr.To("example"),
-								},
-							},
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]imageModels.Image{
+						{
+							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+							Name:  ptr.To("example"),
 						},
 					}, nil,
 				)
 
-				return &prismclientv3.Client{V3: mockv3Service}
+				return convergedClient.Client
 			},
 			id: infrav1.NutanixResourceIdentifier{
 				Type: infrav1.NutanixIdentifierName,
 				Name: ptr.To("example"),
 			},
-			want: &prismclientv3.ImageIntentResponse{
-				Spec: &prismclientv3.Image{
-					Name: ptr.To("example"),
-				},
+			want: &imageModels.Image{
+				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+				Name:  ptr.To("example"),
 			},
 		},
 	}
@@ -749,47 +754,43 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 func TestGetImageByLookup(t *testing.T) {
 	tests := []struct {
 		name          string
-		clientBuilder func() *prismclientv3.Client
+		clientBuilder func() *v4Converged.Client
 		baseOS        string
 		imageTemplate string
 		k8sVersion    string
-		want          *prismclientv3.ImageIntentResponse
+		want          *imageModels.Image
 		wantErr       bool
 	}{
 		{
 			name: "successful image lookup",
-			clientBuilder: func() *prismclientv3.Client {
+			clientBuilder: func() *v4Converged.Client {
 				mockctrl := gomock.NewController(t)
-				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
-				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(
-					&prismclientv3.ImageListIntentResponse{
-						Entities: []*prismclientv3.ImageIntentResponse{
-							{
-								Spec: &prismclientv3.Image{
-									Name: ptr.To("capx-ubuntu-1.31.4"),
-								},
-							},
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]imageModels.Image{
+						{
+							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+							Name:  ptr.To("capx-ubuntu-1.31.4"),
 						},
 					}, nil,
 				)
-				return &prismclientv3.Client{V3: mockv3Service}
+				return convergedClient.Client
 			},
 			baseOS:        "ubuntu",
 			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
 			k8sVersion:    "v1.31.4",
-			want: &prismclientv3.ImageIntentResponse{
-				Spec: &prismclientv3.Image{
-					Name: ptr.To("capx-ubuntu-1.31.4"),
-				},
+			want: &imageModels.Image{
+				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+				Name:  ptr.To("capx-ubuntu-1.31.4"),
 			},
 			wantErr: false,
 		},
 		{
 			name: "failed template parsing",
-			clientBuilder: func() *prismclientv3.Client {
+			clientBuilder: func() *v4Converged.Client {
 				mockctrl := gomock.NewController(t)
-				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
-				return &prismclientv3.Client{V3: mockv3Service}
+				convergedClient := NewMockConvergedClient(mockctrl)
+				return convergedClient.Client
 			},
 			baseOS:        "ubuntu",
 			imageTemplate: "invalid-template-{{.InvalidField}}",
@@ -799,15 +800,13 @@ func TestGetImageByLookup(t *testing.T) {
 		},
 		{
 			name: "no matching image found",
-			clientBuilder: func() *prismclientv3.Client {
+			clientBuilder: func() *v4Converged.Client {
 				mockctrl := gomock.NewController(t)
-				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
-				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(
-					&prismclientv3.ImageListIntentResponse{
-						Entities: []*prismclientv3.ImageIntentResponse{},
-					}, nil,
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]imageModels.Image{}, nil,
 				)
-				return &prismclientv3.Client{V3: mockv3Service}
+				return convergedClient.Client
 			},
 			baseOS:        "ubuntu",
 			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
@@ -817,51 +816,37 @@ func TestGetImageByLookup(t *testing.T) {
 		},
 		{
 			name: "multiple images, return latest by creation time",
-			clientBuilder: func() *prismclientv3.Client {
+			clientBuilder: func() *v4Converged.Client {
 				mockctrl := gomock.NewController(t)
-				mockv3Service := mocknutanixv3.NewMockService(mockctrl)
-				mockv3Service.EXPECT().ListAllImage(gomock.Any(), gomock.Any()).Return(
-					&prismclientv3.ImageListIntentResponse{
-						Entities: []*prismclientv3.ImageIntentResponse{
-							{
-								Spec: &prismclientv3.Image{
-									Name: ptr.To("capx-ubuntu-1.31.4"),
-								},
-								Metadata: &prismclientv3.Metadata{
-									CreationTime: ptr.To(time.Date(2023, 10, 1, 0, 0, 0, 0, time.UTC)),
-								},
-							},
-							{
-								Spec: &prismclientv3.Image{
-									Name: ptr.To("capx-ubuntu-1.31.4"),
-								},
-								Metadata: &prismclientv3.Metadata{
-									CreationTime: ptr.To(time.Date(2023, 10, 2, 0, 0, 0, 0, time.UTC)),
-								},
-							},
-							{
-								Spec: &prismclientv3.Image{
-									Name: ptr.To("capx-ubuntu-1.31.4"),
-								},
-								Metadata: &prismclientv3.Metadata{
-									CreationTime: ptr.To(time.Date(2023, 10, 3, 0, 0, 0, 0, time.UTC)),
-								},
-							},
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]imageModels.Image{
+						{
+							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+							Name:       ptr.To("capx-ubuntu-1.31.4"),
+							CreateTime: ptr.To(time.Date(2023, 10, 1, 0, 0, 0, 0, time.UTC)),
+						},
+						{
+							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c6"),
+							Name:       ptr.To("capx-ubuntu-1.31.4"),
+							CreateTime: ptr.To(time.Date(2023, 10, 2, 0, 0, 0, 0, time.UTC)),
+						},
+						{
+							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c7"),
+							Name:       ptr.To("capx-ubuntu-1.31.4"),
+							CreateTime: ptr.To(time.Date(2023, 10, 3, 0, 0, 0, 0, time.UTC)),
 						},
 					}, nil,
 				)
-				return &prismclientv3.Client{V3: mockv3Service}
+				return convergedClient.Client
 			},
 			baseOS:        "ubuntu",
 			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
 			k8sVersion:    "v1.31.4",
-			want: &prismclientv3.ImageIntentResponse{
-				Spec: &prismclientv3.Image{
-					Name: ptr.To("capx-ubuntu-1.31.4"),
-				},
-				Metadata: &prismclientv3.Metadata{
-					CreationTime: ptr.To(time.Date(2023, 10, 3, 0, 0, 0, 0, time.UTC)),
-				},
+			want: &imageModels.Image{
+				ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c7"),
+				Name:       ptr.To("capx-ubuntu-1.31.4"),
+				CreateTime: ptr.To(time.Date(2023, 10, 3, 0, 0, 0, 0, time.UTC)),
 			},
 			wantErr: false,
 		},

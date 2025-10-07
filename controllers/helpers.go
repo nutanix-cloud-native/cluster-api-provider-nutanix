@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
@@ -43,6 +44,7 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
 )
 
 const (
@@ -267,7 +269,7 @@ func CreateSystemDiskSpec(imageUUID string, systemDiskSize int64) (*prismclientv
 }
 
 // CreateDataDiskList creates a list of data disks with the given data disk specs
-func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, dataDiskSpecs []infrav1.NutanixMachineVMDisk, peUUID string) ([]*prismclientv3.VMDisk, error) {
+func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, convergedClient *v4Converged.Client, dataDiskSpecs []infrav1.NutanixMachineVMDisk, peUUID string) ([]*prismclientv3.VMDisk, error) {
 	dataDisks := make([]*prismclientv3.VMDisk, 0)
 
 	latestDeviceIndexByAdapterType := make(map[string]int64)
@@ -293,7 +295,7 @@ func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, dataD
 
 		// If data source is provided, get the image UUID
 		if dataDiskSpec.DataSource != nil {
-			image, err := GetImage(ctx, client, infrav1.NutanixResourceIdentifier{
+			image, err := GetImage(ctx, convergedClient, infrav1.NutanixResourceIdentifier{
 				UUID: dataDiskSpec.DataSource.UUID,
 				Type: infrav1.NutanixIdentifierUUID,
 			})
@@ -301,7 +303,7 @@ func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, dataD
 				return nil, err
 			}
 
-			imageUUID := *image.Metadata.UUID
+			imageUUID := *image.ExtId
 
 			dataSourceReference := &prismclientv3.Reference{
 				Kind: ptr.To("image"),
@@ -425,28 +427,28 @@ func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID str
 
 // GetImage returns an image. If no UUID is provided, returns the unique image with the name.
 // Returns an error if no image has the UUID, if no image has the name, or more than one image has the name.
-func GetImage(ctx context.Context, client *prismclientv3.Client, id infrav1.NutanixResourceIdentifier) (*prismclientv3.ImageIntentResponse, error) {
+func GetImage(ctx context.Context, client *v4Converged.Client, id infrav1.NutanixResourceIdentifier) (*imageModels.Image, error) {
 	switch {
 	case id.IsUUID():
-		resp, err := client.V3.GetImage(ctx, *id.UUID)
+		resp, err := client.Images.Get(ctx, *id.UUID)
 		if err != nil {
-			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
+			// TODO: Improve when error handling is improved
+			if strings.Contains(fmt.Sprint(err), "VMM-20005") {
 				return nil, fmt.Errorf("failed to find image with UUID %s: %v", *id.UUID, err)
 			}
 			return nil, fmt.Errorf("failed to get image with UUID %s: %v", *id.UUID, err)
 		}
 		return resp, nil
 	case id.IsName():
-		responseImages, err := client.V3.ListAllImage(ctx, "")
+		responseImages, err := client.Images.List(ctx, converged.WithFilter(fmt.Sprintf("name eq %s", *id.Name)))
 		if err != nil {
 			return nil, err
 		}
 		// Validate filtered Images
-		foundImages := make([]*prismclientv3.ImageIntentResponse, 0)
-		for _, s := range responseImages.Entities {
-			imageSpec := s.Spec
-			if strings.EqualFold(*imageSpec.Name, *id.Name) {
-				foundImages = append(foundImages, s)
+		foundImages := make([]*imageModels.Image, 0)
+		for _, image := range responseImages {
+			if strings.EqualFold(*image.Name, *id.Name) {
+				foundImages = append(foundImages, &image)
 			}
 		}
 		if len(foundImages) == 0 {
@@ -468,11 +470,11 @@ type ImageLookup struct {
 
 func GetImageByLookup(
 	ctx context.Context,
-	client *prismclientv3.Client,
+	client *v4Converged.Client,
 	imageTemplate,
 	imageLookupBaseOS,
 	k8sVersion *string,
-) (*prismclientv3.ImageIntentResponse, error) {
+) (*imageModels.Image, error) {
 	if strings.Contains(*k8sVersion, "v") {
 		k8sVersion = ptr.To(strings.Replace(*k8sVersion, "v", "", 1))
 	}
@@ -491,16 +493,15 @@ func GetImageByLookup(
 			err,
 		)
 	}
-	responseImages, err := client.V3.ListAllImage(ctx, "")
+	responseImages, err := client.Images.List(ctx, converged.WithFilter(fmt.Sprintf("name eq %s", templateBytes.String())))
 	if err != nil {
 		return nil, err
 	}
 	re := regexp.MustCompile(templateBytes.String())
-	foundImages := make([]*prismclientv3.ImageIntentResponse, 0)
-	for _, s := range responseImages.Entities {
-		imageSpec := s.Spec
-		if re.Match([]byte(*imageSpec.Name)) {
-			foundImages = append(foundImages, s)
+	foundImages := make([]*imageModels.Image, 0)
+	for _, image := range responseImages {
+		if re.Match([]byte(*image.Name)) {
+			foundImages = append(foundImages, &image)
 		}
 	}
 	sorted := sortImagesByLatestCreationTime(foundImages)
@@ -512,22 +513,29 @@ func GetImageByLookup(
 
 // returns the images with the latest creation time first.
 func sortImagesByLatestCreationTime(
-	images []*prismclientv3.ImageIntentResponse,
-) []*prismclientv3.ImageIntentResponse {
+	images []*imageModels.Image,
+) []*imageModels.Image {
 	sort.Slice(images, func(i, j int) bool {
-		if images[i].Metadata.CreationTime == nil || images[j].Metadata.CreationTime == nil {
-			return images[i].Metadata.CreationTime != nil
+		if images[i].CreateTime == nil || images[j].CreateTime == nil {
+			return images[i].CreateTime != nil
 		}
-		timeI := *images[i].Metadata.CreationTime
-		timeJ := *images[j].Metadata.CreationTime
+		timeI := *images[i].CreateTime
+		timeJ := *images[j].CreateTime
 		return timeI.After(timeJ)
 	})
 	return images
 }
 
-func ImageMarkedForDeletion(image *prismclientv3.ImageIntentResponse) bool {
-	state := *image.Status.State
-	return state == ImageStateDeletePending || state == ImageStateDeleteInProgress
+func ImageMarkedForDeletion(ctx context.Context, client *v4Converged.Client, image *imageModels.Image) (bool, error) {
+	// Get tasks for the image
+	fmtString := "entitiesAffected/any(a:a/extId eq '%s') " +
+		"and (status eq Prism.Config.TaskStatus'RUNNING' or status eq Prism.Config.TaskStatus'QUEUED') " +
+		"and (operation eq 'kImageDelete')"
+	tasks, err := client.Tasks.List(ctx, converged.WithFilter(fmt.Sprintf(fmtString, *image.ExtId)))
+	if err != nil {
+		return false, err
+	}
+	return len(tasks) > 0, nil
 }
 
 // HasTaskInProgress returns true if the given task is in progress
