@@ -26,6 +26,8 @@ import (
 
 	prismGoClient "github.com/nutanix-cloud-native/prism-go-client"
 	prismGoClientTypes "github.com/nutanix-cloud-native/prism-go-client/environment/types"
+
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"github.com/onsi/gomega"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
@@ -112,10 +114,10 @@ func getNutanixCredentials(e2eConfig clusterctl.E2EConfig) (prismGoClient.Creden
 	return creds, nil
 }
 
-func initNutanixClient(e2eConfig clusterctl.E2EConfig) (*prismGoClientV3.Client, error) {
+func initNutanixClient(e2eConfig clusterctl.E2EConfig) (*prismGoClientV3.Client, *v4Converged.Client, error) {
 	creds, err := getNutanixCredentials(e2eConfig)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	opts := make([]prismGoClientTypes.ClientOption[prismGoClientV3.Client], 0)
@@ -125,8 +127,13 @@ func initNutanixClient(e2eConfig clusterctl.E2EConfig) (*prismGoClientV3.Client,
 
 	client, err := prismGoClientV3.NewV3Client(creds, opts...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return client, nil
+	convergedClient, err := v4Converged.NewClient(creds)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return client, convergedClient, nil
 }

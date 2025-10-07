@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	. "github.com/onsi/gomega" //nolint:staticcheck // gomega is used with . imports conventionally
@@ -163,17 +164,19 @@ type testHelperInterface interface {
 }
 
 type testHelper struct {
-	nutanixClient *prismGoClientV3.Client
-	e2eConfig     *clusterctl.E2EConfig
+	nutanixClient   *prismGoClientV3.Client
+	convergedClient *v4Converged.Client
+	e2eConfig       *clusterctl.E2EConfig
 }
 
 func newTestHelper(e2eConfig *clusterctl.E2EConfig) testHelperInterface {
-	c, err := initNutanixClient(*e2eConfig)
+	c, cc, err := initNutanixClient(*e2eConfig)
 	Expect(err).ShouldNot(HaveOccurred())
 
 	return testHelper{
-		nutanixClient: c,
-		e2eConfig:     e2eConfig,
+		nutanixClient:   c,
+		convergedClient: cc,
+		e2eConfig:       e2eConfig,
 	}
 }
 
@@ -599,7 +602,7 @@ func (t testHelper) getDefaultStorageContainerNameAndUuid(ctx context.Context) (
 	scName := ""
 	scUUID := ""
 
-	scResponse, err := controllers.ListStorageContainers(ctx, t.nutanixClient)
+	scResponse, err := t.convergedClient.StorageContainers.List(ctx)
 	if err != nil {
 		return "", "", err
 	}
@@ -616,8 +619,8 @@ func (t testHelper) getDefaultStorageContainerNameAndUuid(ctx context.Context) (
 				scName = *sc.Name
 			}
 
-			if sc.UUID != nil {
-				scUUID = *sc.UUID
+			if sc.ExtId != nil {
+				scUUID = *sc.ExtId
 			}
 
 			return scName, scUUID, nil
