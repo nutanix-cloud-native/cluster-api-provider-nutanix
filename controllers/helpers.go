@@ -440,7 +440,7 @@ func GetImage(ctx context.Context, client *v4Converged.Client, id infrav1.Nutani
 		}
 		return resp, nil
 	case id.IsName():
-		responseImages, err := client.Images.List(ctx, converged.WithFilter(fmt.Sprintf("name eq %s", *id.Name)))
+		responseImages, err := client.Images.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", *id.Name)))
 		if err != nil {
 			return nil, err
 		}
@@ -493,7 +493,7 @@ func GetImageByLookup(
 			err,
 		)
 	}
-	responseImages, err := client.Images.List(ctx, converged.WithFilter(fmt.Sprintf("name eq %s", templateBytes.String())))
+	responseImages, err := client.Images.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", templateBytes.String())))
 	if err != nil {
 		return nil, err
 	}
