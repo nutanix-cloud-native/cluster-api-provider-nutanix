@@ -647,7 +647,7 @@ func getCategoryValue(ctx context.Context, client *v4Converged.Client, key, valu
 			return nil, nil
 		}
 	}
-	if categoryValue == nil {
+	if len(categoryValue) == 0 {
 		return nil, nil
 	}
 	return &categoryValue[0], nil

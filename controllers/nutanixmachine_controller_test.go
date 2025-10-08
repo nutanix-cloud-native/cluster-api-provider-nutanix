@@ -1156,6 +1156,80 @@ func TestReconcile_VMMetadataCategoriesMapping_MultipleValues(t *testing.T) {
 	require.ElementsMatch(t, []string{"TestValue1", "TestValue2"}, mapping["TestCategory"])
 }
 
+func TestGetMachineCategoryIdentifiers_MergesAdditionalWithDefaults(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	// Prepare converged client mock used by getMachineCategoryIdentifiers via GetOrCreateCategories
+	mockClient := NewMockConvergedClient(ctrl)
+	// Allow category listing any number of times during category ensure flow
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil).AnyTimes()
+
+	reconciler := &NutanixMachineReconciler{}
+
+	// Additional categories provided on the machine
+	additional := []infrav1.NutanixCategoryIdentifier{
+		{Key: "ExtraKeyA", Value: "ExtraValA"},
+		{Key: "ExtraKeyB", Value: "ExtraValB"},
+	}
+
+	rctx := &nctx.MachineContext{
+		Context: ctx,
+		Cluster: &capiv1.Cluster{ObjectMeta: metav1.ObjectMeta{Name: "TestCluster"}},
+		NutanixMachine: &infrav1.NutanixMachine{
+			Spec: infrav1.NutanixMachineSpec{AdditionalCategories: additional},
+		},
+		ConvergedClient: mockClient.Client,
+	}
+
+	ids := reconciler.getMachineCategoryIdentifiers(rctx)
+	require.GreaterOrEqual(t, len(ids), 1)
+
+	// Expect default cluster-name category to be included
+	defaultKey := infrav1.DefaultCAPICategoryKeyForName
+	var foundDefault bool
+	var foundA bool
+	var foundB bool
+	for _, id := range ids {
+		if id == nil {
+			continue
+		}
+		if id.Key == defaultKey && id.Value == "TestCluster" {
+			foundDefault = true
+		}
+		if id.Key == "ExtraKeyA" && id.Value == "ExtraValA" {
+			foundA = true
+		}
+		if id.Key == "ExtraKeyB" && id.Value == "ExtraValB" {
+			foundB = true
+		}
+	}
+
+	require.True(t, foundDefault, "default cluster category not found")
+	require.True(t, foundA, "additional category A not found")
+	require.True(t, foundB, "additional category B not found")
+}
+
+func TestGetCategoryVMSpec_ErrorOnListFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+	// Simulate backend list error
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New("backend list error")).AnyTimes()
+
+	// Minimal identifiers set
+	ids := []*infrav1.NutanixCategoryIdentifier{
+		{Key: infrav1.DefaultCAPICategoryKeyForName, Value: "TestCluster"},
+	}
+
+	_, err := GetCategoryVMSpec(ctx, mockClient.Client, ids)
+	require.Error(t, err)
+}
+
 func TestNutanixMachineReconciler_ConvergedClient(t *testing.T) {
 	t.Run("should handle converged client initialization failure", func(t *testing.T) {
 		ctrl := gomock.NewController(t)

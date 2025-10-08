@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
+	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gstruct"
@@ -38,6 +39,7 @@ import (
 	"k8s.io/utils/ptr"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/config"
@@ -178,6 +180,92 @@ func TestNutanixClusterReconciler_ConvergedClientCacheDeletion(t *testing.T) {
 		// Verify no error occurred - cache deletion should succeed even with client errors
 		assert.NoError(t, err)
 		assert.Equal(t, reconcile.Result{}, result)
+	})
+}
+
+func TestNutanixClusterReconciler_Categories(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	cluster := &capiv1.Cluster{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"}}
+	ntnxCluster := &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"}}
+
+	// Shared reconciler instance
+	reconciler := &NutanixClusterReconciler{}
+
+	t.Run("reconcileCategories success marks condition true", func(t *testing.T) {
+		mockClient := NewMockConvergedClient(ctrl)
+		// No existing value -> create category
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil).AnyTimes()
+		mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(&prismModels.Category{ExtId: ptr.To("cat-ext-id")}, nil).AnyTimes()
+
+		rctx := &nctx.ClusterContext{Context: ctx, Cluster: cluster, NutanixCluster: ntnxCluster, ConvergedClient: mockClient.Client}
+		err := reconciler.reconcileCategories(rctx)
+		assert.NoError(t, err)
+		// Condition should be true
+		cond := conditions.Get(ntnxCluster, infrav1.ClusterCategoryCreatedCondition)
+		require.NotNil(t, cond)
+		assert.Equal(t, corev1.ConditionTrue, cond.Status)
+	})
+
+	t.Run("reconcileCategories failure bubbles error and marks condition false", func(t *testing.T) {
+		mockClient := NewMockConvergedClient(ctrl)
+		// Force error path in GetOrCreateCategories (first List call returns error)
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New("list failed")).AnyTimes()
+
+		rctx := &nctx.ClusterContext{Context: ctx, Cluster: cluster, NutanixCluster: &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"}}, ConvergedClient: mockClient.Client}
+		err := reconciler.reconcileCategories(rctx)
+		assert.Error(t, err)
+		cond := conditions.Get(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition)
+		require.NotNil(t, cond)
+		assert.Equal(t, corev1.ConditionFalse, cond.Status)
+		assert.Equal(t, infrav1.ClusterCategoryCreationFailed, string(cond.Reason))
+	})
+
+	t.Run("reconcileCategoriesDelete when created succeeds and marks condition deleting", func(t *testing.T) {
+		mockClient := NewMockConvergedClient(ctrl)
+		// Simulate keys already absent so deletion is a no-op
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New("ENTITY_NOT_FOUND")).AnyTimes()
+
+		nc := &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"}}
+		conditions.MarkTrue(nc, infrav1.ClusterCategoryCreatedCondition)
+		rctx := &nctx.ClusterContext{Context: ctx, Cluster: cluster, NutanixCluster: nc, ConvergedClient: mockClient.Client}
+
+		err := reconciler.reconcileCategoriesDelete(rctx)
+		assert.NoError(t, err)
+		cond := conditions.Get(nc, infrav1.ClusterCategoryCreatedCondition)
+		require.NotNil(t, cond)
+		assert.Equal(t, corev1.ConditionFalse, cond.Status)
+		assert.Equal(t, capiv1.DeletingReason, string(cond.Reason))
+	})
+
+	t.Run("reconcileCategoriesDelete skips when not created", func(t *testing.T) {
+		nc := &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"}}
+		rctx := &nctx.ClusterContext{Context: ctx, Cluster: cluster, NutanixCluster: nc}
+		err := reconciler.reconcileCategoriesDelete(rctx)
+		assert.NoError(t, err)
+		cond := conditions.Get(nc, infrav1.ClusterCategoryCreatedCondition)
+		require.NotNil(t, cond)
+		assert.Equal(t, corev1.ConditionFalse, cond.Status)
+		assert.Equal(t, capiv1.DeletingReason, string(cond.Reason))
+	})
+
+	t.Run("reconcileCategoriesDelete errors mark DeletionFailed", func(t *testing.T) {
+		mockClient := NewMockConvergedClient(ctrl)
+		// Force getCategoryKey to fail generically
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New("boom")).AnyTimes()
+
+		nc := &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"}}
+		conditions.MarkTrue(nc, infrav1.ClusterCategoryCreatedCondition)
+		rctx := &nctx.ClusterContext{Context: ctx, Cluster: cluster, NutanixCluster: nc, ConvergedClient: mockClient.Client}
+
+		err := reconciler.reconcileCategoriesDelete(rctx)
+		assert.Error(t, err)
+		cond := conditions.Get(nc, infrav1.ClusterCategoryCreatedCondition)
+		require.NotNil(t, cond)
+		assert.Equal(t, corev1.ConditionFalse, cond.Status)
+		assert.Equal(t, infrav1.DeletionFailed, string(cond.Reason))
 	})
 }
 

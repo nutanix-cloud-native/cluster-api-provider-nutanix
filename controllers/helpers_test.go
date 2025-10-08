@@ -1244,6 +1244,72 @@ func TestGetCategoryVMSpecMapping_MultiValues(t *testing.T) {
 	})
 }
 
+func TestGetDefaultCAPICategoryIdentifiers(t *testing.T) {
+	clusterName := "my-cluster"
+	ids := GetDefaultCAPICategoryIdentifiers(clusterName)
+	require.Len(t, ids, 1)
+	require.NotNil(t, ids[0])
+	assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, ids[0].Key)
+	assert.Equal(t, clusterName, ids[0].Value)
+}
+
+func TestGetObsoleteDefaultCAPICategoryIdentifiers(t *testing.T) {
+	clusterName := "my-cluster"
+	ids := GetObsoleteDefaultCAPICategoryIdentifiers(clusterName)
+	require.Len(t, ids, 1)
+	require.NotNil(t, ids[0])
+	assert.Equal(t, infrav1.ObsoleteDefaultCAPICategoryPrefix+clusterName, ids[0].Key)
+	assert.Equal(t, infrav1.ObsoleteDefaultCAPICategoryOwnedValue, ids[0].Value)
+}
+
+func TestGetOrCreateCategories_Existing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	// Category already exists → List returns non-empty; Create should not be called
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
+
+	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+}
+
+func TestGetOrCreateCategories_Create(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	// Not found first → Create called with expected description
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
+		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
+			assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, *in.Key)
+			assert.Equal(t, "my-cluster", *in.Value)
+			assert.Equal(t, infrav1.DefaultCAPICategoryDescription, *in.Description)
+			return in, nil
+		},
+	)
+
+	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+}
+
 func TestGetStorageContainerByNtnxResourceIdentifier(t *testing.T) {
 	mockctl := gomock.NewController(t)
 
