@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -47,6 +48,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/cluster-api/util"
@@ -751,6 +753,434 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 	}
 }
 
+func TestCreateDataDiskList(t *testing.T) {
+	tests := []struct {
+		name             string
+		clientBuilder    func() *prismclientv3.Client
+		convergedBuilder func() *v4Converged.Client
+		dataDiskSpecs    []infrav1.NutanixMachineVMDisk
+		peUUID           string
+		want             []*prismclientv3.VMDisk
+		wantErr          bool
+		errorMessage     string
+	}{
+		{
+			name: "successful data disk creation without image reference",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockV3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
+				return &prismclientv3.Client{V3: mockV3Service}
+			},
+			convergedBuilder: func() *v4Converged.Client {
+				convergedClient := NewMockConvergedClient(gomock.NewController(t))
+				return convergedClient.Client
+			},
+			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
+				{
+					DiskSize: resource.MustParse("20Gi"),
+					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+					},
+					StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+						DiskMode: infrav1.NutanixMachineDiskModeStandard,
+						StorageContainer: &infrav1.NutanixResourceIdentifier{
+							UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+							Type: infrav1.NutanixIdentifierUUID,
+						},
+					},
+				},
+			},
+			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
+			want: []*prismclientv3.VMDisk{
+				{
+					DiskSizeMib: ptr.To(int64(20480)), // 20Gi in MiB
+					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
+						DeviceType: ptr.To("DISK"),
+						DiskAddress: &prismclientv3.DiskAddress{
+							AdapterType: ptr.To("SCSI"),
+							DeviceIndex: ptr.To(int64(1)),
+						},
+					},
+					StorageConfig: &prismclientv3.VMStorageConfig{
+						FlashMode: "DISABLED",
+						StorageContainerReference: &prismclientv3.StorageContainerReference{
+							Kind: "storage_container",
+							UUID: "06b1ce03-f384-4488-9ba1-ae17ebcf1f91",
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "successful data disk creation with image reference",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockV3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
+				return &prismclientv3.Client{V3: mockV3Service}
+			},
+			convergedBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				expectedImage := &imageModels.Image{
+					ExtId: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+					Name:  ptr.To("data-image"),
+				}
+				convergedClient.MockImages.EXPECT().Get(gomock.Any(), "f47ac10b-58cc-4372-a567-0e02b2c3d479").Return(expectedImage, nil)
+				return convergedClient.Client
+			},
+			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
+				{
+					DiskSize: resource.MustParse("20Gi"),
+					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+					},
+					DataSource: &infrav1.NutanixResourceIdentifier{
+						UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+						Type: infrav1.NutanixIdentifierUUID,
+					},
+					StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+						DiskMode: infrav1.NutanixMachineDiskModeStandard,
+						StorageContainer: &infrav1.NutanixResourceIdentifier{
+							UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+							Type: infrav1.NutanixIdentifierUUID,
+						},
+					},
+				},
+			},
+			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
+			want: []*prismclientv3.VMDisk{
+				{
+					DiskSizeMib: ptr.To(int64(20480)), // 20Gi in MiB
+					DataSourceReference: &prismclientv3.Reference{
+						Kind: ptr.To("image"),
+						UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+					},
+					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
+						DeviceType: ptr.To("DISK"),
+						DiskAddress: &prismclientv3.DiskAddress{
+							AdapterType: ptr.To("SCSI"),
+							DeviceIndex: ptr.To(int64(1)),
+						},
+					},
+					StorageConfig: &prismclientv3.VMStorageConfig{
+						FlashMode: "DISABLED",
+						StorageContainerReference: &prismclientv3.StorageContainerReference{
+							Kind: "storage_container",
+							UUID: "06b1ce03-f384-4488-9ba1-ae17ebcf1f91",
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "failed image lookup for data source",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockV3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
+				return &prismclientv3.Client{V3: mockV3Service}
+			},
+			convergedBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().Get(gomock.Any(), "f47ac10b-58cc-4372-a567-0e02b2c3d479").Return(nil, errors.New("image not found"))
+				return convergedClient.Client
+			},
+			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
+				{
+					DiskSize: resource.MustParse("20Gi"),
+					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+					},
+					DataSource: &infrav1.NutanixResourceIdentifier{
+						UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+						Type: infrav1.NutanixIdentifierUUID,
+					},
+				},
+			},
+			peUUID:       "00062e56-b9ac-7253-1946-7cc25586eeee",
+			want:         nil,
+			wantErr:      true,
+			errorMessage: "image not found",
+		},
+		{
+			name: "multiple data disks with different adapter types",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockV3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
+				return &prismclientv3.Client{V3: mockV3Service}
+			},
+			convergedBuilder: func() *v4Converged.Client {
+				convergedClient := NewMockConvergedClient(gomock.NewController(t))
+				return convergedClient.Client
+			},
+			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
+				{
+					DiskSize: resource.MustParse("20Gi"),
+					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+					},
+				},
+				{
+					DiskSize: resource.MustParse("30Gi"),
+					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+						AdapterType: infrav1.NutanixMachineDiskAdapterTypeIDE,
+					},
+				},
+			},
+			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
+			want: []*prismclientv3.VMDisk{
+				{
+					DiskSizeMib: ptr.To(int64(20480)), // 20Gi in MiB
+					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
+						DeviceType: ptr.To("DISK"),
+						DiskAddress: &prismclientv3.DiskAddress{
+							AdapterType: ptr.To("SCSI"),
+							DeviceIndex: ptr.To(int64(1)),
+						},
+					},
+				},
+				{
+					DiskSizeMib: ptr.To(int64(30720)), // 30Gi in MiB
+					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
+						DeviceType: ptr.To("DISK"),
+						DiskAddress: &prismclientv3.DiskAddress{
+							AdapterType: ptr.To("IDE"),
+							DeviceIndex: ptr.To(int64(1)),
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "data disk with flash mode enabled",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockV3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
+				return &prismclientv3.Client{V3: mockV3Service}
+			},
+			convergedBuilder: func() *v4Converged.Client {
+				convergedClient := NewMockConvergedClient(gomock.NewController(t))
+				return convergedClient.Client
+			},
+			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
+				{
+					DiskSize: resource.MustParse("20Gi"),
+					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+					},
+					StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+						DiskMode: infrav1.NutanixMachineDiskModeFlash,
+						StorageContainer: &infrav1.NutanixResourceIdentifier{
+							UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+							Type: infrav1.NutanixIdentifierUUID,
+						},
+					},
+				},
+			},
+			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
+			want: []*prismclientv3.VMDisk{
+				{
+					DiskSizeMib: ptr.To(int64(20480)), // 20Gi in MiB
+					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
+						DeviceType: ptr.To("DISK"),
+						DiskAddress: &prismclientv3.DiskAddress{
+							AdapterType: ptr.To("SCSI"),
+							DeviceIndex: ptr.To(int64(1)),
+						},
+					},
+					StorageConfig: &prismclientv3.VMStorageConfig{
+						FlashMode: "ENABLED",
+						StorageContainerReference: &prismclientv3.StorageContainerReference{
+							Kind: "storage_container",
+							UUID: "06b1ce03-f384-4488-9ba1-ae17ebcf1f91",
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "data disk with custom device index",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockV3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
+				return &prismclientv3.Client{V3: mockV3Service}
+			},
+			convergedBuilder: func() *v4Converged.Client {
+				convergedClient := NewMockConvergedClient(gomock.NewController(t))
+				return convergedClient.Client
+			},
+			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
+				{
+					DiskSize: resource.MustParse("20Gi"),
+					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+						DeviceIndex: 5,
+					},
+				},
+			},
+			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
+			want: []*prismclientv3.VMDisk{
+				{
+					DiskSizeMib: ptr.To(int64(20480)), // 20Gi in MiB
+					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
+						DeviceType: ptr.To("DISK"),
+						DiskAddress: &prismclientv3.DiskAddress{
+							AdapterType: ptr.To("SCSI"),
+							DeviceIndex: ptr.To(int64(5)),
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "data disk with CDRom device type",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockV3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
+				return &prismclientv3.Client{V3: mockV3Service}
+			},
+			convergedBuilder: func() *v4Converged.Client {
+				convergedClient := NewMockConvergedClient(gomock.NewController(t))
+				return convergedClient.Client
+			},
+			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
+				{
+					DiskSize: resource.MustParse("1Gi"),
+					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeCDRom,
+						AdapterType: infrav1.NutanixMachineDiskAdapterTypeIDE,
+					},
+				},
+			},
+			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
+			want: []*prismclientv3.VMDisk{
+				{
+					DiskSizeMib: ptr.To(int64(1024)), // 1Gi in MiB
+					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
+						DeviceType: ptr.To("CDROM"),
+						DiskAddress: &prismclientv3.DiskAddress{
+							AdapterType: ptr.To("IDE"),
+							DeviceIndex: ptr.To(int64(1)),
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "data disk with default values when no device properties provided",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockV3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
+				return &prismclientv3.Client{V3: mockV3Service}
+			},
+			convergedBuilder: func() *v4Converged.Client {
+				convergedClient := NewMockConvergedClient(gomock.NewController(t))
+				return convergedClient.Client
+			},
+			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
+				{
+					DiskSize: resource.MustParse("20Gi"),
+					// No DeviceProperties provided - should use defaults
+				},
+			},
+			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
+			want: []*prismclientv3.VMDisk{
+				{
+					DiskSizeMib: ptr.To(int64(20480)), // 20Gi in MiB
+					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
+						DeviceType: ptr.To("DISK"),
+						DiskAddress: &prismclientv3.DiskAddress{
+							AdapterType: ptr.To("SCSI"),
+							DeviceIndex: ptr.To(int64(1)),
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "data disk with storage container lookup failure",
+			clientBuilder: func() *prismclientv3.Client {
+				mockctrl := gomock.NewController(t)
+				mockV3Service := mocknutanixv3.NewMockService(mockctrl)
+				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(nil, errors.New("storage container not found"))
+				return &prismclientv3.Client{V3: mockV3Service}
+			},
+			convergedBuilder: func() *v4Converged.Client {
+				convergedClient := NewMockConvergedClient(gomock.NewController(t))
+				return convergedClient.Client
+			},
+			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
+				{
+					DiskSize: resource.MustParse("20Gi"),
+					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+					},
+					StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+						DiskMode: infrav1.NutanixMachineDiskModeStandard,
+						StorageContainer: &infrav1.NutanixResourceIdentifier{
+							UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+							Type: infrav1.NutanixIdentifierUUID,
+						},
+					},
+				},
+			},
+			peUUID:       "00062e56-b9ac-7253-1946-7cc25586eeee",
+			want:         nil,
+			wantErr:      true,
+			errorMessage: "storage container not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Log("Running test case ", tt.name)
+			ctx := context.Background()
+			got, err := CreateDataDiskList(
+				ctx,
+				tt.clientBuilder(),
+				tt.convergedBuilder(),
+				tt.dataDiskSpecs,
+				tt.peUUID,
+			)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("CreateDataDiskList() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("CreateDataDiskList() = %v, want %v", got, tt.want)
+			}
+			if tt.errorMessage != "" && err != nil {
+				if !strings.Contains(err.Error(), tt.errorMessage) {
+					t.Errorf("CreateDataDiskList() error message = %v, want to contain %v", err.Error(), tt.errorMessage)
+				}
+			}
+		})
+	}
+}
+
 func TestGetImageByLookup(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -760,9 +1190,10 @@ func TestGetImageByLookup(t *testing.T) {
 		k8sVersion    string
 		want          *imageModels.Image
 		wantErr       bool
+		errorMessage  string
 	}{
 		{
-			name: "successful image lookup",
+			name: "successful image lookup with v prefix",
 			clientBuilder: func() *v4Converged.Client {
 				mockctrl := gomock.NewController(t)
 				convergedClient := NewMockConvergedClient(mockctrl)
@@ -786,7 +1217,55 @@ func TestGetImageByLookup(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "failed template parsing",
+			name: "successful image lookup without v prefix",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]imageModels.Image{
+						{
+							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+							Name:  ptr.To("capx-ubuntu-1.31.4"),
+						},
+					}, nil,
+				)
+				return convergedClient.Client
+			},
+			baseOS:        "ubuntu",
+			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
+			k8sVersion:    "1.31.4",
+			want: &imageModels.Image{
+				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+				Name:  ptr.To("capx-ubuntu-1.31.4"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "successful image lookup with complex template",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]imageModels.Image{
+						{
+							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+							Name:  ptr.To("k8s-ubuntu-20.04-1.31.4"),
+						},
+					}, nil,
+				)
+				return convergedClient.Client
+			},
+			baseOS:        "ubuntu-20.04",
+			imageTemplate: "k8s-{{.BaseOS}}-{{.K8sVersion}}",
+			k8sVersion:    "v1.31.4",
+			want: &imageModels.Image{
+				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+				Name:  ptr.To("k8s-ubuntu-20.04-1.31.4"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "failed template parsing with invalid field",
 			clientBuilder: func() *v4Converged.Client {
 				mockctrl := gomock.NewController(t)
 				convergedClient := NewMockConvergedClient(mockctrl)
@@ -797,6 +1276,50 @@ func TestGetImageByLookup(t *testing.T) {
 			k8sVersion:    "v1.31.4",
 			want:          nil,
 			wantErr:       true,
+			errorMessage:  "failed to substitute string",
+		},
+		{
+			name: "failed template parsing with malformed template",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				return convergedClient.Client
+			},
+			baseOS:        "ubuntu",
+			imageTemplate: "invalid-template-{{.BaseOS",
+			k8sVersion:    "v1.31.4",
+			want:          nil,
+			wantErr:       true,
+			errorMessage:  "failed to parse template",
+		},
+		{
+			name: "failed template execution with invalid data",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				return convergedClient.Client
+			},
+			baseOS:        "ubuntu",
+			imageTemplate: "{{.BaseOS}}-{{.K8sVersion}}-{{.NonExistentField}}",
+			k8sVersion:    "v1.31.4",
+			want:          nil,
+			wantErr:       true,
+			errorMessage:  "failed to substitute string",
+		},
+		{
+			name: "client list images fails",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("API error"))
+				return convergedClient.Client
+			},
+			baseOS:        "ubuntu",
+			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
+			k8sVersion:    "v1.31.4",
+			want:          nil,
+			wantErr:       true,
+			errorMessage:  "API error",
 		},
 		{
 			name: "no matching image found",
@@ -813,6 +1336,7 @@ func TestGetImageByLookup(t *testing.T) {
 			k8sVersion:    "v1.31.4",
 			want:          nil,
 			wantErr:       true,
+			errorMessage:  "failed to find image with filter",
 		},
 		{
 			name: "multiple images, return latest by creation time",
@@ -850,6 +1374,145 @@ func TestGetImageByLookup(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "multiple images with nil creation times, prioritize non-nil",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]imageModels.Image{
+						{
+							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+							Name:       ptr.To("capx-ubuntu-1.31.4"),
+							CreateTime: nil,
+						},
+						{
+							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c6"),
+							Name:       ptr.To("capx-ubuntu-1.31.4"),
+							CreateTime: ptr.To(time.Date(2023, 10, 2, 0, 0, 0, 0, time.UTC)),
+						},
+						{
+							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c7"),
+							Name:       ptr.To("capx-ubuntu-1.31.4"),
+							CreateTime: nil,
+						},
+					}, nil,
+				)
+				return convergedClient.Client
+			},
+			baseOS:        "ubuntu",
+			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
+			k8sVersion:    "v1.31.4",
+			want: &imageModels.Image{
+				ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c6"),
+				Name:       ptr.To("capx-ubuntu-1.31.4"),
+				CreateTime: ptr.To(time.Date(2023, 10, 2, 0, 0, 0, 0, time.UTC)),
+			},
+			wantErr: false,
+		},
+		{
+			name: "multiple images with all nil creation times, return first",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]imageModels.Image{
+						{
+							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+							Name:       ptr.To("capx-ubuntu-1.31.4"),
+							CreateTime: nil,
+						},
+						{
+							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c6"),
+							Name:       ptr.To("capx-ubuntu-1.31.4"),
+							CreateTime: nil,
+						},
+					}, nil,
+				)
+				return convergedClient.Client
+			},
+			baseOS:        "ubuntu",
+			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
+			k8sVersion:    "v1.31.4",
+			want: &imageModels.Image{
+				ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+				Name:       ptr.To("capx-ubuntu-1.31.4"),
+				CreateTime: nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "k8s version with multiple v prefixes",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]imageModels.Image{
+						{
+							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+							Name:  ptr.To("capx-ubuntu-v1.31.4"),
+						},
+					}, nil,
+				)
+				return convergedClient.Client
+			},
+			baseOS:        "ubuntu",
+			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
+			k8sVersion:    "vv1.31.4",
+			want: &imageModels.Image{
+				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+				Name:  ptr.To("capx-ubuntu-v1.31.4"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "k8s version with v in the middle",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]imageModels.Image{
+						{
+							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+							Name:  ptr.To("capx-ubuntu-1.31.4"),
+						},
+					}, nil,
+				)
+				return convergedClient.Client
+			},
+			baseOS:        "ubuntu",
+			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
+			k8sVersion:    "1.v31.4",
+			want: &imageModels.Image{
+				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+				Name:  ptr.To("capx-ubuntu-1.31.4"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "template with special characters",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]imageModels.Image{
+						{
+							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+							Name:  ptr.To("k8s-ubuntu-20.04-1.31.4"),
+						},
+					}, nil,
+				)
+				return convergedClient.Client
+			},
+			baseOS:        "ubuntu-20.04",
+			imageTemplate: "k8s-{{.BaseOS}}-{{.K8sVersion}}",
+			k8sVersion:    "v1.31.4",
+			want: &imageModels.Image{
+				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+				Name:  ptr.To("k8s-ubuntu-20.04-1.31.4"),
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -868,6 +1531,11 @@ func TestGetImageByLookup(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetImageByLookup() = %v, want %v", got, tt.want)
+			}
+			if tt.errorMessage != "" && err != nil {
+				if !strings.Contains(err.Error(), tt.errorMessage) {
+					t.Errorf("GetImageByLookup() error message = %v, want to contain %v", err.Error(), tt.errorMessage)
+				}
 			}
 		})
 	}

@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -493,28 +492,23 @@ func GetImageByLookup(
 			err,
 		)
 	}
-	responseImages, err := client.Images.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", templateBytes.String())))
+
+	imageName := templateBytes.String()
+	responseImages, err := client.Images.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", imageName)))
 	if err != nil {
 		return nil, err
 	}
-	re := regexp.MustCompile(templateBytes.String())
-	foundImages := make([]*imageModels.Image, 0)
-	for _, image := range responseImages {
-		if re.Match([]byte(*image.Name)) {
-			foundImages = append(foundImages, &image)
-		}
-	}
-	sorted := sortImagesByLatestCreationTime(foundImages)
+	sorted := sortImagesByLatestCreationTime(responseImages)
 	if len(sorted) == 0 {
-		return nil, fmt.Errorf("failed to find image with filter %s", templateBytes.String())
+		return nil, fmt.Errorf("failed to find image with filter '%s'", imageName)
 	}
-	return sorted[0], nil
+	return &sorted[0], nil
 }
 
 // returns the images with the latest creation time first.
 func sortImagesByLatestCreationTime(
-	images []*imageModels.Image,
-) []*imageModels.Image {
+	images []imageModels.Image,
+) []imageModels.Image {
 	sort.Slice(images, func(i, j int) bool {
 		if images[i].CreateTime == nil || images[j].CreateTime == nil {
 			return images[i].CreateTime != nil
