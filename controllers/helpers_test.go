@@ -548,6 +548,122 @@ func TestGetPrismCentralConvergedV4ClientForCluster_EdgeCases(t *testing.T) {
 	})
 }
 
+func TestGetPEUUID(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("nil client", func(t *testing.T) {
+		name := "pe-cluster"
+		uuid, err := GetPEUUID(ctx, nil, &name, nil)
+		assert.Error(t, err)
+		assert.Empty(t, uuid)
+		assert.Contains(t, err.Error(), "cannot retrieve Prism Element UUID if nutanix client is nil")
+	})
+
+	t.Run("missing inputs", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+		uuid, err := GetPEUUID(ctx, mockClient.Client, nil, nil)
+		assert.Error(t, err)
+		assert.Empty(t, uuid)
+		assert.Contains(t, err.Error(), "cluster name or uuid must be passed")
+	})
+
+	t.Run("uuid path - entity not found", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+		peUUID := "00000000-0000-0000-0000-000000000000"
+		mockClient.MockClusters.EXPECT().Get(ctx, peUUID).Return(nil, errors.New("ENTITY_NOT_FOUND: cluster not found"))
+		got, err := GetPEUUID(ctx, mockClient.Client, nil, &peUUID)
+		assert.Error(t, err)
+		assert.Empty(t, got)
+		assert.Contains(t, err.Error(), "failed to find Prism Element cluster with UUID")
+	})
+
+	t.Run("uuid path - other get error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+		peUUID := "11111111-1111-1111-1111-111111111111"
+		mockClient.MockClusters.EXPECT().Get(ctx, peUUID).Return(nil, errors.New("network error"))
+		got, err := GetPEUUID(ctx, mockClient.Client, nil, &peUUID)
+		assert.Error(t, err)
+		assert.Empty(t, got)
+		assert.Contains(t, err.Error(), "failed to get Prism Element cluster with UUID")
+	})
+
+	t.Run("uuid path - success", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+		peUUID := "22222222-2222-2222-2222-222222222222"
+		ext := "ext-uuid-2222"
+		cluster := clusterModels.Cluster{ExtId: &ext}
+		mockClient.MockClusters.EXPECT().Get(ctx, peUUID).Return(&cluster, nil)
+		got, err := GetPEUUID(ctx, mockClient.Client, nil, &peUUID)
+		assert.NoError(t, err)
+		assert.Equal(t, ext, got)
+	})
+
+	t.Run("name path - list error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+		name := "pe-a"
+		var empty []clusterModels.Cluster
+		mockClient.MockClusters.EXPECT().List(ctx, gomock.Any()).Return(empty, errors.New("list failed"))
+		got, err := GetPEUUID(ctx, mockClient.Client, &name, nil)
+		assert.Error(t, err)
+		assert.Empty(t, got)
+		assert.Contains(t, err.Error(), "list failed")
+	})
+
+	t.Run("name path - zero matches after filter", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+		name := "pe-b"
+		// Cluster with same name but missing AOS service
+		clusterNoService := clusterModels.Cluster{
+			Name:   ptr.To(name),
+			Config: nil,
+		}
+		// Another cluster different name
+		clusterOther := clusterModels.Cluster{
+			Name: ptr.To("different"),
+		}
+		mockClient.MockClusters.EXPECT().List(ctx, gomock.Any()).Return([]clusterModels.Cluster{clusterNoService, clusterOther}, nil)
+		got, err := GetPEUUID(ctx, mockClient.Client, &name, nil)
+		assert.Error(t, err)
+		assert.Empty(t, got)
+		assert.Contains(t, err.Error(), "failed to retrieve Prism Element cluster by name")
+	})
+
+	t.Run("name path - multiple matches", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+		name := "pe-c"
+		cfg := clusterModels.NewClusterConfigReference()
+		cfg.ClusterFunction = []clusterModels.ClusterFunctionRef{clusterModels.CLUSTERFUNCTIONREF_AOS}
+		c1 := clusterModels.Cluster{Name: ptr.To(name), ExtId: ptr.To("ext-1"), Config: cfg}
+		c2 := clusterModels.Cluster{Name: ptr.To(name), ExtId: ptr.To("ext-2"), Config: cfg}
+		mockClient.MockClusters.EXPECT().List(ctx, gomock.Any()).Return([]clusterModels.Cluster{c1, c2}, nil)
+		got, err := GetPEUUID(ctx, mockClient.Client, &name, nil)
+		assert.Error(t, err)
+		assert.Empty(t, got)
+		assert.Contains(t, err.Error(), "more than one Prism Element cluster found with name")
+	})
+
+	t.Run("name path - single match returns extId", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+		name := "pe-d"
+		cfg := clusterModels.NewClusterConfigReference()
+		cfg.ClusterFunction = []clusterModels.ClusterFunctionRef{clusterModels.CLUSTERFUNCTIONREF_AOS}
+		ext := "ext-42"
+		c := clusterModels.Cluster{Name: ptr.To(name), ExtId: &ext, Config: cfg}
+		mockClient.MockClusters.EXPECT().List(ctx, gomock.Any()).Return([]clusterModels.Cluster{c}, nil)
+		got, err := GetPEUUID(ctx, mockClient.Client, &name, nil)
+		assert.NoError(t, err)
+		assert.Equal(t, ext, got)
+	})
+}
+
 func TestGetImageByNameOrUUID(t *testing.T) {
 	tests := []struct {
 		name          string
