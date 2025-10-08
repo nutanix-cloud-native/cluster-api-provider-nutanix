@@ -310,6 +310,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	ctx := rctx.Context
 	log := ctrl.LoggerFrom(ctx)
 	v3Client := rctx.NutanixClient
+	convergedClient := rctx.ConvergedClient
 	vmName := rctx.Machine.Name
 	log.Info(fmt.Sprintf("Handling deletion of VM: %s", vmName))
 	conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, capiv1.DeletingReason, capiv1.ConditionSeverityInfo, "")
@@ -404,7 +405,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	}
 
 	// Delete the VM since the VM was found (err was nil)
-	deleteTaskUUID, err := DeleteVM(ctx, v3Client, vmName, vmUUID)
+	deleteTaskUUID, err := DeleteVM(ctx, convergedClient, vmName, vmUUID)
 	if err != nil {
 		err := fmt.Errorf("failed to delete VM %s with UUID %s: %v", vmName, vmUUID, err)
 		log.Error(err, "failed to delete VM")
