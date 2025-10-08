@@ -1966,7 +1966,7 @@ func TestGetSystemDisk(t *testing.T) {
 		// Test getSystemDisk - this should panic due to nil nodeOSImage
 		// The function has a bug where it doesn't handle the case where both Image and ImageLookup are nil
 		assert.Panics(t, func() {
-			getSystemDisk(rctx)
+			_, _ = getSystemDisk(rctx)
 		})
 	})
 }
