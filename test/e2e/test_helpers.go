@@ -48,6 +48,7 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
+	vmmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 )
 
 const (
@@ -136,7 +137,7 @@ type testHelperInterface interface {
 	deleteSecret(params deleteSecretParams)
 	deleteAllClustersAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, namespace *corev1.Namespace, intervalsGetter func(spec, key string) []interface{})
 	deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *capiv1.Cluster, intervalsGetter func(spec, key string) []interface{})
-	findGPU(ctx context.Context, gpuName string) *prismGoClientV3.GPU
+	findGPU(ctx context.Context, gpuName string) *vmmconfig.Gpu
 	generateNMTName(clusterName string) string
 	generateNMTProviderID(clusterName string) string
 	generateTestClusterName(specName string) string
@@ -171,11 +172,11 @@ type testHelper struct {
 }
 
 func newTestHelper(e2eConfig *clusterctl.E2EConfig) testHelperInterface {
-	v3Client, convergedClient, err := initNutanixClient(*e2eConfig)
+	v3client, convergedClient, err := initNutanixClient(*e2eConfig)
 	Expect(err).ShouldNot(HaveOccurred())
 
 	return testHelper{
-		nutanixClient:   v3Client,
+		nutanixClient:   v3client,
 		convergedClient: convergedClient,
 		e2eConfig:       e2eConfig,
 	}
@@ -321,21 +322,24 @@ func (t testHelper) createNameGPUNMT(ctx context.Context, clusterName, namespace
 	return nmt
 }
 
-func (t testHelper) findGPU(ctx context.Context, gpuName string) *prismGoClientV3.GPU {
+func (t testHelper) findGPU(ctx context.Context, gpuName string) *vmmconfig.Gpu {
 	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
 
 	clusterUUID, err := controllers.GetPEUUID(ctx, t.convergedClient, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(clusterUUID).ToNot(BeNil())
-	allGpus, err := controllers.GetGPUsForPE(ctx, t.nutanixClient, clusterUUID)
+	allUnusedGpus, err := controllers.GetGPUsForPE(ctx, t.convergedClient, clusterUUID, infrav1.NutanixGPU{
+		Type: infrav1.NutanixGPUIdentifierName,
+		Name: &gpuName,
+	})
 	Expect(err).ToNot(HaveOccurred())
-	Expect(allGpus).ToNot(HaveLen(0))
+	Expect(allUnusedGpus).ToNot(HaveLen(0))
 
-	for _, gpu := range allGpus {
+	for _, gpu := range allUnusedGpus {
 		if gpu == nil {
 			continue
 		}
-		if gpu.Name == gpuName {
+		if *gpu.Name == gpuName {
 			return gpu
 		}
 	}
@@ -351,7 +355,7 @@ func (t testHelper) createDeviceIDGPUNMT(ctx context.Context, clusterName, names
 	nmt.Spec.Template.Spec.GPUs = []infrav1.NutanixGPU{
 		{
 			Type:     infrav1.NutanixGPUIdentifierDeviceID,
-			DeviceID: foundGpu.DeviceID,
+			DeviceID: ptr.To(int64(*foundGpu.DeviceId)),
 		},
 	}
 	return nmt
@@ -898,6 +902,19 @@ type verifyGPUNutanixMachinesParams struct {
 	bootstrapClusterProxy framework.ClusterProxy
 }
 
+func GpuVendorToString(vendor *vmmconfig.GpuVendor) string {
+	switch *vendor {
+	case vmmconfig.GPUVENDOR_NVIDIA:
+		return "NVIDIA"
+	case vmmconfig.GPUVENDOR_INTEL:
+		return "INTEL"
+	case vmmconfig.GPUVENDOR_AMD:
+		return "AMD"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 func (t testHelper) verifyGPUNutanixMachines(ctx context.Context, params verifyGPUNutanixMachinesParams) {
 	nutanixMachines := t.getNutanixMachinesForCluster(ctx, params.clusterName, params.namespace, params.bootstrapClusterProxy)
 	for _, m := range nutanixMachines.Items {
@@ -915,8 +932,8 @@ func (t testHelper) verifyGPUNutanixMachines(ctx context.Context, params verifyG
 				gstruct.MatchFields(
 					gstruct.IgnoreExtras,
 					gstruct.Fields{
-						"DeviceID": HaveValue(Equal(*foundGpu.DeviceID)),
-						"Vendor":   HaveValue(Equal(foundGpu.Vendor)),
+						"DeviceID": HaveValue(Equal(*foundGpu.DeviceId)),
+						"Vendor":   HaveValue(Equal(GpuVendorToString(foundGpu.Vendor))),
 					},
 				),
 			)))

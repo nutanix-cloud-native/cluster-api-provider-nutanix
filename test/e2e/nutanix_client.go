@@ -28,6 +28,7 @@ import (
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismGoClientTypes "github.com/nutanix-cloud-native/prism-go-client/environment/types"
 	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+
 	"github.com/onsi/gomega"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 )

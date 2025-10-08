@@ -859,11 +859,17 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	}
 
 	// Get GPU list
-	gpuList, err := GetGPUList(ctx, v3Client, rctx.NutanixMachine.Spec.GPUs, peUUID)
+	gpuList, err := GetGPUList(ctx, convergedClient, rctx.NutanixMachine.Spec.GPUs, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the GPU list to create the VM %s. %v", vmName, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, err
+	}
+
+	// TODO: delete when this part will be migrated to use the v4Converged client
+	v3GpuList := make([]*prismclientv3.VMGpu, len(gpuList))
+	for i, gpu := range gpuList {
+		v3GpuList[i] = v4GpuToV3Gpu(gpu)
 	}
 
 	diskList, err := getDiskList(rctx, peUUID)
@@ -882,7 +888,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 		MemorySizeMib:         ptr.To(memorySizeMib),
 		NicList:               nicList,
 		DiskList:              diskList,
-		GpuList:               gpuList,
+		GpuList:               v3GpuList,
 	}
 	vmSpec.ClusterReference = &prismclientv3.Reference{
 		Kind: ptr.To("cluster"),
