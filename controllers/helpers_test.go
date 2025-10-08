@@ -1936,6 +1936,151 @@ func TestDeleteVM(t *testing.T) {
 	})
 }
 
+func TestDeleteCategoryKeyValues(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("getCategoryKey error bubbles up", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+		// getCategoryKey -> Categories.List returns error not containing ENTITY_NOT_FOUND
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New("boom")).Times(1)
+
+		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids, true)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to retrieve category with key")
+		assert.Contains(t, err.Error(), "boom")
+	})
+
+	t.Run("category key not found continues and returns nil", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+		// getCategoryKey -> Categories.List returns ENTITY_NOT_FOUND so getCategoryKey returns nil, nil
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New("ENTITY_NOT_FOUND")).Times(1)
+
+		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids, true)
+		assert.NoError(t, err)
+	})
+
+	t.Run("category value retrieval error returns error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+		// getCategoryKey -> Categories.List returns one category (found)
+		keyExt := "key-id"
+		keyCat := prismModels.Category{ExtId: &keyExt}
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{keyCat}, nil).Times(1)
+		// getCategoryValue (outer) -> error not containing CATEGORY_NAME_VALUE_MISMATCH
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New("oops")).Times(1)
+
+		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids, true)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to retrieve category value")
+	})
+
+	t.Run("delete values success and delete key success when no remaining values", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+		keyExt := "key-id"
+		valExt := "val-id"
+		name := "k"
+		value := "v"
+		keyCat := prismModels.Category{ExtId: &keyExt, Key: &name}
+		valCat := prismModels.Category{ExtId: &valExt, Key: &name, Value: &value}
+
+		// 1) getCategoryKey
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{keyCat}, nil).Times(1)
+		// 2) getCategoryValue (outer) to check existence before delete
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
+		// 3) deleteCategoryValue -> internal getCategoryValue
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
+		// 4) delete value by ExtId
+		mockClient.MockCategories.EXPECT().Delete(ctx, valExt).Return(nil).Times(1)
+		// 5) listCategoryValues -> empty, so key delete allowed
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil).Times(1)
+		// 6) delete key
+		mockClient.MockCategories.EXPECT().Delete(ctx, keyExt).Return(nil).Times(1)
+
+		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids, false)
+		assert.NoError(t, err)
+	})
+
+	t.Run("deleteCategoryValue error causes early nil return (do not error)", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+		keyExt := "key-id"
+		valExt := "val-id"
+		name := "k"
+		value := "v"
+		keyCat := prismModels.Category{ExtId: &keyExt, Key: &name}
+		valCat := prismModels.Category{ExtId: &valExt, Key: &name, Value: &value}
+
+		// 1) getCategoryKey
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{keyCat}, nil).Times(1)
+		// 2) getCategoryValue (outer)
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
+		// 3) deleteCategoryValue -> internal getCategoryValue
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
+		// 4) delete value fails
+		mockClient.MockCategories.EXPECT().Delete(ctx, valExt).Return(errors.New("in use")).Times(1)
+
+		// Function should return nil early due to special-case handling
+		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids, false)
+		assert.NoError(t, err)
+	})
+
+	t.Run("listCategoryValues error bubbles", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+		keyExt := "key-id"
+		name := "k"
+		keyCat := prismModels.Category{ExtId: &keyExt, Key: &name}
+
+		// 1) getCategoryKey
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{keyCat}, nil).Times(1)
+		// 2) getCategoryValue (outer) -> not found
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil).Times(1)
+		// 3) listCategoryValues -> error
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New("ls-fail")).Times(1)
+
+		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids, false)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get values of category with key")
+	})
+
+	t.Run("cannot remove category when values remain", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+		keyExt := "key-id"
+		name := "k"
+		keyCat := prismModels.Category{ExtId: &keyExt, Key: &name}
+		remaining := prismModels.Category{ExtId: ptr.To("another"), Key: &name, Value: ptr.To("x")}
+
+		// 1) getCategoryKey
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{keyCat}, nil).Times(1)
+		// 2) getCategoryValue (outer) -> not found
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil).Times(1)
+		// 3) listCategoryValues -> returns one category left
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{remaining}, nil).Times(1)
+
+		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids, false)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot remove category with key")
+	})
+}
+
 type MockConvergedClientWrapper struct {
 	Client *v4Converged.Client
 
