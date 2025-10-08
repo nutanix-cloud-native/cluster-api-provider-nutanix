@@ -641,7 +641,7 @@ func (t testHelper) stripNutanixIDFromProviderID(providerID string) string {
 }
 
 func (t testHelper) verifyCategoryExists(ctx context.Context, categoryKey, categoryValue string) {
-	_, err := t.convergedClient.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key == %s && value == %s", categoryKey, categoryValue)))
+	_, err := t.convergedClient.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s' and value eq '%s'", categoryKey, categoryValue)))
 	Expect(err).ShouldNot(HaveOccurred())
 }
 
