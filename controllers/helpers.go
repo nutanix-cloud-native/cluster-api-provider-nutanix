@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -493,16 +494,47 @@ func GetImageByLookup(
 		)
 	}
 
-	imageName := templateBytes.String()
-	responseImages, err := client.Images.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", imageName)))
+	imagePrefix := makeImagePrefix(t, params)
+	responseImages, err := client.Images.List(ctx, converged.WithFilter(fmt.Sprintf("startwith(name, '%s')", imagePrefix)))
 	if err != nil {
 		return nil, err
 	}
-	sorted := sortImagesByLatestCreationTime(responseImages)
+
+	// TODO: @adiantum:We need to improve this, leaving as it is for now to avoid breaking changes.
+	imagePattern := templateBytes.String()
+	re := regexp.MustCompile(imagePattern)
+	foundImages := make([]imageModels.Image, 0)
+	for _, image := range responseImages {
+		if re.Match([]byte(*image.Name)) {
+			foundImages = append(foundImages, image)
+		}
+	}
+	sorted := sortImagesByLatestCreationTime(foundImages)
 	if len(sorted) == 0 {
-		return nil, fmt.Errorf("failed to find image with filter '%s'", imageName)
+		return nil, fmt.Errorf("failed to find image with filter '%s'", imagePattern)
 	}
 	return &sorted[0], nil
+}
+
+func makeImagePrefix(t *template.Template, params ImageLookup) string {
+	var templateBytes bytes.Buffer
+	delimiter := uuid.New().String()
+
+	if params.BaseOS == "" {
+		params.BaseOS = delimiter
+	}
+
+	if params.K8sVersion == "" {
+		params.K8sVersion = delimiter
+	}
+
+	err := t.Execute(&templateBytes, params)
+	if err != nil {
+		return ""
+	}
+
+	parts := strings.Split(templateBytes.String(), delimiter)
+	return parts[0]
 }
 
 // returns the images with the latest creation time first.
