@@ -635,6 +635,9 @@ func getCategoryKey(ctx context.Context, client *v4Converged.Client, key string)
 			return nil, nil
 		}
 	}
+	if len(categoryKey) == 0 {
+		return nil, nil
+	}
 	return &categoryKey[0], nil
 }
 
