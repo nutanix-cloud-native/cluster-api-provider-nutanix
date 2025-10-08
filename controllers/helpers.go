@@ -627,7 +627,7 @@ func GetOrCreateCategories(ctx context.Context, client *v4Converged.Client, cate
 }
 
 func getCategoryKey(ctx context.Context, client *v4Converged.Client, key string) (*prismModels.Category, error) {
-	categoryKey, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key == %s", key)))
+	categoryKey, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s'", key)))
 	if err != nil {
 		if !strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
 			return nil, fmt.Errorf("failed to retrieve category with key %s. error: %v", key, err)
@@ -639,7 +639,7 @@ func getCategoryKey(ctx context.Context, client *v4Converged.Client, key string)
 }
 
 func getCategoryValue(ctx context.Context, client *v4Converged.Client, key, value string) (*prismModels.Category, error) {
-	categoryValue, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key == %s && value == %s", key, value)))
+	categoryValue, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s' and value eq '%s'", key, value)))
 	if err != nil {
 		if !strings.Contains(fmt.Sprint(err), "CATEGORY_NAME_VALUE_MISMATCH") {
 			return nil, fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
@@ -666,7 +666,7 @@ func deleteCategoryValue(ctx context.Context, client *v4Converged.Client, key, v
 }
 
 func listCategoryValues(ctx context.Context, client *v4Converged.Client, key string) ([]prismModels.Category, error) {
-	categoryValues, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key == %s", key)))
+	categoryValues, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s'", key)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to list category values for category %s. error: %v", key, err)
 	}
