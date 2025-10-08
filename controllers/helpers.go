@@ -532,13 +532,13 @@ func ImageMarkedForDeletion(image *prismclientv3.ImageIntentResponse) bool {
 }
 
 // HasTaskInProgress returns true if the given task is in progress
-func HasTaskInProgress(ctx context.Context, client *prismclientv3.Client, taskUUID string) (bool, error) {
+func HasTaskInProgress(ctx context.Context, client *v4Converged.Client, taskUUID string) (bool, error) {
 	log := ctrl.LoggerFrom(ctx)
-	taskStatus, err := nutanixclient.GetTaskStatus(ctx, client, taskUUID)
+	taskStatus, err := client.Tasks.Get(ctx, taskUUID)
 	if err != nil {
 		return false, err
 	}
-	if taskStatus != taskSucceededMessage {
+	if taskStatus.Status.GetName() != taskSucceededMessage {
 		log.V(1).Info(fmt.Sprintf("VM task with UUID %s still in progress: %s", taskUUID, taskStatus))
 		return true, nil
 	}
