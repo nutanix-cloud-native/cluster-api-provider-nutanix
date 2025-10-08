@@ -1223,8 +1223,8 @@ func TestGetCategoryVMSpecMapping_MultiValues(t *testing.T) {
 		defer ctrl.Finish()
 
 		ctx := context.Background()
-		mockv3 := mocknutanixv3.NewMockService(ctrl)
-		client := &prismclientv3.Client{V3: mockv3}
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+		client := mockClientWrapper.Client
 
 		key := "CategoryKey"
 		v1 := "CategoryValue1"
@@ -1232,10 +1232,10 @@ func TestGetCategoryVMSpecMapping_MultiValues(t *testing.T) {
 
 		ids := []*infrav1.NutanixCategoryIdentifier{{Key: key, Value: v1}, {Key: key, Value: v2}, {Key: key, Value: v1}}
 
-		// Expect lookups for both values to succeed
-		mockv3.EXPECT().GetCategoryValue(ctx, key, v1).Return(&prismclientv3.CategoryValueStatus{Value: &v1}, nil)
-		mockv3.EXPECT().GetCategoryValue(ctx, key, v2).Return(&prismclientv3.CategoryValueStatus{Value: &v2}, nil)
-		mockv3.EXPECT().GetCategoryValue(ctx, key, v1).Return(&prismclientv3.CategoryValueStatus{Value: &v1}, nil)
+		// Expect lookups for both values to succeed (match any converged.ODataOption filter)
+		mockClientWrapper.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
+		mockClientWrapper.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
+		mockClientWrapper.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
 
 		mapping, err := GetCategoryVMSpec(ctx, client, ids)
 		require.NoError(t, err)
