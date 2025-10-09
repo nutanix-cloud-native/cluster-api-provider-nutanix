@@ -33,6 +33,7 @@ import (
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
+	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
@@ -53,7 +54,6 @@ const (
 	providerIdPrefix = "nutanix://"
 
 	taskSucceededMessage = "SUCCEEDED"
-	serviceNamePECluster = "AOS"
 
 	subnetTypeOverlay = "OVERLAY"
 
@@ -207,7 +207,7 @@ func FindVMByName(ctx context.Context, client *prismclientv3.Client, vmName stri
 }
 
 // GetPEUUID returns the UUID of the Prism Element cluster with the given name
-func GetPEUUID(ctx context.Context, client *prismclientv3.Client, peName, peUUID *string) (string, error) {
+func GetPEUUID(ctx context.Context, client *v4Converged.Client, peName, peUUID *string) (string, error) {
 	if client == nil {
 		return "", fmt.Errorf("cannot retrieve Prism Element UUID if nutanix client is nil")
 	}
@@ -215,29 +215,28 @@ func GetPEUUID(ctx context.Context, client *prismclientv3.Client, peName, peUUID
 		return "", fmt.Errorf("cluster name or uuid must be passed in order to retrieve the Prism Element UUID")
 	}
 	if peUUID != nil && *peUUID != "" {
-		peIntentResponse, err := client.V3.GetCluster(ctx, *peUUID)
+		peIntentResponse, err := client.Clusters.Get(ctx, *peUUID)
 		if err != nil {
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
 				return "", fmt.Errorf("failed to find Prism Element cluster with UUID %s: %v", *peUUID, err)
 			}
 			return "", fmt.Errorf("failed to get Prism Element cluster with UUID %s: %v", *peUUID, err)
 		}
-		return *peIntentResponse.Metadata.UUID, nil
+		return *peIntentResponse.ExtId, nil
 	} else if peName != nil && *peName != "" {
-		responsePEs, err := client.V3.ListAllCluster(ctx, "")
+		responsePEs, err := client.Clusters.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", *peName)))
 		if err != nil {
 			return "", err
 		}
 		// Validate filtered PEs
-		foundPEs := make([]*prismclientv3.ClusterIntentResponse, 0)
-		for _, s := range responsePEs.Entities {
-			peSpec := s.Spec
-			if strings.EqualFold(peSpec.Name, *peName) && hasPEClusterServiceEnabled(s, serviceNamePECluster) {
+		foundPEs := make([]clusterModels.Cluster, 0)
+		for _, s := range responsePEs {
+			if strings.EqualFold(*s.Name, *peName) && hasPEClusterServiceEnabled(&s) {
 				foundPEs = append(foundPEs, s)
 			}
 		}
 		if len(foundPEs) == 1 {
-			return *foundPEs[0].Metadata.UUID, nil
+			return *foundPEs[0].ExtId, nil
 		}
 		if len(foundPEs) == 0 {
 			return "", fmt.Errorf("failed to retrieve Prism Element cluster by name %s", *peName)
@@ -822,15 +821,14 @@ func GetProjectUUID(ctx context.Context, client *prismclientv3.Client, projectNa
 	return foundProjectUUID, nil
 }
 
-func hasPEClusterServiceEnabled(peCluster *prismclientv3.ClusterIntentResponse, serviceName string) bool {
-	if peCluster.Status == nil ||
-		peCluster.Status.Resources == nil ||
-		peCluster.Status.Resources.Config == nil {
+func hasPEClusterServiceEnabled(peCluster *clusterModels.Cluster) bool {
+	if peCluster.Config == nil ||
+		peCluster.Config.ClusterFunction == nil {
 		return false
 	}
-	serviceList := peCluster.Status.Resources.Config.ServiceList
+	serviceList := peCluster.Config.ClusterFunction
 	for _, s := range serviceList {
-		if s != nil && strings.ToUpper(*s) == serviceName {
+		if strings.ToUpper(string(s.GetName())) == clusterModels.CLUSTERFUNCTIONREF_AOS.GetName() {
 			return true
 		}
 	}
