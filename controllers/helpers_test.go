@@ -1876,8 +1876,8 @@ func TestGetCategoryVMSpecMapping_MultiValues(t *testing.T) {
 		defer ctrl.Finish()
 
 		ctx := context.Background()
-		mockv3 := mocknutanixv3.NewMockService(ctrl)
-		client := &prismclientv3.Client{V3: mockv3}
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+		client := mockClientWrapper.Client
 
 		key := "CategoryKey"
 		v1 := "CategoryValue1"
@@ -1885,16 +1885,82 @@ func TestGetCategoryVMSpecMapping_MultiValues(t *testing.T) {
 
 		ids := []*infrav1.NutanixCategoryIdentifier{{Key: key, Value: v1}, {Key: key, Value: v2}, {Key: key, Value: v1}}
 
-		// Expect lookups for both values to succeed
-		mockv3.EXPECT().GetCategoryValue(ctx, key, v1).Return(&prismclientv3.CategoryValueStatus{Value: &v1}, nil)
-		mockv3.EXPECT().GetCategoryValue(ctx, key, v2).Return(&prismclientv3.CategoryValueStatus{Value: &v2}, nil)
-		mockv3.EXPECT().GetCategoryValue(ctx, key, v1).Return(&prismclientv3.CategoryValueStatus{Value: &v1}, nil)
+		// Expect lookups for both values to succeed (match any converged.ODataOption filter)
+		mockClientWrapper.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
+		mockClientWrapper.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
+		mockClientWrapper.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
 
 		mapping, err := GetCategoryVMSpec(ctx, client, ids)
 		require.NoError(t, err)
 		assert.Len(t, mapping[key], 2)
 		assert.ElementsMatch(t, []string{v1, v2}, mapping[key])
 	})
+}
+
+func TestGetDefaultCAPICategoryIdentifiers(t *testing.T) {
+	clusterName := "my-cluster"
+	ids := GetDefaultCAPICategoryIdentifiers(clusterName)
+	require.Len(t, ids, 1)
+	require.NotNil(t, ids[0])
+	assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, ids[0].Key)
+	assert.Equal(t, clusterName, ids[0].Value)
+}
+
+func TestGetObsoleteDefaultCAPICategoryIdentifiers(t *testing.T) {
+	clusterName := "my-cluster"
+	ids := GetObsoleteDefaultCAPICategoryIdentifiers(clusterName)
+	require.Len(t, ids, 1)
+	require.NotNil(t, ids[0])
+	assert.Equal(t, infrav1.ObsoleteDefaultCAPICategoryPrefix+clusterName, ids[0].Key)
+	assert.Equal(t, infrav1.ObsoleteDefaultCAPICategoryOwnedValue, ids[0].Value)
+}
+
+func TestGetOrCreateCategories_Existing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	// Category already exists → List returns non-empty; Create should not be called
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
+
+	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+}
+
+func TestGetOrCreateCategories_Create(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	// Not found first → Create called with expected description
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
+		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
+			assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, *in.Key)
+			assert.Equal(t, "my-cluster", *in.Value)
+			assert.Equal(t, infrav1.DefaultCAPICategoryDescription, *in.Description)
+			return in, nil
+		},
+	)
+
+	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
 }
 
 func TestGetStorageContainerByNtnxResourceIdentifier(t *testing.T) {
@@ -2404,6 +2470,78 @@ func TestDeleteVM(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Empty(t, result)
+	})
+}
+
+func TestDeleteCategoryKeyValues(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("category value retrieval error returns error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+		// getCategoryValue (outer) -> error not containing CATEGORY_NAME_VALUE_MISMATCH
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New("oops")).Times(1)
+
+		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to retrieve category value")
+	})
+
+	t.Run("value not found continues and returns nil", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+		// getCategoryValue (outer) -> not found
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil).Times(1)
+
+		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids)
+		assert.NoError(t, err)
+	})
+
+	t.Run("delete value success returns nil", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+		valExt := "val-id"
+		name := "k"
+		value := "v"
+		valCat := prismModels.Category{ExtId: &valExt, Key: &name, Value: &value}
+
+		// 1) getCategoryValue (outer) to check existence before delete
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
+		// 2) deleteCategoryValue -> internal getCategoryValue
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
+		// 3) delete value by ExtId
+		mockClient.MockCategories.EXPECT().Delete(ctx, valExt).Return(nil).Times(1)
+
+		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids)
+		assert.NoError(t, err)
+	})
+
+	t.Run("deleteCategoryValue error causes early nil return (do not error)", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+		valExt := "val-id"
+		name := "k"
+		value := "v"
+		valCat := prismModels.Category{ExtId: &valExt, Key: &name, Value: &value}
+
+		// 1) getCategoryValue (outer)
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
+		// 2) deleteCategoryValue -> internal getCategoryValue
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
+		// 3) delete value fails
+		mockClient.MockCategories.EXPECT().Delete(ctx, valExt).Return(errors.New("in use")).Times(1)
+
+		// Function should return nil early due to special-case handling
+		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids)
+		assert.NoError(t, err)
 	})
 }
 
