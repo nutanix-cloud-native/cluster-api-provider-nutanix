@@ -971,7 +971,7 @@ func GetStorageContainerInCluster(ctx context.Context, client *v4Converged.Clien
 	switch {
 	case storageContainerIdentifier.IsUUID():
 		identifier = *storageContainerIdentifier.UUID
-		filter = fmt.Sprintf("extId eq '%s'", identifier)
+		filter = fmt.Sprintf("containerExtId eq '%s'", identifier)
 	case storageContainerIdentifier.IsName():
 		identifier = *storageContainerIdentifier.Name
 		filter = fmt.Sprintf("name eq '%s'", identifier)
