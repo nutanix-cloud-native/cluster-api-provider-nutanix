@@ -615,7 +615,7 @@ func (r *NutanixMachineReconciler) validateFailureDomainSpec(rctx *nctx.MachineC
 	}
 
 	subnets := fdSpec.Subnets
-	_, err = GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, subnets, peUUID)
+	_, err = GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, subnets, peUUID)
 	if err != nil {
 		return err
 	}
@@ -1264,7 +1264,7 @@ func (r *NutanixMachineReconciler) GetSubnetAndPEUUIDs(rctx *nctx.MachineContext
 		return "", nil, err
 	}
 
-	subnetUUIDs, err := GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, rctx.NutanixMachine.Spec.Subnets, peUUID)
+	subnetUUIDs, err := GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, rctx.NutanixMachine.Spec.Subnets, peUUID)
 	if err != nil {
 		return "", nil, err
 	}

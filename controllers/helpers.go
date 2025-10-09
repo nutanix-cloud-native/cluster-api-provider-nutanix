@@ -33,6 +33,7 @@ import (
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
+	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
@@ -374,41 +375,39 @@ func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, conve
 }
 
 // GetSubnetUUID returns the UUID of the subnet with the given name
-func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
+func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
 	var foundSubnetUUID string
 	if subnetUUID == nil && subnetName == nil {
 		return "", fmt.Errorf("subnet name or subnet uuid must be passed in order to retrieve the subnet")
 	}
 	if subnetUUID != nil {
-		subnetIntentResponse, err := client.V3.GetSubnet(ctx, *subnetUUID)
+		subnetIntentResponse, err := client.Subnets.Get(ctx, *subnetUUID)
 		if err != nil {
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
 				return "", fmt.Errorf("failed to find subnet with UUID %s: %v", *subnetUUID, err)
 			}
 			return "", fmt.Errorf("failed to get subnet with UUID %s: %v", *subnetUUID, err)
 		}
-		foundSubnetUUID = *subnetIntentResponse.Metadata.UUID
+		foundSubnetUUID = *subnetIntentResponse.ExtId
 	} else { // else search by name
 		// Not using additional filtering since we want to list overlay and vlan subnets
-		responseSubnets, err := client.V3.ListAllSubnet(ctx, "", nil)
+		responseSubnets, err := client.Subnets.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", *subnetName)))
 		if err != nil {
 			return "", err
 		}
 		// Validate filtered Subnets
-		foundSubnets := make([]*prismclientv3.SubnetIntentResponse, 0)
-		for _, subnet := range responseSubnets.Entities {
-			if subnet == nil || subnet.Spec == nil || subnet.Spec.Name == nil || subnet.Spec.Resources == nil || subnet.Spec.Resources.SubnetType == nil {
+		foundSubnets := make([]subnetModels.Subnet, 0)
+		for _, subnet := range responseSubnets {
+			if subnet.Name == nil || subnet.SubnetType == nil || subnet.ClusterReference == nil {
 				continue
 			}
-			if strings.EqualFold(*subnet.Spec.Name, *subnetName) {
-				if *subnet.Spec.Resources.SubnetType == subnetTypeOverlay {
-					// Overlay subnets are present on all PEs managed by PC.
+			if *subnet.Name == *subnetName {
+				if subnet.SubnetType.GetName() == subnetTypeOverlay {
 					foundSubnets = append(foundSubnets, subnet)
-				} else {
-					// By default check if the PE UUID matches if it is not an overlay subnet.
-					if subnet.Spec.ClusterReference != nil && *subnet.Spec.ClusterReference.UUID == peUUID {
-						foundSubnets = append(foundSubnets, subnet)
-					}
+				}
+				// By default check if the PE UUID matches if it is not an overlay subnet.
+				if subnet.ClusterReferenceList != nil && *subnet.ClusterReference == peUUID {
+					foundSubnets = append(foundSubnets, subnet)
 				}
 			}
 		}
@@ -417,7 +416,7 @@ func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID str
 		} else if len(foundSubnets) > 1 {
 			return "", fmt.Errorf("more than one subnet found with name %s", *subnetName)
 		} else {
-			foundSubnetUUID = *foundSubnets[0].Metadata.UUID
+			foundSubnetUUID = *foundSubnets[0].ExtId
 		}
 		if foundSubnetUUID == "" {
 			return "", fmt.Errorf("failed to retrieve subnet by name or uuid. Verify input parameters")
@@ -579,7 +578,7 @@ func GetTaskUUIDFromVM(vm *prismclientv3.VMIntentResponse) (string, error) {
 }
 
 // GetSubnetUUIDList returns a list of subnet UUIDs for the given list of subnet names
-func GetSubnetUUIDList(ctx context.Context, client *prismclientv3.Client, machineSubnets []infrav1.NutanixResourceIdentifier, peUUID string) ([]string, error) {
+func GetSubnetUUIDList(ctx context.Context, client *v4Converged.Client, machineSubnets []infrav1.NutanixResourceIdentifier, peUUID string) ([]string, error) {
 	subnetUUIDs := make([]string, 0)
 	for _, machineSubnet := range machineSubnets {
 		subnetUUID, err := GetSubnetUUID(
