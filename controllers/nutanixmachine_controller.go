@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/uuid"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -1011,18 +1012,18 @@ func getDiskList(rctx *nctx.MachineContext, peUUID string) ([]*prismclientv3.VMD
 }
 
 func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
-	var nodeOSImage *prismclientv3.ImageIntentResponse
+	var nodeOSImage *imageModels.Image
 	var err error
 	if rctx.NutanixMachine.Spec.Image != nil {
 		nodeOSImage, err = GetImage(
 			rctx.Context,
-			rctx.NutanixClient,
+			rctx.ConvergedClient,
 			*rctx.NutanixMachine.Spec.Image,
 		)
 	} else if rctx.NutanixMachine.Spec.ImageLookup != nil {
 		nodeOSImage, err = GetImageByLookup(
 			rctx.Context,
-			rctx.NutanixClient,
+			rctx.ConvergedClient,
 			rctx.NutanixMachine.Spec.ImageLookup.Format,
 			&rctx.NutanixMachine.Spec.ImageLookup.BaseOS,
 			rctx.Machine.Spec.Version,
@@ -1037,14 +1038,18 @@ func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 	// Consider this a precaution. If the image is marked for deletion after we
 	// create the "VM create" task, then that task will fail. We will handle that
 	// failure separately.
-	if ImageMarkedForDeletion(nodeOSImage) {
-		err := fmt.Errorf("system disk image %s is being deleted", *nodeOSImage.Metadata.UUID)
+	markedForDeletion, err := ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, nodeOSImage)
+	if err != nil {
+		return nil, err
+	}
+	if markedForDeletion {
+		err := fmt.Errorf("system disk image %s is being deleted", *nodeOSImage.ExtId)
 		rctx.SetFailureStatus(createErrorFailureReason, err)
 		return nil, err
 	}
 
 	systemDiskSizeMib := GetMibValueOfQuantity(rctx.NutanixMachine.Spec.SystemDiskSize)
-	systemDisk, err := CreateSystemDiskSpec(*nodeOSImage.Metadata.UUID, systemDiskSizeMib)
+	systemDisk, err := CreateSystemDiskSpec(*nodeOSImage.ExtId, systemDiskSizeMib)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating system disk spec: %w", err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
@@ -1059,7 +1064,7 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) 
 		Type: infrav1.NutanixIdentifierName,
 		Name: ptr.To(rctx.NutanixMachine.Spec.BootstrapRef.Name),
 	}
-	bootstrapImage, err := GetImage(rctx.Context, rctx.NutanixClient, bootstrapImageRef)
+	bootstrapImage, err := GetImage(rctx.Context, rctx.ConvergedClient, bootstrapImageRef)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get bootstrap disk image %q: %w", bootstrapImageRef, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
@@ -1069,8 +1074,12 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) 
 	// Consider this a precaution. If the image is marked for deletion after we
 	// create the "VM create" task, then that task will fail. We will handle that
 	// failure separately.
-	if ImageMarkedForDeletion(bootstrapImage) {
-		err := fmt.Errorf("bootstrap disk image %s is being deleted", *bootstrapImage.Metadata.UUID)
+	markedForDeletion, err := ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, bootstrapImage)
+	if err != nil {
+		return nil, err
+	}
+	if markedForDeletion {
+		err := fmt.Errorf("bootstrap disk image %s is being deleted", *bootstrapImage.ExtId)
 		rctx.SetFailureStatus(createErrorFailureReason, err)
 		return nil, err
 	}
@@ -1085,7 +1094,7 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) 
 		},
 		DataSourceReference: &prismclientv3.Reference{
 			Kind: ptr.To(strings.ToLower(infrav1.NutanixMachineBootstrapRefKindImage)),
-			UUID: bootstrapImage.Metadata.UUID,
+			UUID: bootstrapImage.ExtId,
 		},
 	}
 
@@ -1093,7 +1102,7 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) 
 }
 
 func getDataDisks(rctx *nctx.MachineContext, peUUID string) ([]*prismclientv3.VMDisk, error) {
-	dataDisks, err := CreateDataDiskList(rctx.Context, rctx.NutanixClient, rctx.NutanixMachine.Spec.DataDisks, peUUID)
+	dataDisks, err := CreateDataDiskList(rctx.Context, rctx.NutanixClient, rctx.ConvergedClient, rctx.NutanixMachine.Spec.DataDisks, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating data disk spec: %w", err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)

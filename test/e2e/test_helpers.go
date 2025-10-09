@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	. "github.com/onsi/gomega" //nolint:staticcheck // gomega is used with . imports conventionally
@@ -163,17 +164,19 @@ type testHelperInterface interface {
 }
 
 type testHelper struct {
-	nutanixClient *prismGoClientV3.Client
-	e2eConfig     *clusterctl.E2EConfig
+	nutanixClient   *prismGoClientV3.Client
+	convergedClient *v4Converged.Client
+	e2eConfig       *clusterctl.E2EConfig
 }
 
 func newTestHelper(e2eConfig *clusterctl.E2EConfig) testHelperInterface {
-	c, err := initNutanixClient(*e2eConfig)
+	v3Client, convergedClient, err := initNutanixClient(*e2eConfig)
 	Expect(err).ShouldNot(HaveOccurred())
 
 	return testHelper{
-		nutanixClient: c,
-		e2eConfig:     e2eConfig,
+		nutanixClient:   v3Client,
+		convergedClient: convergedClient,
+		e2eConfig:       e2eConfig,
 	}
 }
 
@@ -242,7 +245,7 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 	clusterUUID, err := controllers.GetPEUUID(ctx, t.nutanixClient, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
-	image, err := controllers.GetImage(ctx, t.nutanixClient, infrav1.NutanixResourceIdentifier{
+	image, err := controllers.GetImage(ctx, t.convergedClient, infrav1.NutanixResourceIdentifier{
 		Type: infrav1.NutanixIdentifierName,
 		Name: ptr.To(imageVarValue),
 	})
@@ -266,7 +269,7 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 					MemorySize:     resource.MustParse(defaultMemorySize),
 					Image: &infrav1.NutanixResourceIdentifier{
 						Type: infrav1.NutanixIdentifierUUID,
-						UUID: image.Metadata.UUID,
+						UUID: image.ExtId,
 					},
 					Cluster: infrav1.NutanixResourceIdentifier{
 						Type: infrav1.NutanixIdentifierUUID,
