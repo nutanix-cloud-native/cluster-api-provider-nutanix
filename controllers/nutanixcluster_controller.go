@@ -227,12 +227,18 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		log.Error(err, "error occurred while fetching prism central client")
 		return reconcile.Result{}, err
 	}
+	convergedClient, err := getPrismCentralConvergedV4ClientForCluster(ctx, cluster, r.SecretInformer, r.ConfigMapInformer)
+	if err != nil {
+		log.Error(err, "error occurred while fetching prism central converged client")
+		return reconcile.Result{}, err
+	}
 
 	rctx := &nctx.ClusterContext{
-		Context:        ctx,
-		Cluster:        capiCluster,
-		NutanixCluster: cluster,
-		NutanixClient:  v3Client,
+		Context:         ctx,
+		Cluster:         capiCluster,
+		NutanixCluster:  cluster,
+		NutanixClient:   v3Client,
+		ConvergedClient: convergedClient,
 	}
 	// Check for request action
 	if !cluster.DeletionTimestamp.IsZero() {
@@ -414,7 +420,7 @@ func (r *NutanixClusterReconciler) reconcileCategories(rctx *nctx.ClusterContext
 	log := ctrl.LoggerFrom(rctx.Context)
 	log.Info("Reconciling categories for cluster")
 	defaultCategories := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-	_, err := GetOrCreateCategories(rctx.Context, rctx.NutanixClient, defaultCategories)
+	_, err := GetOrCreateCategories(rctx.Context, rctx.ConvergedClient, defaultCategories)
 	if err != nil {
 		conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.ClusterCategoryCreationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
 		return err
@@ -430,7 +436,7 @@ func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterC
 		conditions.GetReason(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) == infrav1.DeletionFailed {
 		defaultCategories := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
 		obsoleteCategories := GetObsoleteDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-		err := DeleteCategories(rctx.Context, rctx.NutanixClient, defaultCategories, obsoleteCategories)
+		err := DeleteCategories(rctx.Context, rctx.ConvergedClient, defaultCategories, obsoleteCategories)
 		if err != nil {
 			conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, "%s", err.Error())
 			return err

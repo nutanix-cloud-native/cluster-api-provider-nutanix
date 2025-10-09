@@ -39,8 +39,9 @@ var (
 
 // ClusterContext is a context used with a NutanixCluster reconciler
 type ClusterContext struct {
-	Context       context.Context
-	NutanixClient *prismclientv3.Client
+	Context         context.Context
+	NutanixClient   *prismclientv3.Client
+	ConvergedClient *v4Converged.Client
 
 	Cluster        *capiv1.Cluster
 	NutanixCluster *infrav1.NutanixCluster

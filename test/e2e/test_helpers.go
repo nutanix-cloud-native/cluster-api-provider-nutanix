@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
@@ -640,7 +641,7 @@ func (t testHelper) stripNutanixIDFromProviderID(providerID string) string {
 }
 
 func (t testHelper) verifyCategoryExists(ctx context.Context, categoryKey, categoryValue string) {
-	_, err := t.nutanixClient.V3.GetCategoryValue(ctx, categoryKey, categoryValue)
+	_, err := t.convergedClient.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s' and value eq '%s'", categoryKey, categoryValue)))
 	Expect(err).ShouldNot(HaveOccurred())
 }
 
