@@ -626,20 +626,8 @@ func GetOrCreateCategories(ctx context.Context, client *v4Converged.Client, cate
 	return categories, nil
 }
 
-func getCategoryKey(ctx context.Context, client *v4Converged.Client, key string) (*prismModels.Category, error) {
-	categoryKey, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key == %s", key)))
-	if err != nil {
-		if !strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-			return nil, fmt.Errorf("failed to retrieve category with key %s. error: %v", key, err)
-		} else {
-			return nil, nil
-		}
-	}
-	return &categoryKey[0], nil
-}
-
 func getCategoryValue(ctx context.Context, client *v4Converged.Client, key, value string) (*prismModels.Category, error) {
-	categoryValue, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key == %s && value == %s", key, value)))
+	categoryValue, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s' and value eq '%s'", key, value)))
 	if err != nil {
 		if !strings.Contains(fmt.Sprint(err), "CATEGORY_NAME_VALUE_MISMATCH") {
 			return nil, fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
@@ -647,7 +635,7 @@ func getCategoryValue(ctx context.Context, client *v4Converged.Client, key, valu
 			return nil, nil
 		}
 	}
-	if categoryValue == nil {
+	if len(categoryValue) == 0 {
 		return nil, nil
 	}
 	return &categoryValue[0], nil
@@ -665,15 +653,7 @@ func deleteCategoryValue(ctx context.Context, client *v4Converged.Client, key, v
 	return nil
 }
 
-func listCategoryValues(ctx context.Context, client *v4Converged.Client, key string) ([]prismModels.Category, error) {
-	categoryValues, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key == %s", key)))
-	if err != nil {
-		return nil, fmt.Errorf("failed to list category values for category %s. error: %v", key, err)
-	}
-	return categoryValues, nil
-}
-
-func deleteCategoryKeyValues(ctx context.Context, client *v4Converged.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier, ignoreKeyDeletion bool) error {
+func deleteCategoryKeyValues(ctx context.Context, client *v4Converged.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) error {
 	log := ctrl.LoggerFrom(ctx)
 	groupCategoriesByKey := make(map[string][]string, 0)
 	for _, ci := range categoryIdentifiers {
@@ -688,18 +668,6 @@ func deleteCategoryKeyValues(ctx context.Context, client *v4Converged.Client, ca
 	}
 
 	for key, values := range groupCategoriesByKey {
-		log.V(1).Info(fmt.Sprintf("Retrieving category with key %s", key))
-		categoryKey, err := getCategoryKey(ctx, client, key)
-		if err != nil {
-			errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", key, err)
-			log.Error(errorMsg, "failed to retrieve category")
-			return errorMsg
-		}
-		log.V(1).Info(fmt.Sprintf("Category with key %s found. Starting deletion of values", key))
-		if categoryKey == nil {
-			log.V(1).Info(fmt.Sprintf("Category with key %s not found. Already deleted?", key))
-			continue
-		}
 		for _, value := range values {
 			categoryValue, err := getCategoryValue(ctx, client, key, value)
 			if err != nil {
@@ -721,28 +689,6 @@ func deleteCategoryKeyValues(ctx context.Context, client *v4Converged.Client, ca
 				return nil
 			}
 		}
-
-		if !ignoreKeyDeletion {
-			// check if there are remaining category values
-			categoryKeyValues, err := listCategoryValues(ctx, client, key)
-			if err != nil {
-				errorMsg := fmt.Errorf("failed to get values of category with key %s: %v", key, err)
-				log.Error(errorMsg, "failed to get values of category")
-				return errorMsg
-			}
-			if len(categoryKeyValues) > 0 {
-				errorMsg := fmt.Errorf("cannot remove category with key %s because it still has category values assigned", key)
-				log.Error(errorMsg, "cannot remove category")
-				return errorMsg
-			}
-			log.V(1).Info(fmt.Sprintf("No values assigned to category. Removing category with key %s", key))
-			err = client.Categories.Delete(ctx, *categoryKey.ExtId)
-			if err != nil {
-				errorMsg := fmt.Errorf("failed to delete category with key %s: %v", key, err)
-				log.Error(errorMsg, "failed to delete category")
-				return errorMsg
-			}
-		}
 	}
 	return nil
 }
@@ -750,12 +696,12 @@ func deleteCategoryKeyValues(ctx context.Context, client *v4Converged.Client, ca
 // DeleteCategories deletes the given list of categories
 func DeleteCategories(ctx context.Context, clientV4 *v4Converged.Client, categoryIdentifiers, obsoleteCategoryIdentifiers []*infrav1.NutanixCategoryIdentifier) error {
 	// Dont delete keys with newer format as key is constant string
-	err := deleteCategoryKeyValues(ctx, clientV4, categoryIdentifiers, true)
+	err := deleteCategoryKeyValues(ctx, clientV4, categoryIdentifiers)
 	if err != nil {
 		return err
 	}
 	// Delete obsolete keys with older format to cleanup brownfield setups
-	err = deleteCategoryKeyValues(ctx, clientV4, obsoleteCategoryIdentifiers, false)
+	err = deleteCategoryKeyValues(ctx, clientV4, obsoleteCategoryIdentifiers)
 	if err != nil {
 		return err
 	}

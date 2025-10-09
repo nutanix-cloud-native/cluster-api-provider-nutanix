@@ -227,12 +227,18 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		log.Error(err, "error occurred while fetching prism central client")
 		return reconcile.Result{}, err
 	}
+	convergedClient, err := getPrismCentralConvergedV4ClientForCluster(ctx, cluster, r.SecretInformer, r.ConfigMapInformer)
+	if err != nil {
+		log.Error(err, "error occurred while fetching prism central converged client")
+		return reconcile.Result{}, err
+	}
 
 	rctx := &nctx.ClusterContext{
-		Context:        ctx,
-		Cluster:        capiCluster,
-		NutanixCluster: cluster,
-		NutanixClient:  v3Client,
+		Context:         ctx,
+		Cluster:         capiCluster,
+		NutanixCluster:  cluster,
+		NutanixClient:   v3Client,
+		ConvergedClient: convergedClient,
 	}
 	// Check for request action
 	if !cluster.DeletionTimestamp.IsZero() {

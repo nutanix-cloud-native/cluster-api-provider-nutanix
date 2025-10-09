@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nutanix-cloud-native/prism-go-client/converged"
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	. "github.com/onsi/gomega" //nolint:staticcheck // gomega is used with . imports conventionally
@@ -163,17 +165,19 @@ type testHelperInterface interface {
 }
 
 type testHelper struct {
-	nutanixClient *prismGoClientV3.Client
-	e2eConfig     *clusterctl.E2EConfig
+	nutanixClient   *prismGoClientV3.Client
+	convergedClient *v4Converged.Client
+	e2eConfig       *clusterctl.E2EConfig
 }
 
 func newTestHelper(e2eConfig *clusterctl.E2EConfig) testHelperInterface {
-	c, err := initNutanixClient(*e2eConfig)
+	v3Client, convergedClient, err := initNutanixClient(*e2eConfig)
 	Expect(err).ShouldNot(HaveOccurred())
 
 	return testHelper{
-		nutanixClient: c,
-		e2eConfig:     e2eConfig,
+		nutanixClient:   v3Client,
+		convergedClient: convergedClient,
+		e2eConfig:       e2eConfig,
 	}
 }
 
@@ -637,7 +641,7 @@ func (t testHelper) stripNutanixIDFromProviderID(providerID string) string {
 }
 
 func (t testHelper) verifyCategoryExists(ctx context.Context, categoryKey, categoryValue string) {
-	_, err := t.nutanixClient.V3.GetCategoryValue(ctx, categoryKey, categoryValue)
+	_, err := t.convergedClient.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s' and value eq '%s'", categoryKey, categoryValue)))
 	Expect(err).ShouldNot(HaveOccurred())
 }
 

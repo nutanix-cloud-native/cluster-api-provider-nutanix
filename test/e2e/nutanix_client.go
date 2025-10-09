@@ -25,6 +25,7 @@ import (
 	"strconv"
 
 	prismGoClient "github.com/nutanix-cloud-native/prism-go-client"
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismGoClientTypes "github.com/nutanix-cloud-native/prism-go-client/environment/types"
 	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"github.com/onsi/gomega"
@@ -112,21 +113,26 @@ func getNutanixCredentials(e2eConfig clusterctl.E2EConfig) (prismGoClient.Creden
 	return creds, nil
 }
 
-func initNutanixClient(e2eConfig clusterctl.E2EConfig) (*prismGoClientV3.Client, error) {
+func initNutanixClient(e2eConfig clusterctl.E2EConfig) (*prismGoClientV3.Client, *v4Converged.Client, error) {
 	creds, err := getNutanixCredentials(e2eConfig)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	opts := make([]prismGoClientTypes.ClientOption[prismGoClientV3.Client], 0)
+	v3opts := make([]prismGoClientTypes.ClientOption[prismGoClientV3.Client], 0)
 	if nutanixAdditionalTrustBundle != "" {
-		opts = append(opts, prismGoClientV3.WithPEMEncodedCertBundle([]byte(nutanixAdditionalTrustBundle)))
+		v3opts = append(v3opts, prismGoClientV3.WithPEMEncodedCertBundle([]byte(nutanixAdditionalTrustBundle)))
 	}
 
-	client, err := prismGoClientV3.NewV3Client(creds, opts...)
+	v3Client, err := prismGoClientV3.NewV3Client(creds, v3opts...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return client, nil
+	convergedClient, err := v4Converged.NewClient(creds)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return v3Client, convergedClient, nil
 }
