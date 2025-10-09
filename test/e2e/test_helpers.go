@@ -252,7 +252,7 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	subnetUUID, err := controllers.GetSubnetUUID(ctx, t.nutanixClient, clusterUUID, &subnetVarValue, nil)
+	subnetUUID, err := controllers.GetSubnetUUID(ctx, t.convergedClient, clusterUUID, &subnetVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
 	return &infrav1.NutanixMachineTemplate{
