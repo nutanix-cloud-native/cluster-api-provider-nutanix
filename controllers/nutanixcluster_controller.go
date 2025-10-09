@@ -408,7 +408,7 @@ func (r *NutanixClusterReconciler) validateFailureDomainSpec(rctx *nctx.ClusterC
 	}
 
 	subnets := fd.Spec.Subnets
-	_, err = GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, subnets, peUUID)
+	_, err = GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, subnets, peUUID)
 	if err != nil {
 		return err
 	}
