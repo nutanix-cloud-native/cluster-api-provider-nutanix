@@ -990,11 +990,11 @@ func GetStorageContainerInCluster(ctx context.Context, client *v4Converged.Clien
 
 	storageContainers, err := client.StorageContainers.List(ctx, converged.WithFilter(filter))
 	if err != nil {
-		return nil, fmt.Errorf("failed to find storage container %s", identifier)
+		return nil, err
 	}
 
-	if len(storageContainers) != 1 {
-		return nil, fmt.Errorf("invalid number of storage containers found using filter: %s", filter)
+	if len(storageContainers) == 0 {
+		return nil, fmt.Errorf("found no storage container using filter: %s", filter)
 	}
 
 	return &storageContainers[0], nil

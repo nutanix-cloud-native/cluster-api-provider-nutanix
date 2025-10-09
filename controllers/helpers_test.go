@@ -1084,7 +1084,7 @@ func TestCreateDataDiskList(t *testing.T) {
 			name: "data disk with storage container lookup failure",
 			convergedBuilder: func() *v4Converged.Client {
 				convergedClient := NewMockConvergedClient(gomock.NewController(t))
-				convergedClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New(""))
+				convergedClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("fake error"))
 				return convergedClient.Client
 			},
 			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
@@ -1106,7 +1106,7 @@ func TestCreateDataDiskList(t *testing.T) {
 			peUUID:       "00062e56-b9ac-7253-1946-7cc25586eeee",
 			want:         nil,
 			wantErr:      true,
-			errorMessage: "failed to find storage container 06b1ce03-f384-4488-9ba1-ae17ebcf1f91",
+			errorMessage: "fake error",
 		},
 	}
 
@@ -1638,7 +1638,7 @@ func TestGetStorageContainerInCluster(t *testing.T) {
 			},
 			want:         nil,
 			wantErr:      true,
-			errorMessage: "failed to find storage container 2a61b02a-54a6-475e-93b9-5efc895b48e3",
+			errorMessage: "fake error",
 		},
 		{
 			name: "GetStorageContainerInCluster fails with wrong cluster and storage container identifier type",
