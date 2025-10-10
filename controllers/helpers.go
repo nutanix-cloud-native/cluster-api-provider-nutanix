@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -34,6 +33,7 @@ import (
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
 	clustermgmtconfig "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
+	vmmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -63,7 +63,8 @@ const (
 	ImageStateDeletePending    = "DELETE_PENDING"
 	ImageStateDeleteInProgress = "DELETE_IN_PROGRESS"
 
-	createErrorFailureReason = "CreateError"
+	createErrorFailureReason  = "CreateError"
+	powerOnErrorFailureReason = "PowerOnError"
 )
 
 type StorageContainerIntentResponse struct {
@@ -99,11 +100,11 @@ func DeleteVM(ctx context.Context, client *v4Converged.Client, vmName, vmUUID st
 }
 
 // FindVMByUUID retrieves the VM with the given vm UUID. Returns nil if not found
-func FindVMByUUID(ctx context.Context, client *prismclientv3.Client, uuid string) (*prismclientv3.VMIntentResponse, error) {
+func FindVMByUUID(ctx context.Context, client *v4Converged.Client, uuid string) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.V(1).Info(fmt.Sprintf("Checking if VM with UUID %s exists.", uuid))
 
-	response, err := client.V3.GetVM(ctx, uuid)
+	response, err := client.VMs.Get(ctx, uuid)
 	if err != nil {
 		if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
 			log.V(1).Info(fmt.Sprintf("vm with uuid %s does not exist.", uuid))
@@ -145,7 +146,7 @@ func GetVMUUID(nutanixMachine *infrav1.NutanixMachine) (string, error) {
 }
 
 // FindVM retrieves the VM with the given uuid or name
-func FindVM(ctx context.Context, client *prismclientv3.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*prismclientv3.VMIntentResponse, error) {
+func FindVM(ctx context.Context, client *v4Converged.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
 	vmUUID, err := GetVMUUID(nutanixMachine)
 	if err != nil {
@@ -166,8 +167,8 @@ func FindVM(ctx context.Context, client *prismclientv3.Client, nutanixMachine *i
 		// Now, we create VMs with the same name as the Machine name in line with other CAPI providers.
 		// This check is to ensure that we are deleting the correct VM for both cases as older CAPX VMs
 		// will have the NutanixMachine name as the VM name.
-		if *vm.Spec.Name != vmName && *vm.Spec.Name != nutanixMachine.Name {
-			return nil, fmt.Errorf("found VM with UUID %s but name %s did not match %s", vmUUID, *vm.Spec.Name, vmName)
+		if *vm.Name != vmName && *vm.Name != nutanixMachine.Name {
+			return nil, fmt.Errorf("found VM with UUID %s but name %s did not match %s", vmUUID, *vm.Name, vmName)
 		}
 		return vm, nil
 		// otherwise search via name
@@ -183,26 +184,24 @@ func FindVM(ctx context.Context, client *prismclientv3.Client, nutanixMachine *i
 }
 
 // FindVMByName retrieves the VM with the given vm name
-func FindVMByName(ctx context.Context, client *prismclientv3.Client, vmName string) (*prismclientv3.VMIntentResponse, error) {
+func FindVMByName(ctx context.Context, client *v4Converged.Client, vmName string) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.Info(fmt.Sprintf("Checking if VM with name %s exists.", vmName))
 
-	res, err := client.V3.ListVM(ctx, &prismclientv3.DSMetadata{
-		Filter: ptr.To(fmt.Sprintf("vm_name==%s", vmName)),
-	})
+	vms, err := client.VMs.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", vmName)))
 	if err != nil {
 		return nil, err
 	}
 
-	if len(res.Entities) > 1 {
-		return nil, fmt.Errorf("error: found more than one (%v) vms with name %s", len(res.Entities), vmName)
+	if len(vms) > 1 {
+		return nil, fmt.Errorf("error: found more than one (%v) vms with name %s", len(vms), vmName)
 	}
 
-	if len(res.Entities) == 0 {
+	if len(vms) == 0 {
 		return nil, nil
 	}
 
-	return FindVMByUUID(ctx, client, *res.Entities[0].Metadata.UUID)
+	return FindVMByUUID(ctx, client, *vms[0].ExtId)
 }
 
 // GetPEUUID returns the UUID of the Prism Element cluster with the given name
@@ -539,43 +538,16 @@ func ImageMarkedForDeletion(ctx context.Context, client *v4Converged.Client, ima
 	return len(tasks) > 0, nil
 }
 
-// HasTaskInProgress returns true if the given task is in progress
-func HasTaskInProgress(ctx context.Context, client *prismclientv3.Client, taskUUID string) (bool, error) {
-	log := ctrl.LoggerFrom(ctx)
-	taskStatus, err := nutanixclient.GetTaskStatus(ctx, client, taskUUID)
+func HasDeleteVmTaskInProgress(ctx context.Context, client *v4Converged.Client, vmExtId string) (bool, error) {
+	// Get delete task for the vm
+	fmtString := "entitiesAffected/any(a:a/extId eq '%s') " +
+		"and (status eq Prism.Config.TaskStatus'RUNNING' or status eq Prism.Config.TaskStatus'QUEUED') " +
+		"and (operation eq 'DeleteVm')"
+	tasks, err := client.Tasks.List(ctx, converged.WithFilter(fmt.Sprintf(fmtString, vmExtId)))
 	if err != nil {
 		return false, err
 	}
-	if taskStatus != taskSucceededMessage {
-		log.V(1).Info(fmt.Sprintf("VM task with UUID %s still in progress: %s", taskUUID, taskStatus))
-		return true, nil
-	}
-	return false, nil
-}
-
-// GetTaskUUIDFromVM returns the UUID of the task that created the VM with the given UUID
-func GetTaskUUIDFromVM(vm *prismclientv3.VMIntentResponse) (string, error) {
-	if vm == nil {
-		return "", fmt.Errorf("cannot extract task uuid from empty vm object")
-	}
-	if vm.Status.ExecutionContext == nil {
-		return "", nil
-	}
-	taskInterface := vm.Status.ExecutionContext.TaskUUID
-	vmName := *vm.Spec.Name
-
-	switch t := reflect.TypeOf(taskInterface).Kind(); t {
-	case reflect.Slice:
-		l := taskInterface.([]interface{})
-		if len(l) != 1 {
-			return "", fmt.Errorf("did not find expected amount of task UUIDs for VM %s", vmName)
-		}
-		return l[0].(string), nil
-	case reflect.String:
-		return taskInterface.(string), nil
-	default:
-		return "", fmt.Errorf("invalid type found for task uuid extracted from vm %s: %v", vmName, t)
-	}
+	return len(tasks) > 0, nil
 }
 
 // GetSubnetUUIDList returns a list of subnet UUIDs for the given list of subnet names
@@ -1079,15 +1051,26 @@ func getPrismCentralConvergedV4ClientForCluster(ctx context.Context, cluster *in
 	return client, nil
 }
 
-func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Client, vmName string, vmUUID string, vmDiskList []*prismclientv3.VMDisk) error {
+func isBackedByVolumeGroupReference(disk *vmmconfig.Disk) bool {
+	if disk == nil {
+		return false
+	}
+	backingInfo := disk.GetBackingInfo()
+	if backingInfo == nil {
+		return false
+	}
+
+	_, ok := backingInfo.(vmmconfig.ADSFVolumeGroupReference)
+	return ok
+}
+
+func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Client, vmName string, vmUUID string, vmDiskList []vmmconfig.Disk) error {
 	log := ctrl.LoggerFrom(ctx)
 	volumeGroupsToDetach := make([]string, 0)
 	for _, disk := range vmDiskList {
-		if disk.VolumeGroupReference == nil {
-			continue
+		if isBackedByVolumeGroupReference(&disk) {
+			volumeGroupsToDetach = append(volumeGroupsToDetach, *disk.ExtId)
 		}
-
-		volumeGroupsToDetach = append(volumeGroupsToDetach, *disk.VolumeGroupReference.UUID)
 	}
 
 	// Detach the volume groups from the virtual machine
