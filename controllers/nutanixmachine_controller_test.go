@@ -31,6 +31,7 @@ import (
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+	clustermgmtconfig "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
 	. "github.com/onsi/ginkgo/v2"
@@ -1011,21 +1012,14 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 
 	tt := []struct {
 		name         string
-		fixtures     func(*gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client, *v4Converged.Client)
+		fixtures     func(*gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *v4Converged.Client)
 		wantDisksLen int
 		wantErr      bool
 	}{
 		{
 			name:         "return get disk list",
 			wantDisksLen: 3,
-			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client, *v4Converged.Client) {
-				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
-				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
-
-				prismClient := &prismclientv3.Client{
-					V3: mockV3Service,
-				}
-
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
 				convergedClientMock := NewMockConvergedClient(mockCtrl)
 				convergedClientMock.MockImages.EXPECT().Get(gomock.Any(), *defaultSystemImage.ExtId).Return(defaultSystemImage, nil).MinTimes(1)
 				convergedClientMock.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
@@ -1035,20 +1029,20 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 					}, nil).MinTimes(1)
 				convergedClientMock.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil).MinTimes(1)
 
-				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, prismClient, convergedClientMock.Client
+				convergedClientMock.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return([]clustermgmtconfig.StorageContainer{
+					{
+						ContainerExtId: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+						ClusterExtId:   ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
+					},
+				}, nil)
+
+				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, convergedClientMock.Client
 			},
 		},
 		{
 			name:    "return an error if the bootstrap disk is not found",
 			wantErr: true,
-			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client, *v4Converged.Client) {
-				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
-				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
-
-				prismClient := &prismclientv3.Client{
-					V3: mockV3Service,
-				}
-
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
 				convergedClientMock := NewMockConvergedClient(mockCtrl)
 				convergedClientMock.MockImages.EXPECT().Get(gomock.Any(), *defaultSystemImage.ExtId).Return(defaultSystemImage, nil).MinTimes(1)
 				convergedClientMock.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
@@ -1057,20 +1051,13 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 					}, nil).MinTimes(1)
 				convergedClientMock.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil).MinTimes(1)
 
-				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, prismClient, convergedClientMock.Client
+				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, convergedClientMock.Client
 			},
 		},
 		{
 			name:    "return an error if the system disk is not found",
 			wantErr: true,
-			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client, *v4Converged.Client) {
-				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
-				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
-
-				prismClient := &prismclientv3.Client{
-					V3: mockV3Service,
-				}
-
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
 				errorMessage := `Error getting image: failed to get image: API call failed: {"data":{"error":[{"$reserved":{"$fv":"v4.r1"},"$objectType":"vmm.v4.error.AppMessage","message":"Failed to perform the operation as the backend service could not find the entity.","severity":"ERROR","code":"VMM-20005","locale":"en_US"}],"$reserved":{"$fv":"v4.r1"},"$objectType":"vmm.v4.error.ErrorResponse"},"$reserved":{"$fv":"v4.r1"},"$objectType":"vmm.v4.content.GetImageApiResponse"}`
 				convergedClientMock := NewMockConvergedClient(mockCtrl)
 				convergedClientMock.MockImages.EXPECT().Get(gomock.Any(), *defaultSystemImage.ExtId).Return(
@@ -1078,23 +1065,16 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 					errors.New(errorMessage),
 				).MinTimes(1)
 
-				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, prismClient, convergedClientMock.Client
+				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, convergedClientMock.Client
 			},
 		},
 		{
 			name:    "return an error if the system disk is marked for deletion",
 			wantErr: true,
-			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client, *v4Converged.Client) {
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
 				systemImage := &imageModels.Image{
 					ExtId: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
 					Name:  ptr.To("system_image"),
-				}
-
-				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
-				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
-
-				prismClient := &prismclientv3.Client{
-					V3: mockV3Service,
 				}
 
 				convergedClientMock := NewMockConvergedClient(mockCtrl)
@@ -1116,20 +1096,13 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 					nil,
 				).MinTimes(1)
 
-				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, prismClient, convergedClientMock.Client
+				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, convergedClientMock.Client
 			},
 		},
 		{
 			name:    "return an error if the bootstrap disk is marked for deletion",
 			wantErr: true,
-			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *prismclientv3.Client, *v4Converged.Client) {
-				mockV3Service := mocknutanixv3.NewMockService(mockCtrl)
-				mockV3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil).AnyTimes()
-
-				prismClient := &prismclientv3.Client{
-					V3: mockV3Service,
-				}
-
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
 				convergedClientMock := NewMockConvergedClient(mockCtrl)
 				convergedClientMock.MockImages.EXPECT().Get(gomock.Any(), *defaultSystemImage.ExtId).Return(defaultSystemImage, nil).MinTimes(1)
 				convergedClientMock.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
@@ -1158,7 +1131,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 					nil,
 				).MinTimes(1)
 
-				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, prismClient, convergedClientMock.Client
+				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, convergedClientMock.Client
 			},
 		},
 	}
@@ -1168,14 +1141,13 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
 
-			ntnxMachine, machine, ntnxCluster, prismClient, convergedClient := tc.fixtures(mockCtrl)
+			ntnxMachine, machine, ntnxCluster, convergedClient := tc.fixtures(mockCtrl)
 
 			disks, err := getDiskList(&nctx.MachineContext{
 				Context:         context.Background(),
 				NutanixMachine:  ntnxMachine,
 				Machine:         machine,
 				NutanixCluster:  ntnxCluster,
-				NutanixClient:   prismClient,
 				ConvergedClient: convergedClient,
 			}, *ntnxMachine.Spec.Cluster.UUID)
 
