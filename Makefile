@@ -371,7 +371,9 @@ test-e2e: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the en
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:${IMG_TAG}
 	docker push ${IMG_REPO}:${IMG_TAG}
 	mkdir -p $(ARTIFACTS)
-	NUTANIX_LOG_LEVEL=debug ginkgo -v \
+	NUTANIX_LOG_LEVEL=debug \
+	    DOCKER_HOST=$(DOCKER_SOCKET) \
+	    ginkgo -v \
 		--trace \
 		--tags=e2e \
 		--label-filter=$(LABEL_FILTER_ARGS) \
@@ -396,7 +398,9 @@ test-e2e-no-kubeproxy: docker-build-e2e cluster-e2e-templates-no-kubeproxy clust
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:${IMG_TAG}
 	docker push ${IMG_REPO}:${IMG_TAG}
 	mkdir -p $(ARTIFACTS)
-	NUTANIX_LOG_LEVEL=debug ginkgo -v \
+	NUTANIX_LOG_LEVEL=debug \
+	    DOCKER_HOST=$(DOCKER_SOCKET) \
+	    ginkgo -v \
 		--trace \
 		--tags=e2e \
 		--label-filter=$(LABEL_FILTER_ARGS) \
@@ -495,5 +499,5 @@ clean: ## Clean the build and test artifacts
 ## --------------------------------------
 
 ##@ Test Dev Cluster with and without topology
-include test-cluster-without-topology.mk
-include test-cluster-with-topology.mk
+include make/test-cluster-without-topology.mk
+include make/test-cluster-with-topology.mk
