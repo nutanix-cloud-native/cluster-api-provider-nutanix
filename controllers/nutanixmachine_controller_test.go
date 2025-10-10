@@ -2219,6 +2219,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 
 		// Mock DeleteAsync to return an error
 		mockConvergedClient.MockVMs.EXPECT().DeleteAsync(gomock.Any(), vmUUID).Return(nil, errors.New("converged client error"))
+		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -2310,6 +2311,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		// Mock DeleteAsync to return a task
 		mockConvergedClient.MockVMs.EXPECT().DeleteAsync(gomock.Any(), vmUUID).Return(mockOperation, nil)
 		mockOperation.EXPECT().UUID().Return("task-uuid-123").AnyTimes()
+		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -2399,6 +2401,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 
 		mockConvergedClient.MockVMs.EXPECT().DeleteAsync(gomock.Any(), vmUUID).Return(mockOperation, nil)
 		mockOperation.EXPECT().UUID().Return("task-uuid-123").AnyTimes()
+		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{

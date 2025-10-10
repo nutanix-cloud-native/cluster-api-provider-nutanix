@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -552,28 +551,27 @@ func HasTaskInProgress(ctx context.Context, client *prismclientv3.Client, taskUU
 }
 
 // GetTaskUUIDFromVM returns the UUID of the task that created the VM with the given UUID
-func GetTaskUUIDFromVM(vm *prismclientv3.VMIntentResponse) (string, error) {
-	if vm == nil {
-		return "", fmt.Errorf("cannot extract task uuid from empty vm object")
+func GetTaskUUIDFromVM(ctx context.Context, convergedClient *v4Converged.Client, vmId string) (string, error) {
+	log := ctrl.LoggerFrom(ctx)
+	if vmId == "" {
+		return "", fmt.Errorf("cannot extract task uuid for empty vm id")
 	}
-	if vm.Status.ExecutionContext == nil {
-		return "", nil
-	}
-	taskInterface := vm.Status.ExecutionContext.TaskUUID
-	vmName := *vm.Spec.Name
+	log.V(1).Info(fmt.Sprintf("Getting task uuid for vm %s", vmId))
+	filterString := "entitiesAffected/any(a:a/extId eq '%s'" +
+		"and (status eq Prism.Config.TaskStatus'RUNNING' or status eq Prism.Config.TaskStatus'QUEUED')"
 
-	switch t := reflect.TypeOf(taskInterface).Kind(); t {
-	case reflect.Slice:
-		l := taskInterface.([]interface{})
-		if len(l) != 1 {
-			return "", fmt.Errorf("did not find expected amount of task UUIDs for VM %s", vmName)
-		}
-		return l[0].(string), nil
-	case reflect.String:
-		return taskInterface.(string), nil
-	default:
-		return "", fmt.Errorf("invalid type found for task uuid extracted from vm %s: %v", vmName, t)
+	tasks, err := convergedClient.Tasks.List(ctx, converged.WithFilter(fmt.Sprintf(filterString, vmId)))
+	if err != nil {
+		return "", err
 	}
+
+	log.V(1).Info(fmt.Sprintf("Found %d running or queued tasks for vm %s", len(tasks), vmId))
+	if len(tasks) == 0 {
+		return "", nil // no running tasks found
+	}
+
+	log.V(1).Info(fmt.Sprintf("Returning task uuid %s for vm %s", *tasks[0].ExtId, vmId))
+	return *tasks[0].ExtId, nil
 }
 
 // GetSubnetUUIDList returns a list of subnet UUIDs for the given list of subnet names
