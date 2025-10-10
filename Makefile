@@ -22,6 +22,10 @@ DOCKER_SOCKET = $(shell if [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
                            podman machine inspect --format '{{ .ConnectionInfo.PodmanSocket.Path }}'; \
                         fi)
 
+# Mockgen detection - use system mockgen if available, otherwise use go run
+MOCKGEN = $(shell (command -v mockgen >/dev/null 2>&1 && echo mockgen) || \
+                  echo "go run go.uber.org/mock/mockgen@v0.6.0")
+
 # Function to setup container engine runtime
 define select_container_engine
 	@if [ "$(CONTAINER_ENGINE)" = "none" ]; then \
@@ -362,22 +366,22 @@ prepare-local-clusterctl: manifests cluster-templates  ## Prepare overide file f
 
 .PHONY: mocks
 mocks: ## Generate mocks for the project
-	mockgen -destination=mocks/ctlclient/client_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/client Client
-	mockgen -destination=mocks/ctlclient/manager_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/manager Manager
-	mockgen -destination=mocks/ctlclient/cache_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/cache Cache
-	mockgen -destination=mocks/k8sclient/informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 ConfigMapInformer,SecretInformer
-	mockgen -destination=mocks/k8sclient/lister.go -package=mockk8sclient k8s.io/client-go/listers/core/v1 SecretLister,SecretNamespaceLister
-	mockgen -destination=mocks/k8sapimachinery/interfaces.go -package=mockmeta k8s.io/apimachinery/pkg/api/meta RESTMapper,RESTScope
-	mockgen -destination=mocks/nutanix/v3.go -package=mocknutanixv3 github.com/nutanix-cloud-native/prism-go-client/v3 Service
-	mockgen -destination=mocks/converged/vms.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged VMs
-	mockgen -destination=mocks/converged/operation.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Operation
-	mockgen -destination=mocks/converged/anti_affinity_policies.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged AntiAffinityPolicies
-	mockgen -destination=mocks/converged/clusters.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Clusters
-	mockgen -destination=mocks/converged/categories.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Categories
-	mockgen -destination=mocks/converged/images.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Images
-	mockgen -destination=mocks/converged/storage_containers.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged StorageContainers
-	mockgen -destination=mocks/converged/subnets.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Subnets
-	mockgen -destination=mocks/converged/tasks.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Tasks
+	${MOCKGEN} -destination=mocks/ctlclient/client_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/client Client
+	${MOCKGEN} -destination=mocks/ctlclient/manager_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/manager Manager
+	${MOCKGEN} -destination=mocks/ctlclient/cache_mock.go -package=mockctlclient sigs.k8s.io/controller-runtime/pkg/cache Cache
+	${MOCKGEN} -destination=mocks/k8sclient/informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 ConfigMapInformer,SecretInformer
+	${MOCKGEN} -destination=mocks/k8sclient/lister.go -package=mockk8sclient k8s.io/client-go/listers/core/v1 SecretLister,SecretNamespaceLister
+	${MOCKGEN} -destination=mocks/k8sapimachinery/interfaces.go -package=mockmeta k8s.io/apimachinery/pkg/api/meta RESTMapper,RESTScope
+	${MOCKGEN} -destination=mocks/nutanix/v3.go -package=mocknutanixv3 github.com/nutanix-cloud-native/prism-go-client/v3 Service
+	${MOCKGEN} -destination=mocks/converged/vms.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged VMs
+	${MOCKGEN} -destination=mocks/converged/operation.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Operation
+	${MOCKGEN} -destination=mocks/converged/anti_affinity_policies.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged AntiAffinityPolicies
+	${MOCKGEN} -destination=mocks/converged/clusters.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Clusters
+	${MOCKGEN} -destination=mocks/converged/categories.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Categories
+	${MOCKGEN} -destination=mocks/converged/images.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Images
+	${MOCKGEN} -destination=mocks/converged/storage_containers.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged StorageContainers
+	${MOCKGEN} -destination=mocks/converged/subnets.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Subnets
+	${MOCKGEN} -destination=mocks/converged/tasks.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Tasks
 
 GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
 
