@@ -57,9 +57,6 @@ import (
 
 const (
 	projectKind = "project"
-
-	deviceTypeCDROM = "CDROM"
-	adapterTypeIDE  = "IDE"
 )
 
 var (
@@ -866,14 +863,14 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	}
 	// vm.Gpus = gpuList
 
-	// TODO fix
-	_, err = getDiskList(rctx, peUUID)
+	disks, cdRoms, err := getDiskList(rctx, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the disk list to create the VM %s. %v", vmName, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, err
 	}
-	// vm.Disks = diskList
+	vm.Disks = disks
+	vm.CdRoms = cdRoms
 
 	if err := r.addGuestCustomizationToVM(rctx, vm); err != nil {
 		errorMsg := fmt.Errorf("error occurred while adding guest customization to vm spec: %v", err)
@@ -962,45 +959,47 @@ func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineC
 		userData := vmmconfig.NewUserdata()
 		userData.Value = ptr.To(bsdataEncoded)
 		cloudInit.CloudInitScript = vmmconfig.NewOneOfCloudInitCloudInitScript()
-		cloudInit.CloudInitScript.SetValue(*userData)
+		_ = cloudInit.CloudInitScript.SetValue(*userData)
 
 		vm.GuestCustomization = vmmconfig.NewGuestCustomizationParams()
 		vm.GuestCustomization.Config = vmmconfig.NewOneOfGuestCustomizationParamsConfig()
-		vm.GuestCustomization.Config.SetValue(*cloudInit)
+		_ = vm.GuestCustomization.Config.SetValue(*cloudInit)
 	}
 
 	return nil
 }
 
-func getDiskList(rctx *nctx.MachineContext, peUUID string) ([]*prismclientv3.VMDisk, error) {
-	diskList := make([]*prismclientv3.VMDisk, 0)
+func getDiskList(rctx *nctx.MachineContext, peUUID string) ([]vmmconfig.Disk, []vmmconfig.CdRom, error) {
+	disks := make([]vmmconfig.Disk, 0)
+	cdRoms := make([]vmmconfig.CdRom, 0)
 
 	systemDisk, err := getSystemDisk(rctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	diskList = append(diskList, systemDisk)
+	disks = append(disks, *systemDisk)
 
 	bootstrapRef := rctx.NutanixMachine.Spec.BootstrapRef
 	if bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindImage {
 		bootstrapDisk, err := getBootstrapDisk(rctx)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		diskList = append(diskList, bootstrapDisk)
+		cdRoms = append(cdRoms, *bootstrapDisk)
 	}
 
-	dataDisks, err := getDataDisks(rctx, peUUID)
+	dataDisks, dataCdRoms, err := getDataDisks(rctx, peUUID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	diskList = append(diskList, dataDisks...)
+	disks = append(disks, dataDisks...)
+	cdRoms = append(cdRoms, dataCdRoms...)
 
-	return diskList, nil
+	return disks, cdRoms, nil
 }
 
-func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
+func getSystemDisk(rctx *nctx.MachineContext) (*vmmconfig.Disk, error) {
 	var nodeOSImage *imageModels.Image
 	var err error
 	if rctx.NutanixMachine.Spec.Image != nil {
@@ -1037,8 +1036,8 @@ func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 		return nil, err
 	}
 
-	systemDiskSizeMib := GetMibValueOfQuantity(rctx.NutanixMachine.Spec.SystemDiskSize)
-	systemDisk, err := CreateSystemDiskSpec(*nodeOSImage.ExtId, systemDiskSizeMib)
+	systemDiskSizeInBytes := rctx.NutanixMachine.Spec.SystemDiskSize.Value()
+	systemDisk, err := CreateSystemDiskSpec(*nodeOSImage.ExtId, systemDiskSizeInBytes)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating system disk spec: %w", err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
@@ -1048,7 +1047,7 @@ func getSystemDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
 	return systemDisk, nil
 }
 
-func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) {
+func getBootstrapDisk(rctx *nctx.MachineContext) (*vmmconfig.CdRom, error) {
 	bootstrapImageRef := infrav1.NutanixResourceIdentifier{
 		Type: infrav1.NutanixIdentifierName,
 		Name: ptr.To(rctx.NutanixMachine.Spec.BootstrapRef.Name),
@@ -1073,32 +1072,24 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*prismclientv3.VMDisk, error) 
 		return nil, err
 	}
 
-	bootstrapDisk := &prismclientv3.VMDisk{
-		DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
-			DeviceType: ptr.To(deviceTypeCDROM),
-			DiskAddress: &prismclientv3.DiskAddress{
-				AdapterType: ptr.To(adapterTypeIDE),
-				DeviceIndex: ptr.To(int64(0)),
-			},
-		},
-		DataSourceReference: &prismclientv3.Reference{
-			Kind: ptr.To(strings.ToLower(infrav1.NutanixMachineBootstrapRefKindImage)),
-			UUID: bootstrapImage.ExtId,
-		},
-	}
+	cdRom := vmmconfig.NewCdRom()
+	cdRom.DiskAddress = vmmconfig.NewCdRomAddress()
+	cdRom.DiskAddress.Index = ptr.To(0)
+	cdRom.DiskAddress.BusType = vmmconfig.CDROMBUSTYPE_IDE.Ref()
+	cdRom.BackingInfo = newVmDiskWithImageRef(bootstrapImage.ExtId, 0)
 
-	return bootstrapDisk, nil
+	return cdRom, nil
 }
 
-func getDataDisks(rctx *nctx.MachineContext, peUUID string) ([]*prismclientv3.VMDisk, error) {
-	dataDisks, err := CreateDataDiskList(rctx.Context, rctx.ConvergedClient, rctx.NutanixMachine.Spec.DataDisks, peUUID)
+func getDataDisks(rctx *nctx.MachineContext, peUUID string) ([]vmmconfig.Disk, []vmmconfig.CdRom, error) {
+	dataDisks, dataCdRoms, err := CreateDataDiskList(rctx.Context, rctx.ConvergedClient, rctx.NutanixMachine.Spec.DataDisks, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating data disk spec: %w", err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
-		return nil, err
+		return nil, nil, err
 	}
 
-	return dataDisks, nil
+	return dataDisks, dataCdRoms, nil
 }
 
 // getBootstrapData returns the Bootstrap data from the ref secret
@@ -1241,9 +1232,9 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 		// Only modify VM spec if boot type is UEFI. Otherwise, assume default Legacy mode
 		vm.BootConfig = vmmconfig.NewOneOfVmBootConfig()
 		if bootType == infrav1.NutanixBootTypeUEFI {
-			vm.BootConfig.SetValue(*vmmconfig.NewUefiBoot())
+			_ = vm.BootConfig.SetValue(*vmmconfig.NewUefiBoot())
 		} else {
-			vm.BootConfig.SetValue(*vmmconfig.NewLegacyBoot())
+			_ = vm.BootConfig.SetValue(*vmmconfig.NewLegacyBoot())
 		}
 	}
 

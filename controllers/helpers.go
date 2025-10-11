@@ -51,7 +51,6 @@ import (
 const (
 	providerIdPrefix = "nutanix://"
 
-	taskSucceededMessage = "SUCCEEDED"
 	serviceNamePECluster = "AOS"
 
 	subnetTypeOverlay = "OVERLAY"
@@ -251,29 +250,28 @@ func GetMibValueOfQuantity(quantity resource.Quantity) int64 {
 	return quantity.Value() / (1024 * 1024)
 }
 
-func CreateSystemDiskSpec(imageUUID string, systemDiskSize int64) (*prismclientv3.VMDisk, error) {
+func CreateSystemDiskSpec(imageUUID string, systemDiskSizeInBytes int64) (*vmmconfig.Disk, error) {
 	if imageUUID == "" {
 		return nil, fmt.Errorf("image UUID must be set when creating system disk")
 	}
-	if systemDiskSize <= 0 {
-		return nil, fmt.Errorf("invalid system disk size: %d. Provide in XXGi (for example 70Gi) format instead", systemDiskSize)
+	if systemDiskSizeInBytes <= 0 {
+		return nil, fmt.Errorf("invalid system disk size in bytes: %d. Provide in XXGi (for example 70Gi) format instead", systemDiskSizeInBytes)
 	}
-	systemDisk := &prismclientv3.VMDisk{
-		DataSourceReference: &prismclientv3.Reference{
-			Kind: ptr.To("image"),
-			UUID: ptr.To(imageUUID),
-		},
-		DiskSizeMib: ptr.To(systemDiskSize),
-	}
-	return systemDisk, nil
+
+	disk := vmmconfig.NewDisk()
+	vmDisk := newVmDiskWithImageRef(&imageUUID, systemDiskSizeInBytes)
+	_ = disk.SetBackingInfo(*vmDisk)
+
+	return disk, nil
 }
 
-// CreateDataDiskList creates a list of data disks with the given data disk specs
-func CreateDataDiskList(ctx context.Context, convergedClient *v4Converged.Client, dataDiskSpecs []infrav1.NutanixMachineVMDisk, peUUID string) ([]*prismclientv3.VMDisk, error) {
-	dataDisks := make([]*prismclientv3.VMDisk, 0)
+// CreateDataDiskList creates a list of data disks and cdRoms with the given data disk specs
+func CreateDataDiskList(ctx context.Context, convergedClient *v4Converged.Client, dataDiskSpecs []infrav1.NutanixMachineVMDisk, peUUID string) ([]vmmconfig.Disk, []vmmconfig.CdRom, error) {
+	dataDisks := []vmmconfig.Disk{}
+	dataCdRoms := []vmmconfig.CdRom{}
 
-	latestDeviceIndexByAdapterType := make(map[string]int64)
-	getDeviceIndex := func(adapterType string) int64 {
+	latestDeviceIndexByAdapterType := make(map[string]int)
+	getDeviceIndex := func(adapterType string) int {
 		if latestDeviceIndex, ok := latestDeviceIndexByAdapterType[adapterType]; ok {
 			latestDeviceIndexByAdapterType[adapterType] = latestDeviceIndex + 1
 			return latestDeviceIndex
@@ -289,31 +287,20 @@ func CreateDataDiskList(ctx context.Context, convergedClient *v4Converged.Client
 	}
 
 	for _, dataDiskSpec := range dataDiskSpecs {
-		dataDisk := &prismclientv3.VMDisk{
-			DiskSizeMib: ptr.To(GetMibValueOfQuantity(dataDiskSpec.DiskSize)),
+		vmDisk := vmmconfig.NewVmDisk()
+		vmDisk.DiskSizeBytes = ptr.To(int64(dataDiskSpec.DiskSize.Value()))
+
+		err := addDataSourceImageRefToVmDisk(ctx, convergedClient, vmDisk, dataDiskSpec.DataSource)
+		if err != nil {
+			return nil, nil, err
 		}
 
-		// If data source is provided, get the image UUID
-		if dataDiskSpec.DataSource != nil {
-			image, err := GetImage(ctx, convergedClient, infrav1.NutanixResourceIdentifier{
-				UUID: dataDiskSpec.DataSource.UUID,
-				Type: infrav1.NutanixIdentifierUUID,
-			})
-			if err != nil {
-				return nil, err
-			}
-
-			imageUUID := *image.ExtId
-
-			dataSourceReference := &prismclientv3.Reference{
-				Kind: ptr.To("image"),
-				UUID: ptr.To(imageUUID),
-			}
-
-			dataDisk.DataSourceReference = dataSourceReference
+		err = addStorageConfigAndContainerToVmDisk(ctx, convergedClient, vmDisk, dataDiskSpec.StorageConfig, peUUID)
+		if err != nil {
+			return nil, nil, err
 		}
 
-		// Set deault values for device type and adapter type
+		// Set default values for device type and adapter type
 		deviceType := infrav1.NutanixMachineDiskDeviceTypeDisk
 		adapterType := infrav1.NutanixMachineDiskAdapterTypeSCSI
 
@@ -323,53 +310,128 @@ func CreateDataDiskList(ctx context.Context, convergedClient *v4Converged.Client
 			adapterType = dataDiskSpec.DeviceProperties.AdapterType
 		}
 
-		// Set device properties
-		deviceProperties := &prismclientv3.VMDiskDeviceProperties{
-			DeviceType: ptr.To(strings.ToUpper(string(deviceType))),
-			DiskAddress: &prismclientv3.DiskAddress{
-				AdapterType: ptr.To(strings.ToUpper(string(adapterType))),
-				DeviceIndex: ptr.To(getDeviceIndex(string(adapterType))),
-			},
-		}
-
+		deviceIndex := getDeviceIndex(string(adapterType))
 		if dataDiskSpec.DeviceProperties != nil && dataDiskSpec.DeviceProperties.DeviceIndex != 0 {
-			deviceProperties.DiskAddress.DeviceIndex = ptr.To(int64(dataDiskSpec.DeviceProperties.DeviceIndex))
+			deviceIndex = int(dataDiskSpec.DeviceProperties.DeviceIndex)
 		}
 
-		dataDisk.DeviceProperties = deviceProperties
+		// Set device properties
+		switch deviceType {
+		case infrav1.NutanixMachineDiskDeviceTypeDisk:
+			disk := vmmconfig.NewDisk()
+			disk.DiskAddress = vmmconfig.NewDiskAddress()
 
-		if dataDiskSpec.StorageConfig != nil {
-			storageConfig := &prismclientv3.VMStorageConfig{}
+			disk.DiskAddress.Index = ptr.To(deviceIndex)
+			disk.DiskAddress.BusType = adapterTypeToDiskBusType(adapterType)
+			_ = disk.SetBackingInfo(*vmDisk)
 
-			flashMode := "DISABLED"
-			if dataDiskSpec.StorageConfig.DiskMode == infrav1.NutanixMachineDiskModeFlash {
-				flashMode = "ENABLED"
-			}
+			dataDisks = append(dataDisks, *disk)
+		case infrav1.NutanixMachineDiskDeviceTypeCDRom:
+			cdRom := vmmconfig.NewCdRom()
+			cdRom.DiskAddress = vmmconfig.NewCdRomAddress()
 
-			storageConfig.FlashMode = flashMode
+			cdRom.DiskAddress.Index = ptr.To(deviceIndex)
+			cdRom.DiskAddress.BusType = adapterTypeToCdRomBusType(adapterType)
+			cdRom.BackingInfo = vmDisk
 
-			if dataDiskSpec.StorageConfig.StorageContainer != nil {
-				peID := infrav1.NutanixResourceIdentifier{
-					UUID: &peUUID,
-					Type: infrav1.NutanixIdentifierUUID,
-				}
-				sc, err := GetStorageContainerInCluster(ctx, convergedClient, *dataDiskSpec.StorageConfig.StorageContainer, peID)
-				if err != nil {
-					return nil, err
-				}
-
-				storageConfig.StorageContainerReference = &prismclientv3.StorageContainerReference{
-					Kind: "storage_container",
-					UUID: *sc.ContainerExtId,
-				}
-			}
-
-			dataDisk.StorageConfig = storageConfig
+			dataCdRoms = append(dataCdRoms, *cdRom)
+		default:
+			return nil, nil, fmt.Errorf("invalid NutanixMachineDiskDeviceType to create data disks")
 		}
-
-		dataDisks = append(dataDisks, dataDisk)
 	}
-	return dataDisks, nil
+
+	return dataDisks, dataCdRoms, nil
+}
+
+func addDataSourceImageRefToVmDisk(ctx context.Context, convergedClient *v4Converged.Client, vmDisk *vmmconfig.VmDisk, dataSource *infrav1.NutanixResourceIdentifier) error {
+	if dataSource == nil {
+		return nil
+	}
+
+	image, err := GetImage(ctx, convergedClient, infrav1.NutanixResourceIdentifier{
+		UUID: dataSource.UUID,
+		Type: infrav1.NutanixIdentifierUUID,
+	})
+	if err != nil {
+		return err
+	}
+
+	vmDisk.DataSource = vmmconfig.NewDataSource()
+	imageRef := vmmconfig.NewImageReference()
+	imageRef.ImageExtId = image.ExtId
+	_ = vmDisk.DataSource.SetReference(*imageRef)
+
+	return nil
+}
+
+func addStorageConfigAndContainerToVmDisk(ctx context.Context, convergedClient *v4Converged.Client, vmDisk *vmmconfig.VmDisk, storageConfig *infrav1.NutanixMachineVMStorageConfig, peUUID string) error {
+	if storageConfig == nil {
+		return nil
+	}
+
+	vmDisk.StorageConfig = vmmconfig.NewVmDiskStorageConfig()
+
+	flashModeEnabled := storageConfig.DiskMode == infrav1.NutanixMachineDiskModeFlash
+	vmDisk.StorageConfig.IsFlashModeEnabled = ptr.To(flashModeEnabled)
+
+	if storageConfig.StorageContainer != nil {
+		peID := infrav1.NutanixResourceIdentifier{
+			UUID: &peUUID,
+			Type: infrav1.NutanixIdentifierUUID,
+		}
+		sc, err := GetStorageContainerInCluster(ctx, convergedClient, *storageConfig.StorageContainer, peID)
+		if err != nil {
+			return err
+		}
+
+		vmDisk.StorageContainer = vmmconfig.NewVmDiskContainerReference()
+		vmDisk.StorageContainer.ExtId = sc.ContainerExtId
+	}
+
+	return nil
+}
+
+func newVmDiskWithImageRef(dataSourceImageExtId *string, diskSizeInBytes int64) *vmmconfig.VmDisk {
+	vmDisk := vmmconfig.NewVmDisk()
+
+	if diskSizeInBytes > 0 {
+		vmDisk.DiskSizeBytes = ptr.To(diskSizeInBytes)
+	}
+
+	if dataSourceImageExtId != nil {
+		vmDisk.DataSource = vmmconfig.NewDataSource()
+		imageRef := vmmconfig.NewImageReference()
+		imageRef.ImageExtId = dataSourceImageExtId
+		_ = vmDisk.DataSource.SetReference(*imageRef)
+	}
+
+	return vmDisk
+}
+
+func adapterTypeToDiskBusType(adapterType infrav1.NutanixMachineDiskAdapterType) *vmmconfig.DiskBusType {
+	switch adapterType {
+	case infrav1.NutanixMachineDiskAdapterTypeSCSI:
+		return vmmconfig.DISKBUSTYPE_SCSI.Ref()
+	case infrav1.NutanixMachineDiskAdapterTypeIDE:
+		return vmmconfig.DISKBUSTYPE_IDE.Ref()
+	case infrav1.NutanixMachineDiskAdapterTypePCI:
+		return vmmconfig.DISKBUSTYPE_PCI.Ref()
+	case infrav1.NutanixMachineDiskAdapterTypeSATA:
+		return vmmconfig.DISKBUSTYPE_SATA.Ref()
+	default:
+		return vmmconfig.DISKBUSTYPE_UNKNOWN.Ref()
+	}
+}
+
+func adapterTypeToCdRomBusType(adapterType infrav1.NutanixMachineDiskAdapterType) *vmmconfig.CdRomBusType {
+	switch adapterType {
+	case infrav1.NutanixMachineDiskAdapterTypeIDE:
+		return vmmconfig.CDROMBUSTYPE_IDE.Ref()
+	case infrav1.NutanixMachineDiskAdapterTypeSATA:
+		return vmmconfig.CDROMBUSTYPE_SATA.Ref()
+	default:
+		return vmmconfig.CDROMBUSTYPE_UNKNOWN.Ref()
+	}
 }
 
 // GetSubnetUUID returns the UUID of the subnet with the given name
