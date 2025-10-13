@@ -105,7 +105,7 @@ func FindVMByUUID(ctx context.Context, client *v4Converged.Client, uuid string) 
 
 	response, err := client.VMs.Get(ctx, uuid)
 	if err != nil {
-		if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
+		if strings.Contains(fmt.Sprint(err), "VM_NOT_FOUND") {
 			log.V(1).Info(fmt.Sprintf("vm with uuid %s does not exist.", uuid))
 			return nil, nil
 		} else {
