@@ -557,8 +557,8 @@ func GetTaskUUIDFromVM(ctx context.Context, convergedClient *v4Converged.Client,
 		return "", fmt.Errorf("cannot extract task uuid for empty vm id")
 	}
 	log.V(1).Info(fmt.Sprintf("Getting task uuid for vm %s", vmId))
-	filterString := "entitiesAffected/any(a:a/extId eq '%s'" +
-		"and (status eq Prism.Config.TaskStatus'RUNNING' or status eq Prism.Config.TaskStatus'QUEUED')"
+	filterString := "entitiesAffected/any(a:a/extId eq '%s') " +
+		" and (status eq Prism.Config.TaskStatus'RUNNING' or status eq Prism.Config.TaskStatus'QUEUED')"
 
 	tasks, err := convergedClient.Tasks.List(ctx, converged.WithFilter(fmt.Sprintf(filterString, vmId)))
 	if err != nil {
