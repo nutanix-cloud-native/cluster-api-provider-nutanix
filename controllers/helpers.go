@@ -633,23 +633,19 @@ func GetOrCreateCategories(ctx context.Context, client *v4Converged.Client, cate
 	return categories, nil
 }
 
-func getCategoryValue(ctx context.Context, client *v4Converged.Client, key, value string) (*prismModels.Category, error) {
-	categoryValue, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s' and value eq '%s'", key, value)))
+func getCategory(ctx context.Context, client *v4Converged.Client, key, value string) (*prismModels.Category, error) {
+	categories, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s' and value eq '%s'", key, value)))
 	if err != nil {
-		if !strings.Contains(fmt.Sprint(err), "CATEGORY_NAME_VALUE_MISMATCH") {
-			return nil, fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
-		} else {
-			return nil, nil
-		}
+		return nil, fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
 	}
-	if len(categoryValue) == 0 {
+	if len(categories) == 0 {
 		return nil, nil
 	}
-	return &categoryValue[0], nil
+	return &categories[0], nil
 }
 
-func deleteCategoryValue(ctx context.Context, client *v4Converged.Client, key, value string) error {
-	categoryValue, err := getCategoryValue(ctx, client, key, value)
+func deleteCategory(ctx context.Context, client *v4Converged.Client, key, value string) error {
+	categoryValue, err := getCategory(ctx, client, key, value)
 	if err != nil {
 		return fmt.Errorf("failed to delete category value %s in category %s. error: %v", value, key, err)
 	}
@@ -676,7 +672,7 @@ func deleteCategoryKeyValues(ctx context.Context, client *v4Converged.Client, ca
 
 	for key, values := range groupCategoriesByKey {
 		for _, value := range values {
-			categoryValue, err := getCategoryValue(ctx, client, key, value)
+			categoryValue, err := getCategory(ctx, client, key, value)
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
 				log.Error(errorMsg, "failed to retrieve category value")
@@ -687,7 +683,7 @@ func deleteCategoryKeyValues(ctx context.Context, client *v4Converged.Client, ca
 				continue
 			}
 
-			err = deleteCategoryValue(ctx, client, key, value)
+			err = deleteCategory(ctx, client, key, value)
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to delete category value with key:value %s:%s. error: %v", key, value, err)
 				log.Error(errorMsg, "failed to delete category value")
@@ -728,7 +724,7 @@ func getOrCreateCategory(ctx context.Context, client *v4Converged.Client, catego
 		return nil, fmt.Errorf("category identifier key must be set when when getting or creating categories")
 	}
 	log.V(1).Info(fmt.Sprintf("Checking existence of category with key %s and value %s", categoryIdentifier.Key, categoryIdentifier.Value))
-	categoryObject, err := getCategoryValue(ctx, client, categoryIdentifier.Key, categoryIdentifier.Value)
+	categoryObject, err := getCategory(ctx, client, categoryIdentifier.Key, categoryIdentifier.Value)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", categoryIdentifier.Key, err)
 		log.Error(errorMsg, "failed to retrieve category")
@@ -763,7 +759,7 @@ func GetCategoryVMSpec(
 		if ci == nil {
 			return nil, fmt.Errorf("category identifier cannot be nil")
 		}
-		categoryValue, err := getCategoryValue(ctx, client, ci.Key, ci.Value)
+		categoryValue, err := getCategory(ctx, client, ci.Key, ci.Value)
 		if err != nil {
 			errorMsg := fmt.Errorf("error occurred while to retrieving category value %s in category %s. error: %v", ci.Value, ci.Key, err)
 			log.Error(errorMsg, "failed to retrieve category")
