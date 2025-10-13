@@ -28,7 +28,6 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	mockconverged "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/converged"
 	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
-	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	converged "github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
@@ -1589,102 +1588,6 @@ func TestGetOrCreateCategories_Create(t *testing.T) {
 	require.Len(t, got, 1)
 }
 
-func TestGetStorageContainerByNtnxResourceIdentifier(t *testing.T) {
-	mockctl := gomock.NewController(t)
-
-	tests := []struct {
-		name         string
-		mockBuilder  func() *prismclientv3.Client
-		id           infrav1.NutanixResourceIdentifier
-		want         *StorageContainerIntentResponse
-		wantErr      bool
-		errorMessage string
-	}{
-		{
-			name: "GetStorageContainerByNtnxResourceIdentifier succeeds with ID UUID",
-			mockBuilder: func() *prismclientv3.Client {
-				mockPrismv3Service := mocknutanixv3.NewMockService(mockctl)
-				mockPrismv3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil)
-				return &prismclientv3.Client{V3: mockPrismv3Service}
-			},
-			id: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
-			},
-			want: &StorageContainerIntentResponse{
-				Name:        ptr.To("default-container-82941575027230"),
-				ClusterUUID: ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
-				ClusterName: ptr.To("pe_cluster"),
-				UUID:        ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
-			},
-			wantErr:      false,
-			errorMessage: "",
-		},
-		{
-			name: "GetStorageContainerByNtnxResourceIdentifier succeeds with ID Name",
-			mockBuilder: func() *prismclientv3.Client {
-				mockPrismv3Service := mocknutanixv3.NewMockService(mockctl)
-				mockPrismv3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil)
-				return &prismclientv3.Client{V3: mockPrismv3Service}
-			},
-			id: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("default-container-82941575027230"),
-			},
-			want: &StorageContainerIntentResponse{
-				Name:        ptr.To("default-container-82941575027230"),
-				ClusterUUID: ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
-				ClusterName: ptr.To("pe_cluster"),
-				UUID:        ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
-			},
-			wantErr:      false,
-			errorMessage: "",
-		},
-		{
-			name: "GetStorageContainerByNtnxResourceIdentifier fails",
-			mockBuilder: func() *prismclientv3.Client {
-				mockPrismv3Service := mocknutanixv3.NewMockService(mockctl)
-				mockPrismv3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(nil, errors.New("fake error"))
-				return &prismclientv3.Client{V3: mockPrismv3Service}
-			},
-			id: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
-			},
-			want:         nil,
-			wantErr:      true,
-			errorMessage: "fake error",
-		},
-		{
-			name: "GetStorageContainerByNtnxResourceIdentifier fails with empty response with ID UUID",
-			mockBuilder: func() *prismclientv3.Client {
-				mockPrismv3Service := mocknutanixv3.NewMockService(mockctl)
-				mockPrismv3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil)
-				return &prismclientv3.Client{V3: mockPrismv3Service}
-			},
-			id: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("01010101-0101-0101-0101-010101010101"),
-			},
-			want:         nil,
-			wantErr:      true,
-			errorMessage: "failed to find storage container",
-		},
-		{
-			name: "GetStorageContainerByNtnxResourceIdentifier fails with empty response with ID Name",
-			mockBuilder: func() *prismclientv3.Client {
-				mockPrismv3Service := mocknutanixv3.NewMockService(mockctl)
-				mockPrismv3Service.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Return(defaultStorageContainerGroupsEntities(), nil)
-				return &prismclientv3.Client{V3: mockPrismv3Service}
-			},
-			id: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("non-existing-name"),
-			},
-			want:         nil,
-			wantErr:      true,
-			errorMessage: "failed to find storage container",
-		},
 func TestGetStorageContainerInCluster(t *testing.T) {
 	storageContainers := []clusterModels.StorageContainer{
 		{
