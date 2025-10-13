@@ -861,6 +861,7 @@ func TestCreateDataDiskList(t *testing.T) {
 				imageRef.ImageExtId = ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479")
 				vmDisk.DataSource = vmmModels.NewDataSource()
 				_ = vmDisk.DataSource.SetReference(*imageRef)
+				vmDisk.DataSource.ReferenceItemDiscriminator_ = nil
 
 				vmDisk.StorageConfig = vmmModels.NewVmDiskStorageConfig()
 				vmDisk.StorageConfig.IsFlashModeEnabled = ptr.To(false)

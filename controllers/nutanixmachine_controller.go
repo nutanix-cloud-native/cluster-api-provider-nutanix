@@ -798,6 +798,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	}
 
 	vm := &vmmconfig.Vm{
+		Name:                  &vmName,
 		MemorySizeBytes:       ptr.To(rctx.NutanixMachine.Spec.MemorySize.Value()),
 		NumCoresPerSocket:     ptr.To(int(rctx.NutanixMachine.Spec.VCPUsPerSocket)),
 		NumSockets:            ptr.To(int(rctx.NutanixMachine.Spec.VCPUSockets)),
@@ -818,13 +819,10 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	// Set Nics
 	nics := make([]vmmconfig.Nic, len(subnetUUIDs))
 	for idx, subnetUUID := range subnetUUIDs {
-		subnetReference := vmmconfig.NewSubnetReference()
-		subnetReference.ExtId = &subnetUUID
-		vmNicNetworkInfo := vmmconfig.NewNicNetworkInfo()
-		vmNicNetworkInfo.Subnet = subnetReference
-
 		vmNic := vmmconfig.NewNic()
-		vmNic.NetworkInfo = vmNicNetworkInfo
+		vmNic.NetworkInfo = vmmconfig.NewNicNetworkInfo()
+		vmNic.NetworkInfo.Subnet = vmmconfig.NewSubnetReference()
+		vmNic.NetworkInfo.Subnet.ExtId = &subnetUUID
 		nics[idx] = *vmNic
 	}
 	vm.Nics = nics
@@ -955,15 +953,19 @@ func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineC
 
 		cloudInit := vmmconfig.NewCloudInit()
 		cloudInit.Metadata = ptr.To(metadataEncoded)
-
 		userData := vmmconfig.NewUserdata()
 		userData.Value = ptr.To(bsdataEncoded)
-		cloudInit.CloudInitScript = vmmconfig.NewOneOfCloudInitCloudInitScript()
-		_ = cloudInit.CloudInitScript.SetValue(*userData)
+		err = cloudInit.SetCloudInitScript(*userData)
+		if err != nil {
+			return err
+		}
+		cloudInit.CloudInitScriptItemDiscriminator_ = nil
 
 		vm.GuestCustomization = vmmconfig.NewGuestCustomizationParams()
-		vm.GuestCustomization.Config = vmmconfig.NewOneOfGuestCustomizationParamsConfig()
-		_ = vm.GuestCustomization.Config.SetValue(*cloudInit)
+		err = vm.GuestCustomization.SetConfig(*cloudInit)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -1155,25 +1157,12 @@ func getIpsFromIpv4Info(config *vmmconfig.Ipv4Info) []capiv1.MachineAddress {
 func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
 	addresses := []capiv1.MachineAddress{}
 	for _, nic := range vm.Nics {
-		if nic.NicNetworkInfo == nil {
-			continue
-		}
-		backedNicNetworkInfo := nic.NicNetworkInfo.GetValue()
-		if backedNicNetworkInfo == nil {
+		if nic.NetworkInfo == nil {
 			continue
 		}
 
-		var ipv4Info *vmmconfig.Ipv4Info
-		var ipv4Config *vmmconfig.Ipv4Config
-		switch v := backedNicNetworkInfo.(type) {
-		case vmmconfig.VirtualEthernetNicNetworkInfo:
-			ipv4Info = v.Ipv4Info
-			ipv4Config = v.Ipv4Config
-		case vmmconfig.DpOffloadNicNetworkInfo:
-			ipv4Info = v.Ipv4Info
-			ipv4Config = v.Ipv4Config
-		}
-
+		ipv4Config := nic.NetworkInfo.Ipv4Config
+		ipv4Info := nic.NetworkInfo.Ipv4Info
 		if ipv4Config != nil && ipv4Config.IpAddress != nil && ipv4Config.IpAddress.Value != nil {
 			addresses = append(addresses, capiv1.MachineAddress{
 				Type:    capiv1.MachineInternalIP,
@@ -1229,12 +1218,24 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 			return errorMsg
 		}
 
+		bootOrder := []vmmconfig.BootDeviceType{vmmconfig.BOOTDEVICETYPE_CDROM, vmmconfig.BOOTDEVICETYPE_DISK, vmmconfig.BOOTDEVICETYPE_NETWORK}
+
 		// Only modify VM spec if boot type is UEFI. Otherwise, assume default Legacy mode
 		vm.BootConfig = vmmconfig.NewOneOfVmBootConfig()
 		if bootType == infrav1.NutanixBootTypeUEFI {
-			_ = vm.BootConfig.SetValue(*vmmconfig.NewUefiBoot())
+			uefi := vmmconfig.NewUefiBoot()
+			uefi.BootOrder = bootOrder
+			err := vm.BootConfig.SetValue(*uefi)
+			if err != nil {
+				return err
+			}
 		} else {
-			_ = vm.BootConfig.SetValue(*vmmconfig.NewLegacyBoot())
+			legacy := vmmconfig.NewLegacyBoot()
+			legacy.BootOrder = bootOrder
+			err := vm.BootConfig.SetValue(*legacy)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

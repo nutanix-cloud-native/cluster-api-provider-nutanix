@@ -259,8 +259,13 @@ func CreateSystemDiskSpec(imageUUID string, systemDiskSizeInBytes int64) (*vmmco
 	}
 
 	disk := vmmconfig.NewDisk()
-	vmDisk := newVmDiskWithImageRef(&imageUUID, systemDiskSizeInBytes)
-	_ = disk.SetBackingInfo(*vmDisk)
+	disk.DiskAddress = vmmconfig.NewDiskAddress()
+	disk.DiskAddress.Index = ptr.To(0)
+	disk.DiskAddress.BusType = vmmconfig.DISKBUSTYPE_SCSI.Ref()
+	err := disk.SetBackingInfo(*newVmDiskWithImageRef(&imageUUID, systemDiskSizeInBytes))
+	if err != nil {
+		return nil, err
+	}
 
 	return disk, nil
 }
@@ -320,16 +325,17 @@ func CreateDataDiskList(ctx context.Context, convergedClient *v4Converged.Client
 		case infrav1.NutanixMachineDiskDeviceTypeDisk:
 			disk := vmmconfig.NewDisk()
 			disk.DiskAddress = vmmconfig.NewDiskAddress()
-
 			disk.DiskAddress.Index = ptr.To(deviceIndex)
 			disk.DiskAddress.BusType = adapterTypeToDiskBusType(adapterType)
-			_ = disk.SetBackingInfo(*vmDisk)
+			err = disk.SetBackingInfo(*vmDisk)
+			if err != nil {
+				return nil, nil, err
+			}
 
 			dataDisks = append(dataDisks, *disk)
 		case infrav1.NutanixMachineDiskDeviceTypeCDRom:
 			cdRom := vmmconfig.NewCdRom()
 			cdRom.DiskAddress = vmmconfig.NewCdRomAddress()
-
 			cdRom.DiskAddress.Index = ptr.To(deviceIndex)
 			cdRom.DiskAddress.BusType = adapterTypeToCdRomBusType(adapterType)
 			cdRom.BackingInfo = vmDisk
@@ -359,7 +365,11 @@ func addDataSourceImageRefToVmDisk(ctx context.Context, convergedClient *v4Conve
 	vmDisk.DataSource = vmmconfig.NewDataSource()
 	imageRef := vmmconfig.NewImageReference()
 	imageRef.ImageExtId = image.ExtId
-	_ = vmDisk.DataSource.SetReference(*imageRef)
+	err = vmDisk.DataSource.SetReference(*imageRef)
+	if err != nil {
+		return err
+	}
+	vmDisk.DataSource.ReferenceItemDiscriminator_ = nil
 
 	return nil
 }
@@ -403,6 +413,7 @@ func newVmDiskWithImageRef(dataSourceImageExtId *string, diskSizeInBytes int64) 
 		imageRef := vmmconfig.NewImageReference()
 		imageRef.ImageExtId = dataSourceImageExtId
 		_ = vmDisk.DataSource.SetReference(*imageRef)
+		vmDisk.DataSource.ReferenceItemDiscriminator_ = nil
 	}
 
 	return vmDisk
