@@ -600,31 +600,16 @@ func (t testHelper) getVariableFromE2eConfig(variableKey string) string {
 }
 
 func (t testHelper) getDefaultStorageContainerNameAndUuid(ctx context.Context) (string, string, error) {
-	scName := ""
-	scUUID := ""
+	peName := t.getVariableFromE2eConfig(clusterVarKey)
 
-	scResponse, err := controllers.ListStorageContainers(ctx, t.nutanixClient)
+	scResponse, err := t.convergedClient.StorageContainers.List(ctx, converged.WithFilter(fmt.Sprintf("clusterName eq '%s'", peName)))
 	if err != nil {
 		return "", "", err
 	}
 
-	if len(scResponse) == 0 {
-		return "", "", fmt.Errorf("no storage containers found")
-	}
-
-	peName := t.getVariableFromE2eConfig(clusterVarKey)
-
 	for _, sc := range scResponse {
-		if strings.Contains(*sc.Name, "default") && strings.EqualFold(*sc.ClusterName, peName) {
-			if sc.Name != nil {
-				scName = *sc.Name
-			}
-
-			if sc.UUID != nil {
-				scUUID = *sc.UUID
-			}
-
-			return scName, scUUID, nil
+		if sc.Name != nil && sc.ContainerExtId != nil && strings.Contains(*sc.Name, "default") {
+			return *sc.Name, *sc.ContainerExtId, nil
 		}
 	}
 
