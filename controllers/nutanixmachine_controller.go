@@ -953,6 +953,7 @@ func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineC
 
 		cloudInit := vmmconfig.NewCloudInit()
 		cloudInit.Metadata = ptr.To(metadataEncoded)
+		cloudInit.DatasourceType = vmmconfig.CLOUDINITDATASOURCETYPE_CONFIG_DRIVE_V2.Ref()
 		userData := vmmconfig.NewUserdata()
 		userData.Value = ptr.To(bsdataEncoded)
 		err = cloudInit.SetCloudInitScript(*userData)

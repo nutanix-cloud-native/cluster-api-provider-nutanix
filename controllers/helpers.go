@@ -259,9 +259,6 @@ func CreateSystemDiskSpec(imageUUID string, systemDiskSizeInBytes int64) (*vmmco
 	}
 
 	disk := vmmconfig.NewDisk()
-	disk.DiskAddress = vmmconfig.NewDiskAddress()
-	disk.DiskAddress.Index = ptr.To(0)
-	disk.DiskAddress.BusType = vmmconfig.DISKBUSTYPE_SCSI.Ref()
 	err := disk.SetBackingInfo(*newVmDiskWithImageRef(&imageUUID, systemDiskSizeInBytes))
 	if err != nil {
 		return nil, err
