@@ -2448,6 +2448,6 @@ metadata:
   labels:
     provider.cluster.x-k8s.io/name: nutanix
     provider.cluster.x-k8s.io/type: infrastructure
-    provider.cluster.x-k8s.io/version: v1.7.0
+    provider.cluster.x-k8s.io/version: v1.7.2
   name: nutanix
   namespace: openshift-cluster-api

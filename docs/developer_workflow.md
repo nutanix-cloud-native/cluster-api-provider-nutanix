@@ -14,7 +14,7 @@ NOTE: The first time you `cd` into the directory, the required dependencies for 
 1. Download source code:
 
     ```shell
-    git clone https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix.git
+    gh repo clone nutanix-cloud-native/cluster-api-provider-nutanix
     cd cluster-api-provider-nutanix
     ```
 
@@ -41,15 +41,7 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
 
 ## Prepare local clusterctl
 
-1. Make a copy of the [clusterctl](https://cluster-api.sigs.k8s.io/clusterctl/overview) configuration file:
-
-    ```shell
-    cp -n clusterctl.yaml.tmpl clusterctl.yaml
-    ```
-
-1. Update `./clusterctl.yaml` with appropriate configuration.
-
-1. Setup `clusterctl` with the configuration:
+1. Setup `clusterctl` with the configuration to ensure local clusterctl uses the development version of the provider:
 
     ```shell
     make prepare-local-clusterctl
@@ -69,7 +61,37 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
     kubectl get pods -n capx-system
     ```
 
-## Create a test workload cluster without topology
+## Create a regular test workload cluster (i.e. without clusterclass topology)
+
+1. Set the required environment variables:
+
+    ```shell
+    export EXP_CLUSTER_RESOURCE_SET=true
+    export EXP_CLUSTER_TOPOLOGY=true
+    export DOCKER_POD_IPV6_CIDRS="fc00::/112"
+    export WORKER_MACHINE_COUNT="2"
+   
+    export CONTROL_PLANE_ENDPOINT_IP='10.0.0.1'
+    export NUTANIX_STORAGE_CONTAINER=storage-container
+    export NUTANIX_ADDITIONAL_CATEGORY_KEY="AppType"
+    export NUTANIX_ADDITIONAL_CATEGORY_VALUE="Kubernetes"
+    export NUTANIX_PROJECT_NAME="test-project"
+    export NUTANIX_PRISM_ELEMENT_CLUSTER_NAME='prism-element-name'
+    export NUTANIX_SUBNET_NAME="subnet-name"
+    export LOCAL_IMAGE_REGISTRY="your.registry.uri"
+    
+    export NUTANIX_ENDPOINT='pc.nutanix.com'
+    export NUTANIX_USER='username'
+    export NUTANIX_PASSWORD='password'
+    export NUTANIX_INSECURE='false'
+    export NUTANIX_PORT='9440'
+    
+    
+    export KUBERNETES_VERSION="v1.33.0"
+    export NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME="image-name-on-prism-central"
+    
+    export NUTANIX_SSH_AUTHORIZED_KEY='your-ssh-key'
+    ```
 
 1. Create a workload cluster:
 
@@ -77,24 +99,36 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
     make test-cluster-create
     ```
 
-   Optionally, to use a unique cluster name:
+   Optionally, to use a different cluster name:
 
     ```shell
     make test-cluster-create TEST_CLUSTER_NAME=<>
     ```
 
-1. Get the workload cluster kubeconfig. This will write out the kubeconfig file in the local directory as `<cluster-name>.workload.kubeconfig`:
+1. (Optional) Get the workload cluster kubeconfig. This will write out the kubeconfig file in the local directory as `<cluster-name>.workload.kubeconfig`:
 
     ```shell
-    make test-kubectl-workload 
+    make generate-cluster-kubeconfig
     ```
 
-   When using a unique cluster name set `TEST_CLUSTER_NAME` variable:
+   When using a different cluster name set `TEST_CLUSTER_NAME` variable:
 
     ```shell
-    make test-kubectl-workload TEST_CLUSTER_NAME=<>
+    make generate-cluster-kubeconfig TEST_CLUSTER_NAME=<>
     ```
 
+1. Install a CNI on the workload cluster:
+
+    ```shell
+    make test-cluster-install-cni
+    ```
+
+   When using a different cluster name set `TEST_CLUSTER_NAME` variable:
+
+    ```shell
+    make test-cluster-install-cni TEST_CLUSTER_NAME=<>
+    ```
+   
 ## Create a test workload cluster with topology
 
 1. Create a workload cluster:
@@ -103,7 +137,7 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
     make test-cc-cluster-create
     ```
 
-   Optionally, to use a unique cluster name:
+   Optionally, to use a different cluster name:
 
     ```shell
     make test-cc-cluster-create TEST_TOPOLOGY_CLUSTER_NAME=<>
@@ -180,3 +214,43 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
     ```shell
     make kind-delete
     ```
+   
+## Running E2E tests
+1. Set the required environment variables
+
+    ```shell
+    export EXP_CLUSTER_RESOURCE_SET=true
+    export EXP_CLUSTER_TOPOLOGY=true
+    export DOCKER_POD_IPV6_CIDRS="fc00::/112"
+    export WORKER_MACHINE_COUNT="2"
+   
+    export CONTROL_PLANE_ENDPOINT_IP='10.0.0.1'
+    export NUTANIX_STORAGE_CONTAINER=storage-container
+    export NUTANIX_ADDITIONAL_CATEGORY_KEY="AppType"
+    export NUTANIX_ADDITIONAL_CATEGORY_VALUE="Kubernetes"
+    export NUTANIX_PROJECT_NAME="test-project"
+    export NUTANIX_PRISM_ELEMENT_CLUSTER_NAME='prism-element-name'
+    export NUTANIX_SUBNET_NAME="subnet-name"
+    export LOCAL_IMAGE_REGISTRY="your.registry.uri"
+    
+    export NUTANIX_ENDPOINT='pc.nutanix.com'
+    export NUTANIX_USER='username'
+    export NUTANIX_PASSWORD='password'
+    export NUTANIX_INSECURE='false'
+    export NUTANIX_PORT='9440'
+    
+    
+    export KUBERNETES_VERSION="v1.33.0"
+    export NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME="image-name-on-prism-central"
+    
+    export NUTANIX_SSH_AUTHORIZED_KEY='your-ssh-key'
+    ```
+   
+    The remaining values for the e2e tests are set in `test/e2e/config/nutanix.yaml`
+
+1. Run the relevant e2e tests by specifying the label filters. For example, to run the non-clusterclass quickstart tests:
+
+    ```shell
+    LABEL_FILTERS="quickstart && !clusterclass" make test-e2e-cilium
+    ```
+   Note: E2E tests are run against a KIND management cluster created as part of the test run and deleted at the end of the test run.

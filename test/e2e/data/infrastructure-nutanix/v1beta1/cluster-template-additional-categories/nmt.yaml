@@ -14,3 +14,6 @@ spec:
         # Use System category Environment:Dev
         - key: Environment
           value: Dev
+        # Use System category Environment:Testing
+        - key: Environment
+          value: Testing
