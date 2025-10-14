@@ -33,9 +33,8 @@ import (
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
-	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
-	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	clustermgmtconfig "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
+	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
@@ -230,7 +229,7 @@ func GetPEUUID(ctx context.Context, client *v4Converged.Client, peName, peUUID *
 			return "", err
 		}
 		// Validate filtered PEs
-		foundPEs := make([]clusterModels.Cluster, 0)
+		foundPEs := make([]clustermgmtconfig.Cluster, 0)
 		for _, s := range responsePEs {
 			if strings.EqualFold(*s.Name, *peName) && hasPEClusterServiceEnabled(&s) {
 				foundPEs = append(foundPEs, s)
@@ -818,14 +817,14 @@ func GetProjectUUID(ctx context.Context, client *prismclientv3.Client, projectNa
 	return foundProjectUUID, nil
 }
 
-func hasPEClusterServiceEnabled(peCluster *clusterModels.Cluster) bool {
+func hasPEClusterServiceEnabled(peCluster *clustermgmtconfig.Cluster) bool {
 	if peCluster.Config == nil ||
 		peCluster.Config.ClusterFunction == nil {
 		return false
 	}
 	serviceList := peCluster.Config.ClusterFunction
 	for _, s := range serviceList {
-		if strings.ToUpper(string(s.GetName())) == clusterModels.CLUSTERFUNCTIONREF_AOS.GetName() {
+		if strings.ToUpper(string(s.GetName())) == clustermgmtconfig.CLUSTERFUNCTIONREF_AOS.GetName() {
 			return true
 		}
 	}
