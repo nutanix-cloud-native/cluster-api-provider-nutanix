@@ -402,13 +402,13 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 // It returns error if validation fails, and returns nil if validation succeeds.
 func (r *NutanixClusterReconciler) validateFailureDomainSpec(rctx *nctx.ClusterContext, fd *infrav1.NutanixFailureDomain) error {
 	pe := fd.Spec.PrismElementCluster
-	peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixClient, pe.Name, pe.UUID)
+	peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
 	if err != nil {
 		return err
 	}
 
 	subnets := fd.Spec.Subnets
-	_, err = GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, subnets, peUUID)
+	_, err = GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, subnets, peUUID)
 	if err != nil {
 		return err
 	}

@@ -34,6 +34,7 @@ import (
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
 	clustermgmtconfig "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
+	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
@@ -53,7 +54,6 @@ const (
 	providerIdPrefix = "nutanix://"
 
 	taskSucceededMessage = "SUCCEEDED"
-	serviceNamePECluster = "AOS"
 
 	subnetTypeOverlay = "OVERLAY"
 
@@ -207,7 +207,7 @@ func FindVMByName(ctx context.Context, client *prismclientv3.Client, vmName stri
 }
 
 // GetPEUUID returns the UUID of the Prism Element cluster with the given name
-func GetPEUUID(ctx context.Context, client *prismclientv3.Client, peName, peUUID *string) (string, error) {
+func GetPEUUID(ctx context.Context, client *v4Converged.Client, peName, peUUID *string) (string, error) {
 	if client == nil {
 		return "", fmt.Errorf("cannot retrieve Prism Element UUID if nutanix client is nil")
 	}
@@ -215,29 +215,28 @@ func GetPEUUID(ctx context.Context, client *prismclientv3.Client, peName, peUUID
 		return "", fmt.Errorf("cluster name or uuid must be passed in order to retrieve the Prism Element UUID")
 	}
 	if peUUID != nil && *peUUID != "" {
-		peIntentResponse, err := client.V3.GetCluster(ctx, *peUUID)
+		peIntentResponse, err := client.Clusters.Get(ctx, *peUUID)
 		if err != nil {
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
 				return "", fmt.Errorf("failed to find Prism Element cluster with UUID %s: %v", *peUUID, err)
 			}
 			return "", fmt.Errorf("failed to get Prism Element cluster with UUID %s: %v", *peUUID, err)
 		}
-		return *peIntentResponse.Metadata.UUID, nil
+		return *peIntentResponse.ExtId, nil
 	} else if peName != nil && *peName != "" {
-		responsePEs, err := client.V3.ListAllCluster(ctx, "")
+		responsePEs, err := client.Clusters.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", *peName)))
 		if err != nil {
 			return "", err
 		}
 		// Validate filtered PEs
-		foundPEs := make([]*prismclientv3.ClusterIntentResponse, 0)
-		for _, s := range responsePEs.Entities {
-			peSpec := s.Spec
-			if strings.EqualFold(peSpec.Name, *peName) && hasPEClusterServiceEnabled(s, serviceNamePECluster) {
+		foundPEs := make([]clustermgmtconfig.Cluster, 0)
+		for _, s := range responsePEs {
+			if strings.EqualFold(*s.Name, *peName) && hasPEClusterServiceEnabled(&s) {
 				foundPEs = append(foundPEs, s)
 			}
 		}
 		if len(foundPEs) == 1 {
-			return *foundPEs[0].Metadata.UUID, nil
+			return *foundPEs[0].ExtId, nil
 		}
 		if len(foundPEs) == 0 {
 			return "", fmt.Errorf("failed to retrieve Prism Element cluster by name %s", *peName)
@@ -375,41 +374,39 @@ func CreateDataDiskList(ctx context.Context, convergedClient *v4Converged.Client
 }
 
 // GetSubnetUUID returns the UUID of the subnet with the given name
-func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
+func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
 	var foundSubnetUUID string
 	if subnetUUID == nil && subnetName == nil {
 		return "", fmt.Errorf("subnet name or subnet uuid must be passed in order to retrieve the subnet")
 	}
 	if subnetUUID != nil {
-		subnetIntentResponse, err := client.V3.GetSubnet(ctx, *subnetUUID)
+		subnetIntentResponse, err := client.Subnets.Get(ctx, *subnetUUID)
 		if err != nil {
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
 				return "", fmt.Errorf("failed to find subnet with UUID %s: %v", *subnetUUID, err)
 			}
 			return "", fmt.Errorf("failed to get subnet with UUID %s: %v", *subnetUUID, err)
 		}
-		foundSubnetUUID = *subnetIntentResponse.Metadata.UUID
+		foundSubnetUUID = *subnetIntentResponse.ExtId
 	} else { // else search by name
 		// Not using additional filtering since we want to list overlay and vlan subnets
-		responseSubnets, err := client.V3.ListAllSubnet(ctx, "", nil)
+		responseSubnets, err := client.Subnets.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", *subnetName)))
 		if err != nil {
 			return "", err
 		}
 		// Validate filtered Subnets
-		foundSubnets := make([]*prismclientv3.SubnetIntentResponse, 0)
-		for _, subnet := range responseSubnets.Entities {
-			if subnet == nil || subnet.Spec == nil || subnet.Spec.Name == nil || subnet.Spec.Resources == nil || subnet.Spec.Resources.SubnetType == nil {
+		foundSubnets := make([]subnetModels.Subnet, 0)
+		for _, subnet := range responseSubnets {
+			if subnet.Name == nil || subnet.SubnetType == nil || subnet.ClusterReference == nil {
 				continue
 			}
-			if strings.EqualFold(*subnet.Spec.Name, *subnetName) {
-				if *subnet.Spec.Resources.SubnetType == subnetTypeOverlay {
-					// Overlay subnets are present on all PEs managed by PC.
+			if *subnet.Name == *subnetName {
+				if subnet.SubnetType.GetName() == subnetTypeOverlay {
 					foundSubnets = append(foundSubnets, subnet)
-				} else {
-					// By default check if the PE UUID matches if it is not an overlay subnet.
-					if subnet.Spec.ClusterReference != nil && *subnet.Spec.ClusterReference.UUID == peUUID {
-						foundSubnets = append(foundSubnets, subnet)
-					}
+				}
+				// By default check if the PE UUID matches if it is not an overlay subnet.
+				if subnet.ClusterReferenceList != nil && *subnet.ClusterReference == peUUID {
+					foundSubnets = append(foundSubnets, subnet)
 				}
 			}
 		}
@@ -418,7 +415,7 @@ func GetSubnetUUID(ctx context.Context, client *prismclientv3.Client, peUUID str
 		} else if len(foundSubnets) > 1 {
 			return "", fmt.Errorf("more than one subnet found with name %s", *subnetName)
 		} else {
-			foundSubnetUUID = *foundSubnets[0].Metadata.UUID
+			foundSubnetUUID = *foundSubnets[0].ExtId
 		}
 		if foundSubnetUUID == "" {
 			return "", fmt.Errorf("failed to retrieve subnet by name or uuid. Verify input parameters")
@@ -580,7 +577,7 @@ func GetTaskUUIDFromVM(vm *prismclientv3.VMIntentResponse) (string, error) {
 }
 
 // GetSubnetUUIDList returns a list of subnet UUIDs for the given list of subnet names
-func GetSubnetUUIDList(ctx context.Context, client *prismclientv3.Client, machineSubnets []infrav1.NutanixResourceIdentifier, peUUID string) ([]string, error) {
+func GetSubnetUUIDList(ctx context.Context, client *v4Converged.Client, machineSubnets []infrav1.NutanixResourceIdentifier, peUUID string) ([]string, error) {
 	subnetUUIDs := make([]string, 0)
 	for _, machineSubnet := range machineSubnets {
 		subnetUUID, err := GetSubnetUUID(
@@ -820,15 +817,14 @@ func GetProjectUUID(ctx context.Context, client *prismclientv3.Client, projectNa
 	return foundProjectUUID, nil
 }
 
-func hasPEClusterServiceEnabled(peCluster *prismclientv3.ClusterIntentResponse, serviceName string) bool {
-	if peCluster.Status == nil ||
-		peCluster.Status.Resources == nil ||
-		peCluster.Status.Resources.Config == nil {
+func hasPEClusterServiceEnabled(peCluster *clustermgmtconfig.Cluster) bool {
+	if peCluster.Config == nil ||
+		peCluster.Config.ClusterFunction == nil {
 		return false
 	}
-	serviceList := peCluster.Status.Resources.Config.ServiceList
+	serviceList := peCluster.Config.ClusterFunction
 	for _, s := range serviceList {
-		if s != nil && strings.ToUpper(*s) == serviceName {
+		if strings.ToUpper(string(s.GetName())) == clustermgmtconfig.CLUSTERFUNCTIONREF_AOS.GetName() {
 			return true
 		}
 	}

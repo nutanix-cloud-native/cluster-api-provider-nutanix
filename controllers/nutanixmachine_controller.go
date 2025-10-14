@@ -609,13 +609,13 @@ func (r *NutanixMachineReconciler) getFailureDomainSpec(rctx *nctx.MachineContex
 func (r *NutanixMachineReconciler) validateFailureDomainSpec(rctx *nctx.MachineContext, fdSpec *infrav1.NutanixFailureDomainSpec) error {
 	// Validate the failure domain configuration
 	pe := fdSpec.PrismElementCluster
-	peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixClient, pe.Name, pe.UUID)
+	peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
 	if err != nil {
 		return err
 	}
 
 	subnets := fdSpec.Subnets
-	_, err = GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, subnets, peUUID)
+	_, err = GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, subnets, peUUID)
 	if err != nil {
 		return err
 	}
@@ -1259,12 +1259,12 @@ func (r *NutanixMachineReconciler) GetSubnetAndPEUUIDs(rctx *nctx.MachineContext
 		return "", nil, fmt.Errorf("cannot create machine config if machine context is nil")
 	}
 
-	peUUID, err := GetPEUUID(rctx.Context, rctx.NutanixClient, rctx.NutanixMachine.Spec.Cluster.Name, rctx.NutanixMachine.Spec.Cluster.UUID)
+	peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient, rctx.NutanixMachine.Spec.Cluster.Name, rctx.NutanixMachine.Spec.Cluster.UUID)
 	if err != nil {
 		return "", nil, err
 	}
 
-	subnetUUIDs, err := GetSubnetUUIDList(rctx.Context, rctx.NutanixClient, rctx.NutanixMachine.Spec.Subnets, peUUID)
+	subnetUUIDs, err := GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, rctx.NutanixMachine.Spec.Subnets, peUUID)
 	if err != nil {
 		return "", nil, err
 	}
