@@ -35,6 +35,7 @@ import (
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
 	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
+	clustermgmtconfig "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
@@ -270,7 +271,7 @@ func CreateSystemDiskSpec(imageUUID string, systemDiskSize int64) (*prismclientv
 }
 
 // CreateDataDiskList creates a list of data disks with the given data disk specs
-func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, convergedClient *v4Converged.Client, dataDiskSpecs []infrav1.NutanixMachineVMDisk, peUUID string) ([]*prismclientv3.VMDisk, error) {
+func CreateDataDiskList(ctx context.Context, convergedClient *v4Converged.Client, dataDiskSpecs []infrav1.NutanixMachineVMDisk, peUUID string) ([]*prismclientv3.VMDisk, error) {
 	dataDisks := make([]*prismclientv3.VMDisk, 0)
 
 	latestDeviceIndexByAdapterType := make(map[string]int64)
@@ -354,14 +355,14 @@ func CreateDataDiskList(ctx context.Context, client *prismclientv3.Client, conve
 					UUID: &peUUID,
 					Type: infrav1.NutanixIdentifierUUID,
 				}
-				sc, err := GetStorageContainerInCluster(ctx, client, *dataDiskSpec.StorageConfig.StorageContainer, peID)
+				sc, err := GetStorageContainerInCluster(ctx, convergedClient, *dataDiskSpec.StorageConfig.StorageContainer, peID)
 				if err != nil {
 					return nil, err
 				}
 
 				storageConfig.StorageContainerReference = &prismclientv3.StorageContainerReference{
 					Kind: "storage_container",
-					UUID: *sc.UUID,
+					UUID: *sc.ContainerExtId,
 				}
 			}
 
@@ -631,23 +632,19 @@ func GetOrCreateCategories(ctx context.Context, client *v4Converged.Client, cate
 	return categories, nil
 }
 
-func getCategoryValue(ctx context.Context, client *v4Converged.Client, key, value string) (*prismModels.Category, error) {
-	categoryValue, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s' and value eq '%s'", key, value)))
+func getCategory(ctx context.Context, client *v4Converged.Client, key, value string) (*prismModels.Category, error) {
+	categories, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s' and value eq '%s'", key, value)))
 	if err != nil {
-		if !strings.Contains(fmt.Sprint(err), "CATEGORY_NAME_VALUE_MISMATCH") {
-			return nil, fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
-		} else {
-			return nil, nil
-		}
+		return nil, fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
 	}
-	if len(categoryValue) == 0 {
+	if len(categories) == 0 {
 		return nil, nil
 	}
-	return &categoryValue[0], nil
+	return &categories[0], nil
 }
 
-func deleteCategoryValue(ctx context.Context, client *v4Converged.Client, key, value string) error {
-	categoryValue, err := getCategoryValue(ctx, client, key, value)
+func deleteCategory(ctx context.Context, client *v4Converged.Client, key, value string) error {
+	categoryValue, err := getCategory(ctx, client, key, value)
 	if err != nil {
 		return fmt.Errorf("failed to delete category value %s in category %s. error: %v", value, key, err)
 	}
@@ -674,7 +671,7 @@ func deleteCategoryKeyValues(ctx context.Context, client *v4Converged.Client, ca
 
 	for key, values := range groupCategoriesByKey {
 		for _, value := range values {
-			categoryValue, err := getCategoryValue(ctx, client, key, value)
+			categoryValue, err := getCategory(ctx, client, key, value)
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
 				log.Error(errorMsg, "failed to retrieve category value")
@@ -685,7 +682,7 @@ func deleteCategoryKeyValues(ctx context.Context, client *v4Converged.Client, ca
 				continue
 			}
 
-			err = deleteCategoryValue(ctx, client, key, value)
+			err = deleteCategory(ctx, client, key, value)
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to delete category value with key:value %s:%s. error: %v", key, value, err)
 				log.Error(errorMsg, "failed to delete category value")
@@ -726,7 +723,7 @@ func getOrCreateCategory(ctx context.Context, client *v4Converged.Client, catego
 		return nil, fmt.Errorf("category identifier key must be set when when getting or creating categories")
 	}
 	log.V(1).Info(fmt.Sprintf("Checking existence of category with key %s and value %s", categoryIdentifier.Key, categoryIdentifier.Value))
-	categoryObject, err := getCategoryValue(ctx, client, categoryIdentifier.Key, categoryIdentifier.Value)
+	categoryObject, err := getCategory(ctx, client, categoryIdentifier.Key, categoryIdentifier.Value)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", categoryIdentifier.Key, err)
 		log.Error(errorMsg, "failed to retrieve category")
@@ -761,7 +758,7 @@ func GetCategoryVMSpec(
 		if ci == nil {
 			return nil, fmt.Errorf("category identifier cannot be nil")
 		}
-		categoryValue, err := getCategoryValue(ctx, client, ci.Key, ci.Value)
+		categoryValue, err := getCategory(ctx, client, ci.Key, ci.Value)
 		if err != nil {
 			errorMsg := fmt.Errorf("error occurred while to retrieving category value %s in category %s. error: %v", ci.Value, ci.Key, err)
 			log.Error(errorMsg, "failed to retrieve category")
@@ -916,146 +913,38 @@ func GetLegacyFailureDomainFromNutanixCluster(failureDomainName string, nutanixC
 	return nil
 }
 
-func ListStorageContainers(ctx context.Context, client *prismclientv3.Client) ([]*StorageContainerIntentResponse, error) {
-	result := make([]*StorageContainerIntentResponse, 0)
-	request := &prismclientv3.GroupsGetEntitiesRequest{
-		EntityType: ptr.To("storage_container"),
-		GroupMemberAttributes: []*prismclientv3.GroupsRequestedAttribute{
-			{
-				Attribute: ptr.To("container_name"),
-			},
-			{
-				Attribute: ptr.To("cluster_name"),
-			},
-			{
-				Attribute: ptr.To("cluster"),
-			},
-		},
-	}
-	response, err := client.V3.GroupsGetEntities(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-
-	if response != nil && response.GroupResults != nil && len(response.GroupResults) > 0 {
-		if len(response.GroupResults) > 1 {
-			return nil, fmt.Errorf("unexpected number of group results: %d", len(response.GroupResults))
-		}
-
-		if response.GroupResults[0].EntityResults != nil {
-			for _, entity := range response.GroupResults[0].EntityResults {
-
-				storageContainer := &StorageContainerIntentResponse{
-					UUID: &entity.EntityID,
-				}
-
-				for _, d := range entity.Data {
-					if len(d.Values) > 0 {
-						switch d.Name {
-						case "container_name":
-							storageContainer.Name = ptr.To(d.Values[0].Values[0])
-						case "cluster_name":
-							storageContainer.ClusterName = ptr.To(d.Values[0].Values[0])
-						case "cluster":
-							storageContainer.ClusterUUID = ptr.To(d.Values[0].Values[0])
-						}
-					}
-				}
-
-				result = append(result, storageContainer)
-			}
-		}
-	}
-
-	return result, nil
-}
-
-func GetStorageContainerByNtnxResourceIdentifier(ctx context.Context, client *prismclientv3.Client, storageContainerIdentifier infrav1.NutanixResourceIdentifier) (*StorageContainerIntentResponse, error) {
-	storageContainers, err := ListStorageContainers(ctx, client)
-	if err != nil {
-		return nil, err
-	}
-
+func GetStorageContainerInCluster(ctx context.Context, client *v4Converged.Client, storageContainerIdentifier, clusterIdentifier infrav1.NutanixResourceIdentifier) (*clustermgmtconfig.StorageContainer, error) {
+	var filter, identifier string
 	switch {
 	case storageContainerIdentifier.IsUUID():
-		for _, sc := range storageContainers {
-			if *sc.UUID == *storageContainerIdentifier.UUID {
-				return sc, nil
-			}
-		}
-
-		return nil, fmt.Errorf("failed to find storage container %s", *storageContainerIdentifier.UUID)
-
+		identifier = *storageContainerIdentifier.UUID
+		filter = fmt.Sprintf("containerExtId eq '%s'", identifier)
 	case storageContainerIdentifier.IsName():
-		for _, sc := range storageContainers {
-			if *sc.Name == *storageContainerIdentifier.Name {
-				return sc, nil
-			}
-		}
-
-		return nil, fmt.Errorf("failed to find storage container %s", *storageContainerIdentifier.Name)
-
+		identifier = *storageContainerIdentifier.Name
+		filter = fmt.Sprintf("name eq '%s'", identifier)
 	default:
 		return nil, fmt.Errorf("storage container identifier is missing both name and uuid")
 	}
-}
 
-func GetStorageContainerInCluster(ctx context.Context, client *prismclientv3.Client, storageContainerIdentifier, clusterIdentifier infrav1.NutanixResourceIdentifier) (*StorageContainerIntentResponse, error) {
-	storageContainer, err := ListStorageContainers(ctx, client)
+	switch {
+	case clusterIdentifier.IsUUID():
+		filter = fmt.Sprintf("%s and clusterExtId eq '%s'", filter, *clusterIdentifier.UUID)
+	case clusterIdentifier.IsName():
+		filter = fmt.Sprintf("%s and clusterName eq '%s'", filter, *clusterIdentifier.Name)
+	default:
+		return nil, fmt.Errorf("cluster identifier is missing both name and uuid")
+	}
+
+	storageContainers, err := client.StorageContainers.List(ctx, converged.WithFilter(filter))
 	if err != nil {
 		return nil, err
 	}
 
-	switch {
-	case storageContainerIdentifier.IsUUID():
-		return getSCinClusterByUUID(storageContainer, storageContainerIdentifier, clusterIdentifier)
-
-	case storageContainerIdentifier.IsName():
-		return getSCinClusterByName(storageContainer, storageContainerIdentifier, clusterIdentifier)
-
-	default:
-		return nil, fmt.Errorf("storage container identifier is missing both name and uuid")
-	}
-}
-
-func getSCinClusterByName(storageContainer []*StorageContainerIntentResponse, storageContainerIdentifier infrav1.NutanixResourceIdentifier, clusterIdentifier infrav1.NutanixResourceIdentifier) (*StorageContainerIntentResponse, error) {
-	for _, sc := range storageContainer {
-		if strings.EqualFold(*sc.Name, *storageContainerIdentifier.Name) {
-			if clusterIdentifier.IsUUID() {
-				if *sc.ClusterUUID == *clusterIdentifier.UUID {
-					return sc, nil
-				}
-			} else if clusterIdentifier.IsName() {
-				if *sc.ClusterName == *clusterIdentifier.Name {
-					return sc, nil
-				}
-			} else {
-				return nil, fmt.Errorf("cluster identifier is missing both name and uuid")
-			}
-		}
+	if len(storageContainers) == 0 {
+		return nil, fmt.Errorf("found no storage container using filter: %s", filter)
 	}
 
-	return nil, fmt.Errorf("failed to find storage container %s for cluster %v", *storageContainerIdentifier.Name, clusterIdentifier)
-}
-
-func getSCinClusterByUUID(storageContainer []*StorageContainerIntentResponse, storageContainerIdentifier infrav1.NutanixResourceIdentifier, clusterIdentifier infrav1.NutanixResourceIdentifier) (*StorageContainerIntentResponse, error) {
-	for _, sc := range storageContainer {
-		if *sc.UUID == *storageContainerIdentifier.UUID {
-			if clusterIdentifier.IsUUID() {
-				if *sc.ClusterUUID == *clusterIdentifier.UUID {
-					return sc, nil
-				}
-			} else if clusterIdentifier.IsName() {
-				if *sc.ClusterName == *clusterIdentifier.Name {
-					return sc, nil
-				}
-			} else {
-				return nil, fmt.Errorf("cluster identifier is missing both name and uuid")
-			}
-		}
-	}
-
-	return nil, fmt.Errorf("failed to find storage container %s for cluster %v", *storageContainerIdentifier.UUID, clusterIdentifier)
+	return &storageContainers[0], nil
 }
 
 func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*prismclientv3.Client, error) {
