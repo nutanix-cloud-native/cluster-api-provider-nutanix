@@ -243,7 +243,7 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
 	subnetVarValue := t.getVariableFromE2eConfig(subnetVarKey)
 
-	clusterUUID, err := controllers.GetPEUUID(ctx, t.nutanixClient, &clusterVarValue, nil)
+	clusterUUID, err := controllers.GetPEUUID(ctx, t.convergedClient, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
 	image, err := controllers.GetImage(ctx, t.convergedClient, infrav1.NutanixResourceIdentifier{
@@ -252,7 +252,7 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	subnetUUID, err := controllers.GetSubnetUUID(ctx, t.nutanixClient, clusterUUID, &subnetVarValue, nil)
+	subnetUUID, err := controllers.GetSubnetUUID(ctx, t.convergedClient, clusterUUID, &subnetVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
 	return &infrav1.NutanixMachineTemplate{
@@ -324,7 +324,7 @@ func (t testHelper) createNameGPUNMT(ctx context.Context, clusterName, namespace
 func (t testHelper) findGPU(ctx context.Context, gpuName string) *prismGoClientV3.GPU {
 	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
 
-	clusterUUID, err := controllers.GetPEUUID(ctx, t.nutanixClient, &clusterVarValue, nil)
+	clusterUUID, err := controllers.GetPEUUID(ctx, t.convergedClient, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(clusterUUID).ToNot(BeNil())
 	allGpus, err := controllers.GetGPUsForPE(ctx, t.nutanixClient, clusterUUID)
@@ -626,7 +626,7 @@ func (t testHelper) stripNutanixIDFromProviderID(providerID string) string {
 }
 
 func (t testHelper) verifyCategoryExists(ctx context.Context, categoryKey, categoryValue string) {
-	_, err := t.nutanixClient.V3.GetCategoryValue(ctx, categoryKey, categoryValue)
+	_, err := t.convergedClient.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s' and value eq '%s'", categoryKey, categoryValue)))
 	Expect(err).ShouldNot(HaveOccurred())
 }
 

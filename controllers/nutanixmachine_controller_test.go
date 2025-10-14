@@ -1167,18 +1167,18 @@ func TestReconcile_VMMetadataCategoriesMapping_MultipleValues(t *testing.T) {
 	defer ctrl.Finish()
 
 	ctx := context.Background()
-	mockV3 := mocknutanixv3.NewMockService(ctrl)
-	client := &prismclientv3.Client{V3: mockV3}
+	mockClient := NewMockConvergedClient(ctrl)
+	client := mockClient.Client
 
 	// Prepare inputs
 	clusterName := "TestCluster"
 
 	// Default category key/value lookups used by GetCategoryVMSpecMapping
 	defaultKey := infrav1.DefaultCAPICategoryKeyForName
-	mockV3.EXPECT().GetCategoryValue(ctx, defaultKey, clusterName).Return(&prismclientv3.CategoryValueStatus{Value: &clusterName}, nil)
-	mockV3.EXPECT().GetCategoryValue(ctx, "TestCategory", "TestValue1").Return(&prismclientv3.CategoryValueStatus{Value: ptr.To("TestValue1")}, nil)
-	mockV3.EXPECT().GetCategoryValue(ctx, "TestCategory", "TestValue2").Return(&prismclientv3.CategoryValueStatus{Value: ptr.To("TestValue2")}, nil)
-	mockV3.EXPECT().GetCategoryValue(ctx, "TestCategory", "TestValue1").Return(&prismclientv3.CategoryValueStatus{Value: ptr.To("TestValue1")}, nil)
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
 
 	ids := []*infrav1.NutanixCategoryIdentifier{
 		{Key: defaultKey, Value: clusterName},
