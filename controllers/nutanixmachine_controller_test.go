@@ -1144,7 +1144,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 
 			ntnxMachine, machine, ntnxCluster, convergedClient := tc.fixtures(mockCtrl)
 
-			disks, err := getDiskList(&nctx.MachineContext{
+			disks, cdRoms, err := getDiskList(&nctx.MachineContext{
 				Context:         context.Background(),
 				NutanixMachine:  ntnxMachine,
 				Machine:         machine,
@@ -1156,8 +1156,8 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 				t.Fatal("got unexpected error: ", err)
 			}
 
-			if tc.wantDisksLen != len(disks) {
-				t.Fatalf("expected %d disks, got %d", tc.wantDisksLen, len(disks))
+			if tc.wantDisksLen != len(disks)+len(cdRoms) {
+				t.Fatalf("expected %d disks, got %d", tc.wantDisksLen, len(disks)+len(cdRoms))
 			}
 		})
 	}
@@ -1515,9 +1515,19 @@ func TestGetSystemDisk(t *testing.T) {
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotNil(t, systemDisk)
-		assert.Equal(t, "image", *systemDisk.DataSourceReference.Kind)
-		assert.Equal(t, *expectedImage.ExtId, *systemDisk.DataSourceReference.UUID)
-		assert.Equal(t, int64(40960), *systemDisk.DiskSizeMib) // 40Gi in MiB
+
+		vmDiskIntf := systemDisk.GetBackingInfo()
+		assert.NotNil(t, vmDiskIntf)
+		vmDisk, ok := vmDiskIntf.(vmmModels.VmDisk)
+		assert.Equal(t, true, ok)
+		assert.Equal(t, int64(2*21474836480), *vmDisk.DiskSizeBytes)
+
+		imageIntf := vmDisk.DataSource.GetReference()
+		assert.NotNil(t, imageIntf)
+		imageRef, ok := imageIntf.(vmmModels.ImageReference)
+		assert.Equal(t, true, ok)
+
+		assert.Equal(t, *expectedImage.ExtId, *imageRef.ImageExtId)
 	})
 
 	t.Run("should handle ImageLookup with GetImageByLookup failure", func(t *testing.T) {
@@ -1888,9 +1898,19 @@ func TestGetSystemDisk(t *testing.T) {
 		// Verify results - should return the newer image
 		assert.NoError(t, err)
 		assert.NotNil(t, systemDisk)
-		assert.Equal(t, "image", *systemDisk.DataSourceReference.Kind)
-		assert.Equal(t, "newer-image-uuid", *systemDisk.DataSourceReference.UUID)
-		assert.Equal(t, int64(40960), *systemDisk.DiskSizeMib) // 40Gi in MiB
+
+		vmDiskIntf := systemDisk.GetBackingInfo()
+		assert.NotNil(t, vmDiskIntf)
+		vmDisk, ok := vmDiskIntf.(vmmModels.VmDisk)
+		assert.Equal(t, true, ok)
+		assert.Equal(t, int64(2*21474836480), *vmDisk.DiskSizeBytes)
+
+		imageIntf := vmDisk.DataSource.GetReference()
+		assert.NotNil(t, imageIntf)
+		imageRef, ok := imageIntf.(vmmModels.ImageReference)
+		assert.Equal(t, true, ok)
+
+		assert.Equal(t, "newer-image-uuid", *imageRef.ImageExtId)
 	})
 
 	t.Run("should handle ImageLookup with nil ImageLookup", func(t *testing.T) {
