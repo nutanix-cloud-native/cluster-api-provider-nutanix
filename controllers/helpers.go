@@ -685,18 +685,6 @@ func getCategory(ctx context.Context, client *v4Converged.Client, key, value str
 	return &categories[0], nil
 }
 
-func deleteCategory(ctx context.Context, client *v4Converged.Client, key, value string) error {
-	categoryValue, err := getCategory(ctx, client, key, value)
-	if err != nil {
-		return fmt.Errorf("failed to delete category value %s in category %s. error: %v", value, key, err)
-	}
-	err = client.Categories.Delete(ctx, *categoryValue.ExtId)
-	if err != nil {
-		return fmt.Errorf("failed to delete category value %s in category %s. error: %v", value, key, err)
-	}
-	return nil
-}
-
 func deleteCategoryKeyValues(ctx context.Context, client *v4Converged.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) error {
 	log := ctrl.LoggerFrom(ctx)
 	groupCategoriesByKey := make(map[string][]string, 0)
@@ -713,18 +701,18 @@ func deleteCategoryKeyValues(ctx context.Context, client *v4Converged.Client, ca
 
 	for key, values := range groupCategoriesByKey {
 		for _, value := range values {
-			categoryValue, err := getCategory(ctx, client, key, value)
+			prismCategory, err := getCategory(ctx, client, key, value)
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
 				log.Error(errorMsg, "failed to retrieve category value")
 				return errorMsg
 			}
-			if categoryValue == nil {
+			if prismCategory == nil {
 				log.V(1).Info(fmt.Sprintf("Category with value %s in category %s not found. Already deleted?", value, key))
 				continue
 			}
 
-			err = deleteCategory(ctx, client, key, value)
+			err = client.Categories.Delete(ctx, *prismCategory.ExtId)
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to delete category value with key:value %s:%s. error: %v", key, value, err)
 				log.Error(errorMsg, "failed to delete category value")
@@ -765,15 +753,15 @@ func getOrCreateCategory(ctx context.Context, client *v4Converged.Client, catego
 		return nil, fmt.Errorf("category identifier key must be set when when getting or creating categories")
 	}
 	log.V(1).Info(fmt.Sprintf("Checking existence of category with key %s and value %s", categoryIdentifier.Key, categoryIdentifier.Value))
-	categoryObject, err := getCategory(ctx, client, categoryIdentifier.Key, categoryIdentifier.Value)
+	prismCategory, err := getCategory(ctx, client, categoryIdentifier.Key, categoryIdentifier.Value)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", categoryIdentifier.Key, err)
 		log.Error(errorMsg, "failed to retrieve category")
 		return nil, errorMsg
 	}
-	if categoryObject == nil {
+	if prismCategory == nil {
 		log.V(1).Info(fmt.Sprintf("Category with key %s and value %s did not exist.", categoryIdentifier.Key, categoryIdentifier.Value))
-		categoryObject, err = client.Categories.Create(ctx, &prismModels.Category{
+		prismCategory, err = client.Categories.Create(ctx, &prismModels.Category{
 			Key:         ptr.To(categoryIdentifier.Key),
 			Description: ptr.To(infrav1.DefaultCAPICategoryDescription),
 			Value:       ptr.To(categoryIdentifier.Value),
@@ -784,39 +772,46 @@ func getOrCreateCategory(ctx context.Context, client *v4Converged.Client, catego
 			return nil, errorMsg
 		}
 	}
-	return categoryObject, nil
+	return prismCategory, nil
 }
 
-// GetCategoryVMSpec returns the categories_mapping supporting multiple values per key.
-func GetCategoryVMSpec(
+func GetPrismReferencesOfCategoryIdentifiers(
 	ctx context.Context,
 	client *v4Converged.Client,
 	categoryIdentifiers []*infrav1.NutanixCategoryIdentifier,
-) (map[string][]string, error) {
+) ([]vmmconfig.CategoryReference, error) {
 	log := ctrl.LoggerFrom(ctx)
-	categorySpec := map[string][]string{}
+	categoryExtIds := []string{}
 
 	for _, ci := range categoryIdentifiers {
 		if ci == nil {
 			return nil, fmt.Errorf("category identifier cannot be nil")
 		}
-		categoryValue, err := getCategory(ctx, client, ci.Key, ci.Value)
+		prismCategory, err := getCategory(ctx, client, ci.Key, ci.Value)
 		if err != nil {
 			errorMsg := fmt.Errorf("error occurred while to retrieving category value %s in category %s. error: %v", ci.Value, ci.Key, err)
 			log.Error(errorMsg, "failed to retrieve category")
 			return nil, errorMsg
 		}
-		if categoryValue == nil {
+		if prismCategory == nil || prismCategory.ExtId == nil {
 			errorMsg := fmt.Errorf("category value %s not found in category %s. error", ci.Value, ci.Key)
 			log.Error(errorMsg, "category value not found")
 			return nil, errorMsg
 		}
-		if !slices.Contains(categorySpec[ci.Key], ci.Value) {
-			categorySpec[ci.Key] = append(categorySpec[ci.Key], ci.Value)
+
+		if !slices.Contains(categoryExtIds, *prismCategory.ExtId) {
+			categoryExtIds = append(categoryExtIds, *prismCategory.ExtId)
 		}
 	}
 
-	return categorySpec, nil
+	categoryReferences := []vmmconfig.CategoryReference{}
+	for _, extId := range categoryExtIds {
+		ref := vmmconfig.NewCategoryReference()
+		ref.ExtId = ptr.To(extId)
+		categoryReferences = append(categoryReferences, *ref)
+	}
+
+	return categoryReferences, nil
 }
 
 // GetProjectUUID returns the UUID of the project with the given name

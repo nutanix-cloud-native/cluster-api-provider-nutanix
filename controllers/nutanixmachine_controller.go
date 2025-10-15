@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	vmmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
 	"github.com/pkg/errors"
@@ -53,10 +52,6 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
-)
-
-const (
-	projectKind = "project"
 )
 
 var (
@@ -827,24 +822,17 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	}
 	vm.Nics = nics
 
-	// TODO fix
-	// Set categories on VM; support multiple values via categories_mapping when possible
-	categoriesMapping, err := GetCategoryVMSpec(ctx, rctx.ConvergedClient, r.getMachineCategoryIdentifiers(rctx))
+	// Set categories on VM
+	categoryReferences, err := GetPrismReferencesOfCategoryIdentifiers(ctx, rctx.ConvergedClient, r.getMachineCategoryIdentifiers(rctx))
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %v", vmName, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, errorMsg
 	}
+	vm.Categories = categoryReferences
 
-	// TODO fix
-	vmMetadata := &prismclientv3.Metadata{
-		Kind:                 ptr.To("vm"),
-		SpecVersion:          ptr.To(int64(1)),
-		UseCategoriesMapping: ptr.To(true),
-		CategoriesMapping:    categoriesMapping,
-	}
 	// Set Project in VM Spec before creating VM
-	err = r.addVMToProject(rctx, vmMetadata)
+	err = r.addVMToProject(rctx, vm)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while trying to add VM %s to project: %v", vmName, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
@@ -944,12 +932,6 @@ func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineC
 		bsdataEncoded := base64.StdEncoding.EncodeToString(bootstrapData)
 		metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"uuid\": \"%s\"}", rctx.Machine.Name, uuid.New())
 		metadataEncoded := base64.StdEncoding.EncodeToString([]byte(metadata))
-
-		// TODO fix
-		// IsOverriable: ptr.To(true)
-		// vmSpec.Resources.GuestCustomization = &prismclientv3.GuestCustomization{
-		// 	IsOverridable: ptr.To(true),
-		// }
 
 		cloudInit := vmmconfig.NewCloudInit()
 		cloudInit.Metadata = ptr.To(metadataEncoded)
@@ -1243,7 +1225,7 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 	return nil
 }
 
-func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vmMetadata *prismclientv3.Metadata) error {
+func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
 	log := ctrl.LoggerFrom(rctx.Context)
 	vmName := rctx.Machine.Name
 	projectRef := rctx.NutanixMachine.Spec.Project
@@ -1252,14 +1234,14 @@ func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vmM
 		return nil
 	}
 
-	if vmMetadata == nil {
-		errorMsg := fmt.Errorf("metadata cannot be nil when adding VM %s to project", vmName)
+	if vm == nil {
+		errorMsg := fmt.Errorf("VM cannot be nil when adding VM %s to project", vmName)
 		log.Error(errorMsg, "failed to add vm to project")
 		conditions.MarkFalse(rctx.NutanixMachine, infrav1.ProjectAssignedCondition, infrav1.ProjectAssignationFailed, capiv1.ConditionSeverityError, "%s", errorMsg.Error())
 		return errorMsg
 	}
 
-	projectUUID, err := GetProjectUUID(rctx.Context, rctx.NutanixClient, projectRef.Name, projectRef.UUID)
+	projectExtId, err := GetProjectUUID(rctx.Context, rctx.NutanixClient, projectRef.Name, projectRef.UUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while searching for project for VM %s: %v", vmName, err)
 		log.Error(errorMsg, "error occurred while searching for project")
@@ -1267,10 +1249,10 @@ func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vmM
 		return errorMsg
 	}
 
-	vmMetadata.ProjectReference = &prismclientv3.Reference{
-		Kind: ptr.To(projectKind),
-		UUID: ptr.To(projectUUID),
-	}
+	projRef := vmmconfig.NewProjectReference()
+	projRef.ExtId = &projectExtId
+	vm.Project = projRef
+
 	conditions.MarkTrue(rctx.NutanixMachine, infrav1.ProjectAssignedCondition)
 	return nil
 }
