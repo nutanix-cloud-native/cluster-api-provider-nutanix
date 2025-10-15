@@ -32,6 +32,7 @@ import (
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	clustermgmtconfig "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
+	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
 	. "github.com/onsi/ginkgo/v2"
@@ -3048,17 +3049,13 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		mockV3Client.EXPECT().ListVM(ctx, gomock.Any()).Return(listResponse, nil)
 
 		// Mock GetCluster for PE UUID (called by GetSubnetAndPEUUIDs -> GetPEUUID)
-		mockV3Client.EXPECT().GetCluster(ctx, peUUID).Return(&prismclientv3.ClusterIntentResponse{
-			Metadata: &prismclientv3.Metadata{
-				UUID: &peUUID,
-			},
+		mockConvergedClient.MockClusters.EXPECT().Get(ctx, peUUID).Return(&clustermgmtconfig.Cluster{
+			ExtId: &peUUID,
 		}, nil)
 
 		// Mock GetSubnet (called by GetSubnetAndPEUUIDs -> GetSubnetUUID)
-		mockV3Client.EXPECT().GetSubnet(ctx, subnetUUID).Return(&prismclientv3.SubnetIntentResponse{
-			Metadata: &prismclientv3.Metadata{
-				UUID: &subnetUUID,
-			},
+		mockConvergedClient.MockSubnets.EXPECT().Get(ctx, subnetUUID).Return(&subnetModels.Subnet{
+			ExtId: &subnetUUID,
 		}, nil)
 
 		// Mock GetImage (called by getDiskList -> getSystemDisk)
@@ -3066,23 +3063,31 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			ExtId: &imageUUID,
 		}, nil)
 
-		// Mock ImageMarkedForDeletion (called by getSystemDisk) - return empty tasks list (not being deleted)
+		// Mock Tasks.List calls in order:
+		// 1. ImageMarkedForDeletion check returns empty
+		// 2. GetTaskUUIDFromVM after VM creation returns task with UUID
 		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil)
 
 		// Mock category operations (called by getMachineCategoryIdentifiers and GetOrCreateCategories)
-		mockV3Client.EXPECT().GetCategoryKey(ctx, infrav1.DefaultCAPICategoryKeyForName).Return(nil, errors.New("ENTITY_NOT_FOUND"))
-		mockV3Client.EXPECT().CreateOrUpdateCategoryKey(ctx, gomock.Any()).Return(&prismclientv3.CategoryKeyStatus{
-			Name: ptr.To(infrav1.DefaultCAPICategoryKeyForName),
-		}, nil)
-		mockV3Client.EXPECT().GetCategoryValue(ctx, infrav1.DefaultCAPICategoryKeyForName, clusterName).Return(nil, errors.New("CATEGORY_NAME_VALUE_MISMATCH"))
-		mockV3Client.EXPECT().CreateOrUpdateCategoryValue(ctx, infrav1.DefaultCAPICategoryKeyForName, gomock.Any()).Return(&prismclientv3.CategoryValueStatus{
+		categoryExtId := "category-ext-id"
+		createdCategory := &prismModels.Category{
+			ExtId: &categoryExtId,
+			Key:   ptr.To(infrav1.DefaultCAPICategoryKeyForName),
 			Value: ptr.To(clusterName),
-		}, nil)
-
-		// Mock GetCategoryValue again for GetCategoryVMSpec
+		}
+		// First call to List returns empty (doesn't exist), subsequent calls return the created category
+		gomock.InOrder(
+			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil),
+			mockConvergedClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(createdCategory, nil),
+			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{*createdCategory}, nil).AnyTimes(),
+		)
+		// Since converged client creates the category, V3 calls should find it
+		mockV3Client.EXPECT().GetCategoryKey(ctx, infrav1.DefaultCAPICategoryKeyForName).Return(&prismclientv3.CategoryKeyStatus{
+			Name: ptr.To(infrav1.DefaultCAPICategoryKeyForName),
+		}, nil).AnyTimes()
 		mockV3Client.EXPECT().GetCategoryValue(ctx, infrav1.DefaultCAPICategoryKeyForName, clusterName).Return(&prismclientv3.CategoryValueStatus{
 			Value: ptr.To(clusterName),
-		}, nil)
+		}, nil).AnyTimes()
 
 		// Mock CreateVM
 		createdVM := &prismclientv3.VMIntentResponse{
@@ -3250,17 +3255,13 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		mockV3Client.EXPECT().ListVM(ctx, gomock.Any()).Return(listResponse, nil)
 
 		// Mock GetCluster for PE UUID
-		mockV3Client.EXPECT().GetCluster(ctx, peUUID).Return(&prismclientv3.ClusterIntentResponse{
-			Metadata: &prismclientv3.Metadata{
-				UUID: &peUUID,
-			},
+		mockConvergedClient.MockClusters.EXPECT().Get(ctx, peUUID).Return(&clustermgmtconfig.Cluster{
+			ExtId: &peUUID,
 		}, nil)
 
 		// Mock GetSubnet
-		mockV3Client.EXPECT().GetSubnet(ctx, subnetUUID).Return(&prismclientv3.SubnetIntentResponse{
-			Metadata: &prismclientv3.Metadata{
-				UUID: &subnetUUID,
-			},
+		mockConvergedClient.MockSubnets.EXPECT().Get(ctx, subnetUUID).Return(&subnetModels.Subnet{
+			ExtId: &subnetUUID,
 		}, nil)
 
 		// Mock GetImage
@@ -3272,19 +3273,25 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil)
 
 		// Mock category operations
-		mockV3Client.EXPECT().GetCategoryKey(ctx, infrav1.DefaultCAPICategoryKeyForName).Return(nil, errors.New("ENTITY_NOT_FOUND"))
-		mockV3Client.EXPECT().CreateOrUpdateCategoryKey(ctx, gomock.Any()).Return(&prismclientv3.CategoryKeyStatus{
-			Name: ptr.To(infrav1.DefaultCAPICategoryKeyForName),
-		}, nil)
-		mockV3Client.EXPECT().GetCategoryValue(ctx, infrav1.DefaultCAPICategoryKeyForName, clusterName).Return(nil, errors.New("CATEGORY_NAME_VALUE_MISMATCH"))
-		mockV3Client.EXPECT().CreateOrUpdateCategoryValue(ctx, infrav1.DefaultCAPICategoryKeyForName, gomock.Any()).Return(&prismclientv3.CategoryValueStatus{
+		categoryExtId := "category-ext-id"
+		createdCategory := &prismModels.Category{
+			ExtId: &categoryExtId,
+			Key:   ptr.To(infrav1.DefaultCAPICategoryKeyForName),
 			Value: ptr.To(clusterName),
-		}, nil)
-
-		// Mock GetCategoryValue again for GetCategoryVMSpec
+		}
+		// First call to List returns empty (doesn't exist), subsequent calls return the created category
+		gomock.InOrder(
+			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil),
+			mockConvergedClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(createdCategory, nil),
+			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{*createdCategory}, nil).AnyTimes(),
+		)
+		// Since converged client creates the category, V3 calls should find it
+		mockV3Client.EXPECT().GetCategoryKey(ctx, infrav1.DefaultCAPICategoryKeyForName).Return(&prismclientv3.CategoryKeyStatus{
+			Name: ptr.To(infrav1.DefaultCAPICategoryKeyForName),
+		}, nil).AnyTimes()
 		mockV3Client.EXPECT().GetCategoryValue(ctx, infrav1.DefaultCAPICategoryKeyForName, clusterName).Return(&prismclientv3.CategoryValueStatus{
 			Value: ptr.To(clusterName),
-		}, nil)
+		}, nil).AnyTimes()
 
 		// Mock CreateVM
 		createdVM := &prismclientv3.VMIntentResponse{
@@ -3426,17 +3433,13 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		mockV3Client.EXPECT().ListVM(ctx, gomock.Any()).Return(listResponse, nil)
 
 		// Mock GetCluster for PE UUID
-		mockV3Client.EXPECT().GetCluster(ctx, peUUID).Return(&prismclientv3.ClusterIntentResponse{
-			Metadata: &prismclientv3.Metadata{
-				UUID: &peUUID,
-			},
+		mockConvergedClient.MockClusters.EXPECT().Get(ctx, peUUID).Return(&clustermgmtconfig.Cluster{
+			ExtId: &peUUID,
 		}, nil)
 
 		// Mock GetSubnet
-		mockV3Client.EXPECT().GetSubnet(ctx, subnetUUID).Return(&prismclientv3.SubnetIntentResponse{
-			Metadata: &prismclientv3.Metadata{
-				UUID: &subnetUUID,
-			},
+		mockConvergedClient.MockSubnets.EXPECT().Get(ctx, subnetUUID).Return(&subnetModels.Subnet{
+			ExtId: &subnetUUID,
 		}, nil)
 
 		// Mock GetImage
@@ -3448,19 +3451,25 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil)
 
 		// Mock category operations
-		mockV3Client.EXPECT().GetCategoryKey(ctx, infrav1.DefaultCAPICategoryKeyForName).Return(nil, errors.New("ENTITY_NOT_FOUND"))
-		mockV3Client.EXPECT().CreateOrUpdateCategoryKey(ctx, gomock.Any()).Return(&prismclientv3.CategoryKeyStatus{
-			Name: ptr.To(infrav1.DefaultCAPICategoryKeyForName),
-		}, nil)
-		mockV3Client.EXPECT().GetCategoryValue(ctx, infrav1.DefaultCAPICategoryKeyForName, clusterName).Return(nil, errors.New("CATEGORY_NAME_VALUE_MISMATCH"))
-		mockV3Client.EXPECT().CreateOrUpdateCategoryValue(ctx, infrav1.DefaultCAPICategoryKeyForName, gomock.Any()).Return(&prismclientv3.CategoryValueStatus{
+		categoryExtId := "category-ext-id"
+		createdCategory := &prismModels.Category{
+			ExtId: &categoryExtId,
+			Key:   ptr.To(infrav1.DefaultCAPICategoryKeyForName),
 			Value: ptr.To(clusterName),
-		}, nil)
-
-		// Mock GetCategoryValue again for GetCategoryVMSpec
+		}
+		// First call to List returns empty (doesn't exist), subsequent calls return the created category
+		gomock.InOrder(
+			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil),
+			mockConvergedClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(createdCategory, nil),
+			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{*createdCategory}, nil).AnyTimes(),
+		)
+		// Since converged client creates the category, V3 calls should find it
+		mockV3Client.EXPECT().GetCategoryKey(ctx, infrav1.DefaultCAPICategoryKeyForName).Return(&prismclientv3.CategoryKeyStatus{
+			Name: ptr.To(infrav1.DefaultCAPICategoryKeyForName),
+		}, nil).AnyTimes()
 		mockV3Client.EXPECT().GetCategoryValue(ctx, infrav1.DefaultCAPICategoryKeyForName, clusterName).Return(&prismclientv3.CategoryValueStatus{
 			Value: ptr.To(clusterName),
-		}, nil)
+		}, nil).AnyTimes()
 
 		// Mock CreateVM
 		createdVM := &prismclientv3.VMIntentResponse{

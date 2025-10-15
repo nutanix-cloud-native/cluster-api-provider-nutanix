@@ -52,8 +52,6 @@ import (
 const (
 	providerIdPrefix = "nutanix://"
 
-	taskSucceededMessage = "SUCCEEDED"
-
 	subnetTypeOverlay = "OVERLAY"
 
 	gpuUnused = "UNUSED"
