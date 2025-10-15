@@ -111,6 +111,7 @@ jobs:
           - "nutanix-storage-test"
           - "scaling"
           - "kubernetes-upgrade"
+          - "gpu"
       fail-fast: false
     needs: check_approvals
     uses: ./.github/workflows/e2e.yaml

@@ -83,12 +83,27 @@ jobs:
           username: ${{ secrets.LOCAL_IMAGE_REGISTRY_USERNAME }}
           password: ${{ secrets.LOCAL_IMAGE_REGISTRY_TOKEN }}
 
+      - name: Set Prism Element Cluster parameters
+        id: pe-params
+        run: |
+          if [[ "${{ inputs.e2e-labels }}" == "gpu" ]]; then
+            echo "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME=${{ vars.NUTANIX_PRISM_ELEMENT_CLUSTER_NAME_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
+            echo "NUTANIX_SUBNET_NAME=${{ vars.NUTANIX_SUBNET_NAME_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
+            echo "NUTANIX_ADDITIONAL_SUBNET_NAME=${{ vars.NUTANIX_ADDITIONAL_SUBNET_NAME_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME=${{ vars.NUTANIX_PRISM_ELEMENT_CLUSTER_NAME }}" >> "${GITHUB_OUTPUT}"
+            echo "NUTANIX_SUBNET_NAME=${{ vars.NUTANIX_SUBNET_NAME }}" >> "${GITHUB_OUTPUT}"
+            echo "NUTANIX_ADDITIONAL_SUBNET_NAME=${{ vars.NUTANIX_ADDITIONAL_SUBNET_NAME }}" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Test build
         run: devbox run -- make ${{ inputs.make-target }} LABEL_FILTERS='${{ inputs.e2e-labels }}'
         env:
           NUTANIX_USER: ${{ secrets.NUTANIX_USER }}
           NUTANIX_PASSWORD: ${{ secrets.NUTANIX_PASSWORD }}
           NUTANIX_ENDPOINT: ${{ secrets.NUTANIX_ENDPOINT }}
+          NUTANIX_GPU_PASSTHROUGH_NAME: ${{ vars.NUTANIX_GPU_PASSTHROUGH_NAME }}
+          NUTANIX_GPU_VIRTUAL_NAME: ${{ vars.NUTANIX_GPU_VIRTUAL_NAME }}
           NUTANIX_PRISM_ELEMENT_CLUSTER_IP: ${{ secrets.NUTANIX_PRISM_ELEMENT_CLUSTER_IP }}
           NUTANIX_PRISM_ELEMENT_CLUSTER_USERNAME: ${{ secrets.NUTANIX_PRISM_ELEMENT_CLUSTER_USERNAME }}
           NUTANIX_PRISM_ELEMENT_CLUSTER_PASSWORD: ${{ secrets.NUTANIX_PRISM_ELEMENT_CLUSTER_PASSWORD }}
@@ -97,9 +112,9 @@ jobs:
           WEBHOOK_CERT: ${{ secrets.WEBHOOK_CERT }}
           WEBHOOK_CA: ${{ secrets.WEBHOOK_CA }}
           NUTANIX_SSH_AUTHORIZED_KEY: ${{ secrets.NUTANIX_SSH_AUTHORIZED_KEY }}
-          NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ${{ vars.NUTANIX_PRISM_ELEMENT_CLUSTER_NAME }}
-          NUTANIX_SUBNET_NAME: ${{ vars.NUTANIX_SUBNET_NAME }}
-          NUTANIX_ADDITIONAL_SUBNET_NAME: ${{ vars.NUTANIX_ADDITIONAL_SUBNET_NAME }}
+          NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ${{ steps.pe-params.outputs.NUTANIX_PRISM_ELEMENT_CLUSTER_NAME }}
+          NUTANIX_SUBNET_NAME: ${{ steps.pe-params.outputs.NUTANIX_SUBNET_NAME }}
+          NUTANIX_ADDITIONAL_SUBNET_NAME: ${{ steps.pe-params.outputs.NUTANIX_ADDITIONAL_SUBNET_NAME }}
           NUTANIX_PROJECT_NAME: ${{ vars.NUTANIX_PROJECT_NAME }}
           CONTROL_PLANE_ENDPOINT_IP: ${{ steps.get-control-plane-endpoint-ip.outputs.control_plane_endpoint_ip }}
           CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER: ${{ steps.get-control-plane-endpoint-ip-clusterctl-upgrade.outputs.control_plane_endpoint_ip_clusterctl_upgrade }}
