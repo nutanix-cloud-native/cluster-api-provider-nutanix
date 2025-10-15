@@ -35,7 +35,7 @@ const (
 	nutanixGPUVirtualNameEnv     = "NUTANIX_GPU_VIRTUAL_NAME"
 )
 
-var _ = Describe("Nutanix Passthrough GPU", Label("nutanix-feature-test", "passthrough", "gpu"), func() {
+var _ = Describe("Nutanix Passthrough GPU", Label("passthrough", "gpu"), func() {
 	const specName = "cluster-gpu-passthrough"
 
 	var (
@@ -187,7 +187,7 @@ var _ = Describe("Nutanix Passthrough GPU", Label("nutanix-feature-test", "passt
 	})
 })
 
-var _ = Describe("Nutanix Virtual GPU", Label("nutanix-feature-test", "virtual", "gpu"), func() {
+var _ = Describe("Nutanix Virtual GPU", Label("virtual", "gpu"), func() {
 	const specName = "cluster-gpu-virtual"
 
 	var (
