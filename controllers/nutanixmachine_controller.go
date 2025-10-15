@@ -357,7 +357,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	}
 
 	log.V(1).Info(fmt.Sprintf("VM %s with UUID %s was found.", *vm.Spec.Name, vmUUID))
-	lastTaskUUID, err := GetTaskUUIDFromVM(vm)
+	lastTaskUUID, err := GetTaskUUIDFromVM(ctx, convergedClient, vmUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred fetching task UUID from VM: %v", err)
 		log.Error(errorMsg, "error fetching task UUID")
@@ -367,7 +367,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 
 	if lastTaskUUID != "" {
 		log.Info(fmt.Sprintf("checking if VM %s with UUID %s has in progress tasks", vmName, vmUUID))
-		taskInProgress, err := HasTaskInProgress(ctx, rctx.NutanixClient, lastTaskUUID)
+		taskInProgress, err := HasTaskInProgress(ctx, rctx.ConvergedClient, lastTaskUUID)
 		if err != nil {
 			log.Error(err, fmt.Sprintf("error occurred while checking task %s for VM %s. Trying to delete VM", lastTaskUUID, vmName))
 		}
@@ -793,6 +793,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	log := ctrl.LoggerFrom(ctx)
 	vmName := rctx.Machine.Name
 	v3Client := rctx.NutanixClient
+	convergedClient := rctx.ConvergedClient
 
 	// Check if the VM already exists
 	vm, err = FindVM(ctx, v3Client, rctx.NutanixMachine, vmName)
@@ -923,9 +924,10 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUuid)
 	rctx.NutanixMachine.Status.VmUUID = vmUuid
 
+	// Refactor this when we migrate this helper function to v4ConvergedClient
 	log.V(1).Info(fmt.Sprintf("Sent the post request to create VM %s. Got the vm UUID: %s, status.state: %s", vmName, vmUuid, *vmResponse.Status.State))
 	log.V(1).Info(fmt.Sprintf("Getting task vmUUID for VM %s", vmName))
-	lastTaskUUID, err := GetTaskUUIDFromVM(vmResponse)
+	lastTaskUUID, err := GetTaskUUIDFromVM(ctx, convergedClient, vmUuid)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred fetching task UUID from vm %s after creation: %v", rctx.Machine.Name, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
@@ -936,6 +938,12 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*pr
 		errorMsg := fmt.Errorf("failed to retrieve task UUID for VM %s after creation", vmName)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, errorMsg
+	}
+
+	// Task ExtId is in the format of "<service base64>:<taskUUID>"
+	taskUUIDsParts := strings.Split(lastTaskUUID, ":")
+	if len(taskUUIDsParts) == 2 {
+		lastTaskUUID = taskUUIDsParts[1]
 	}
 
 	log.Info(fmt.Sprintf("Waiting for task %s to get completed for VM %s", lastTaskUUID, rctx.NutanixMachine.Name))
