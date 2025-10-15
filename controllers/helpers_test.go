@@ -2020,3 +2020,231 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 		MockTasks:                mockTasks,
 	}
 }
+
+func TestGetTaskUUIDFromVM(t *testing.T) {
+	tests := []struct {
+		name          string
+		clientBuilder func() *v4Converged.Client
+		vmId          string
+		want          string
+		wantErr       bool
+		errorMessage  string
+	}{
+		{
+			name: "empty vmId returns error",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				return convergedClient.Client
+			},
+			vmId:         "",
+			want:         "",
+			wantErr:      true,
+			errorMessage: "cannot extract task uuid for empty vm id",
+		},
+		{
+			name: "successful task UUID retrieval with running task",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				taskUUID := "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f"
+				tasks := []prismModels.Task{
+					{
+						ExtId: ptr.To(taskUUID),
+					},
+				}
+				convergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(tasks, nil)
+				return convergedClient.Client
+			},
+			vmId:    "vm-uuid-456",
+			want:    "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
+			wantErr: false,
+		},
+		{
+			name: "no running tasks returns empty string",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				tasks := []prismModels.Task{}
+				convergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(tasks, nil)
+				return convergedClient.Client
+			},
+			vmId:    "vm-uuid-456",
+			want:    "",
+			wantErr: false,
+		},
+		{
+			name: "multiple running tasks returns first task UUID",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				tasks := []prismModels.Task{
+					{
+						ExtId: ptr.To("ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f"),
+					},
+					{
+						ExtId: ptr.To("ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d590"),
+					},
+				}
+				convergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(tasks, nil)
+				return convergedClient.Client
+			},
+			vmId:    "vm-uuid-456",
+			want:    "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
+			wantErr: false,
+		},
+		{
+			name: "API error returns error",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("API connection failed"))
+				return convergedClient.Client
+			},
+			vmId:         "vm-uuid-456",
+			want:         "",
+			wantErr:      true,
+			errorMessage: "API connection failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Log("Running test case ", tt.name)
+			ctx := context.Background()
+			got, err := GetTaskUUIDFromVM(ctx, tt.clientBuilder(), tt.vmId)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetTaskUUIDFromVM() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("GetTaskUUIDFromVM() = %v, want %v", got, tt.want)
+			}
+			if tt.errorMessage != "" && err != nil {
+				if !strings.Contains(err.Error(), tt.errorMessage) {
+					t.Errorf("GetTaskUUIDFromVM() error message = %v, want to contain %v", err.Error(), tt.errorMessage)
+				}
+			}
+		})
+	}
+}
+
+func TestHasTaskInProgress(t *testing.T) {
+	tests := []struct {
+		name          string
+		clientBuilder func() *v4Converged.Client
+		taskUUID      string
+		want          bool
+		wantErr       bool
+		errorMessage  string
+	}{
+		{
+			name: "task succeeded returns false",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				taskStatus := prismModels.TASKSTATUS_SUCCEEDED
+				convergedClient.MockTasks.EXPECT().Get(gomock.Any(), "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f").Return(&prismModels.Task{
+					Status: &taskStatus,
+				}, nil)
+				return convergedClient.Client
+			},
+			taskUUID: "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
+			want:     false,
+			wantErr:  false,
+		},
+		{
+			name: "task running returns true",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				taskStatus := prismModels.TASKSTATUS_RUNNING
+				convergedClient.MockTasks.EXPECT().Get(gomock.Any(), "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f").Return(&prismModels.Task{
+					Status: &taskStatus,
+				}, nil)
+				return convergedClient.Client
+			},
+			taskUUID: "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
+			want:     true,
+			wantErr:  false,
+		},
+		{
+			name: "task queued returns true",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				taskStatus := prismModels.TASKSTATUS_QUEUED
+				convergedClient.MockTasks.EXPECT().Get(gomock.Any(), "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f").Return(&prismModels.Task{
+					Status: &taskStatus,
+				}, nil)
+				return convergedClient.Client
+			},
+			taskUUID: "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
+			want:     true,
+			wantErr:  false,
+		},
+		{
+			name: "task failed returns false (no error in v4 implementation)",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				taskStatus := prismModels.TASKSTATUS_FAILED
+				convergedClient.MockTasks.EXPECT().Get(gomock.Any(), "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f").Return(&prismModels.Task{
+					Status: &taskStatus,
+				}, nil)
+				return convergedClient.Client
+			},
+			taskUUID: "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
+			want:     false,
+			wantErr:  false,
+		},
+		{
+			name: "task suspended returns false",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				taskStatus := prismModels.TASKSTATUS_SUSPENDED
+				convergedClient.MockTasks.EXPECT().Get(gomock.Any(), "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f").Return(&prismModels.Task{
+					Status: &taskStatus,
+				}, nil)
+				return convergedClient.Client
+			},
+			taskUUID: "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
+			want:     false,
+			wantErr:  false,
+		},
+		{
+			name: "API error returns error",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockTasks.EXPECT().Get(gomock.Any(), "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f").Return(nil, errors.New("API error"))
+				return convergedClient.Client
+			},
+			taskUUID:     "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
+			want:         false,
+			wantErr:      true,
+			errorMessage: "API error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Log("Running test case ", tt.name)
+			ctx := context.Background()
+			got, err := HasTaskInProgress(ctx, tt.clientBuilder(), tt.taskUUID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("HasTaskInProgress() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("HasTaskInProgress() = %v, want %v", got, tt.want)
+			}
+			if tt.errorMessage != "" && err != nil {
+				if !strings.Contains(err.Error(), tt.errorMessage) {
+					t.Errorf("HasTaskInProgress() error message = %v, want to contain %v", err.Error(), tt.errorMessage)
+				}
+			}
+		})
+	}
+}

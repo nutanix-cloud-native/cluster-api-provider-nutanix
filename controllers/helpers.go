@@ -606,6 +606,7 @@ func ImageMarkedForDeletion(ctx context.Context, client *v4Converged.Client, ima
 }
 
 func HasDeleteVmTaskInProgress(ctx context.Context, client *v4Converged.Client, vmExtId string) (bool, error) {
+	log := ctrl.LoggerFrom(ctx)
 	// Get delete task for the vm
 	fmtString := "entitiesAffected/any(a:a/extId eq '%s') " +
 		"and (status eq Prism.Config.TaskStatus'RUNNING' or status eq Prism.Config.TaskStatus'QUEUED') " +
@@ -614,6 +615,7 @@ func HasDeleteVmTaskInProgress(ctx context.Context, client *v4Converged.Client, 
 	if err != nil {
 		return false, err
 	}
+	log.V(1).Info(fmt.Sprintf("Found %d running or queued DeleteVm tasks for vm: %s", len(tasks), vmExtId))
 	return len(tasks) > 0, nil
 }
 
