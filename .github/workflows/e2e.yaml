@@ -46,11 +46,28 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
+      - name: Set Prism Element Cluster parameters
+        id: pe-params
+        run: |
+          if [[ "${{ inputs.e2e-labels }}" == "gpu" ]]; then
+            echo "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME=${{ vars.NUTANIX_PRISM_ELEMENT_CLUSTER_NAME_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
+            echo "NUTANIX_SUBNET_NAME=${{ vars.NUTANIX_SUBNET_NAME_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
+            echo "NUTANIX_ADDITIONAL_SUBNET_NAME=${{ vars.NUTANIX_ADDITIONAL_SUBNET_NAME_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
+            echo "CONTROL_PLANE_ENDPOINT_RANGE_START=${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_START_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
+            echo "CONTROL_PLANE_ENDPOINT_RANGE_END=${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_END_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME=${{ vars.NUTANIX_PRISM_ELEMENT_CLUSTER_NAME }}" >> "${GITHUB_OUTPUT}"
+            echo "NUTANIX_SUBNET_NAME=${{ vars.NUTANIX_SUBNET_NAME }}" >> "${GITHUB_OUTPUT}"
+            echo "NUTANIX_ADDITIONAL_SUBNET_NAME=${{ vars.NUTANIX_ADDITIONAL_SUBNET_NAME }}" >> "${GITHUB_OUTPUT}"
+            echo "CONTROL_PLANE_ENDPOINT_RANGE_START=${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_START }}" >> "${GITHUB_OUTPUT}"
+            echo "CONTROL_PLANE_ENDPOINT_RANGE_END=${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_END }}" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Get Control Plane endpoint IP
         id: get-control-plane-endpoint-ip
         run: |
-          export CONTROL_PLANE_ENDPOINT_RANGE_START="${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_START }}"
-          export CONTROL_PLANE_ENDPOINT_RANGE_END="${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_END }}"
+          export CONTROL_PLANE_ENDPOINT_RANGE_START="${{ steps.pe-params.outputs.CONTROL_PLANE_ENDPOINT_RANGE_START }}"
+          export CONTROL_PLANE_ENDPOINT_RANGE_END="${{ steps.pe-params.outputs.CONTROL_PLANE_ENDPOINT_RANGE_END }}"
           control_plane_endpoint_ip="$(devbox run -- make nutanix-cp-endpoint-ip)"
           echo "control_plane_endpoint_ip=${control_plane_endpoint_ip}" >> "${GITHUB_OUTPUT}"
 
@@ -82,19 +99,6 @@ jobs:
           registry: ${{ secrets.LOCAL_IMAGE_REGISTRY }}
           username: ${{ secrets.LOCAL_IMAGE_REGISTRY_USERNAME }}
           password: ${{ secrets.LOCAL_IMAGE_REGISTRY_TOKEN }}
-
-      - name: Set Prism Element Cluster parameters
-        id: pe-params
-        run: |
-          if [[ "${{ inputs.e2e-labels }}" == "gpu" ]]; then
-            echo "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME=${{ vars.NUTANIX_PRISM_ELEMENT_CLUSTER_NAME_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
-            echo "NUTANIX_SUBNET_NAME=${{ vars.NUTANIX_SUBNET_NAME_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
-            echo "NUTANIX_ADDITIONAL_SUBNET_NAME=${{ vars.NUTANIX_ADDITIONAL_SUBNET_NAME_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
-          else
-            echo "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME=${{ vars.NUTANIX_PRISM_ELEMENT_CLUSTER_NAME }}" >> "${GITHUB_OUTPUT}"
-            echo "NUTANIX_SUBNET_NAME=${{ vars.NUTANIX_SUBNET_NAME }}" >> "${GITHUB_OUTPUT}"
-            echo "NUTANIX_ADDITIONAL_SUBNET_NAME=${{ vars.NUTANIX_ADDITIONAL_SUBNET_NAME }}" >> "${GITHUB_OUTPUT}"
-          fi
 
       - name: Test build
         run: devbox run -- make ${{ inputs.make-target }} LABEL_FILTERS='${{ inputs.e2e-labels }}'
