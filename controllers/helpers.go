@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math/rand"
 	"regexp"
 	"slices"
 	"sort"
@@ -32,10 +33,11 @@ import (
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
-	clustermgmtconfig "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
+	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	vmmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
+	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -47,15 +49,12 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
-	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
 )
 
 const (
 	providerIdPrefix = "nutanix://"
 
 	subnetTypeOverlay = "OVERLAY"
-
-	gpuUnused = "UNUSED"
 
 	detachVGRequeueAfter = 30 * time.Second
 
@@ -226,7 +225,7 @@ func GetPEUUID(ctx context.Context, client *v4Converged.Client, peName, peUUID *
 			return "", err
 		}
 		// Validate filtered PEs
-		foundPEs := make([]clustermgmtconfig.Cluster, 0)
+		foundPEs := make([]clusterModels.Cluster, 0)
 		for _, s := range responsePEs {
 			if strings.EqualFold(*s.Name, *peName) && hasPEClusterServiceEnabled(&s) {
 				foundPEs = append(foundPEs, s)
@@ -859,14 +858,14 @@ func GetProjectUUID(ctx context.Context, client *prismclientv3.Client, projectNa
 	return foundProjectUUID, nil
 }
 
-func hasPEClusterServiceEnabled(peCluster *clustermgmtconfig.Cluster) bool {
+func hasPEClusterServiceEnabled(peCluster *clusterModels.Cluster) bool {
 	if peCluster.Config == nil ||
 		peCluster.Config.ClusterFunction == nil {
 		return false
 	}
 	serviceList := peCluster.Config.ClusterFunction
 	for _, s := range serviceList {
-		if strings.ToUpper(string(s.GetName())) == clustermgmtconfig.CLUSTERFUNCTIONREF_AOS.GetName() {
+		if strings.ToUpper(string(s.GetName())) == clusterModels.CLUSTERFUNCTIONREF_AOS.GetName() {
 			return true
 		}
 	}
@@ -874,8 +873,8 @@ func hasPEClusterServiceEnabled(peCluster *clustermgmtconfig.Cluster) bool {
 }
 
 // GetGPUList returns a list of GPU device IDs for the given list of GPUs
-func GetGPUList(ctx context.Context, client *prismclientv3.Client, gpus []infrav1.NutanixGPU, peUUID string) ([]*prismclientv3.VMGpu, error) {
-	resultGPUs := make([]*prismclientv3.VMGpu, 0)
+func GetGPUList(ctx context.Context, client *v4Converged.Client, gpus []infrav1.NutanixGPU, peUUID string) ([]*vmmconfig.Gpu, error) {
+	resultGPUs := make([]*vmmconfig.Gpu, 0)
 	for _, gpu := range gpus {
 		foundGPU, err := GetGPU(ctx, client, peUUID, gpu)
 		if err != nil {
@@ -887,61 +886,126 @@ func GetGPUList(ctx context.Context, client *prismclientv3.Client, gpus []infrav
 }
 
 // GetGPUDeviceID returns the device ID of a GPU with the given name
-func GetGPU(ctx context.Context, client *prismclientv3.Client, peUUID string, gpu infrav1.NutanixGPU) (*prismclientv3.VMGpu, error) {
+func GetGPU(ctx context.Context, client *v4Converged.Client, peUUID string, gpu infrav1.NutanixGPU) (*vmmconfig.Gpu, error) {
 	gpuDeviceID := gpu.DeviceID
 	gpuDeviceName := gpu.Name
 	if gpuDeviceID == nil && gpuDeviceName == nil {
 		return nil, fmt.Errorf("gpu name or gpu device ID must be passed in order to retrieve the GPU")
 	}
-	allGPUs, err := GetGPUsForPE(ctx, client, peUUID)
+
+	allUnusedGPUs, err := GetGPUsForPE(ctx, client, peUUID, gpu)
 	if err != nil {
 		return nil, err
 	}
-	if len(allGPUs) == 0 {
+	if len(allUnusedGPUs) == 0 {
 		return nil, fmt.Errorf("no available GPUs found in Prism Element cluster with UUID %s", peUUID)
 	}
-	for _, peGPU := range allGPUs {
-		if peGPU.Status != gpuUnused {
-			continue
-		}
-		if (gpuDeviceID != nil && *peGPU.DeviceID == *gpuDeviceID) || (gpuDeviceName != nil && *gpuDeviceName == peGPU.Name) {
-			return &prismclientv3.VMGpu{
-				DeviceID: peGPU.DeviceID,
-				Mode:     &peGPU.Mode,
-				Vendor:   &peGPU.Vendor,
-			}, err
-		}
-	}
-	return nil, fmt.Errorf("no available GPU found in Prism Element that matches required GPU inputs")
+
+	randomIndex := rand.Intn(len(allUnusedGPUs))
+	return allUnusedGPUs[randomIndex], nil
 }
 
-func GetGPUsForPE(ctx context.Context, client *prismclientv3.Client, peUUID string) ([]*prismclientv3.GPU, error) {
-	gpus := make([]*prismclientv3.GPU, 0)
-	// We use ListHost, because it returns all hosts, since the endpoint does not support pagination,
-	// and ListAllHost incorrectly handles pagination. https://jira.nutanix.com/browse/NCN-110045
-	hosts, err := client.V3.ListHost(ctx, &prismclientv3.DSMetadata{})
-	if err != nil {
-		return gpus, err
+func GetGPUsForPE(ctx context.Context, client *v4Converged.Client, peUUID string, gpu infrav1.NutanixGPU) ([]*vmmconfig.Gpu, error) {
+	var filter string
+	var gpus []*vmmconfig.Gpu
+
+	if gpu.DeviceID != nil {
+		filter = fmt.Sprintf("physicalGpuConfig/deviceId eq %d", *gpu.DeviceID)
+	} else if gpu.Name != nil {
+		filter = fmt.Sprintf("physicalGpuConfig/deviceName eq '%s'", *gpu.Name)
 	}
 
-	for _, host := range hosts.Entities {
-		if host == nil ||
-			host.Status == nil ||
-			host.Status.ClusterReference == nil ||
-			host.Status.Resources == nil ||
-			len(host.Status.Resources.GPUList) == 0 ||
-			host.Status.ClusterReference.UUID != peUUID {
+	physicalGPUs, err := client.Clusters.ListClusterPhysicalGPUs(ctx, peUUID, converged.WithFilter(filter))
+	if err != nil {
+		return nil, err
+	}
+	for _, physicalGPU := range physicalGPUs {
+		if physicalGPU.PhysicalGpuConfig.IsInUse != nil && *physicalGPU.PhysicalGpuConfig.IsInUse {
 			continue
 		}
 
-		for _, peGpu := range host.Status.Resources.GPUList {
-			if peGpu == nil {
-				continue
-			}
-			gpus = append(gpus, peGpu)
+		vmGpu := vmmconfig.NewGpu()
+		vmGpu.Name = physicalGPU.PhysicalGpuConfig.DeviceName
+		vmGpu.DeviceId = ptr.To(int(*physicalGPU.PhysicalGpuConfig.DeviceId))
+		vmGpu.Mode = vmmconfig.GPUMODE_PASSTHROUGH_COMPUTE.Ref()
+		if physicalGPU.PhysicalGpuConfig.Type != nil && *physicalGPU.PhysicalGpuConfig.Type == clusterModels.GPUTYPE_PASSTHROUGH_GRAPHICS {
+			vmGpu.Mode = vmmconfig.GPUMODE_PASSTHROUGH_GRAPHICS.Ref()
 		}
+		vmGpu.Vendor = gpuVendorStringToGpuVendor(*physicalGPU.PhysicalGpuConfig.VendorName)
+		gpus = append(gpus, vmGpu)
+	}
+
+	if gpu.Name != nil {
+		filter = fmt.Sprintf("virtualGpuConfig/deviceName eq '%s'", *gpu.Name)
+	} else if gpu.DeviceID != nil {
+		filter = fmt.Sprintf("virtualGpuConfig/deviceId eq %d", *gpu.DeviceID)
+	}
+
+	virtualGPUs, err := client.Clusters.ListClusterVirtualGPUs(ctx, peUUID, converged.WithFilter(filter))
+	if err != nil {
+		return nil, err
+	}
+	for _, virtualGPU := range virtualGPUs {
+		if virtualGPU.VirtualGpuConfig.IsInUse != nil && *virtualGPU.VirtualGpuConfig.IsInUse {
+			continue
+		}
+
+		vmGpu := vmmconfig.NewGpu()
+		vmGpu.Name = virtualGPU.VirtualGpuConfig.DeviceName
+		vmGpu.DeviceId = ptr.To(int(*virtualGPU.VirtualGpuConfig.DeviceId))
+		vmGpu.Mode = vmmconfig.GPUMODE_VIRTUAL.Ref()
+		vmGpu.Vendor = gpuVendorStringToGpuVendor(*virtualGPU.VirtualGpuConfig.VendorName)
+		gpus = append(gpus, vmGpu)
 	}
 	return gpus, nil
+}
+
+func gpuVendorStringToGpuVendor(vendor string) *vmmconfig.GpuVendor {
+	switch vendor {
+	case "kNvidia":
+		return vmmconfig.GPUVENDOR_NVIDIA.Ref()
+	case "kIntel":
+		return vmmconfig.GPUVENDOR_INTEL.Ref()
+	case "kAmd":
+		return vmmconfig.GPUVENDOR_AMD.Ref()
+	default:
+		return vmmconfig.GPUVENDOR_UNKNOWN.Ref()
+	}
+}
+
+// TODO: delete when VM part will be migrated to use the v4Converged client
+// v4GpuToV3Gpu converts a v4 GPU to a v3 GPU
+func v4GpuToV3Gpu(gpu *vmmconfig.Gpu) *prismclientv3.VMGpu {
+	var mode string
+	var vendor string
+
+	switch *gpu.Mode {
+	case vmmconfig.GPUMODE_PASSTHROUGH_COMPUTE:
+		mode = "PASSTHROUGH_COMPUTE"
+	case vmmconfig.GPUMODE_PASSTHROUGH_GRAPHICS:
+		mode = "PASSTHROUGH_GRAPHICS"
+	case vmmconfig.GPUMODE_VIRTUAL:
+		mode = "VIRTUAL"
+	default:
+		mode = "$UNKNOWN"
+	}
+
+	switch *gpu.Vendor {
+	case vmmconfig.GPUVENDOR_NVIDIA:
+		vendor = "NVIDIA"
+	case vmmconfig.GPUVENDOR_INTEL:
+		vendor = "INTEL"
+	case vmmconfig.GPUVENDOR_AMD:
+		vendor = "AMD"
+	default:
+		vendor = "UNKNOWN"
+	}
+
+	return &prismclientv3.VMGpu{
+		DeviceID: ptr.To(int64(*gpu.DeviceId)),
+		Mode:     ptr.To(mode),
+		Vendor:   ptr.To(vendor),
+	}
 }
 
 // GetLegacyFailureDomainFromNutanixCluster gets the failure domain with a given name from a NutanixCluster object.
@@ -954,7 +1018,7 @@ func GetLegacyFailureDomainFromNutanixCluster(failureDomainName string, nutanixC
 	return nil
 }
 
-func GetStorageContainerInCluster(ctx context.Context, client *v4Converged.Client, storageContainerIdentifier, clusterIdentifier infrav1.NutanixResourceIdentifier) (*clustermgmtconfig.StorageContainer, error) {
+func GetStorageContainerInCluster(ctx context.Context, client *v4Converged.Client, storageContainerIdentifier, clusterIdentifier infrav1.NutanixResourceIdentifier) (*clusterModels.StorageContainer, error) {
 	var filter, identifier string
 	switch {
 	case storageContainerIdentifier.IsUUID():
