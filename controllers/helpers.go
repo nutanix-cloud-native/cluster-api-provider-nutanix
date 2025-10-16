@@ -605,16 +605,20 @@ func ImageMarkedForDeletion(ctx context.Context, client *v4Converged.Client, ima
 	return len(tasks) > 0, nil
 }
 
-func HasDeleteVmTaskInProgress(ctx context.Context, client *v4Converged.Client, vmExtId string) (bool, error) {
+func VmHasTaskInProgress(ctx context.Context, client *v4Converged.Client, vmExtId string) (bool, error) {
 	log := ctrl.LoggerFrom(ctx)
-	// Get delete task for the vm
+	if vmExtId == "" {
+		return false, fmt.Errorf("cannot extract task uuid for empty vm extId")
+	}
+
+	log.V(1).Info(fmt.Sprintf("Getting task uuid for vm %s", vmExtId))
 	fmtString := "entitiesAffected/any(a:a/extId eq '%s') " +
-		"and (status eq Prism.Config.TaskStatus'RUNNING' or status eq Prism.Config.TaskStatus'QUEUED') " +
-		"and (operation eq 'DeleteVm')"
+		"and (status eq Prism.Config.TaskStatus'RUNNING' or status eq Prism.Config.TaskStatus'QUEUED')"
 	tasks, err := client.Tasks.List(ctx, converged.WithFilter(fmt.Sprintf(fmtString, vmExtId)))
 	if err != nil {
 		return false, err
 	}
+
 	log.V(1).Info(fmt.Sprintf("Found %d running or queued DeleteVm tasks for vm: %s", len(tasks), vmExtId))
 	return len(tasks) > 0, nil
 }
@@ -1078,23 +1082,23 @@ func isBackedByVolumeGroupReference(disk *vmmconfig.Disk) bool {
 
 func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Client, vmName string, vmUUID string, vmDiskList []vmmconfig.Disk) error {
 	log := ctrl.LoggerFrom(ctx)
-	volumeGroupsToDetach := make([]string, 0)
-	for _, disk := range vmDiskList {
-		if isBackedByVolumeGroupReference(&disk) {
-			volumeGroupsToDetach = append(volumeGroupsToDetach, *disk.ExtId)
-		}
-	}
-
 	// Detach the volume groups from the virtual machine
-	for _, volumeGroup := range volumeGroupsToDetach {
-		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroup, vmName))
+	for _, disk := range vmDiskList {
+		if !isBackedByVolumeGroupReference(&disk) {
+			continue
+		}
+
+		volumeGroup := disk.GetBackingInfo().(vmmconfig.ADSFVolumeGroupReference)
+		volumeGroupExtId := *volumeGroup.VolumeGroupExtId
+
+		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroupExtId, vmName))
 		body := &volumesconfig.VmAttachment{
 			ExtId: ptr.To(vmUUID),
 		}
 
-		resp, err := v4Client.VolumeGroupsApiInstance.DetachVm(&volumeGroup, body)
+		resp, err := v4Client.VolumeGroupsApiInstance.DetachVm(&volumeGroupExtId, body)
 		if err != nil {
-			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroup, vmUUID, err)
+			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroupExtId, vmUUID, err)
 		}
 
 		data := resp.GetData()

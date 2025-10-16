@@ -2395,7 +2395,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		assert.Equal(t, reconcile.Result{}, result)
 	})
 
-	t.Run("should return error when HasDeleteVmTaskInProgress fails", func(t *testing.T) {
+	t.Run("should return error when VMHasTaskInProgress fails", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -2455,13 +2455,13 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		// Test reconcileDelete
 		result, err := reconciler.reconcileDelete(rctx)
 
-		// Verify results - should fail with HasDeleteVmTaskInProgress error
+		// Verify results - should fail with VmHasTaskInProgress error
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to list tasks")
 		assert.Equal(t, reconcile.Result{}, result)
 	})
 
-	t.Run("should proceed with deletion when HasDeleteVmTaskInProgress returns false", func(t *testing.T) {
+	t.Run("should proceed with deletion when VmHasTaskInProgress returns false", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -2508,7 +2508,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		// Mock FindVMByUUID to return VM
 		mockConvergedClient.MockVMs.EXPECT().Get(gomock.Any(), gomock.Any()).Return(vm, nil)
 
-		// Mock HasDeleteVmTaskInProgress to return false
+		// Mock VmHasTaskInProgress to return false
 		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
 
 		// Mock DeleteAsync to proceed with deletion since no task is in progress

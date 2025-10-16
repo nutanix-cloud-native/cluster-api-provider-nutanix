@@ -349,15 +349,18 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 
 	log.V(1).Info(fmt.Sprintf("Found VM %s with UUID %s.", *vm.Name, vmUUID))
 
-	taskInProgress, err := HasDeleteVmTaskInProgress(ctx, convergedClient, vmUUID)
+	taskInProgress, err := VmHasTaskInProgress(ctx, convergedClient, vmUUID)
 	if err != nil {
+		errorMsg := fmt.Errorf("error occurred while fetching running task from VM: %v", err)
+		log.Error(errorMsg, "error fetching running task from VM")
+		conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, "%s", err.Error())
 		return reconcile.Result{}, err
 	}
 	if taskInProgress {
-		log.Info(fmt.Sprintf("VM %s has a delete task in progress. Requeuing", vmName))
+		log.Info(fmt.Sprintf("VM %s has tasks in progress. Requeuing", vmName))
 		return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
 	} else {
-		log.V(1).Info(fmt.Sprintf("no running delete task anymore... Initiating delete for VM %s with UUID %s", vmName, vmUUID))
+		log.V(1).Info(fmt.Sprintf("no running tasks anymore... Initiating delete for VM %s with UUID %s", vmName, vmUUID))
 	}
 
 	var vgDetachNeeded bool
