@@ -31,8 +31,10 @@ import (
 )
 
 const (
-	nutanixGPUPassthroughNameEnv = "NUTANIX_GPU_PASSTHROUGH_NAME"
-	nutanixGPUVirtualNameEnv     = "NUTANIX_GPU_VIRTUAL_NAME"
+	nutanixGPUPassthroughNameEnv   = "NUTANIX_GPU_PASSTHROUGH_NAME"
+	nutanixGPUVirtualNameEnv       = "NUTANIX_GPU_VIRTUAL_NAME"
+	nutanixGPUPassthroughVendorEnv = "NUTANIX_GPU_PASSTHROUGH_VENDOR"
+	nutanixGPUVirtualVendorEnv     = "NUTANIX_GPU_VIRTUAL_VENDOR"
 )
 
 var _ = Describe("Nutanix Passthrough GPU", Label("passthrough", "gpu"), func() {
@@ -100,7 +102,7 @@ var _ = Describe("Nutanix Passthrough GPU", Label("passthrough", "gpu"), func() 
 				clusterName:            clusterName,
 				namespace:              namespace,
 				expectedPhase:          "Failed",
-				expectedFailureMessage: "no available GPU found",
+				expectedFailureMessage: "no available GPUs found",
 				bootstrapClusterProxy:  bootstrapClusterProxy,
 			})
 		})
@@ -154,7 +156,8 @@ var _ = Describe("Nutanix Passthrough GPU", Label("passthrough", "gpu"), func() 
 
 		By("Creating passthrough GPU Nutanix Machine Template using deviceID", func() {
 			GPUNMT := testHelper.createDeviceIDGPUNMT(ctx, clusterName, namespace.Name, createGPUNMTParams{
-				gpuNameEnvKey: nutanixGPUPassthroughNameEnv,
+				gpuNameEnvKey:   nutanixGPUPassthroughNameEnv,
+				gpuVendorEnvKey: nutanixGPUPassthroughVendorEnv,
 			})
 
 			testHelper.createCapiObject(ctx, createCapiObjectParams{
@@ -252,7 +255,7 @@ var _ = Describe("Nutanix Virtual GPU", Label("virtual", "gpu"), func() {
 				clusterName:            clusterName,
 				namespace:              namespace,
 				expectedPhase:          "Failed",
-				expectedFailureMessage: "no available GPU found",
+				expectedFailureMessage: "no available GPUs found",
 				bootstrapClusterProxy:  bootstrapClusterProxy,
 			})
 		})
@@ -306,7 +309,8 @@ var _ = Describe("Nutanix Virtual GPU", Label("virtual", "gpu"), func() {
 
 		By("Creating virtual GPU Nutanix Machine Template using deviceID", func() {
 			GPUNMT := testHelper.createDeviceIDGPUNMT(ctx, clusterName, namespace.Name, createGPUNMTParams{
-				gpuNameEnvKey: nutanixGPUVirtualNameEnv,
+				gpuNameEnvKey:   nutanixGPUVirtualNameEnv,
+				gpuVendorEnvKey: nutanixGPUVirtualVendorEnv,
 			})
 
 			testHelper.createCapiObject(ctx, createCapiObjectParams{
