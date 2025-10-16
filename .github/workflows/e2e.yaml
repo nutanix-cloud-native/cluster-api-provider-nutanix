@@ -52,13 +52,11 @@ jobs:
           if [[ "${{ inputs.e2e-labels }}" == "gpu" ]]; then
             echo "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME=${{ vars.NUTANIX_PRISM_ELEMENT_CLUSTER_NAME_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
             echo "NUTANIX_SUBNET_NAME=${{ vars.NUTANIX_SUBNET_NAME_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
-            echo "NUTANIX_ADDITIONAL_SUBNET_NAME=${{ vars.NUTANIX_ADDITIONAL_SUBNET_NAME_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
             echo "CONTROL_PLANE_ENDPOINT_RANGE_START=${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_START_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
             echo "CONTROL_PLANE_ENDPOINT_RANGE_END=${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_END_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
           else
             echo "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME=${{ vars.NUTANIX_PRISM_ELEMENT_CLUSTER_NAME }}" >> "${GITHUB_OUTPUT}"
             echo "NUTANIX_SUBNET_NAME=${{ vars.NUTANIX_SUBNET_NAME }}" >> "${GITHUB_OUTPUT}"
-            echo "NUTANIX_ADDITIONAL_SUBNET_NAME=${{ vars.NUTANIX_ADDITIONAL_SUBNET_NAME }}" >> "${GITHUB_OUTPUT}"
             echo "CONTROL_PLANE_ENDPOINT_RANGE_START=${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_START }}" >> "${GITHUB_OUTPUT}"
             echo "CONTROL_PLANE_ENDPOINT_RANGE_END=${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_END }}" >> "${GITHUB_OUTPUT}"
           fi
@@ -118,7 +116,7 @@ jobs:
           NUTANIX_SSH_AUTHORIZED_KEY: ${{ secrets.NUTANIX_SSH_AUTHORIZED_KEY }}
           NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ${{ steps.pe-params.outputs.NUTANIX_PRISM_ELEMENT_CLUSTER_NAME }}
           NUTANIX_SUBNET_NAME: ${{ steps.pe-params.outputs.NUTANIX_SUBNET_NAME }}
-          NUTANIX_ADDITIONAL_SUBNET_NAME: ${{ steps.pe-params.outputs.NUTANIX_ADDITIONAL_SUBNET_NAME }}
+          NUTANIX_ADDITIONAL_SUBNET_NAME: ${{ vars.NUTANIX_ADDITIONAL_SUBNET_NAME }}
           NUTANIX_PROJECT_NAME: ${{ vars.NUTANIX_PROJECT_NAME }}
           CONTROL_PLANE_ENDPOINT_IP: ${{ steps.get-control-plane-endpoint-ip.outputs.control_plane_endpoint_ip }}
           CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER: ${{ steps.get-control-plane-endpoint-ip-clusterctl-upgrade.outputs.control_plane_endpoint_ip_clusterctl_upgrade }}
