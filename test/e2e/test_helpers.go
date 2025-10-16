@@ -932,7 +932,7 @@ func (t testHelper) verifyGPUNutanixMachines(ctx context.Context, params verifyG
 				gstruct.MatchFields(
 					gstruct.IgnoreExtras,
 					gstruct.Fields{
-						"DeviceID": HaveValue(Equal(*foundGpu.DeviceId)),
+						"DeviceID": HaveValue(Equal(int64(*foundGpu.DeviceId))),
 						"Vendor":   HaveValue(Equal(GpuVendorToString(foundGpu.Vendor))),
 					},
 				),
