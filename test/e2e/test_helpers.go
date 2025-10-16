@@ -310,7 +310,6 @@ type createGPUNMTParams struct {
 
 func (t testHelper) createNameGPUNMT(ctx context.Context, clusterName, namespace string, params createGPUNMTParams) *infrav1.NutanixMachineTemplate {
 	gpuName := t.getVariableFromE2eConfig(params.gpuNameEnvKey)
-	_ = t.getVariableFromE2eConfig(params.gpuVendorEnvKey)
 
 	nmt := t.createDefaultNMT(clusterName, namespace)
 	nmt.Spec.Template.Spec.GPUs = []infrav1.NutanixGPU{
