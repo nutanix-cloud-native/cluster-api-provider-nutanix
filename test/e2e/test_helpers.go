@@ -304,8 +304,7 @@ func (t testHelper) createUUIDProjectNMT(ctx context.Context, clusterName, names
 }
 
 type createGPUNMTParams struct {
-	gpuVendorEnvKey string
-	gpuNameEnvKey   string
+	gpuNameEnvKey string
 }
 
 func (t testHelper) createNameGPUNMT(ctx context.Context, clusterName, namespace string, params createGPUNMTParams) *infrav1.NutanixMachineTemplate {
