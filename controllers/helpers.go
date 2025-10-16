@@ -973,41 +973,6 @@ func gpuVendorStringToGpuVendor(vendor string) *vmmconfig.GpuVendor {
 	}
 }
 
-// TODO: delete when VM part will be migrated to use the v4Converged client
-// v4GpuToV3Gpu converts a v4 GPU to a v3 GPU
-func v4GpuToV3Gpu(gpu *vmmconfig.Gpu) *prismclientv3.VMGpu {
-	var mode string
-	var vendor string
-
-	switch *gpu.Mode {
-	case vmmconfig.GPUMODE_PASSTHROUGH_COMPUTE:
-		mode = "PASSTHROUGH_COMPUTE"
-	case vmmconfig.GPUMODE_PASSTHROUGH_GRAPHICS:
-		mode = "PASSTHROUGH_GRAPHICS"
-	case vmmconfig.GPUMODE_VIRTUAL:
-		mode = "VIRTUAL"
-	default:
-		mode = "$UNKNOWN"
-	}
-
-	switch *gpu.Vendor {
-	case vmmconfig.GPUVENDOR_NVIDIA:
-		vendor = "NVIDIA"
-	case vmmconfig.GPUVENDOR_INTEL:
-		vendor = "INTEL"
-	case vmmconfig.GPUVENDOR_AMD:
-		vendor = "AMD"
-	default:
-		vendor = "UNKNOWN"
-	}
-
-	return &prismclientv3.VMGpu{
-		DeviceID: ptr.To(int64(*gpu.DeviceId)),
-		Mode:     ptr.To(mode),
-		Vendor:   ptr.To(vendor),
-	}
-}
-
 // GetLegacyFailureDomainFromNutanixCluster gets the failure domain with a given name from a NutanixCluster object.
 func GetLegacyFailureDomainFromNutanixCluster(failureDomainName string, nutanixCluster *infrav1.NutanixCluster) *infrav1.NutanixFailureDomainConfig { //nolint:staticcheck // suppress complaining on Deprecated type
 	for _, fd := range nutanixCluster.Spec.FailureDomains { //nolint:staticcheck // suppress complaining on Deprecated field
