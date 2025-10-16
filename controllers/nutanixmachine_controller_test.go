@@ -29,9 +29,11 @@ import (
 	converged "github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
+	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	clustermgmtconfig "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
+	vmmCommonConfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/common/v1/config"
 	vmmModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
 	. "github.com/onsi/ginkgo/v2"
@@ -57,6 +59,7 @@ import (
 	mockctlclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/ctlclient"
 	mockmeta "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sapimachinery"
 	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
+	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
@@ -2536,7 +2539,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		assert.Equal(t, reconcile.Result{RequeueAfter: 5 * time.Second}, result)
 	})
 
-	t.Run("should requeue when VM has task in progress", func(t *testing.T) {
+	t.Run("should requeue when VmHasTaskInProgress returns true", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -2801,6 +2804,8 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		subnetUUID := "b8c6d9f0-4c5e-4c5e-8c5e-4c5e4c5e4c5e"
 		imageUUID := "c5e4c5e4-c5e4-c5e4-c5e4-c5e4c5e4c5e4"
 		clusterName := "test-cluster"
+		projectUUID := "c5e4c5e4-c5e4-c5e4-c5e4-c5e4c5e4cabc"
+		projectName := "test-project"
 
 		// Create NutanixMachine with required specs
 		ntnxMachine := &infrav1.NutanixMachine{
@@ -2813,6 +2818,11 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 				VCPUsPerSocket: 1,
 				MemorySize:     resource.MustParse("4Gi"),
 				SystemDiskSize: resource.MustParse("40Gi"),
+				BootType:       infrav1.NutanixBootTypeLegacy,
+				Project: &infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierName,
+					Name: &projectName,
+				},
 				Image: &infrav1.NutanixResourceIdentifier{
 					Type: infrav1.NutanixIdentifierUUID,
 					UUID: &imageUUID,
@@ -2860,6 +2870,8 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 
 		// Create mock clients
 		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockV3Client := mocknutanixv3.NewMockService(ctrl)
+		v3Client := &prismclientv3.Client{V3: mockV3Client}
 
 		// Mock FindVM to return nil (VM not found)
 		mockConvergedClient.MockVMs.EXPECT().List(ctx, gomock.Any()).Return([]vmmModels.Vm{}, nil)
@@ -2887,6 +2899,16 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			mockConvergedClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(createdCategory, nil),
 			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{*createdCategory}, nil).AnyTimes(),
 		)
+
+		// Mock addVMToProject
+		mockV3Client.EXPECT().ListAllProject(gomock.Any(), gomock.Any()).Return(&prismclientv3.ProjectListResponse{
+			Entities: []*prismclientv3.Project{
+				{
+					Spec: &prismclientv3.ProjectSpec{Name: projectName},
+					Metadata: &prismclientv3.Metadata{UUID: &projectUUID},
+				},
+			},
+		}, nil)
 
 		// Mock GetImage (called by getDiskList -> getSystemDisk)
 		mockConvergedClient.MockImages.EXPECT().Get(ctx, imageUUID).Return(&imageModels.Image{
@@ -2923,6 +2945,7 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			Machine:         machine,
 			NutanixMachine:  ntnxMachine,
 			NutanixCluster:  ntnxCluster,
+			NutanixClient:   v3Client,
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
@@ -2957,5 +2980,49 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		assert.Equal(t, vmUUID, *vm.ExtId)
 		assert.Equal(t, vmUUID, ntnxMachine.Status.VmUUID)
 		assert.Contains(t, ntnxMachine.Spec.ProviderID, vmUUID)
+	})
+}
+
+func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
+	t.Run("should populate IP addresses from VM Nics to NutanixMachine addresses", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+
+		nic1 := vmmModels.NewNic()
+		nic1.NetworkInfo = vmmModels.NewNicNetworkInfo()
+		ipv4Config := vmmModels.NewIpv4Config()
+		ipv4Config.IpAddress = vmmCommonConfig.NewIPv4Address()
+		ipv4Config.IpAddress.Value = ptr.To("10.10.10.10")
+		nic1.NetworkInfo.Ipv4Config = ipv4Config
+
+		nic2 := vmmModels.NewNic()
+		nic2.NetworkInfo = vmmModels.NewNicNetworkInfo()
+		ipv4Info := vmmModels.NewIpv4Info()
+		ipv4Ip := vmmCommonConfig.NewIPv4Address()
+		ipv4Ip.Value = ptr.To("10.10.10.11")
+		ipv4Info.LearnedIpAddresses = []vmmCommonConfig.IPv4Address{*ipv4Ip}
+		nic2.NetworkInfo.Ipv4Info = ipv4Info
+
+		nics := []vmmModels.Nic{*nic1, *nic2}
+		vm := vmmModels.NewVm()
+		vm.Name = ptr.To("vm-name")
+		vm.Nics = nics
+
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, vm)
+
+		assert.Nil(t, err)
+		assert.Equal(t, 1+len(nics), len(rctx.NutanixMachine.Status.Addresses))
+	})
+
+	t.Run("should fail if no IP addresses are found from Nics", func(t *testing.T) {
+		rctx := &nctx.MachineContext{}
+
+		vm := vmmModels.NewVm()
+		vm.Name = ptr.To("vm-name")
+
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, vm)
+
+		assert.NotNil(t, err)
 	})
 }

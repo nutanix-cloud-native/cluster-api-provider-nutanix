@@ -1158,7 +1158,7 @@ func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineCo
 	}
 
 	if len(addresses) == 0 {
-		return fmt.Errorf("unable to determine network interfaces from VM. Retrying")
+		return fmt.Errorf("unable to determine network interfaces from VM: %s. Retrying", *vm.Name)
 	}
 
 	addresses = append(addresses, capiv1.MachineAddress{
