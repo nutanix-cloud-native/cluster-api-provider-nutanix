@@ -765,7 +765,8 @@ func TestCreateDataDiskList(t *testing.T) {
 		convergedBuilder func() *v4Converged.Client
 		dataDiskSpecs    []infrav1.NutanixMachineVMDisk
 		peUUID           string
-		want             []*prismclientv3.VMDisk
+		wantDisks        func() []vmmModels.Disk
+		wantCdRoms       func() []vmmModels.CdRom
 		wantErr          bool
 		errorMessage     string
 	}{
@@ -793,26 +794,24 @@ func TestCreateDataDiskList(t *testing.T) {
 				},
 			},
 			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
-			want: []*prismclientv3.VMDisk{
-				{
-					DiskSizeMib: ptr.To(int64(20480)), // 20Gi in MiB
-					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
-						DeviceType: ptr.To("DISK"),
-						DiskAddress: &prismclientv3.DiskAddress{
-							AdapterType: ptr.To("SCSI"),
-							DeviceIndex: ptr.To(int64(1)),
-						},
-					},
-					StorageConfig: &prismclientv3.VMStorageConfig{
-						FlashMode: "DISABLED",
-						StorageContainerReference: &prismclientv3.StorageContainerReference{
-							Kind: "storage_container",
-							UUID: "06b1ce03-f384-4488-9ba1-ae17ebcf1f91",
-						},
-					},
-				},
+			wantDisks: func() []vmmModels.Disk {
+				disk := vmmModels.NewDisk()
+				disk.DiskAddress = vmmModels.NewDiskAddress()
+				disk.DiskAddress.Index = ptr.To(1)
+				disk.DiskAddress.BusType = vmmModels.DISKBUSTYPE_SCSI.Ref()
+
+				vmDisk := vmmModels.NewVmDisk()
+				vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
+				vmDisk.StorageConfig = vmmModels.NewVmDiskStorageConfig()
+				vmDisk.StorageConfig.IsFlashModeEnabled = ptr.To(false)
+				vmDisk.StorageContainer = vmmModels.NewVmDiskContainerReference()
+				vmDisk.StorageContainer.ExtId = ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91")
+				_ = disk.SetBackingInfo(*vmDisk)
+
+				return []vmmModels.Disk{*disk}
 			},
-			wantErr: false,
+			wantCdRoms: func() []vmmModels.CdRom { return []vmmModels.CdRom{} },
+			wantErr:    false,
 		},
 		{
 			name: "successful data disk creation with image reference",
@@ -848,30 +847,32 @@ func TestCreateDataDiskList(t *testing.T) {
 				},
 			},
 			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
-			want: []*prismclientv3.VMDisk{
-				{
-					DiskSizeMib: ptr.To(int64(20480)), // 20Gi in MiB
-					DataSourceReference: &prismclientv3.Reference{
-						Kind: ptr.To("image"),
-						UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
-					},
-					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
-						DeviceType: ptr.To("DISK"),
-						DiskAddress: &prismclientv3.DiskAddress{
-							AdapterType: ptr.To("SCSI"),
-							DeviceIndex: ptr.To(int64(1)),
-						},
-					},
-					StorageConfig: &prismclientv3.VMStorageConfig{
-						FlashMode: "DISABLED",
-						StorageContainerReference: &prismclientv3.StorageContainerReference{
-							Kind: "storage_container",
-							UUID: "06b1ce03-f384-4488-9ba1-ae17ebcf1f91",
-						},
-					},
-				},
+			wantDisks: func() []vmmModels.Disk {
+				disk := vmmModels.NewDisk()
+				disk.DiskAddress = vmmModels.NewDiskAddress()
+				disk.DiskAddress.Index = ptr.To(1)
+				disk.DiskAddress.BusType = vmmModels.DISKBUSTYPE_SCSI.Ref()
+
+				vmDisk := vmmModels.NewVmDisk()
+				vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
+
+				imageRef := vmmModels.NewImageReference()
+				imageRef.ImageExtId = ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479")
+				vmDisk.DataSource = vmmModels.NewDataSource()
+				_ = vmDisk.DataSource.SetReference(*imageRef)
+				vmDisk.DataSource.ReferenceItemDiscriminator_ = nil
+
+				vmDisk.StorageConfig = vmmModels.NewVmDiskStorageConfig()
+				vmDisk.StorageConfig.IsFlashModeEnabled = ptr.To(false)
+
+				vmDisk.StorageContainer = vmmModels.NewVmDiskContainerReference()
+				vmDisk.StorageContainer.ExtId = ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91")
+				_ = disk.SetBackingInfo(*vmDisk)
+
+				return []vmmModels.Disk{*disk}
 			},
-			wantErr: false,
+			wantCdRoms: func() []vmmModels.CdRom { return []vmmModels.CdRom{} },
+			wantErr:    false,
 		},
 		{
 			name: "failed image lookup for data source",
@@ -895,7 +896,8 @@ func TestCreateDataDiskList(t *testing.T) {
 				},
 			},
 			peUUID:       "00062e56-b9ac-7253-1946-7cc25586eeee",
-			want:         nil,
+			wantDisks:    func() []vmmModels.Disk { return nil },
+			wantCdRoms:   func() []vmmModels.CdRom { return nil },
 			wantErr:      true,
 			errorMessage: "image not found",
 		},
@@ -922,29 +924,28 @@ func TestCreateDataDiskList(t *testing.T) {
 				},
 			},
 			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
-			want: []*prismclientv3.VMDisk{
-				{
-					DiskSizeMib: ptr.To(int64(20480)), // 20Gi in MiB
-					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
-						DeviceType: ptr.To("DISK"),
-						DiskAddress: &prismclientv3.DiskAddress{
-							AdapterType: ptr.To("SCSI"),
-							DeviceIndex: ptr.To(int64(1)),
-						},
-					},
-				},
-				{
-					DiskSizeMib: ptr.To(int64(30720)), // 30Gi in MiB
-					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
-						DeviceType: ptr.To("DISK"),
-						DiskAddress: &prismclientv3.DiskAddress{
-							AdapterType: ptr.To("IDE"),
-							DeviceIndex: ptr.To(int64(1)),
-						},
-					},
-				},
+			wantDisks: func() []vmmModels.Disk {
+				disk1 := vmmModels.NewDisk()
+				disk1.DiskAddress = vmmModels.NewDiskAddress()
+				disk1.DiskAddress.Index = ptr.To(1)
+				disk1.DiskAddress.BusType = vmmModels.DISKBUSTYPE_SCSI.Ref()
+
+				vmDisk1 := vmmModels.NewVmDisk()
+				vmDisk1.DiskSizeBytes = ptr.To(int64(21474836480))
+				_ = disk1.SetBackingInfo(*vmDisk1)
+
+				disk2 := vmmModels.NewDisk()
+				disk2.DiskAddress = vmmModels.NewDiskAddress()
+				disk2.DiskAddress.Index = ptr.To(1)
+				disk2.DiskAddress.BusType = vmmModels.DISKBUSTYPE_IDE.Ref()
+
+				vmDisk2 := vmmModels.NewVmDisk()
+				vmDisk2.DiskSizeBytes = ptr.To(int64(32212254720))
+				_ = disk2.SetBackingInfo(*vmDisk2)
+				return []vmmModels.Disk{*disk1, *disk2}
 			},
-			wantErr: false,
+			wantCdRoms: func() []vmmModels.CdRom { return []vmmModels.CdRom{} },
+			wantErr:    false,
 		},
 		{
 			name: "data disk with flash mode enabled",
@@ -970,26 +971,26 @@ func TestCreateDataDiskList(t *testing.T) {
 				},
 			},
 			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
-			want: []*prismclientv3.VMDisk{
-				{
-					DiskSizeMib: ptr.To(int64(20480)), // 20Gi in MiB
-					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
-						DeviceType: ptr.To("DISK"),
-						DiskAddress: &prismclientv3.DiskAddress{
-							AdapterType: ptr.To("SCSI"),
-							DeviceIndex: ptr.To(int64(1)),
-						},
-					},
-					StorageConfig: &prismclientv3.VMStorageConfig{
-						FlashMode: "ENABLED",
-						StorageContainerReference: &prismclientv3.StorageContainerReference{
-							Kind: "storage_container",
-							UUID: "06b1ce03-f384-4488-9ba1-ae17ebcf1f91",
-						},
-					},
-				},
+			wantDisks: func() []vmmModels.Disk {
+				disk := vmmModels.NewDisk()
+				disk.DiskAddress = vmmModels.NewDiskAddress()
+				disk.DiskAddress.Index = ptr.To(1)
+				disk.DiskAddress.BusType = vmmModels.DISKBUSTYPE_SCSI.Ref()
+
+				vmDisk := vmmModels.NewVmDisk()
+				vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
+
+				vmDisk.StorageConfig = vmmModels.NewVmDiskStorageConfig()
+				vmDisk.StorageConfig.IsFlashModeEnabled = ptr.To(true)
+
+				vmDisk.StorageContainer = vmmModels.NewVmDiskContainerReference()
+				vmDisk.StorageContainer.ExtId = ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91")
+				_ = disk.SetBackingInfo(*vmDisk)
+
+				return []vmmModels.Disk{*disk}
 			},
-			wantErr: false,
+			wantCdRoms: func() []vmmModels.CdRom { return []vmmModels.CdRom{} },
+			wantErr:    false,
 		},
 		{
 			name: "data disk with custom device index",
@@ -1008,19 +1009,20 @@ func TestCreateDataDiskList(t *testing.T) {
 				},
 			},
 			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
-			want: []*prismclientv3.VMDisk{
-				{
-					DiskSizeMib: ptr.To(int64(20480)), // 20Gi in MiB
-					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
-						DeviceType: ptr.To("DISK"),
-						DiskAddress: &prismclientv3.DiskAddress{
-							AdapterType: ptr.To("SCSI"),
-							DeviceIndex: ptr.To(int64(5)),
-						},
-					},
-				},
+			wantDisks: func() []vmmModels.Disk {
+				disk := vmmModels.NewDisk()
+				disk.DiskAddress = vmmModels.NewDiskAddress()
+				disk.DiskAddress.Index = ptr.To(5)
+				disk.DiskAddress.BusType = vmmModels.DISKBUSTYPE_SCSI.Ref()
+
+				vmDisk := vmmModels.NewVmDisk()
+				vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
+				_ = disk.SetBackingInfo(*vmDisk)
+
+				return []vmmModels.Disk{*disk}
 			},
-			wantErr: false,
+			wantCdRoms: func() []vmmModels.CdRom { return []vmmModels.CdRom{} },
+			wantErr:    false,
 		},
 		{
 			name: "data disk with CDRom device type",
@@ -1037,18 +1039,19 @@ func TestCreateDataDiskList(t *testing.T) {
 					},
 				},
 			},
-			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
-			want: []*prismclientv3.VMDisk{
-				{
-					DiskSizeMib: ptr.To(int64(1024)), // 1Gi in MiB
-					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
-						DeviceType: ptr.To("CDROM"),
-						DiskAddress: &prismclientv3.DiskAddress{
-							AdapterType: ptr.To("IDE"),
-							DeviceIndex: ptr.To(int64(1)),
-						},
-					},
-				},
+			peUUID:    "00062e56-b9ac-7253-1946-7cc25586eeee",
+			wantDisks: func() []vmmModels.Disk { return []vmmModels.Disk{} },
+			wantCdRoms: func() []vmmModels.CdRom {
+				cdRom := vmmModels.NewCdRom()
+				cdRom.DiskAddress = vmmModels.NewCdRomAddress()
+				cdRom.DiskAddress.Index = ptr.To(1)
+				cdRom.DiskAddress.BusType = vmmModels.CDROMBUSTYPE_IDE.Ref()
+
+				vmDisk := vmmModels.NewVmDisk()
+				vmDisk.DiskSizeBytes = ptr.To(int64(1073741824))
+				cdRom.BackingInfo = vmDisk
+
+				return []vmmModels.CdRom{*cdRom}
 			},
 			wantErr: false,
 		},
@@ -1065,19 +1068,20 @@ func TestCreateDataDiskList(t *testing.T) {
 				},
 			},
 			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
-			want: []*prismclientv3.VMDisk{
-				{
-					DiskSizeMib: ptr.To(int64(20480)), // 20Gi in MiB
-					DeviceProperties: &prismclientv3.VMDiskDeviceProperties{
-						DeviceType: ptr.To("DISK"),
-						DiskAddress: &prismclientv3.DiskAddress{
-							AdapterType: ptr.To("SCSI"),
-							DeviceIndex: ptr.To(int64(1)),
-						},
-					},
-				},
+			wantDisks: func() []vmmModels.Disk {
+				disk := vmmModels.NewDisk()
+				disk.DiskAddress = vmmModels.NewDiskAddress()
+				disk.DiskAddress.Index = ptr.To(1)
+				disk.DiskAddress.BusType = vmmModels.DISKBUSTYPE_SCSI.Ref()
+
+				vmDisk := vmmModels.NewVmDisk()
+				vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
+				_ = disk.SetBackingInfo(*vmDisk)
+
+				return []vmmModels.Disk{*disk}
 			},
-			wantErr: false,
+			wantCdRoms: func() []vmmModels.CdRom { return []vmmModels.CdRom{} },
+			wantErr:    false,
 		},
 		{
 			name: "data disk with storage container lookup failure",
@@ -1103,7 +1107,8 @@ func TestCreateDataDiskList(t *testing.T) {
 				},
 			},
 			peUUID:       "00062e56-b9ac-7253-1946-7cc25586eeee",
-			want:         nil,
+			wantDisks:    func() []vmmModels.Disk { return nil },
+			wantCdRoms:   func() []vmmModels.CdRom { return nil },
 			wantErr:      true,
 			errorMessage: "fake error",
 		},
@@ -1113,7 +1118,7 @@ func TestCreateDataDiskList(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Log("Running test case ", tt.name)
 			ctx := context.Background()
-			got, err := CreateDataDiskList(
+			disks, cdRoms, err := CreateDataDiskList(
 				ctx,
 				tt.convergedBuilder(),
 				tt.dataDiskSpecs,
@@ -1123,8 +1128,11 @@ func TestCreateDataDiskList(t *testing.T) {
 				t.Errorf("CreateDataDiskList() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("CreateDataDiskList() = %v, want %v", got, tt.want)
+			if !reflect.DeepEqual(disks, tt.wantDisks()) {
+				t.Errorf("CreateDataDiskList() = %v, want %v", disks, tt.wantDisks())
+			}
+			if !reflect.DeepEqual(cdRoms, tt.wantCdRoms()) {
+				t.Errorf("CreateDataDiskList() = %v, want %v", cdRoms, tt.wantCdRoms())
 			}
 			if tt.errorMessage != "" && err != nil {
 				if !strings.Contains(err.Error(), tt.errorMessage) {
@@ -1493,33 +1501,6 @@ func TestGetImageByLookup(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestGetCategoryVMSpecMapping_MultiValues(t *testing.T) {
-	t.Run("returns flat map first value and mapping with all values", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		ctx := context.Background()
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-		client := mockClientWrapper.Client
-
-		key := "CategoryKey"
-		v1 := "CategoryValue1"
-		v2 := "CategoryValue2"
-
-		ids := []*infrav1.NutanixCategoryIdentifier{{Key: key, Value: v1}, {Key: key, Value: v2}, {Key: key, Value: v1}}
-
-		// Expect lookups for both values to succeed (match any converged.ODataOption filter)
-		mockClientWrapper.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
-		mockClientWrapper.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
-		mockClientWrapper.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
-
-		mapping, err := GetCategoryVMSpec(ctx, client, ids)
-		require.NoError(t, err)
-		assert.Len(t, mapping[key], 2)
-		assert.ElementsMatch(t, []string{v1, v2}, mapping[key])
-	})
 }
 
 func TestGetDefaultCAPICategoryIdentifiers(t *testing.T) {
@@ -1918,9 +1899,7 @@ func TestDeleteCategoryKeyValues(t *testing.T) {
 
 		// 1) getCategoryValue (outer) to check existence before delete
 		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
-		// 2) deleteCategoryValue -> internal getCategoryValue
-		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
-		// 3) delete value by ExtId
+		// 2) delete value by ExtId
 		mockClient.MockCategories.EXPECT().Delete(ctx, valExt).Return(nil).Times(1)
 
 		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids)
@@ -1939,306 +1918,13 @@ func TestDeleteCategoryKeyValues(t *testing.T) {
 
 		// 1) getCategoryValue (outer)
 		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
-		// 2) deleteCategoryValue -> internal getCategoryValue
-		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
-		// 3) delete value fails
+		// 2) delete value fails
 		mockClient.MockCategories.EXPECT().Delete(ctx, valExt).Return(errors.New("in use")).Times(1)
 
 		// Function should return nil early due to special-case handling
 		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids)
 		assert.NoError(t, err)
 	})
-}
-
-type MockConvergedClientWrapper struct {
-	Client *v4Converged.Client
-
-	MockAntiAffinityPolicies *mockconverged.MockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy]
-	MockClusters             *mockconverged.MockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile]
-	MockCategories           *mockconverged.MockCategories[prismModels.Category]
-	MockImages               *mockconverged.MockImages[imageModels.Image]
-	MockStorageContainers    *mockconverged.MockStorageContainers[clusterModels.StorageContainer]
-	MockSubnets              *mockconverged.MockSubnets[subnetModels.Subnet]
-	MockVMs                  *mockconverged.MockVMs[vmmModels.Vm]
-	MockTasks                *mockconverged.MockTasks[prismModels.Task, prismErrors.AppMessage]
-}
-
-// NewMockConvergedClient creates a new mock converged client
-func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper {
-	mockAntiAffinityPolicies := mockconverged.NewMockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy](ctrl)
-	mockClusters := mockconverged.NewMockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile](ctrl)
-	mockCategories := mockconverged.NewMockCategories[prismModels.Category](ctrl)
-	mockImages := mockconverged.NewMockImages[imageModels.Image](ctrl)
-	mockStorageContainers := mockconverged.NewMockStorageContainers[clusterModels.StorageContainer](ctrl)
-	mockSubnets := mockconverged.NewMockSubnets[subnetModels.Subnet](ctrl)
-	mockTasks := mockconverged.NewMockTasks[prismModels.Task, prismErrors.AppMessage](ctrl)
-	// Create mock VMs service with the correct type
-	mockVMs := mockconverged.NewMockVMs[vmmModels.Vm](ctrl)
-
-	realClient := &v4Converged.Client{
-		Client: converged.Client[
-			policyModels.VmAntiAffinityPolicy,
-			clusterModels.Cluster,
-			clusterModels.VirtualGpuProfile,
-			clusterModels.PhysicalGpuProfile,
-			prismModels.Category,
-			imageModels.Image,
-			clusterModels.StorageContainer,
-			subnetModels.Subnet,
-			vmmModels.Vm,
-			prismModels.Task,
-			prismErrors.AppMessage,
-		]{
-			AntiAffinityPolicies: mockAntiAffinityPolicies,
-			Clusters:             mockClusters,
-			Categories:           mockCategories,
-			Images:               mockImages,
-			StorageContainers:    mockStorageContainers,
-			Subnets:              mockSubnets,
-			VMs:                  mockVMs,
-			Tasks:                mockTasks,
-		},
-	}
-
-	return &MockConvergedClientWrapper{
-		Client:                   realClient,
-		MockAntiAffinityPolicies: mockAntiAffinityPolicies,
-		MockClusters:             mockClusters,
-		MockCategories:           mockCategories,
-		MockImages:               mockImages,
-		MockStorageContainers:    mockStorageContainers,
-		MockSubnets:              mockSubnets,
-		MockVMs:                  mockVMs,
-		MockTasks:                mockTasks,
-	}
-}
-
-func TestGetTaskUUIDFromVM(t *testing.T) {
-	tests := []struct {
-		name          string
-		clientBuilder func() *v4Converged.Client
-		vmId          string
-		want          string
-		wantErr       bool
-		errorMessage  string
-	}{
-		{
-			name: "empty vmId returns error",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				return convergedClient.Client
-			},
-			vmId:         "",
-			want:         "",
-			wantErr:      true,
-			errorMessage: "cannot extract task uuid for empty vm id",
-		},
-		{
-			name: "successful task UUID retrieval with running task",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				taskUUID := "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f"
-				tasks := []prismModels.Task{
-					{
-						ExtId: ptr.To(taskUUID),
-					},
-				}
-				convergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(tasks, nil)
-				return convergedClient.Client
-			},
-			vmId:    "vm-uuid-456",
-			want:    "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
-			wantErr: false,
-		},
-		{
-			name: "no running tasks returns empty string",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				tasks := []prismModels.Task{}
-				convergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(tasks, nil)
-				return convergedClient.Client
-			},
-			vmId:    "vm-uuid-456",
-			want:    "",
-			wantErr: false,
-		},
-		{
-			name: "multiple running tasks returns first task UUID",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				tasks := []prismModels.Task{
-					{
-						ExtId: ptr.To("ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f"),
-					},
-					{
-						ExtId: ptr.To("ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d590"),
-					},
-				}
-				convergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(tasks, nil)
-				return convergedClient.Client
-			},
-			vmId:    "vm-uuid-456",
-			want:    "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
-			wantErr: false,
-		},
-		{
-			name: "API error returns error",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("API connection failed"))
-				return convergedClient.Client
-			},
-			vmId:         "vm-uuid-456",
-			want:         "",
-			wantErr:      true,
-			errorMessage: "API connection failed",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Log("Running test case ", tt.name)
-			ctx := context.Background()
-			got, err := GetTaskUUIDFromVM(ctx, tt.clientBuilder(), tt.vmId)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetTaskUUIDFromVM() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("GetTaskUUIDFromVM() = %v, want %v", got, tt.want)
-			}
-			if tt.errorMessage != "" && err != nil {
-				if !strings.Contains(err.Error(), tt.errorMessage) {
-					t.Errorf("GetTaskUUIDFromVM() error message = %v, want to contain %v", err.Error(), tt.errorMessage)
-				}
-			}
-		})
-	}
-}
-
-func TestHasTaskInProgress(t *testing.T) {
-	tests := []struct {
-		name          string
-		clientBuilder func() *v4Converged.Client
-		taskUUID      string
-		want          bool
-		wantErr       bool
-		errorMessage  string
-	}{
-		{
-			name: "task succeeded returns false",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				taskStatus := prismModels.TASKSTATUS_SUCCEEDED
-				convergedClient.MockTasks.EXPECT().Get(gomock.Any(), "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f").Return(&prismModels.Task{
-					Status: &taskStatus,
-				}, nil)
-				return convergedClient.Client
-			},
-			taskUUID: "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
-			want:     false,
-			wantErr:  false,
-		},
-		{
-			name: "task running returns true",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				taskStatus := prismModels.TASKSTATUS_RUNNING
-				convergedClient.MockTasks.EXPECT().Get(gomock.Any(), "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f").Return(&prismModels.Task{
-					Status: &taskStatus,
-				}, nil)
-				return convergedClient.Client
-			},
-			taskUUID: "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
-			want:     true,
-			wantErr:  false,
-		},
-		{
-			name: "task queued returns true",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				taskStatus := prismModels.TASKSTATUS_QUEUED
-				convergedClient.MockTasks.EXPECT().Get(gomock.Any(), "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f").Return(&prismModels.Task{
-					Status: &taskStatus,
-				}, nil)
-				return convergedClient.Client
-			},
-			taskUUID: "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
-			want:     true,
-			wantErr:  false,
-		},
-		{
-			name: "task failed returns false (no error in v4 implementation)",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				taskStatus := prismModels.TASKSTATUS_FAILED
-				convergedClient.MockTasks.EXPECT().Get(gomock.Any(), "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f").Return(&prismModels.Task{
-					Status: &taskStatus,
-				}, nil)
-				return convergedClient.Client
-			},
-			taskUUID: "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
-			want:     false,
-			wantErr:  false,
-		},
-		{
-			name: "task suspended returns false",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				taskStatus := prismModels.TASKSTATUS_SUSPENDED
-				convergedClient.MockTasks.EXPECT().Get(gomock.Any(), "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f").Return(&prismModels.Task{
-					Status: &taskStatus,
-				}, nil)
-				return convergedClient.Client
-			},
-			taskUUID: "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
-			want:     false,
-			wantErr:  false,
-		},
-		{
-			name: "API error returns error",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockTasks.EXPECT().Get(gomock.Any(), "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f").Return(nil, errors.New("API error"))
-				return convergedClient.Client
-			},
-			taskUUID:     "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f",
-			want:         false,
-			wantErr:      true,
-			errorMessage: "API error",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Log("Running test case ", tt.name)
-			ctx := context.Background()
-			got, err := HasTaskInProgress(ctx, tt.clientBuilder(), tt.taskUUID)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("HasTaskInProgress() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("HasTaskInProgress() = %v, want %v", got, tt.want)
-			}
-			if tt.errorMessage != "" && err != nil {
-				if !strings.Contains(err.Error(), tt.errorMessage) {
-					t.Errorf("HasTaskInProgress() error message = %v, want to contain %v", err.Error(), tt.errorMessage)
-				}
-			}
-		})
-	}
 }
 
 // TestGetGPUList tests the GetGPUList function
@@ -2613,63 +2299,65 @@ func TestGpuVendorStringToGpuVendor(t *testing.T) {
 	}
 }
 
-// TestV4GpuToV3Gpu tests the v4GpuToV3Gpu function
-func TestV4GpuToV3Gpu(t *testing.T) {
-	t.Run("should convert v4 GPU to v3 GPU with PASSTHROUGH_COMPUTE mode", func(t *testing.T) {
-		v4Gpu := &vmmModels.Gpu{
-			DeviceId: ptr.To(123),
-			Mode:     vmmModels.GPUMODE_PASSTHROUGH_COMPUTE.Ref(),
-			Vendor:   vmmModels.GPUVENDOR_NVIDIA.Ref(),
-		}
+type MockConvergedClientWrapper struct {
+	Client *v4Converged.Client
 
-		v3Gpu := v4GpuToV3Gpu(v4Gpu)
+	MockAntiAffinityPolicies *mockconverged.MockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy]
+	MockClusters             *mockconverged.MockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile]
+	MockCategories           *mockconverged.MockCategories[prismModels.Category]
+	MockImages               *mockconverged.MockImages[imageModels.Image]
+	MockStorageContainers    *mockconverged.MockStorageContainers[clusterModels.StorageContainer]
+	MockSubnets              *mockconverged.MockSubnets[subnetModels.Subnet]
+	MockVMs                  *mockconverged.MockVMs[vmmModels.Vm]
+	MockTasks                *mockconverged.MockTasks[prismModels.Task, prismErrors.AppMessage]
+}
 
-		assert.Equal(t, int64(123), *v3Gpu.DeviceID)
-		assert.Equal(t, "PASSTHROUGH_COMPUTE", *v3Gpu.Mode)
-		assert.Equal(t, "NVIDIA", *v3Gpu.Vendor)
-	})
+// NewMockConvergedClient creates a new mock converged client
+func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper {
+	mockAntiAffinityPolicies := mockconverged.NewMockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy](ctrl)
+	mockClusters := mockconverged.NewMockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile](ctrl)
+	mockCategories := mockconverged.NewMockCategories[prismModels.Category](ctrl)
+	mockImages := mockconverged.NewMockImages[imageModels.Image](ctrl)
+	mockStorageContainers := mockconverged.NewMockStorageContainers[clusterModels.StorageContainer](ctrl)
+	mockSubnets := mockconverged.NewMockSubnets[subnetModels.Subnet](ctrl)
+	mockTasks := mockconverged.NewMockTasks[prismModels.Task, prismErrors.AppMessage](ctrl)
+	// Create mock VMs service with the correct type
+	mockVMs := mockconverged.NewMockVMs[vmmModels.Vm](ctrl)
 
-	t.Run("should convert v4 GPU to v3 GPU with PASSTHROUGH_GRAPHICS mode", func(t *testing.T) {
-		v4Gpu := &vmmModels.Gpu{
-			DeviceId: ptr.To(456),
-			Mode:     vmmModels.GPUMODE_PASSTHROUGH_GRAPHICS.Ref(),
-			Vendor:   vmmModels.GPUVENDOR_AMD.Ref(),
-		}
+	realClient := &v4Converged.Client{
+		Client: converged.Client[
+			policyModels.VmAntiAffinityPolicy,
+			clusterModels.Cluster,
+			clusterModels.VirtualGpuProfile,
+			clusterModels.PhysicalGpuProfile,
+			prismModels.Category,
+			imageModels.Image,
+			clusterModels.StorageContainer,
+			subnetModels.Subnet,
+			vmmModels.Vm,
+			prismModels.Task,
+			prismErrors.AppMessage,
+		]{
+			AntiAffinityPolicies: mockAntiAffinityPolicies,
+			Clusters:             mockClusters,
+			Categories:           mockCategories,
+			Images:               mockImages,
+			StorageContainers:    mockStorageContainers,
+			Subnets:              mockSubnets,
+			VMs:                  mockVMs,
+			Tasks:                mockTasks,
+		},
+	}
 
-		v3Gpu := v4GpuToV3Gpu(v4Gpu)
-
-		assert.Equal(t, int64(456), *v3Gpu.DeviceID)
-		assert.Equal(t, "PASSTHROUGH_GRAPHICS", *v3Gpu.Mode)
-		assert.Equal(t, "AMD", *v3Gpu.Vendor)
-	})
-
-	t.Run("should convert v4 GPU to v3 GPU with VIRTUAL mode", func(t *testing.T) {
-		v4Gpu := &vmmModels.Gpu{
-			DeviceId: ptr.To(789),
-			Mode:     vmmModels.GPUMODE_VIRTUAL.Ref(),
-			Vendor:   vmmModels.GPUVENDOR_INTEL.Ref(),
-		}
-
-		v3Gpu := v4GpuToV3Gpu(v4Gpu)
-
-		assert.Equal(t, int64(789), *v3Gpu.DeviceID)
-		assert.Equal(t, "VIRTUAL", *v3Gpu.Mode)
-		assert.Equal(t, "INTEL", *v3Gpu.Vendor)
-	})
-
-	t.Run("should handle unknown mode and vendor", func(t *testing.T) {
-		// Create a v4 GPU with unknown mode and vendor
-		unknownMode := vmmModels.GPUMODE_UNKNOWN
-		v4Gpu := &vmmModels.Gpu{
-			DeviceId: ptr.To(999),
-			Mode:     &unknownMode,
-			Vendor:   vmmModels.GPUVENDOR_UNKNOWN.Ref(),
-		}
-
-		v3Gpu := v4GpuToV3Gpu(v4Gpu)
-
-		assert.Equal(t, int64(999), *v3Gpu.DeviceID)
-		assert.Equal(t, "$UNKNOWN", *v3Gpu.Mode)
-		assert.Equal(t, "UNKNOWN", *v3Gpu.Vendor)
-	})
+	return &MockConvergedClientWrapper{
+		Client:                   realClient,
+		MockAntiAffinityPolicies: mockAntiAffinityPolicies,
+		MockClusters:             mockClusters,
+		MockCategories:           mockCategories,
+		MockImages:               mockImages,
+		MockStorageContainers:    mockStorageContainers,
+		MockSubnets:              mockSubnets,
+		MockVMs:                  mockVMs,
+		MockTasks:                mockTasks,
+	}
 }

@@ -216,7 +216,7 @@ var _ = Describe("Nutanix machine data disks", Label("nutanix-feature-test", "da
 				clusterName:            clusterName,
 				namespace:              namespace,
 				expectedPhase:          "Failed",
-				expectedFailureMessage: "Slot scsi.10 is occupied: 10",
+				expectedFailureMessage: "index '10' is already in use",
 				bootstrapClusterProxy:  bootstrapClusterProxy,
 			})
 		})
