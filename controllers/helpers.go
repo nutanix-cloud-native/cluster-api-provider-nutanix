@@ -873,14 +873,14 @@ func hasPEClusterServiceEnabled(peCluster *clusterModels.Cluster) bool {
 }
 
 // GetGPUList returns a list of GPU device IDs for the given list of GPUs
-func GetGPUList(ctx context.Context, client *v4Converged.Client, gpus []infrav1.NutanixGPU, peUUID string) ([]*vmmconfig.Gpu, error) {
-	resultGPUs := make([]*vmmconfig.Gpu, 0)
+func GetGPUList(ctx context.Context, client *v4Converged.Client, gpus []infrav1.NutanixGPU, peUUID string) ([]vmmconfig.Gpu, error) {
+	resultGPUs := make([]vmmconfig.Gpu, 0)
 	for _, gpu := range gpus {
 		foundGPU, err := GetGPU(ctx, client, peUUID, gpu)
 		if err != nil {
 			return nil, err
 		}
-		resultGPUs = append(resultGPUs, foundGPU)
+		resultGPUs = append(resultGPUs, *foundGPU)
 	}
 	return resultGPUs, nil
 }

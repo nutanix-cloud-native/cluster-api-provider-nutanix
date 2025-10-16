@@ -841,15 +841,14 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		return nil, err
 	}
 
-	// TODO fix
 	// Get GPU list
-	_, err = GetGPUList(ctx, convergedClient, rctx.NutanixMachine.Spec.GPUs, peUUID)
+	gpus, err := GetGPUList(ctx, convergedClient, rctx.NutanixMachine.Spec.GPUs, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the GPU list to create the VM %s. %v", vmName, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, err
 	}
-	// vm.Gpus = gpuList
+	vm.Gpus = gpus
 
 	disks, cdRoms, err := getDiskList(rctx, peUUID)
 	if err != nil {
