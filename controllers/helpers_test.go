@@ -1927,6 +1927,378 @@ func TestDeleteCategoryKeyValues(t *testing.T) {
 	})
 }
 
+// TestGetGPUList tests the GetGPUList function
+func TestGetGPUList(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	peUUID := "test-pe-uuid"
+
+	t.Run("should return list of GPUs successfully", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		// Create test GPU
+		gpu := infrav1.NutanixGPU{
+			Type: infrav1.NutanixGPUIdentifierName,
+			Name: ptr.To("test-gpu-1"),
+		}
+
+		// Mock the GetGPUsForPE calls
+		physicalGPU := clusterModels.PhysicalGpuProfile{
+			PhysicalGpuConfig: &clusterModels.PhysicalGpuConfig{
+				DeviceName: ptr.To("test-gpu-1"),
+				DeviceId:   ptr.To(int64(123)),
+				IsInUse:    ptr.To(false),
+				Type:       clusterModels.GPUTYPE_PASSTHROUGH_COMPUTE.Ref(),
+				VendorName: ptr.To("kNvidia"),
+			},
+		}
+
+		mockClientWrapper.MockClusters.EXPECT().
+			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
+			Return([]clusterModels.PhysicalGpuProfile{physicalGPU}, nil).
+			AnyTimes()
+
+		mockClientWrapper.MockClusters.EXPECT().
+			ListClusterVirtualGPUs(ctx, peUUID, gomock.Any()).
+			Return([]clusterModels.VirtualGpuProfile{}, nil).
+			AnyTimes()
+
+		gpus := []infrav1.NutanixGPU{gpu}
+
+		result, err := GetGPUList(ctx, mockClientWrapper.Client, gpus, peUUID)
+		assert.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, "test-gpu-1", *result[0].Name)
+	})
+
+	t.Run("should return error when GetGPU fails", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		// Create test GPU with invalid configuration
+		gpu := infrav1.NutanixGPU{
+			Type: infrav1.NutanixGPUIdentifierName,
+			// Name is nil, which should cause GetGPU to fail
+		}
+
+		gpus := []infrav1.NutanixGPU{gpu}
+
+		_, err := GetGPUList(ctx, mockClientWrapper.Client, gpus, peUUID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "gpu name or gpu device ID must be passed")
+	})
+}
+
+// TestGetGPU tests the GetGPU function
+func TestGetGPU(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	peUUID := "test-pe-uuid"
+
+	t.Run("should return error when neither device ID nor name provided", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		gpu := infrav1.NutanixGPU{
+			Type: infrav1.NutanixGPUIdentifierName,
+			// Both Name and DeviceID are nil
+		}
+
+		_, err := GetGPU(ctx, mockClientWrapper.Client, peUUID, gpu)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "gpu name or gpu device ID must be passed")
+	})
+
+	t.Run("should return error when no available GPUs found", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		gpu := infrav1.NutanixGPU{
+			Type: infrav1.NutanixGPUIdentifierName,
+			Name: ptr.To("non-existent-gpu"),
+		}
+
+		// Mock GetGPUsForPE to return empty list
+		mockClientWrapper.MockClusters.EXPECT().
+			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
+			Return([]clusterModels.PhysicalGpuProfile{}, nil).
+			AnyTimes()
+		mockClientWrapper.MockClusters.EXPECT().
+			ListClusterVirtualGPUs(ctx, peUUID, gomock.Any()).
+			Return([]clusterModels.VirtualGpuProfile{}, nil).
+			AnyTimes()
+
+		_, err := GetGPU(ctx, mockClientWrapper.Client, peUUID, gpu)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no available GPUs found")
+	})
+}
+
+// TestGetGPUsForPE tests the GetGPUsForPE function
+func TestGetGPUsForPE(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	peUUID := "test-pe-uuid"
+
+	t.Run("should return physical GPUs filtered by device ID", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		deviceID := int64(123)
+		gpu := infrav1.NutanixGPU{
+			Type:     infrav1.NutanixGPUIdentifierDeviceID,
+			DeviceID: &deviceID,
+		}
+
+		// Mock physical GPU response
+		physicalGPU := clusterModels.PhysicalGpuProfile{
+			PhysicalGpuConfig: &clusterModels.PhysicalGpuConfig{
+				DeviceName: ptr.To("test-gpu"),
+				DeviceId:   ptr.To(int64(123)),
+				IsInUse:    ptr.To(false),
+				Mode:       clusterModels.GPUMODE_UNUSED.Ref(),
+				VendorName: ptr.To("kNvidia"),
+			},
+		}
+
+		mockClientWrapper.MockClusters.EXPECT().
+			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
+			Return([]clusterModels.PhysicalGpuProfile{physicalGPU}, nil)
+
+		mockClientWrapper.MockClusters.EXPECT().
+			ListClusterVirtualGPUs(ctx, peUUID, gomock.Any()).
+			Return([]clusterModels.VirtualGpuProfile{}, nil)
+
+		gpus, err := GetGPUsForPE(ctx, mockClientWrapper.Client, peUUID, gpu)
+
+		assert.NoError(t, err)
+		assert.Len(t, gpus, 1)
+		assert.Equal(t, "test-gpu", *gpus[0].Name)
+		assert.Equal(t, 123, *gpus[0].DeviceId)
+		assert.Equal(t, vmmModels.GPUMODE_PASSTHROUGH_COMPUTE, *gpus[0].Mode)
+		assert.Equal(t, vmmModels.GPUVENDOR_NVIDIA, *gpus[0].Vendor)
+	})
+
+	t.Run("should return physical GPUs filtered by name", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		gpuName := "test-gpu"
+		gpu := infrav1.NutanixGPU{
+			Type: infrav1.NutanixGPUIdentifierName,
+			Name: &gpuName,
+		}
+
+		// Mock physical GPU response
+		physicalGPU := clusterModels.PhysicalGpuProfile{
+			PhysicalGpuConfig: &clusterModels.PhysicalGpuConfig{
+				DeviceName: ptr.To("test-gpu"),
+				DeviceId:   ptr.To(int64(456)),
+				IsInUse:    ptr.To(false),
+				Type:       clusterModels.GPUTYPE_PASSTHROUGH_GRAPHICS.Ref(),
+				VendorName: ptr.To("kAmd"),
+			},
+		}
+
+		mockClientWrapper.MockClusters.EXPECT().
+			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
+			Return([]clusterModels.PhysicalGpuProfile{physicalGPU}, nil)
+
+		mockClientWrapper.MockClusters.EXPECT().
+			ListClusterVirtualGPUs(ctx, peUUID, gomock.Any()).
+			Return([]clusterModels.VirtualGpuProfile{}, nil)
+
+		gpus, err := GetGPUsForPE(ctx, mockClientWrapper.Client, peUUID, gpu)
+
+		assert.NoError(t, err)
+		assert.Len(t, gpus, 1)
+		assert.Equal(t, "test-gpu", *gpus[0].Name)
+		assert.Equal(t, 456, *gpus[0].DeviceId)
+		assert.Equal(t, vmmModels.GPUMODE_PASSTHROUGH_GRAPHICS, *gpus[0].Mode)
+		assert.Equal(t, vmmModels.GPUVENDOR_AMD, *gpus[0].Vendor)
+	})
+
+	t.Run("should return virtual GPUs", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		deviceID := int64(789)
+		gpu := infrav1.NutanixGPU{
+			Type:     infrav1.NutanixGPUIdentifierDeviceID,
+			DeviceID: &deviceID,
+		}
+
+		// Mock virtual GPU response
+		virtualGPU := clusterModels.VirtualGpuProfile{
+			VirtualGpuConfig: &clusterModels.VirtualGpuConfig{
+				DeviceName: ptr.To("virtual-gpu"),
+				DeviceId:   ptr.To(int64(789)),
+				IsInUse:    ptr.To(false),
+				VendorName: ptr.To("kIntel"),
+			},
+		}
+
+		mockClientWrapper.MockClusters.EXPECT().
+			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
+			Return([]clusterModels.PhysicalGpuProfile{}, nil)
+
+		mockClientWrapper.MockClusters.EXPECT().
+			ListClusterVirtualGPUs(ctx, peUUID, gomock.Any()).
+			Return([]clusterModels.VirtualGpuProfile{virtualGPU}, nil)
+
+		gpus, err := GetGPUsForPE(ctx, mockClientWrapper.Client, peUUID, gpu)
+
+		assert.NoError(t, err)
+		assert.Len(t, gpus, 1)
+		assert.Equal(t, "virtual-gpu", *gpus[0].Name)
+		assert.Equal(t, 789, *gpus[0].DeviceId)
+		assert.Equal(t, vmmModels.GPUMODE_VIRTUAL, *gpus[0].Mode)
+		assert.Equal(t, vmmModels.GPUVENDOR_INTEL, *gpus[0].Vendor)
+	})
+
+	t.Run("should return error when physical GPU API call fails", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		deviceID := int64(123)
+		gpu := infrav1.NutanixGPU{
+			Type:     infrav1.NutanixGPUIdentifierDeviceID,
+			DeviceID: &deviceID,
+		}
+
+		expectedError := errors.New("API call failed")
+		mockClientWrapper.MockClusters.EXPECT().
+			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
+			Return(nil, expectedError)
+
+		_, err := GetGPUsForPE(ctx, mockClientWrapper.Client, peUUID, gpu)
+		assert.Error(t, err)
+		assert.Equal(t, expectedError, err)
+	})
+
+	t.Run("should return error when virtual GPU API call fails", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		deviceID := int64(123)
+		gpu := infrav1.NutanixGPU{
+			Type:     infrav1.NutanixGPUIdentifierDeviceID,
+			DeviceID: &deviceID,
+		}
+
+		// Mock successful physical GPU call
+		mockClientWrapper.MockClusters.EXPECT().
+			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
+			Return([]clusterModels.PhysicalGpuProfile{}, nil)
+
+		expectedError := errors.New("virtual GPU API call failed")
+		mockClientWrapper.MockClusters.EXPECT().
+			ListClusterVirtualGPUs(ctx, peUUID, gomock.Any()).
+			Return(nil, expectedError)
+
+		_, err := GetGPUsForPE(ctx, mockClientWrapper.Client, peUUID, gpu)
+		assert.Error(t, err)
+		assert.Equal(t, expectedError, err)
+	})
+
+	t.Run("should skip GPUs that are in use", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		deviceID := int64(123)
+		gpu := infrav1.NutanixGPU{
+			Type:     infrav1.NutanixGPUIdentifierDeviceID,
+			DeviceID: &deviceID,
+		}
+
+		// Mock physical GPU that is in use
+		physicalGPUInUse := clusterModels.PhysicalGpuProfile{
+			PhysicalGpuConfig: &clusterModels.PhysicalGpuConfig{
+				DeviceName: ptr.To("in-use-gpu"),
+				DeviceId:   ptr.To(int64(123)),
+				IsInUse:    ptr.To(true), // This GPU is in use
+				Mode:       clusterModels.GPUMODE_USED_FOR_PASSTHROUGH.Ref(),
+				VendorName: ptr.To("kNvidia"),
+			},
+		}
+
+		// Mock physical GPU that is not in use
+		physicalGPUAvailable := clusterModels.PhysicalGpuProfile{
+			PhysicalGpuConfig: &clusterModels.PhysicalGpuConfig{
+				DeviceName: ptr.To("available-gpu"),
+				DeviceId:   ptr.To(int64(456)),
+				IsInUse:    ptr.To(false), // This GPU is available
+				Mode:       clusterModels.GPUMODE_UNUSED.Ref(),
+				VendorName: ptr.To("kNvidia"),
+			},
+		}
+
+		mockClientWrapper.MockClusters.EXPECT().
+			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
+			Return([]clusterModels.PhysicalGpuProfile{physicalGPUInUse, physicalGPUAvailable}, nil)
+
+		mockClientWrapper.MockClusters.EXPECT().
+			ListClusterVirtualGPUs(ctx, peUUID, gomock.Any()).
+			Return([]clusterModels.VirtualGpuProfile{}, nil)
+
+		gpus, err := GetGPUsForPE(ctx, mockClientWrapper.Client, peUUID, gpu)
+
+		assert.NoError(t, err)
+		assert.Len(t, gpus, 1) // Only the available GPU should be returned
+		assert.Equal(t, "available-gpu", *gpus[0].Name)
+		assert.Equal(t, 456, *gpus[0].DeviceId)
+	})
+}
+
+// TestGpuVendorStringToGpuVendor tests the gpuVendorStringToGpuVendor function
+func TestGpuVendorStringToGpuVendor(t *testing.T) {
+	tests := []struct {
+		name     string
+		vendor   string
+		expected vmmModels.GpuVendor
+	}{
+		{
+			name:     "NVIDIA vendor",
+			vendor:   "kNvidia",
+			expected: vmmModels.GPUVENDOR_NVIDIA,
+		},
+		{
+			name:     "Intel vendor",
+			vendor:   "kIntel",
+			expected: vmmModels.GPUVENDOR_INTEL,
+		},
+		{
+			name:     "AMD vendor",
+			vendor:   "kAmd",
+			expected: vmmModels.GPUVENDOR_AMD,
+		},
+		{
+			name:     "Unknown vendor",
+			vendor:   "kUnknown",
+			expected: vmmModels.GPUVENDOR_UNKNOWN,
+		},
+		{
+			name:     "Empty vendor",
+			vendor:   "",
+			expected: vmmModels.GPUVENDOR_UNKNOWN,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := gpuVendorStringToGpuVendor(tt.vendor)
+			assert.Equal(t, tt.expected, *result)
+		})
+	}
+}
+
 type MockConvergedClientWrapper struct {
 	Client *v4Converged.Client
 

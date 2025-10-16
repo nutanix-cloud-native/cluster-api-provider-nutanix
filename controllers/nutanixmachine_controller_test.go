@@ -2904,7 +2904,7 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		mockV3Client.EXPECT().ListAllProject(gomock.Any(), gomock.Any()).Return(&prismclientv3.ProjectListResponse{
 			Entities: []*prismclientv3.Project{
 				{
-					Spec: &prismclientv3.ProjectSpec{Name: projectName},
+					Spec:     &prismclientv3.ProjectSpec{Name: projectName},
 					Metadata: &prismclientv3.Metadata{UUID: &projectUUID},
 				},
 			},
