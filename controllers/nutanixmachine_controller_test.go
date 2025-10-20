@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	mockconverged "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/converged"
 	converged "github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
@@ -34,6 +33,8 @@ import (
 	clustermgmtconfig "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
+	vmmCommonConfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/common/v1/config"
+	vmmModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -54,6 +55,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	mockconverged "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/converged"
 	mockctlclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/ctlclient"
 	mockmeta "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sapimachinery"
 	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
@@ -1144,7 +1146,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 
 			ntnxMachine, machine, ntnxCluster, convergedClient := tc.fixtures(mockCtrl)
 
-			disks, err := getDiskList(&nctx.MachineContext{
+			disks, cdRoms, err := getDiskList(&nctx.MachineContext{
 				Context:         context.Background(),
 				NutanixMachine:  ntnxMachine,
 				Machine:         machine,
@@ -1156,40 +1158,11 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 				t.Fatal("got unexpected error: ", err)
 			}
 
-			if tc.wantDisksLen != len(disks) {
-				t.Fatalf("expected %d disks, got %d", tc.wantDisksLen, len(disks))
+			if tc.wantDisksLen != len(disks)+len(cdRoms) {
+				t.Fatalf("expected %d disks, got %d", tc.wantDisksLen, len(disks)+len(cdRoms))
 			}
 		})
 	}
-}
-
-func TestReconcile_VMMetadataCategoriesMapping_MultipleValues(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-	mockClient := NewMockConvergedClient(ctrl)
-	client := mockClient.Client
-
-	// Prepare inputs
-	clusterName := "TestCluster"
-
-	// Default category key/value lookups used by GetCategoryVMSpecMapping
-	defaultKey := infrav1.DefaultCAPICategoryKeyForName
-	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
-	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
-	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
-	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
-
-	ids := []*infrav1.NutanixCategoryIdentifier{
-		{Key: defaultKey, Value: clusterName},
-		{Key: "TestCategory", Value: "TestValue1"},
-		{Key: "TestCategory", Value: "TestValue2"},
-		{Key: "TestCategory", Value: "TestValue1"},
-	}
-	mapping, err := GetCategoryVMSpec(ctx, client, ids)
-	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"TestValue1", "TestValue2"}, mapping["TestCategory"])
 }
 
 func TestNutanixMachineReconciler_ConvergedClient(t *testing.T) {
@@ -1515,9 +1488,19 @@ func TestGetSystemDisk(t *testing.T) {
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotNil(t, systemDisk)
-		assert.Equal(t, "image", *systemDisk.DataSourceReference.Kind)
-		assert.Equal(t, *expectedImage.ExtId, *systemDisk.DataSourceReference.UUID)
-		assert.Equal(t, int64(40960), *systemDisk.DiskSizeMib) // 40Gi in MiB
+
+		vmDiskIntf := systemDisk.GetBackingInfo()
+		assert.NotNil(t, vmDiskIntf)
+		vmDisk, ok := vmDiskIntf.(vmmModels.VmDisk)
+		assert.Equal(t, true, ok)
+		assert.Equal(t, int64(2*21474836480), *vmDisk.DiskSizeBytes)
+
+		imageIntf := vmDisk.DataSource.GetReference()
+		assert.NotNil(t, imageIntf)
+		imageRef, ok := imageIntf.(vmmModels.ImageReference)
+		assert.Equal(t, true, ok)
+
+		assert.Equal(t, *expectedImage.ExtId, *imageRef.ImageExtId)
 	})
 
 	t.Run("should handle ImageLookup with GetImageByLookup failure", func(t *testing.T) {
@@ -1888,9 +1871,19 @@ func TestGetSystemDisk(t *testing.T) {
 		// Verify results - should return the newer image
 		assert.NoError(t, err)
 		assert.NotNil(t, systemDisk)
-		assert.Equal(t, "image", *systemDisk.DataSourceReference.Kind)
-		assert.Equal(t, "newer-image-uuid", *systemDisk.DataSourceReference.UUID)
-		assert.Equal(t, int64(40960), *systemDisk.DiskSizeMib) // 40Gi in MiB
+
+		vmDiskIntf := systemDisk.GetBackingInfo()
+		assert.NotNil(t, vmDiskIntf)
+		vmDisk, ok := vmDiskIntf.(vmmModels.VmDisk)
+		assert.Equal(t, true, ok)
+		assert.Equal(t, int64(2*21474836480), *vmDisk.DiskSizeBytes)
+
+		imageIntf := vmDisk.DataSource.GetReference()
+		assert.NotNil(t, imageIntf)
+		imageRef, ok := imageIntf.(vmmModels.ImageReference)
+		assert.Equal(t, true, ok)
+
+		assert.Equal(t, "newer-image-uuid", *imageRef.ImageExtId)
 	})
 
 	t.Run("should handle ImageLookup with nil ImageLookup", func(t *testing.T) {
@@ -1982,10 +1975,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			},
 		}
 
-		// Create mock clients
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		v3Client := &prismclientv3.Client{V3: mockV3Client}
-
+		// Create mock client
 		mockConvergedClient := NewMockConvergedClient(ctrl)
 
 		// Create machine context
@@ -1994,7 +1984,6 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			Machine:         machine,
 			NutanixMachine:  ntnxMachine,
 			NutanixCluster:  ntnxCluster,
-			NutanixClient:   v3Client,
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
@@ -2052,21 +2041,15 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			},
 		}
 
-		// Create mock clients
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		v3Client := &prismclientv3.Client{V3: mockV3Client}
-
-		// Mock FindVMByUUID to return nil (VM not found)
-		mockV3Client.EXPECT().GetVM(gomock.Any(), vmUUID).Return(nil, nil)
-
 		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockVMs.EXPECT().Get(gomock.Any(), vmUUID).Return(nil, nil)
+
 		// Create machine context
 		rctx := &nctx.MachineContext{
 			Context:         ctx,
 			Machine:         machine,
 			NutanixMachine:  ntnxMachine,
 			NutanixCluster:  ntnxCluster,
-			NutanixClient:   v3Client,
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
@@ -2120,23 +2103,12 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		}
 
 		// Create mock VM with wrong name
-		vm := &prismclientv3.VMIntentResponse{
-			Spec: &prismclientv3.VM{
-				Name: ptr.To(wrongVMName),
-			},
-			Metadata: &prismclientv3.Metadata{
-				UUID: ptr.To(vmUUID),
-			},
-		}
-
-		// Create mock clients
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		v3Client := &prismclientv3.Client{V3: mockV3Client}
-
-		// Mock FindVMByUUID to return VM with wrong name
-		mockV3Client.EXPECT().GetVM(gomock.Any(), vmUUID).Return(vm, nil)
+		vm := vmmModels.NewVm()
+		vm.Name = ptr.To(wrongVMName)
+		vm.ExtId = ptr.To(vmUUID)
 
 		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockVMs.EXPECT().Get(gomock.Any(), vmUUID).Return(vm, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -2144,7 +2116,6 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			Machine:         machine,
 			NutanixMachine:  ntnxMachine,
 			NutanixCluster:  ntnxCluster,
-			NutanixClient:   v3Client,
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
@@ -2197,30 +2168,15 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		}
 
 		// Create mock VM
-		vm := &prismclientv3.VMIntentResponse{
-			Spec: &prismclientv3.VM{
-				Name: ptr.To(vmName),
-			},
-			Metadata: &prismclientv3.Metadata{
-				UUID: ptr.To(vmUUID),
-			},
-			Status: &prismclientv3.VMDefStatus{
-				// No ExecutionContext means no task
-			},
-		}
+		vm := vmmModels.NewVm()
+		vm.Name = ptr.To(vmName)
+		vm.ExtId = ptr.To(vmUUID)
 
-		// Create mock clients
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		v3Client := &prismclientv3.Client{V3: mockV3Client}
-
-		// Mock FindVMByUUID to return VM
-		mockV3Client.EXPECT().GetVM(gomock.Any(), vmUUID).Return(vm, nil)
-
+		// Create mock client
 		mockConvergedClient := NewMockConvergedClient(ctrl)
-
-		// Mock DeleteAsync to return an error
+		mockConvergedClient.MockVMs.EXPECT().Get(gomock.Any(), vmUUID).Return(vm, nil)
+		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), FilterMatcher{ContainsExtId: vmUUID}).Return(nil, nil)
 		mockConvergedClient.MockVMs.EXPECT().DeleteAsync(gomock.Any(), vmUUID).Return(nil, errors.New("converged client error"))
-		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -2228,7 +2184,6 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			Machine:         machine,
 			NutanixMachine:  ntnxMachine,
 			NutanixCluster:  ntnxCluster,
-			NutanixClient:   v3Client,
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
@@ -2280,39 +2235,19 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		}
 
 		// Create mock VM without volume groups
-		vm := &prismclientv3.VMIntentResponse{
-			Spec: &prismclientv3.VM{
-				Name: ptr.To(vmName),
-				Resources: &prismclientv3.VMResources{
-					DiskList: []*prismclientv3.VMDisk{
-						{
-							// No volume group reference
-						},
-					},
-				},
-			},
-			Metadata: &prismclientv3.Metadata{
-				UUID: ptr.To(vmUUID),
-			},
-			Status: &prismclientv3.VMDefStatus{
-				// No ExecutionContext means no task
-			},
-		}
+		vm := vmmModels.NewVm()
+		vm.Name = ptr.To(vmName)
+		vm.Disks = []vmmModels.Disk{}
+		vm.ExtId = ptr.To(vmUUID)
 
-		// Create mock clients
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		v3Client := &prismclientv3.Client{V3: mockV3Client}
-
-		// Mock FindVMByUUID to return VM
-		mockV3Client.EXPECT().GetVM(gomock.Any(), vmUUID).Return(vm, nil)
-
+		// Create mock client
 		mockConvergedClient := NewMockConvergedClient(ctrl)
-		mockOperation := mockconverged.NewMockOperation[converged.NoEntity](ctrl)
-
+		mockConvergedClient.MockVMs.EXPECT().Get(gomock.Any(), vmUUID).Return(vm, nil)
+		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), FilterMatcher{ContainsExtId: vmUUID}).Return(nil, nil)
 		// Mock DeleteAsync to return a task
+		mockOperation := mockconverged.NewMockOperation[converged.NoEntity](ctrl)
 		mockConvergedClient.MockVMs.EXPECT().DeleteAsync(gomock.Any(), vmUUID).Return(mockOperation, nil)
 		mockOperation.EXPECT().UUID().Return("task-uuid-123").AnyTimes()
-		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -2320,7 +2255,6 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			Machine:         machine,
 			NutanixMachine:  ntnxMachine,
 			NutanixCluster:  ntnxCluster,
-			NutanixClient:   v3Client,
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
@@ -2371,38 +2305,18 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		}
 
 		// Create mock VM without volume groups
-		vm := &prismclientv3.VMIntentResponse{
-			Spec: &prismclientv3.VM{
-				Name: ptr.To(vmName),
-				Resources: &prismclientv3.VMResources{
-					DiskList: []*prismclientv3.VMDisk{
-						{
-							// No volume group reference
-						},
-					},
-				},
-			},
-			Metadata: &prismclientv3.Metadata{
-				UUID: ptr.To(vmUUID),
-			},
-			Status: &prismclientv3.VMDefStatus{
-				// No ExecutionContext means no task
-			},
-		}
+		vm := vmmModels.NewVm()
+		vm.Name = ptr.To(vmName)
+		vm.Disks = []vmmModels.Disk{}
+		vm.ExtId = ptr.To(vmUUID)
 
-		// Create mock clients
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		v3Client := &prismclientv3.Client{V3: mockV3Client}
-
-		// Mock FindVMByUUID to return VM
-		mockV3Client.EXPECT().GetVM(gomock.Any(), vmUUID).Return(vm, nil)
-
+		// Create mock client
 		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockVMs.EXPECT().Get(gomock.Any(), vmUUID).Return(vm, nil)
 		mockOperation := mockconverged.NewMockOperation[converged.NoEntity](ctrl)
-
+		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), FilterMatcher{ContainsExtId: vmUUID}).Return(nil, nil)
 		mockConvergedClient.MockVMs.EXPECT().DeleteAsync(gomock.Any(), vmUUID).Return(mockOperation, nil)
 		mockOperation.EXPECT().UUID().Return("task-uuid-123").AnyTimes()
-		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -2410,7 +2324,6 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			Machine:         machine,
 			NutanixMachine:  ntnxMachine,
 			NutanixCluster:  ntnxCluster,
-			NutanixClient:   v3Client,
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
@@ -2460,14 +2373,9 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			},
 		}
 
-		// Create mock clients
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		v3Client := &prismclientv3.Client{V3: mockV3Client}
-
-		// Mock FindVMByUUID to return error
-		mockV3Client.EXPECT().GetVM(gomock.Any(), vmUUID).Return(nil, errors.New("VM not found"))
-
+		// Create mock client
 		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockVMs.EXPECT().Get(gomock.Any(), vmUUID).Return(nil, errors.New("VM not found"))
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -2475,7 +2383,6 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			Machine:         machine,
 			NutanixMachine:  ntnxMachine,
 			NutanixCluster:  ntnxCluster,
-			NutanixClient:   v3Client,
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
@@ -2491,7 +2398,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		assert.Equal(t, reconcile.Result{}, result)
 	})
 
-	t.Run("should return error when GetTaskUUIDFromVM fails", func(t *testing.T) {
+	t.Run("should return error when VMHasTaskInProgress fails", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -2527,26 +2434,14 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		}
 
 		// Create mock VM
-		vm := &prismclientv3.VMIntentResponse{
-			Spec: &prismclientv3.VM{
-				Name: ptr.To(vmName),
-			},
-			Metadata: &prismclientv3.Metadata{
-				UUID: ptr.To(vmUUID),
-			},
-		}
+		vm := vmmModels.NewVm()
+		vm.Name = ptr.To(vmName)
+		vm.ExtId = ptr.To(vmUUID)
 
 		// Create mock clients
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		v3Client := &prismclientv3.Client{V3: mockV3Client}
-
-		// Mock FindVMByUUID to return VM
-		mockV3Client.EXPECT().GetVM(gomock.Any(), vmUUID).Return(vm, nil)
-
 		mockConvergedClient := NewMockConvergedClient(ctrl)
-
-		// Mock GetTaskUUIDFromVM to return an error
-		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("failed to list tasks from API"))
+		mockConvergedClient.MockVMs.EXPECT().Get(gomock.Any(), gomock.Any()).Return(vm, nil)
+		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("failed to list tasks"))
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -2554,7 +2449,6 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			Machine:         machine,
 			NutanixMachine:  ntnxMachine,
 			NutanixCluster:  ntnxCluster,
-			NutanixClient:   v3Client,
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
@@ -2564,14 +2458,13 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		// Test reconcileDelete
 		result, err := reconciler.reconcileDelete(rctx)
 
-		// Verify results - should fail with GetTaskUUIDFromVM error
+		// Verify results - should fail with VmHasTaskInProgress error
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "error occurred fetching task UUID")
-		assert.Contains(t, err.Error(), "failed to list tasks from API")
+		assert.Contains(t, err.Error(), "failed to list tasks")
 		assert.Equal(t, reconcile.Result{}, result)
 	})
 
-	t.Run("should proceed with deletion when GetTaskUUIDFromVM returns empty task UUID", func(t *testing.T) {
+	t.Run("should proceed with deletion when VmHasTaskInProgress returns false", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -2607,36 +2500,22 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		}
 
 		// Create mock VM without volume groups
-		vm := &prismclientv3.VMIntentResponse{
-			Spec: &prismclientv3.VM{
-				Name: ptr.To(vmName),
-				Resources: &prismclientv3.VMResources{
-					DiskList: []*prismclientv3.VMDisk{
-						{
-							// No volume group reference
-						},
-					},
-				},
-			},
-			Metadata: &prismclientv3.Metadata{
-				UUID: ptr.To(vmUUID),
-			},
-		}
+		vm := vmmModels.NewVm()
+		vm.Name = ptr.To(vmName)
+		vm.ExtId = ptr.To(vmUUID)
 
 		// Create mock clients
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		v3Client := &prismclientv3.Client{V3: mockV3Client}
-
-		// Mock FindVMByUUID to return VM
-		mockV3Client.EXPECT().GetVM(gomock.Any(), vmUUID).Return(vm, nil)
 
 		mockConvergedClient := NewMockConvergedClient(ctrl)
-		mockOperation := mockconverged.NewMockOperation[converged.NoEntity](ctrl)
 
-		// Mock GetTaskUUIDFromVM to return empty task list (no task UUID found)
+		// Mock FindVMByUUID to return VM
+		mockConvergedClient.MockVMs.EXPECT().Get(gomock.Any(), gomock.Any()).Return(vm, nil)
+
+		// Mock VmHasTaskInProgress to return false
 		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
 
 		// Mock DeleteAsync to proceed with deletion since no task is in progress
+		mockOperation := mockconverged.NewMockOperation[converged.NoEntity](ctrl)
 		mockConvergedClient.MockVMs.EXPECT().DeleteAsync(gomock.Any(), vmUUID).Return(mockOperation, nil)
 		mockOperation.EXPECT().UUID().Return("delete-task-uuid-123").AnyTimes()
 
@@ -2646,7 +2525,6 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			Machine:         machine,
 			NutanixMachine:  ntnxMachine,
 			NutanixCluster:  ntnxCluster,
-			NutanixClient:   v3Client,
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
@@ -2661,7 +2539,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		assert.Equal(t, reconcile.Result{RequeueAfter: 5 * time.Second}, result)
 	})
 
-	t.Run("should requeue when VM has task in progress", func(t *testing.T) {
+	t.Run("should requeue when VmHasTaskInProgress returns true", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -2698,36 +2576,17 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		}
 
 		// Create mock VM
-		vm := &prismclientv3.VMIntentResponse{
-			Spec: &prismclientv3.VM{
-				Name: ptr.To(vmName),
-			},
-			Metadata: &prismclientv3.Metadata{
-				UUID: ptr.To(vmUUID),
-			},
-		}
+		vm := vmmModels.NewVm()
+		vm.Name = ptr.To(vmName)
+		vm.ExtId = ptr.To(vmUUID)
 
 		// Create mock clients
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		v3Client := &prismclientv3.Client{V3: mockV3Client}
-
-		// Mock FindVMByUUID to return VM
-		mockV3Client.EXPECT().GetVM(gomock.Any(), vmUUID).Return(vm, nil)
-
 		mockConvergedClient := NewMockConvergedClient(ctrl)
-
-		// Mock GetTaskUUIDFromVM to return a task UUID
-		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{
-			{
+		mockConvergedClient.MockVMs.EXPECT().Get(gomock.Any(), gomock.Any()).Return(vm, nil)
+		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+			[]prismModels.Task{{
 				ExtId: ptr.To(taskUUID),
-			},
-		}, nil)
-
-		// Mock HasTaskInProgress to return true (task is still running)
-		taskStatus := prismModels.TASKSTATUS_RUNNING
-		mockConvergedClient.MockTasks.EXPECT().Get(gomock.Any(), taskUUID).Return(&prismModels.Task{
-			Status: &taskStatus,
-		}, nil)
+			}}, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -2735,7 +2594,6 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			Machine:         machine,
 			NutanixMachine:  ntnxMachine,
 			NutanixCluster:  ntnxCluster,
-			NutanixClient:   v3Client,
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
@@ -2788,21 +2646,13 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		}
 
 		// Create mock clients
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		v3Client := &prismclientv3.Client{V3: mockV3Client}
-
 		mockConvergedClient := NewMockConvergedClient(ctrl)
 
 		// Mock FindVM to return existing VM
-		expectedVM := &prismclientv3.VMIntentResponse{
-			Spec: &prismclientv3.VM{
-				Name: ptr.To(vmName),
-			},
-			Metadata: &prismclientv3.Metadata{
-				UUID: ptr.To(vmUUID),
-			},
-		}
-		mockV3Client.EXPECT().GetVM(ctx, vmUUID).Return(expectedVM, nil)
+		expectedVm := vmmModels.NewVm()
+		expectedVm.Name = ptr.To(vmName)
+		expectedVm.ExtId = ptr.To(vmUUID)
+		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(expectedVm, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -2810,7 +2660,6 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			Machine:         machine,
 			NutanixMachine:  ntnxMachine,
 			NutanixCluster:  ntnxCluster,
-			NutanixClient:   v3Client,
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
@@ -2823,8 +2672,8 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotNil(t, vm)
-		assert.Equal(t, vmName, *vm.Spec.Name)
-		assert.Equal(t, vmUUID, *vm.Metadata.UUID)
+		assert.Equal(t, vmName, *vm.Name)
+		assert.Equal(t, vmUUID, *vm.ExtId)
 	})
 
 	t.Run("should return existing VM when found by name", func(t *testing.T) {
@@ -2858,32 +2707,14 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		}
 
 		// Create mock clients
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		v3Client := &prismclientv3.Client{V3: mockV3Client}
-
 		mockConvergedClient := NewMockConvergedClient(ctrl)
 
-		// Mock FindVM by name
-		expectedVM := &prismclientv3.VMIntentResponse{
-			Spec: &prismclientv3.VM{
-				Name: ptr.To(vmName),
-			},
-			Metadata: &prismclientv3.Metadata{
-				UUID: ptr.To(vmUUID),
-			},
-		}
-
-		vmResource := &prismclientv3.VMIntentResource{
-			Metadata: &prismclientv3.Metadata{
-				UUID: ptr.To(vmUUID),
-			},
-		}
-
-		listResponse := &prismclientv3.VMListIntentResponse{
-			Entities: []*prismclientv3.VMIntentResource{vmResource},
-		}
-		mockV3Client.EXPECT().ListVM(ctx, gomock.Any()).Return(listResponse, nil)
-		mockV3Client.EXPECT().GetVM(ctx, vmUUID).Return(expectedVM, nil)
+		// Mock FindVMByName
+		expectedVM := vmmModels.NewVm()
+		expectedVM.Name = ptr.To(vmName)
+		expectedVM.ExtId = ptr.To(vmUUID)
+		mockConvergedClient.MockVMs.EXPECT().List(ctx, FilterMatcher{ContainsExtId: vmName}).Return([]vmmModels.Vm{*expectedVM}, nil)
+		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(expectedVM, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -2891,7 +2722,6 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			Machine:         machine,
 			NutanixMachine:  ntnxMachine,
 			NutanixCluster:  ntnxCluster,
-			NutanixClient:   v3Client,
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
@@ -2904,7 +2734,7 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotNil(t, vm)
-		assert.Equal(t, vmName, *vm.Spec.Name)
+		assert.Equal(t, vmName, *vm.Name)
 	})
 
 	t.Run("should return error when FindVM fails", func(t *testing.T) {
@@ -2937,13 +2767,10 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		}
 
 		// Create mock clients
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		v3Client := &prismclientv3.Client{V3: mockV3Client}
-
 		mockConvergedClient := NewMockConvergedClient(ctrl)
 
 		// Mock FindVM to return error
-		mockV3Client.EXPECT().ListVM(ctx, gomock.Any()).Return(nil, errors.New("API error"))
+		mockConvergedClient.MockVMs.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New("API error"))
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -2951,7 +2778,6 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			Machine:         machine,
 			NutanixMachine:  ntnxMachine,
 			NutanixCluster:  ntnxCluster,
-			NutanixClient:   v3Client,
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
@@ -2977,8 +2803,9 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		peUUID := "00056024-f4f2-a6f6-0000-00000000e7f4"
 		subnetUUID := "b8c6d9f0-4c5e-4c5e-8c5e-4c5e4c5e4c5e"
 		imageUUID := "c5e4c5e4-c5e4-c5e4-c5e4-c5e4c5e4c5e4"
-		taskUUID := "ZXJnb24=:b4b17e07-b81c-43f4-9bf5-62149975d58f"
 		clusterName := "test-cluster"
+		projectUUID := "c5e4c5e4-c5e4-c5e4-c5e4-c5e4c5e4cabc"
+		projectName := "test-project"
 
 		// Create NutanixMachine with required specs
 		ntnxMachine := &infrav1.NutanixMachine{
@@ -2991,6 +2818,11 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 				VCPUsPerSocket: 1,
 				MemorySize:     resource.MustParse("4Gi"),
 				SystemDiskSize: resource.MustParse("40Gi"),
+				BootType:       infrav1.NutanixBootTypeLegacy,
+				Project: &infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierName,
+					Name: &projectName,
+				},
 				Image: &infrav1.NutanixResourceIdentifier{
 					Type: infrav1.NutanixIdentifierUUID,
 					UUID: &imageUUID,
@@ -3037,16 +2869,12 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		}
 
 		// Create mock clients
+		mockConvergedClient := NewMockConvergedClient(ctrl)
 		mockV3Client := mocknutanixv3.NewMockService(ctrl)
 		v3Client := &prismclientv3.Client{V3: mockV3Client}
 
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-
 		// Mock FindVM to return nil (VM not found)
-		listResponse := &prismclientv3.VMListIntentResponse{
-			Entities: []*prismclientv3.VMIntentResource{},
-		}
-		mockV3Client.EXPECT().ListVM(ctx, gomock.Any()).Return(listResponse, nil)
+		mockConvergedClient.MockVMs.EXPECT().List(ctx, gomock.Any()).Return([]vmmModels.Vm{}, nil)
 
 		// Mock GetCluster for PE UUID (called by GetSubnetAndPEUUIDs -> GetPEUUID)
 		mockConvergedClient.MockClusters.EXPECT().Get(ctx, peUUID).Return(&clustermgmtconfig.Cluster{
@@ -3057,16 +2885,6 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		mockConvergedClient.MockSubnets.EXPECT().Get(ctx, subnetUUID).Return(&subnetModels.Subnet{
 			ExtId: &subnetUUID,
 		}, nil)
-
-		// Mock GetImage (called by getDiskList -> getSystemDisk)
-		mockConvergedClient.MockImages.EXPECT().Get(ctx, imageUUID).Return(&imageModels.Image{
-			ExtId: &imageUUID,
-		}, nil)
-
-		// Mock Tasks.List calls in order:
-		// 1. ImageMarkedForDeletion check returns empty
-		// 2. GetTaskUUIDFromVM after VM creation returns task with UUID
-		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil)
 
 		// Mock category operations (called by getMachineCategoryIdentifiers and GetOrCreateCategories)
 		categoryExtId := "category-ext-id"
@@ -3081,54 +2899,44 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			mockConvergedClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(createdCategory, nil),
 			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{*createdCategory}, nil).AnyTimes(),
 		)
-		// Since converged client creates the category, V3 calls should find it
-		mockV3Client.EXPECT().GetCategoryKey(ctx, infrav1.DefaultCAPICategoryKeyForName).Return(&prismclientv3.CategoryKeyStatus{
-			Name: ptr.To(infrav1.DefaultCAPICategoryKeyForName),
-		}, nil).AnyTimes()
-		mockV3Client.EXPECT().GetCategoryValue(ctx, infrav1.DefaultCAPICategoryKeyForName, clusterName).Return(&prismclientv3.CategoryValueStatus{
-			Value: ptr.To(clusterName),
-		}, nil).AnyTimes()
+
+		// Mock addVMToProject
+		mockV3Client.EXPECT().ListAllProject(gomock.Any(), gomock.Any()).Return(&prismclientv3.ProjectListResponse{
+			Entities: []*prismclientv3.Project{
+				{
+					Spec:     &prismclientv3.ProjectSpec{Name: projectName},
+					Metadata: &prismclientv3.Metadata{UUID: &projectUUID},
+				},
+			},
+		}, nil)
+
+		// Mock GetImage (called by getDiskList -> getSystemDisk)
+		mockConvergedClient.MockImages.EXPECT().Get(ctx, imageUUID).Return(&imageModels.Image{
+			ExtId: &imageUUID,
+		}, nil)
+
+		// Mock Tasks.List calls in order:
+		// 1. ImageMarkedForDeletion check returns empty
+		// 2. GetTaskUUIDFromVM after VM creation returns task with UUID
+		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil)
 
 		// Mock CreateVM
-		createdVM := &prismclientv3.VMIntentResponse{
-			Spec: &prismclientv3.VM{
-				Name: ptr.To(vmName),
-			},
-			Metadata: &prismclientv3.Metadata{
-				UUID: ptr.To(vmUUID),
-			},
-			Status: &prismclientv3.VMDefStatus{
-				State: ptr.To("PENDING"),
-			},
-		}
-		mockV3Client.EXPECT().CreateVM(ctx, gomock.Any()).Return(createdVM, nil)
+		createdVM := vmmModels.NewVm()
+		createdVM.Name = ptr.To(vmName)
+		createdVM.ExtId = ptr.To(vmUUID)
+		mockConvergedClient.MockVMs.EXPECT().Create(ctx, gomock.Any()).Return(createdVM, nil)
 
-		// Mock GetTaskUUIDFromVM
-		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{
-			{
-				ExtId: ptr.To(taskUUID),
-			},
-		}, nil)
+		// Mock PowerOnVM
+		mockOperation := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
+		mockConvergedClient.MockVMs.EXPECT().PowerOnVM(vmUUID).Return(mockOperation, nil)
+		mockOperation.EXPECT().Wait(gomock.Any()).Return(nil, nil)
 
-		// Mock WaitForTaskToSucceed - the task UUID will be extracted to just the UUID part after ":"
-		extractedTaskUUID := "b4b17e07-b81c-43f4-9bf5-62149975d58f"
-		mockV3Client.EXPECT().GetTask(ctx, extractedTaskUUID).Return(&prismclientv3.TasksResponse{
-			Status: ptr.To("SUCCEEDED"),
-		}, nil)
-
-		// Mock FindVMByUUID after task completes
-		finalVM := &prismclientv3.VMIntentResponse{
-			Spec: &prismclientv3.VM{
-				Name: ptr.To(vmName),
-			},
-			Metadata: &prismclientv3.Metadata{
-				UUID: ptr.To(vmUUID),
-			},
-			Status: &prismclientv3.VMDefStatus{
-				State: ptr.To("COMPLETE"),
-			},
-		}
-		mockV3Client.EXPECT().GetVM(ctx, vmUUID).Return(finalVM, nil)
+		// Mock final FindVMByUUID call
+		finalVM := vmmModels.NewVm()
+		finalVM.Name = ptr.To(vmName)
+		finalVM.ExtId = ptr.To(vmUUID)
+		finalVM.PowerState = vmmModels.POWERSTATE_ON.Ref()
+		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(finalVM, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -3168,364 +2976,53 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotNil(t, vm)
-		assert.Equal(t, vmName, *vm.Spec.Name)
-		assert.Equal(t, vmUUID, *vm.Metadata.UUID)
+		assert.Equal(t, vmName, *vm.Name)
+		assert.Equal(t, vmUUID, *vm.ExtId)
 		assert.Equal(t, vmUUID, ntnxMachine.Status.VmUUID)
 		assert.Contains(t, ntnxMachine.Spec.ProviderID, vmUUID)
 	})
+}
 
-	t.Run("should return error when GetTaskUUIDFromVM fails", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
+func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
+	t.Run("should populate IP addresses from VM Nics to NutanixMachine addresses", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
 
-		ctx := context.Background()
-		vmName := "test-vm"
-		vmUUID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
-		peUUID := "00056024-f4f2-a6f6-0000-00000000e7f4"
-		subnetUUID := "b8c6d9f0-4c5e-4c5e-8c5e-4c5e4c5e4c5e"
-		imageUUID := "c5e4c5e4-c5e4-c5e4-c5e4-c5e4c5e4c5e4"
-		clusterName := "test-cluster"
+		nic1 := vmmModels.NewNic()
+		nic1.NetworkInfo = vmmModels.NewNicNetworkInfo()
+		ipv4Config := vmmModels.NewIpv4Config()
+		ipv4Config.IpAddress = vmmCommonConfig.NewIPv4Address()
+		ipv4Config.IpAddress.Value = ptr.To("10.10.10.10")
+		nic1.NetworkInfo.Ipv4Config = ipv4Config
 
-		// Create NutanixMachine with required specs
-		ntnxMachine := &infrav1.NutanixMachine{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-machine",
-				Namespace: "default",
-			},
-			Spec: infrav1.NutanixMachineSpec{
-				VCPUSockets:    2,
-				VCPUsPerSocket: 1,
-				MemorySize:     resource.MustParse("4Gi"),
-				SystemDiskSize: resource.MustParse("40Gi"),
-				Image: &infrav1.NutanixResourceIdentifier{
-					Type: infrav1.NutanixIdentifierUUID,
-					UUID: &imageUUID,
-				},
-				Cluster: infrav1.NutanixResourceIdentifier{
-					Type: infrav1.NutanixIdentifierUUID,
-					UUID: &peUUID,
-				},
-				Subnets: []infrav1.NutanixResourceIdentifier{
-					{
-						Type: infrav1.NutanixIdentifierUUID,
-						UUID: &subnetUUID,
-					},
-				},
-				BootstrapRef: &corev1.ObjectReference{
-					Kind:      infrav1.NutanixMachineBootstrapRefKindSecret,
-					Name:      "bootstrap-secret",
-					Namespace: "default",
-				},
-			},
-		}
+		nic2 := vmmModels.NewNic()
+		nic2.NetworkInfo = vmmModels.NewNicNetworkInfo()
+		ipv4Info := vmmModels.NewIpv4Info()
+		ipv4Ip := vmmCommonConfig.NewIPv4Address()
+		ipv4Ip.Value = ptr.To("10.10.10.11")
+		ipv4Info.LearnedIpAddresses = []vmmCommonConfig.IPv4Address{*ipv4Ip}
+		nic2.NetworkInfo.Ipv4Info = ipv4Info
 
-		machine := &capiv1.Machine{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: vmName,
-			},
-			Spec: capiv1.MachineSpec{
-				Version: ptr.To("v1.28.0"),
-			},
-		}
+		nics := []vmmModels.Nic{*nic1, *nic2}
+		vm := vmmModels.NewVm()
+		vm.Name = ptr.To("vm-name")
+		vm.Nics = nics
 
-		cluster := &capiv1.Cluster{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      clusterName,
-				Namespace: "default",
-			},
-		}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, vm)
 
-		ntnxCluster := &infrav1.NutanixCluster{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      clusterName,
-				Namespace: "default",
-			},
-		}
-
-		// Create mock clients
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		v3Client := &prismclientv3.Client{V3: mockV3Client}
-
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-
-		// Mock FindVM to return nil (VM not found)
-		listResponse := &prismclientv3.VMListIntentResponse{
-			Entities: []*prismclientv3.VMIntentResource{},
-		}
-		mockV3Client.EXPECT().ListVM(ctx, gomock.Any()).Return(listResponse, nil)
-
-		// Mock GetCluster for PE UUID
-		mockConvergedClient.MockClusters.EXPECT().Get(ctx, peUUID).Return(&clustermgmtconfig.Cluster{
-			ExtId: &peUUID,
-		}, nil)
-
-		// Mock GetSubnet
-		mockConvergedClient.MockSubnets.EXPECT().Get(ctx, subnetUUID).Return(&subnetModels.Subnet{
-			ExtId: &subnetUUID,
-		}, nil)
-
-		// Mock GetImage
-		mockConvergedClient.MockImages.EXPECT().Get(ctx, imageUUID).Return(&imageModels.Image{
-			ExtId: &imageUUID,
-		}, nil)
-
-		// Mock ImageMarkedForDeletion - return empty tasks list (not being deleted)
-		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil)
-
-		// Mock category operations
-		categoryExtId := "category-ext-id"
-		createdCategory := &prismModels.Category{
-			ExtId: &categoryExtId,
-			Key:   ptr.To(infrav1.DefaultCAPICategoryKeyForName),
-			Value: ptr.To(clusterName),
-		}
-		// First call to List returns empty (doesn't exist), subsequent calls return the created category
-		gomock.InOrder(
-			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil),
-			mockConvergedClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(createdCategory, nil),
-			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{*createdCategory}, nil).AnyTimes(),
-		)
-		// Since converged client creates the category, V3 calls should find it
-		mockV3Client.EXPECT().GetCategoryKey(ctx, infrav1.DefaultCAPICategoryKeyForName).Return(&prismclientv3.CategoryKeyStatus{
-			Name: ptr.To(infrav1.DefaultCAPICategoryKeyForName),
-		}, nil).AnyTimes()
-		mockV3Client.EXPECT().GetCategoryValue(ctx, infrav1.DefaultCAPICategoryKeyForName, clusterName).Return(&prismclientv3.CategoryValueStatus{
-			Value: ptr.To(clusterName),
-		}, nil).AnyTimes()
-
-		// Mock CreateVM
-		createdVM := &prismclientv3.VMIntentResponse{
-			Spec: &prismclientv3.VM{
-				Name: ptr.To(vmName),
-			},
-			Metadata: &prismclientv3.Metadata{
-				UUID: ptr.To(vmUUID),
-			},
-			Status: &prismclientv3.VMDefStatus{
-				State: ptr.To("PENDING"),
-			},
-		}
-		mockV3Client.EXPECT().CreateVM(ctx, gomock.Any()).Return(createdVM, nil)
-
-		// Mock GetTaskUUIDFromVM to return an error
-		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New("failed to fetch tasks from API"))
-
-		// Create machine context
-		rctx := &nctx.MachineContext{
-			Context:         ctx,
-			Cluster:         cluster,
-			Machine:         machine,
-			NutanixMachine:  ntnxMachine,
-			NutanixCluster:  ntnxCluster,
-			NutanixClient:   v3Client,
-			ConvergedClient: mockConvergedClient.Client,
-		}
-
-		// Create mock Kubernetes client
-		mockK8sClient := mockctlclient.NewMockClient(ctrl)
-		bootstrapSecret := &corev1.Secret{
-			Data: map[string][]byte{
-				"value": []byte("#!/bin/bash\necho 'bootstrap'"),
-			},
-		}
-		mockK8sClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).DoAndReturn(
-			func(ctx context.Context, key client.ObjectKey, obj *corev1.Secret, opts ...interface{}) error {
-				*obj = *bootstrapSecret
-				return nil
-			},
-		)
-
-		// Create reconciler
-		reconciler := &NutanixMachineReconciler{
-			Client: mockK8sClient,
-		}
-
-		// Test getOrCreateVM
-		vm, err := reconciler.getOrCreateVM(rctx)
-
-		// Verify results - should fail with GetTaskUUIDFromVM error
-		assert.Error(t, err)
-		assert.Nil(t, vm)
-		assert.Contains(t, err.Error(), "error occurred fetching task UUID")
-		assert.Contains(t, err.Error(), "failed to fetch tasks from API")
-		// VM UUID should be set even though task fetch failed
-		assert.Equal(t, vmUUID, ntnxMachine.Status.VmUUID)
+		assert.Nil(t, err)
+		assert.Equal(t, 1+len(nics), len(rctx.NutanixMachine.Status.Addresses))
 	})
 
-	t.Run("should return error when GetTaskUUIDFromVM returns empty task UUID", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
+	t.Run("should fail if no IP addresses are found from Nics", func(t *testing.T) {
+		rctx := &nctx.MachineContext{}
 
-		ctx := context.Background()
-		vmName := "test-vm"
-		vmUUID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
-		peUUID := "00056024-f4f2-a6f6-0000-00000000e7f4"
-		subnetUUID := "b8c6d9f0-4c5e-4c5e-8c5e-4c5e4c5e4c5e"
-		imageUUID := "c5e4c5e4-c5e4-c5e4-c5e4-c5e4c5e4c5e4"
-		clusterName := "test-cluster"
+		vm := vmmModels.NewVm()
+		vm.Name = ptr.To("vm-name")
 
-		// Create NutanixMachine with required specs
-		ntnxMachine := &infrav1.NutanixMachine{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-machine",
-				Namespace: "default",
-			},
-			Spec: infrav1.NutanixMachineSpec{
-				VCPUSockets:    2,
-				VCPUsPerSocket: 1,
-				MemorySize:     resource.MustParse("4Gi"),
-				SystemDiskSize: resource.MustParse("40Gi"),
-				Image: &infrav1.NutanixResourceIdentifier{
-					Type: infrav1.NutanixIdentifierUUID,
-					UUID: &imageUUID,
-				},
-				Cluster: infrav1.NutanixResourceIdentifier{
-					Type: infrav1.NutanixIdentifierUUID,
-					UUID: &peUUID,
-				},
-				Subnets: []infrav1.NutanixResourceIdentifier{
-					{
-						Type: infrav1.NutanixIdentifierUUID,
-						UUID: &subnetUUID,
-					},
-				},
-				BootstrapRef: &corev1.ObjectReference{
-					Kind:      infrav1.NutanixMachineBootstrapRefKindSecret,
-					Name:      "bootstrap-secret",
-					Namespace: "default",
-				},
-			},
-		}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, vm)
 
-		machine := &capiv1.Machine{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: vmName,
-			},
-			Spec: capiv1.MachineSpec{
-				Version: ptr.To("v1.28.0"),
-			},
-		}
-
-		cluster := &capiv1.Cluster{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      clusterName,
-				Namespace: "default",
-			},
-		}
-
-		ntnxCluster := &infrav1.NutanixCluster{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      clusterName,
-				Namespace: "default",
-			},
-		}
-
-		// Create mock clients
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		v3Client := &prismclientv3.Client{V3: mockV3Client}
-
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-
-		// Mock FindVM to return nil (VM not found)
-		listResponse := &prismclientv3.VMListIntentResponse{
-			Entities: []*prismclientv3.VMIntentResource{},
-		}
-		mockV3Client.EXPECT().ListVM(ctx, gomock.Any()).Return(listResponse, nil)
-
-		// Mock GetCluster for PE UUID
-		mockConvergedClient.MockClusters.EXPECT().Get(ctx, peUUID).Return(&clustermgmtconfig.Cluster{
-			ExtId: &peUUID,
-		}, nil)
-
-		// Mock GetSubnet
-		mockConvergedClient.MockSubnets.EXPECT().Get(ctx, subnetUUID).Return(&subnetModels.Subnet{
-			ExtId: &subnetUUID,
-		}, nil)
-
-		// Mock GetImage
-		mockConvergedClient.MockImages.EXPECT().Get(ctx, imageUUID).Return(&imageModels.Image{
-			ExtId: &imageUUID,
-		}, nil)
-
-		// Mock ImageMarkedForDeletion - return empty tasks list (not being deleted)
-		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil)
-
-		// Mock category operations
-		categoryExtId := "category-ext-id"
-		createdCategory := &prismModels.Category{
-			ExtId: &categoryExtId,
-			Key:   ptr.To(infrav1.DefaultCAPICategoryKeyForName),
-			Value: ptr.To(clusterName),
-		}
-		// First call to List returns empty (doesn't exist), subsequent calls return the created category
-		gomock.InOrder(
-			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil),
-			mockConvergedClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(createdCategory, nil),
-			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{*createdCategory}, nil).AnyTimes(),
-		)
-		// Since converged client creates the category, V3 calls should find it
-		mockV3Client.EXPECT().GetCategoryKey(ctx, infrav1.DefaultCAPICategoryKeyForName).Return(&prismclientv3.CategoryKeyStatus{
-			Name: ptr.To(infrav1.DefaultCAPICategoryKeyForName),
-		}, nil).AnyTimes()
-		mockV3Client.EXPECT().GetCategoryValue(ctx, infrav1.DefaultCAPICategoryKeyForName, clusterName).Return(&prismclientv3.CategoryValueStatus{
-			Value: ptr.To(clusterName),
-		}, nil).AnyTimes()
-
-		// Mock CreateVM
-		createdVM := &prismclientv3.VMIntentResponse{
-			Spec: &prismclientv3.VM{
-				Name: ptr.To(vmName),
-			},
-			Metadata: &prismclientv3.Metadata{
-				UUID: ptr.To(vmUUID),
-			},
-			Status: &prismclientv3.VMDefStatus{
-				State: ptr.To("PENDING"),
-			},
-		}
-		mockV3Client.EXPECT().CreateVM(ctx, gomock.Any()).Return(createdVM, nil)
-
-		// Mock GetTaskUUIDFromVM to return empty task list (no task UUID found)
-		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil)
-
-		// Create machine context
-		rctx := &nctx.MachineContext{
-			Context:         ctx,
-			Cluster:         cluster,
-			Machine:         machine,
-			NutanixMachine:  ntnxMachine,
-			NutanixCluster:  ntnxCluster,
-			NutanixClient:   v3Client,
-			ConvergedClient: mockConvergedClient.Client,
-		}
-
-		// Create mock Kubernetes client
-		mockK8sClient := mockctlclient.NewMockClient(ctrl)
-		bootstrapSecret := &corev1.Secret{
-			Data: map[string][]byte{
-				"value": []byte("#!/bin/bash\necho 'bootstrap'"),
-			},
-		}
-		mockK8sClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).DoAndReturn(
-			func(ctx context.Context, key client.ObjectKey, obj *corev1.Secret, opts ...interface{}) error {
-				*obj = *bootstrapSecret
-				return nil
-			},
-		)
-
-		// Create reconciler
-		reconciler := &NutanixMachineReconciler{
-			Client: mockK8sClient,
-		}
-
-		// Test getOrCreateVM
-		vm, err := reconciler.getOrCreateVM(rctx)
-
-		// Verify results - should fail because no task UUID was returned
-		assert.Error(t, err)
-		assert.Nil(t, vm)
-		assert.Contains(t, err.Error(), "failed to retrieve task UUID")
-		// VM UUID should be set even though task UUID retrieval failed
-		assert.Equal(t, vmUUID, ntnxMachine.Status.VmUUID)
+		assert.NotNil(t, err)
 	})
 }

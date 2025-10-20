@@ -61,7 +61,8 @@ const (
 	ImageStateDeletePending    = "DELETE_PENDING"
 	ImageStateDeleteInProgress = "DELETE_IN_PROGRESS"
 
-	createErrorFailureReason = "CreateError"
+	createErrorFailureReason  = "CreateError"
+	powerOnErrorFailureReason = "PowerOnError"
 )
 
 type StorageContainerIntentResponse struct {
@@ -97,13 +98,13 @@ func DeleteVM(ctx context.Context, client *v4Converged.Client, vmName, vmUUID st
 }
 
 // FindVMByUUID retrieves the VM with the given vm UUID. Returns nil if not found
-func FindVMByUUID(ctx context.Context, client *prismclientv3.Client, uuid string) (*prismclientv3.VMIntentResponse, error) {
+func FindVMByUUID(ctx context.Context, client *v4Converged.Client, uuid string) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.V(1).Info(fmt.Sprintf("Checking if VM with UUID %s exists.", uuid))
 
-	response, err := client.V3.GetVM(ctx, uuid)
+	response, err := client.VMs.Get(ctx, uuid)
 	if err != nil {
-		if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
+		if strings.Contains(fmt.Sprint(err), "VM_NOT_FOUND") {
 			log.V(1).Info(fmt.Sprintf("vm with uuid %s does not exist.", uuid))
 			return nil, nil
 		} else {
@@ -143,7 +144,7 @@ func GetVMUUID(nutanixMachine *infrav1.NutanixMachine) (string, error) {
 }
 
 // FindVM retrieves the VM with the given uuid or name
-func FindVM(ctx context.Context, client *prismclientv3.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*prismclientv3.VMIntentResponse, error) {
+func FindVM(ctx context.Context, client *v4Converged.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
 	vmUUID, err := GetVMUUID(nutanixMachine)
 	if err != nil {
@@ -164,8 +165,8 @@ func FindVM(ctx context.Context, client *prismclientv3.Client, nutanixMachine *i
 		// Now, we create VMs with the same name as the Machine name in line with other CAPI providers.
 		// This check is to ensure that we are deleting the correct VM for both cases as older CAPX VMs
 		// will have the NutanixMachine name as the VM name.
-		if *vm.Spec.Name != vmName && *vm.Spec.Name != nutanixMachine.Name {
-			return nil, fmt.Errorf("found VM with UUID %s but name %s did not match %s", vmUUID, *vm.Spec.Name, vmName)
+		if *vm.Name != vmName && *vm.Name != nutanixMachine.Name {
+			return nil, fmt.Errorf("found VM with UUID %s but name %s did not match %s", vmUUID, *vm.Name, vmName)
 		}
 		return vm, nil
 		// otherwise search via name
@@ -181,26 +182,24 @@ func FindVM(ctx context.Context, client *prismclientv3.Client, nutanixMachine *i
 }
 
 // FindVMByName retrieves the VM with the given vm name
-func FindVMByName(ctx context.Context, client *prismclientv3.Client, vmName string) (*prismclientv3.VMIntentResponse, error) {
+func FindVMByName(ctx context.Context, client *v4Converged.Client, vmName string) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.Info(fmt.Sprintf("Checking if VM with name %s exists.", vmName))
 
-	res, err := client.V3.ListVM(ctx, &prismclientv3.DSMetadata{
-		Filter: ptr.To(fmt.Sprintf("vm_name==%s", vmName)),
-	})
+	vms, err := client.VMs.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", vmName)))
 	if err != nil {
 		return nil, err
 	}
 
-	if len(res.Entities) > 1 {
-		return nil, fmt.Errorf("error: found more than one (%v) vms with name %s", len(res.Entities), vmName)
+	if len(vms) > 1 {
+		return nil, fmt.Errorf("error: found more than one (%v) vms with name %s", len(vms), vmName)
 	}
 
-	if len(res.Entities) == 0 {
+	if len(vms) == 0 {
 		return nil, nil
 	}
 
-	return FindVMByUUID(ctx, client, *res.Entities[0].Metadata.UUID)
+	return FindVMByUUID(ctx, client, *vms[0].ExtId)
 }
 
 // GetPEUUID returns the UUID of the Prism Element cluster with the given name
@@ -249,29 +248,30 @@ func GetMibValueOfQuantity(quantity resource.Quantity) int64 {
 	return quantity.Value() / (1024 * 1024)
 }
 
-func CreateSystemDiskSpec(imageUUID string, systemDiskSize int64) (*prismclientv3.VMDisk, error) {
+func CreateSystemDiskSpec(imageUUID string, systemDiskSizeInBytes int64) (*vmmconfig.Disk, error) {
 	if imageUUID == "" {
 		return nil, fmt.Errorf("image UUID must be set when creating system disk")
 	}
-	if systemDiskSize <= 0 {
-		return nil, fmt.Errorf("invalid system disk size: %d. Provide in XXGi (for example 70Gi) format instead", systemDiskSize)
+	if systemDiskSizeInBytes <= 0 {
+		return nil, fmt.Errorf("invalid system disk size in bytes: %d. Provide in XXGi (for example 70Gi) format instead", systemDiskSizeInBytes)
 	}
-	systemDisk := &prismclientv3.VMDisk{
-		DataSourceReference: &prismclientv3.Reference{
-			Kind: ptr.To("image"),
-			UUID: ptr.To(imageUUID),
-		},
-		DiskSizeMib: ptr.To(systemDiskSize),
+
+	disk := vmmconfig.NewDisk()
+	err := disk.SetBackingInfo(*newVmDiskWithImageRef(&imageUUID, systemDiskSizeInBytes))
+	if err != nil {
+		return nil, err
 	}
-	return systemDisk, nil
+
+	return disk, nil
 }
 
-// CreateDataDiskList creates a list of data disks with the given data disk specs
-func CreateDataDiskList(ctx context.Context, convergedClient *v4Converged.Client, dataDiskSpecs []infrav1.NutanixMachineVMDisk, peUUID string) ([]*prismclientv3.VMDisk, error) {
-	dataDisks := make([]*prismclientv3.VMDisk, 0)
+// CreateDataDiskList creates a list of data disks and cdRoms with the given data disk specs
+func CreateDataDiskList(ctx context.Context, convergedClient *v4Converged.Client, dataDiskSpecs []infrav1.NutanixMachineVMDisk, peUUID string) ([]vmmconfig.Disk, []vmmconfig.CdRom, error) {
+	dataDisks := []vmmconfig.Disk{}
+	dataCdRoms := []vmmconfig.CdRom{}
 
-	latestDeviceIndexByAdapterType := make(map[string]int64)
-	getDeviceIndex := func(adapterType string) int64 {
+	latestDeviceIndexByAdapterType := make(map[string]int)
+	getDeviceIndex := func(adapterType string) int {
 		if latestDeviceIndex, ok := latestDeviceIndexByAdapterType[adapterType]; ok {
 			latestDeviceIndexByAdapterType[adapterType] = latestDeviceIndex + 1
 			return latestDeviceIndex
@@ -287,31 +287,20 @@ func CreateDataDiskList(ctx context.Context, convergedClient *v4Converged.Client
 	}
 
 	for _, dataDiskSpec := range dataDiskSpecs {
-		dataDisk := &prismclientv3.VMDisk{
-			DiskSizeMib: ptr.To(GetMibValueOfQuantity(dataDiskSpec.DiskSize)),
+		vmDisk := vmmconfig.NewVmDisk()
+		vmDisk.DiskSizeBytes = ptr.To(int64(dataDiskSpec.DiskSize.Value()))
+
+		err := addDataSourceImageRefToVmDisk(ctx, convergedClient, vmDisk, dataDiskSpec.DataSource)
+		if err != nil {
+			return nil, nil, err
 		}
 
-		// If data source is provided, get the image UUID
-		if dataDiskSpec.DataSource != nil {
-			image, err := GetImage(ctx, convergedClient, infrav1.NutanixResourceIdentifier{
-				UUID: dataDiskSpec.DataSource.UUID,
-				Type: infrav1.NutanixIdentifierUUID,
-			})
-			if err != nil {
-				return nil, err
-			}
-
-			imageUUID := *image.ExtId
-
-			dataSourceReference := &prismclientv3.Reference{
-				Kind: ptr.To("image"),
-				UUID: ptr.To(imageUUID),
-			}
-
-			dataDisk.DataSourceReference = dataSourceReference
+		err = addStorageConfigAndContainerToVmDisk(ctx, convergedClient, vmDisk, dataDiskSpec.StorageConfig, peUUID)
+		if err != nil {
+			return nil, nil, err
 		}
 
-		// Set deault values for device type and adapter type
+		// Set default values for device type and adapter type
 		deviceType := infrav1.NutanixMachineDiskDeviceTypeDisk
 		adapterType := infrav1.NutanixMachineDiskAdapterTypeSCSI
 
@@ -321,53 +310,134 @@ func CreateDataDiskList(ctx context.Context, convergedClient *v4Converged.Client
 			adapterType = dataDiskSpec.DeviceProperties.AdapterType
 		}
 
-		// Set device properties
-		deviceProperties := &prismclientv3.VMDiskDeviceProperties{
-			DeviceType: ptr.To(strings.ToUpper(string(deviceType))),
-			DiskAddress: &prismclientv3.DiskAddress{
-				AdapterType: ptr.To(strings.ToUpper(string(adapterType))),
-				DeviceIndex: ptr.To(getDeviceIndex(string(adapterType))),
-			},
-		}
-
+		deviceIndex := getDeviceIndex(string(adapterType))
 		if dataDiskSpec.DeviceProperties != nil && dataDiskSpec.DeviceProperties.DeviceIndex != 0 {
-			deviceProperties.DiskAddress.DeviceIndex = ptr.To(int64(dataDiskSpec.DeviceProperties.DeviceIndex))
+			deviceIndex = int(dataDiskSpec.DeviceProperties.DeviceIndex)
 		}
 
-		dataDisk.DeviceProperties = deviceProperties
-
-		if dataDiskSpec.StorageConfig != nil {
-			storageConfig := &prismclientv3.VMStorageConfig{}
-
-			flashMode := "DISABLED"
-			if dataDiskSpec.StorageConfig.DiskMode == infrav1.NutanixMachineDiskModeFlash {
-				flashMode = "ENABLED"
+		// Set device properties
+		switch deviceType {
+		case infrav1.NutanixMachineDiskDeviceTypeDisk:
+			disk := vmmconfig.NewDisk()
+			disk.DiskAddress = vmmconfig.NewDiskAddress()
+			disk.DiskAddress.Index = ptr.To(deviceIndex)
+			disk.DiskAddress.BusType = adapterTypeToDiskBusType(adapterType)
+			err = disk.SetBackingInfo(*vmDisk)
+			if err != nil {
+				return nil, nil, err
 			}
 
-			storageConfig.FlashMode = flashMode
+			dataDisks = append(dataDisks, *disk)
+		case infrav1.NutanixMachineDiskDeviceTypeCDRom:
+			cdRom := vmmconfig.NewCdRom()
+			cdRom.DiskAddress = vmmconfig.NewCdRomAddress()
+			cdRom.DiskAddress.Index = ptr.To(deviceIndex)
+			cdRom.DiskAddress.BusType = adapterTypeToCdRomBusType(adapterType)
+			cdRom.BackingInfo = vmDisk
 
-			if dataDiskSpec.StorageConfig.StorageContainer != nil {
-				peID := infrav1.NutanixResourceIdentifier{
-					UUID: &peUUID,
-					Type: infrav1.NutanixIdentifierUUID,
-				}
-				sc, err := GetStorageContainerInCluster(ctx, convergedClient, *dataDiskSpec.StorageConfig.StorageContainer, peID)
-				if err != nil {
-					return nil, err
-				}
-
-				storageConfig.StorageContainerReference = &prismclientv3.StorageContainerReference{
-					Kind: "storage_container",
-					UUID: *sc.ContainerExtId,
-				}
-			}
-
-			dataDisk.StorageConfig = storageConfig
+			dataCdRoms = append(dataCdRoms, *cdRom)
+		default:
+			return nil, nil, fmt.Errorf("invalid NutanixMachineDiskDeviceType to create data disks")
 		}
-
-		dataDisks = append(dataDisks, dataDisk)
 	}
-	return dataDisks, nil
+
+	return dataDisks, dataCdRoms, nil
+}
+
+func addDataSourceImageRefToVmDisk(ctx context.Context, convergedClient *v4Converged.Client, vmDisk *vmmconfig.VmDisk, dataSource *infrav1.NutanixResourceIdentifier) error {
+	if dataSource == nil {
+		return nil
+	}
+
+	image, err := GetImage(ctx, convergedClient, infrav1.NutanixResourceIdentifier{
+		UUID: dataSource.UUID,
+		Type: infrav1.NutanixIdentifierUUID,
+	})
+	if err != nil {
+		return err
+	}
+
+	vmDisk.DataSource = vmmconfig.NewDataSource()
+	imageRef := vmmconfig.NewImageReference()
+	imageRef.ImageExtId = image.ExtId
+	err = vmDisk.DataSource.SetReference(*imageRef)
+	if err != nil {
+		return err
+	}
+	vmDisk.DataSource.ReferenceItemDiscriminator_ = nil
+
+	return nil
+}
+
+func addStorageConfigAndContainerToVmDisk(ctx context.Context, convergedClient *v4Converged.Client, vmDisk *vmmconfig.VmDisk, storageConfig *infrav1.NutanixMachineVMStorageConfig, peUUID string) error {
+	if storageConfig == nil {
+		return nil
+	}
+
+	vmDisk.StorageConfig = vmmconfig.NewVmDiskStorageConfig()
+
+	flashModeEnabled := storageConfig.DiskMode == infrav1.NutanixMachineDiskModeFlash
+	vmDisk.StorageConfig.IsFlashModeEnabled = ptr.To(flashModeEnabled)
+
+	if storageConfig.StorageContainer != nil {
+		peID := infrav1.NutanixResourceIdentifier{
+			UUID: &peUUID,
+			Type: infrav1.NutanixIdentifierUUID,
+		}
+		sc, err := GetStorageContainerInCluster(ctx, convergedClient, *storageConfig.StorageContainer, peID)
+		if err != nil {
+			return err
+		}
+
+		vmDisk.StorageContainer = vmmconfig.NewVmDiskContainerReference()
+		vmDisk.StorageContainer.ExtId = sc.ContainerExtId
+	}
+
+	return nil
+}
+
+func newVmDiskWithImageRef(dataSourceImageExtId *string, diskSizeInBytes int64) *vmmconfig.VmDisk {
+	vmDisk := vmmconfig.NewVmDisk()
+
+	if diskSizeInBytes > 0 {
+		vmDisk.DiskSizeBytes = ptr.To(diskSizeInBytes)
+	}
+
+	if dataSourceImageExtId != nil {
+		vmDisk.DataSource = vmmconfig.NewDataSource()
+		imageRef := vmmconfig.NewImageReference()
+		imageRef.ImageExtId = dataSourceImageExtId
+		_ = vmDisk.DataSource.SetReference(*imageRef)
+		vmDisk.DataSource.ReferenceItemDiscriminator_ = nil
+	}
+
+	return vmDisk
+}
+
+func adapterTypeToDiskBusType(adapterType infrav1.NutanixMachineDiskAdapterType) *vmmconfig.DiskBusType {
+	switch adapterType {
+	case infrav1.NutanixMachineDiskAdapterTypeSCSI:
+		return vmmconfig.DISKBUSTYPE_SCSI.Ref()
+	case infrav1.NutanixMachineDiskAdapterTypeIDE:
+		return vmmconfig.DISKBUSTYPE_IDE.Ref()
+	case infrav1.NutanixMachineDiskAdapterTypePCI:
+		return vmmconfig.DISKBUSTYPE_PCI.Ref()
+	case infrav1.NutanixMachineDiskAdapterTypeSATA:
+		return vmmconfig.DISKBUSTYPE_SATA.Ref()
+	default:
+		return vmmconfig.DISKBUSTYPE_UNKNOWN.Ref()
+	}
+}
+
+func adapterTypeToCdRomBusType(adapterType infrav1.NutanixMachineDiskAdapterType) *vmmconfig.CdRomBusType {
+	switch adapterType {
+	case infrav1.NutanixMachineDiskAdapterTypeIDE:
+		return vmmconfig.CDROMBUSTYPE_IDE.Ref()
+	case infrav1.NutanixMachineDiskAdapterTypeSATA:
+		return vmmconfig.CDROMBUSTYPE_SATA.Ref()
+	default:
+		return vmmconfig.CDROMBUSTYPE_UNKNOWN.Ref()
+	}
 }
 
 // GetSubnetUUID returns the UUID of the subnet with the given name
@@ -534,42 +604,22 @@ func ImageMarkedForDeletion(ctx context.Context, client *v4Converged.Client, ima
 	return len(tasks) > 0, nil
 }
 
-// HasTaskInProgress returns true if the given task is in progress
-func HasTaskInProgress(ctx context.Context, client *v4Converged.Client, taskUUID string) (bool, error) {
+func VmHasTaskInProgress(ctx context.Context, client *v4Converged.Client, vmExtId string) (bool, error) {
 	log := ctrl.LoggerFrom(ctx)
-	task, err := client.Tasks.Get(ctx, taskUUID)
+	if vmExtId == "" {
+		return false, fmt.Errorf("cannot extract task uuid for empty vm extId")
+	}
+
+	log.V(1).Info(fmt.Sprintf("Getting task uuid for vm %s", vmExtId))
+	fmtString := "entitiesAffected/any(a:a/extId eq '%s') " +
+		"and (status eq Prism.Config.TaskStatus'RUNNING' or status eq Prism.Config.TaskStatus'QUEUED')"
+	tasks, err := client.Tasks.List(ctx, converged.WithFilter(fmt.Sprintf(fmtString, vmExtId)))
 	if err != nil {
 		return false, err
 	}
-	if *task.Status == prismModels.TASKSTATUS_RUNNING || *task.Status == prismModels.TASKSTATUS_QUEUED {
-		log.V(1).Info(fmt.Sprintf("VM task with UUID %s still in progress: %v", taskUUID, *task.Status))
-		return true, nil
-	}
-	return false, nil
-}
 
-// GetTaskUUIDFromVM returns the UUID of the task that created the VM with the given UUID
-func GetTaskUUIDFromVM(ctx context.Context, convergedClient *v4Converged.Client, vmId string) (string, error) {
-	log := ctrl.LoggerFrom(ctx)
-	if vmId == "" {
-		return "", fmt.Errorf("cannot extract task uuid for empty vm id")
-	}
-	log.V(1).Info(fmt.Sprintf("Getting task uuid for vm %s", vmId))
-	filterString := "entitiesAffected/any(a:a/extId eq '%s') " +
-		" and (status eq Prism.Config.TaskStatus'RUNNING' or status eq Prism.Config.TaskStatus'QUEUED')"
-
-	tasks, err := convergedClient.Tasks.List(ctx, converged.WithFilter(fmt.Sprintf(filterString, vmId)))
-	if err != nil {
-		return "", err
-	}
-
-	log.V(1).Info(fmt.Sprintf("Found %d running or queued tasks for vm %s", len(tasks), vmId))
-	if len(tasks) == 0 {
-		return "", nil // no running tasks found
-	}
-
-	log.V(1).Info(fmt.Sprintf("Returning task uuid %s for vm %s", *tasks[0].ExtId, vmId))
-	return *tasks[0].ExtId, nil
+	log.V(1).Info(fmt.Sprintf("Found %d running or queued DeleteVm tasks for vm: %s", len(tasks), vmExtId))
+	return len(tasks) > 0, nil
 }
 
 // GetSubnetUUIDList returns a list of subnet UUIDs for the given list of subnet names
@@ -638,18 +688,6 @@ func getCategory(ctx context.Context, client *v4Converged.Client, key, value str
 	return &categories[0], nil
 }
 
-func deleteCategory(ctx context.Context, client *v4Converged.Client, key, value string) error {
-	categoryValue, err := getCategory(ctx, client, key, value)
-	if err != nil {
-		return fmt.Errorf("failed to delete category value %s in category %s. error: %v", value, key, err)
-	}
-	err = client.Categories.Delete(ctx, *categoryValue.ExtId)
-	if err != nil {
-		return fmt.Errorf("failed to delete category value %s in category %s. error: %v", value, key, err)
-	}
-	return nil
-}
-
 func deleteCategoryKeyValues(ctx context.Context, client *v4Converged.Client, categoryIdentifiers []*infrav1.NutanixCategoryIdentifier) error {
 	log := ctrl.LoggerFrom(ctx)
 	groupCategoriesByKey := make(map[string][]string, 0)
@@ -666,18 +704,18 @@ func deleteCategoryKeyValues(ctx context.Context, client *v4Converged.Client, ca
 
 	for key, values := range groupCategoriesByKey {
 		for _, value := range values {
-			categoryValue, err := getCategory(ctx, client, key, value)
+			prismCategory, err := getCategory(ctx, client, key, value)
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
 				log.Error(errorMsg, "failed to retrieve category value")
 				return errorMsg
 			}
-			if categoryValue == nil {
+			if prismCategory == nil {
 				log.V(1).Info(fmt.Sprintf("Category with value %s in category %s not found. Already deleted?", value, key))
 				continue
 			}
 
-			err = deleteCategory(ctx, client, key, value)
+			err = client.Categories.Delete(ctx, *prismCategory.ExtId)
 			if err != nil {
 				errorMsg := fmt.Errorf("failed to delete category value with key:value %s:%s. error: %v", key, value, err)
 				log.Error(errorMsg, "failed to delete category value")
@@ -718,15 +756,15 @@ func getOrCreateCategory(ctx context.Context, client *v4Converged.Client, catego
 		return nil, fmt.Errorf("category identifier key must be set when when getting or creating categories")
 	}
 	log.V(1).Info(fmt.Sprintf("Checking existence of category with key %s and value %s", categoryIdentifier.Key, categoryIdentifier.Value))
-	categoryObject, err := getCategory(ctx, client, categoryIdentifier.Key, categoryIdentifier.Value)
+	prismCategory, err := getCategory(ctx, client, categoryIdentifier.Key, categoryIdentifier.Value)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", categoryIdentifier.Key, err)
 		log.Error(errorMsg, "failed to retrieve category")
 		return nil, errorMsg
 	}
-	if categoryObject == nil {
+	if prismCategory == nil {
 		log.V(1).Info(fmt.Sprintf("Category with key %s and value %s did not exist.", categoryIdentifier.Key, categoryIdentifier.Value))
-		categoryObject, err = client.Categories.Create(ctx, &prismModels.Category{
+		prismCategory, err = client.Categories.Create(ctx, &prismModels.Category{
 			Key:         ptr.To(categoryIdentifier.Key),
 			Description: ptr.To(infrav1.DefaultCAPICategoryDescription),
 			Value:       ptr.To(categoryIdentifier.Value),
@@ -737,39 +775,46 @@ func getOrCreateCategory(ctx context.Context, client *v4Converged.Client, catego
 			return nil, errorMsg
 		}
 	}
-	return categoryObject, nil
+	return prismCategory, nil
 }
 
-// GetCategoryVMSpec returns the categories_mapping supporting multiple values per key.
-func GetCategoryVMSpec(
+func GetPrismReferencesOfCategoryIdentifiers(
 	ctx context.Context,
 	client *v4Converged.Client,
 	categoryIdentifiers []*infrav1.NutanixCategoryIdentifier,
-) (map[string][]string, error) {
+) ([]vmmconfig.CategoryReference, error) {
 	log := ctrl.LoggerFrom(ctx)
-	categorySpec := map[string][]string{}
+	categoryExtIds := []string{}
 
 	for _, ci := range categoryIdentifiers {
 		if ci == nil {
 			return nil, fmt.Errorf("category identifier cannot be nil")
 		}
-		categoryValue, err := getCategory(ctx, client, ci.Key, ci.Value)
+		prismCategory, err := getCategory(ctx, client, ci.Key, ci.Value)
 		if err != nil {
 			errorMsg := fmt.Errorf("error occurred while to retrieving category value %s in category %s. error: %v", ci.Value, ci.Key, err)
 			log.Error(errorMsg, "failed to retrieve category")
 			return nil, errorMsg
 		}
-		if categoryValue == nil {
+		if prismCategory == nil || prismCategory.ExtId == nil {
 			errorMsg := fmt.Errorf("category value %s not found in category %s. error", ci.Value, ci.Key)
 			log.Error(errorMsg, "category value not found")
 			return nil, errorMsg
 		}
-		if !slices.Contains(categorySpec[ci.Key], ci.Value) {
-			categorySpec[ci.Key] = append(categorySpec[ci.Key], ci.Value)
+
+		if !slices.Contains(categoryExtIds, *prismCategory.ExtId) {
+			categoryExtIds = append(categoryExtIds, *prismCategory.ExtId)
 		}
 	}
 
-	return categorySpec, nil
+	categoryReferences := []vmmconfig.CategoryReference{}
+	for _, extId := range categoryExtIds {
+		ref := vmmconfig.NewCategoryReference()
+		ref.ExtId = ptr.To(extId)
+		categoryReferences = append(categoryReferences, *ref)
+	}
+
+	return categoryReferences, nil
 }
 
 // GetProjectUUID returns the UUID of the project with the given name
@@ -828,14 +873,14 @@ func hasPEClusterServiceEnabled(peCluster *clusterModels.Cluster) bool {
 }
 
 // GetGPUList returns a list of GPU device IDs for the given list of GPUs
-func GetGPUList(ctx context.Context, client *v4Converged.Client, gpus []infrav1.NutanixGPU, peUUID string) ([]*vmmconfig.Gpu, error) {
-	resultGPUs := make([]*vmmconfig.Gpu, 0)
+func GetGPUList(ctx context.Context, client *v4Converged.Client, gpus []infrav1.NutanixGPU, peUUID string) ([]vmmconfig.Gpu, error) {
+	resultGPUs := make([]vmmconfig.Gpu, 0)
 	for _, gpu := range gpus {
 		foundGPU, err := GetGPU(ctx, client, peUUID, gpu)
 		if err != nil {
 			return nil, err
 		}
-		resultGPUs = append(resultGPUs, foundGPU)
+		resultGPUs = append(resultGPUs, *foundGPU)
 	}
 	return resultGPUs, nil
 }
@@ -925,41 +970,6 @@ func gpuVendorStringToGpuVendor(vendor string) *vmmconfig.GpuVendor {
 		return vmmconfig.GPUVENDOR_AMD.Ref()
 	default:
 		return vmmconfig.GPUVENDOR_UNKNOWN.Ref()
-	}
-}
-
-// TODO: delete when VM part will be migrated to use the v4Converged client
-// v4GpuToV3Gpu converts a v4 GPU to a v3 GPU
-func v4GpuToV3Gpu(gpu *vmmconfig.Gpu) *prismclientv3.VMGpu {
-	var mode string
-	var vendor string
-
-	switch *gpu.Mode {
-	case vmmconfig.GPUMODE_PASSTHROUGH_COMPUTE:
-		mode = "PASSTHROUGH_COMPUTE"
-	case vmmconfig.GPUMODE_PASSTHROUGH_GRAPHICS:
-		mode = "PASSTHROUGH_GRAPHICS"
-	case vmmconfig.GPUMODE_VIRTUAL:
-		mode = "VIRTUAL"
-	default:
-		mode = "$UNKNOWN"
-	}
-
-	switch *gpu.Vendor {
-	case vmmconfig.GPUVENDOR_NVIDIA:
-		vendor = "NVIDIA"
-	case vmmconfig.GPUVENDOR_INTEL:
-		vendor = "INTEL"
-	case vmmconfig.GPUVENDOR_AMD:
-		vendor = "AMD"
-	default:
-		vendor = "UNKNOWN"
-	}
-
-	return &prismclientv3.VMGpu{
-		DeviceID: ptr.To(int64(*gpu.DeviceId)),
-		Mode:     ptr.To(mode),
-		Vendor:   ptr.To(vendor),
 	}
 }
 
@@ -1086,27 +1096,38 @@ func getPrismCentralConvergedV4ClientForCluster(ctx context.Context, cluster *in
 	return client, nil
 }
 
-func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Client, vmName string, vmUUID string, vmDiskList []*prismclientv3.VMDisk) error {
+func isBackedByVolumeGroupReference(disk *vmmconfig.Disk) bool {
+	if disk == nil {
+		return false
+	}
+	backingInfo := disk.GetBackingInfo()
+	if backingInfo == nil {
+		return false
+	}
+
+	_, ok := backingInfo.(vmmconfig.ADSFVolumeGroupReference)
+	return ok
+}
+
+func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Client, vmName string, vmUUID string, vmDiskList []vmmconfig.Disk) error {
 	log := ctrl.LoggerFrom(ctx)
-	volumeGroupsToDetach := make([]string, 0)
+	// Detach the volume groups from the virtual machine
 	for _, disk := range vmDiskList {
-		if disk.VolumeGroupReference == nil {
+		if !isBackedByVolumeGroupReference(&disk) {
 			continue
 		}
 
-		volumeGroupsToDetach = append(volumeGroupsToDetach, *disk.VolumeGroupReference.UUID)
-	}
+		volumeGroup := disk.GetBackingInfo().(vmmconfig.ADSFVolumeGroupReference)
+		volumeGroupExtId := *volumeGroup.VolumeGroupExtId
 
-	// Detach the volume groups from the virtual machine
-	for _, volumeGroup := range volumeGroupsToDetach {
-		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroup, vmName))
+		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroupExtId, vmName))
 		body := &volumesconfig.VmAttachment{
 			ExtId: ptr.To(vmUUID),
 		}
 
-		resp, err := v4Client.VolumeGroupsApiInstance.DetachVm(&volumeGroup, body)
+		resp, err := v4Client.VolumeGroupsApiInstance.DetachVm(&volumeGroupExtId, body)
 		if err != nil {
-			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroup, vmUUID, err)
+			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroupExtId, vmUUID, err)
 		}
 
 		data := resp.GetData()
