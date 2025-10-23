@@ -378,6 +378,7 @@ mocks: ## Generate mocks for the project
 	mockgen -destination=mocks/converged/storage_containers.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged StorageContainers
 	mockgen -destination=mocks/converged/subnets.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Subnets
 	mockgen -destination=mocks/converged/tasks.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Tasks
+	mockgen -destination=mocks/converged/volume_groups.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged VolumeGroups
 
 GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
 
