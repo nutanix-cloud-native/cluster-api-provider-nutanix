@@ -399,15 +399,9 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 }
 
 func (r *NutanixMachineReconciler) detachVolumeGroups(rctx *nctx.MachineContext, vmName string, vmUUID string, vmDiskList []vmmconfig.Disk) error {
-	v4Client, err := getPrismCentralV4ClientForCluster(rctx.Context, rctx.NutanixCluster, r.SecretInformer, r.ConfigMapInformer)
-	if err != nil {
-		return fmt.Errorf("error occurred while fetching Prism Central v4 client: %w", err)
-	}
-
-	if err := detachVolumeGroupsFromVM(rctx.Context, v4Client, vmName, vmUUID, vmDiskList); err != nil {
+	if err := detachVolumeGroupsFromVM(rctx.Context, rctx.ConvergedClient, vmName, vmUUID, vmDiskList); err != nil {
 		return fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %w", vmName, vmUUID, err)
 	}
-
 	return nil
 }
 

@@ -32,13 +32,11 @@ import (
 	"github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
-	prismclientv4 "github.com/nutanix-cloud-native/prism-go-client/v4"
 	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	vmmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
-	prismconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/prism/v4/config"
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/client-go/informers/core/v1"
@@ -1046,31 +1044,6 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 	return v3Client, nil
 }
 
-func getPrismCentralV4ClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*prismclientv4.Client, error) {
-	log := ctrl.LoggerFrom(ctx)
-
-	clientHelper := nutanixclient.NewHelper(secretInformer, mapInformer)
-	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
-	if err != nil {
-		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
-		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
-		return nil, err
-	}
-
-	client, err := nutanixclient.NutanixClientCacheV4.GetOrCreate(&nutanixclient.CacheParams{
-		NutanixCluster:          cluster,
-		PrismManagementEndpoint: managementEndpoint,
-	})
-	if err != nil {
-		log.Error(err, "error occurred while getting nutanix prism v4 client from cache")
-		conditions.MarkFalse(cluster, infrav1.PrismCentralV4ClientCondition, infrav1.PrismCentralV4ClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
-		return nil, fmt.Errorf("nutanix prism v4 client error: %w", err)
-	}
-
-	conditions.MarkTrue(cluster, infrav1.PrismCentralV4ClientCondition)
-	return client, nil
-}
-
 func getPrismCentralConvergedV4ClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*v4Converged.Client, error) {
 	log := ctrl.LoggerFrom(ctx)
 
@@ -1109,7 +1082,7 @@ func isBackedByVolumeGroupReference(disk *vmmconfig.Disk) bool {
 	return ok
 }
 
-func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Client, vmName string, vmUUID string, vmDiskList []vmmconfig.Disk) error {
+func detachVolumeGroupsFromVM(ctx context.Context, client *v4Converged.Client, vmName string, vmUUID string, vmDiskList []vmmconfig.Disk) error {
 	log := ctrl.LoggerFrom(ctx)
 	// Detach the volume groups from the virtual machine
 	for _, disk := range vmDiskList {
@@ -1125,15 +1098,11 @@ func detachVolumeGroupsFromVM(ctx context.Context, v4Client *prismclientv4.Clien
 			ExtId: ptr.To(vmUUID),
 		}
 
-		resp, err := v4Client.VolumeGroupsApiInstance.DetachVm(&volumeGroupExtId, body)
+		_, err := client.VolumeGroups.DetachFromVM(ctx, volumeGroupExtId, *body)
 		if err != nil {
 			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroupExtId, vmUUID, err)
 		}
-
-		data := resp.GetData()
-		if _, ok := data.(prismconfig.TaskReference); !ok {
-			return fmt.Errorf("failed to cast response to TaskReference")
-		}
+		return nil
 	}
 
 	return nil

@@ -40,6 +40,7 @@ import (
 	vmmModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 	policyModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/policies"
 	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
+	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -2299,6 +2300,215 @@ func TestGpuVendorStringToGpuVendor(t *testing.T) {
 	}
 }
 
+func TestDetachVolumeGroupsFromVM(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	t.Run("should skip detachment when no disks provided", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+		vmDisks := []vmmModels.Disk{}
+
+		// No expectations: DetachFromVM should NOT be called
+		err := detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("should skip detachment when disk has no backing info", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+
+		// Disk without VG backing (leave BackingInfo nil)
+		disk := vmmModels.NewDisk()
+		vmDisks := []vmmModels.Disk{*disk}
+
+		// No expectations: DetachFromVM should NOT be called
+		err := detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("should skip detachment when disk is not backed by volume group", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+
+		// Disk backed by VmDisk (not volume group)
+		disk := vmmModels.NewDisk()
+		vmDisk := vmmModels.NewVmDisk()
+		vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
+		err := disk.SetBackingInfo(*vmDisk)
+		require.NoError(t, err)
+
+		vmDisks := []vmmModels.Disk{*disk}
+
+		// No expectations: DetachFromVM should NOT be called
+		err = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("should successfully detach single volume group", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+		vgID := "11111111-1111-1111-1111-111111111111"
+
+		// Build a Disk backed by an ADSFVolumeGroupReference
+		disk := vmmModels.NewDisk()
+		ref := vmmModels.NewADSFVolumeGroupReference()
+		ref.VolumeGroupExtId = &vgID
+		err := disk.SetBackingInfo(*ref)
+		require.NoError(t, err)
+
+		vmDisks := []vmmModels.Disk{*disk}
+
+		expectedVG := &volumesconfig.VolumeGroup{
+			ExtId: ptr.To(vgID),
+		}
+
+		// Expect DetachFromVM to be called once with the correct VG ID
+		mockClientWrapper.MockVolumeGroups.EXPECT().
+			DetachFromVM(ctx, vgID, gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ string, attachment volumesconfig.VmAttachment) (*volumesconfig.VolumeGroup, error) {
+				assert.Equal(t, vmUUID, *attachment.ExtId)
+				return expectedVG, nil
+			})
+
+		err = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return error when DetachFromVM fails", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+		vgID := "22222222-2222-2222-2222-222222222222"
+
+		disk := vmmModels.NewDisk()
+		ref := vmmModels.NewADSFVolumeGroupReference()
+		ref.VolumeGroupExtId = &vgID
+		err := disk.SetBackingInfo(*ref)
+		require.NoError(t, err)
+
+		vmDisks := []vmmModels.Disk{*disk}
+
+		expectedError := errors.New("failed to detach volume group")
+
+		// Return error from DetachFromVM
+		mockClientWrapper.MockVolumeGroups.EXPECT().
+			DetachFromVM(ctx, vgID, gomock.Any()).
+			Return(nil, expectedError)
+
+		err = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to detach volume group")
+		assert.Contains(t, err.Error(), vgID)
+		assert.Contains(t, err.Error(), vmUUID)
+	})
+
+	t.Run("should return after detaching first volume group", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+		vgID1 := "11111111-1111-1111-1111-111111111111"
+		vgID2 := "22222222-2222-2222-2222-222222222222"
+
+		// Build two disks backed by volume groups
+		disk1 := vmmModels.NewDisk()
+		ref1 := vmmModels.NewADSFVolumeGroupReference()
+		ref1.VolumeGroupExtId = &vgID1
+		err := disk1.SetBackingInfo(*ref1)
+		require.NoError(t, err)
+
+		disk2 := vmmModels.NewDisk()
+		ref2 := vmmModels.NewADSFVolumeGroupReference()
+		ref2.VolumeGroupExtId = &vgID2
+		err = disk2.SetBackingInfo(*ref2)
+		require.NoError(t, err)
+
+		vmDisks := []vmmModels.Disk{*disk1, *disk2}
+
+		// Only expect DetachFromVM to be called once (for the first VG)
+		// The function returns after the first detachment
+		mockClientWrapper.MockVolumeGroups.EXPECT().
+			DetachFromVM(ctx, vgID1, gomock.Any()).
+			Return(&volumesconfig.VolumeGroup{}, nil).
+			Times(1)
+
+		err = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("should handle mixed disk types and only detach volume groups", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+		vgID := "11111111-1111-1111-1111-111111111111"
+
+		// First disk: regular VmDisk (should be skipped)
+		disk1 := vmmModels.NewDisk()
+		vmDisk := vmmModels.NewVmDisk()
+		vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
+		err := disk1.SetBackingInfo(*vmDisk)
+		require.NoError(t, err)
+
+		// Second disk: backed by volume group (should be detached)
+		disk2 := vmmModels.NewDisk()
+		ref := vmmModels.NewADSFVolumeGroupReference()
+		ref.VolumeGroupExtId = &vgID
+		err = disk2.SetBackingInfo(*ref)
+		require.NoError(t, err)
+
+		vmDisks := []vmmModels.Disk{*disk1, *disk2}
+
+		// Only expect DetachFromVM to be called for the volume group disk
+		mockClientWrapper.MockVolumeGroups.EXPECT().
+			DetachFromVM(ctx, vgID, gomock.Any()).
+			Return(&volumesconfig.VolumeGroup{}, nil)
+
+		err = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("should handle nil volume group ExtId gracefully", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+
+		// Build a disk with volume group reference but nil ExtId
+		disk := vmmModels.NewDisk()
+		ref := vmmModels.NewADSFVolumeGroupReference()
+		ref.VolumeGroupExtId = nil // Nil ExtId should cause panic or error
+		err := disk.SetBackingInfo(*ref)
+		require.NoError(t, err)
+
+		vmDisks := []vmmModels.Disk{*disk}
+
+		// This should panic when trying to dereference nil VolumeGroupExtId
+		assert.Panics(t, func() {
+			_ = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+		})
+	})
+}
+
 type MockConvergedClientWrapper struct {
 	Client *v4Converged.Client
 
@@ -2310,6 +2520,7 @@ type MockConvergedClientWrapper struct {
 	MockSubnets              *mockconverged.MockSubnets[subnetModels.Subnet]
 	MockVMs                  *mockconverged.MockVMs[vmmModels.Vm]
 	MockTasks                *mockconverged.MockTasks[prismModels.Task, prismErrors.AppMessage]
+	MockVolumeGroups         *mockconverged.MockVolumeGroups[volumesconfig.VolumeGroup, volumesconfig.VmAttachment]
 }
 
 // NewMockConvergedClient creates a new mock converged client
@@ -2323,6 +2534,7 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 	mockTasks := mockconverged.NewMockTasks[prismModels.Task, prismErrors.AppMessage](ctrl)
 	// Create mock VMs service with the correct type
 	mockVMs := mockconverged.NewMockVMs[vmmModels.Vm](ctrl)
+	mockVolumeGroups := mockconverged.NewMockVolumeGroups[volumesconfig.VolumeGroup, volumesconfig.VmAttachment](ctrl)
 
 	realClient := &v4Converged.Client{
 		Client: converged.Client[
@@ -2337,6 +2549,8 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			vmmModels.Vm,
 			prismModels.Task,
 			prismErrors.AppMessage,
+			volumesconfig.VolumeGroup,
+			volumesconfig.VmAttachment,
 		]{
 			AntiAffinityPolicies: mockAntiAffinityPolicies,
 			Clusters:             mockClusters,
@@ -2346,6 +2560,7 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			Subnets:              mockSubnets,
 			VMs:                  mockVMs,
 			Tasks:                mockTasks,
+			VolumeGroups:         mockVolumeGroups,
 		},
 	}
 
@@ -2359,5 +2574,6 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 		MockSubnets:              mockSubnets,
 		MockVMs:                  mockVMs,
 		MockTasks:                mockTasks,
+		MockVolumeGroups:         mockVolumeGroups,
 	}
 }

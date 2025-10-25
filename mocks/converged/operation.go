@@ -55,6 +55,21 @@ func (mr *MockOperationMockRecorder[T]) Errors() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Errors", reflect.TypeOf((*MockOperation[T])(nil).Errors))
 }
 
+// GetAffectedEntityRefs mocks base method.
+func (m *MockOperation[T]) GetAffectedEntityRefs() ([]any, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAffectedEntityRefs")
+	ret0, _ := ret[0].([]any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAffectedEntityRefs indicates an expected call of GetAffectedEntityRefs.
+func (mr *MockOperationMockRecorder[T]) GetAffectedEntityRefs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAffectedEntityRefs", reflect.TypeOf((*MockOperation[T])(nil).GetAffectedEntityRefs))
+}
+
 // IsDone mocks base method.
 func (m *MockOperation[T]) IsDone() bool {
 	m.ctrl.T.Helper()
