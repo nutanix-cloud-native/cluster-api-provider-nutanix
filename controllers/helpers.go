@@ -462,7 +462,7 @@ func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID strin
 		// Validate filtered Subnets
 		foundSubnets := make([]subnetModels.Subnet, 0)
 		for _, subnet := range responseSubnets {
-			if subnet.Name == nil || subnet.SubnetType == nil || subnet.ClusterReference == nil {
+			if subnet.Name == nil || subnet.SubnetType == nil {
 				continue
 			}
 			if *subnet.Name == *subnetName {
