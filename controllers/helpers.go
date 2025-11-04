@@ -470,8 +470,7 @@ func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID strin
 					foundSubnets = append(foundSubnets, subnet)
 					continue
 				}
-				// By default check if the PE UUID matches if it is not an overlay subnet.
-				if subnet.ClusterReferenceList != nil && *subnet.ClusterReference == peUUID {
+				if subnet.ClusterReferenceList != nil && subnet.ClusterReference != nil && *subnet.ClusterReference == peUUID {
 					foundSubnets = append(foundSubnets, subnet)
 				}
 			}
