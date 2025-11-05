@@ -1,6 +1,7 @@
 package client
 
 import (
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	"github.com/nutanix-cloud-native/prism-go-client/environment/types"
 	v3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	v4 "github.com/nutanix-cloud-native/prism-go-client/v4"
@@ -13,6 +14,9 @@ var NutanixClientCache = v3.NewClientCache(v3.WithSessionAuth(true))
 
 // NutanixClientCacheV4 is the cache of prism clients to be shared across the different controllers
 var NutanixClientCacheV4 = v4.NewClientCache(v4.WithSessionAuth(true))
+
+// NutanixConvergedClientV4Cache is the cache of prism clients to be shared across the different controllers
+var NutanixConvergedClientV4Cache = v4Converged.NewClientCache(v4.WithSessionAuth(true))
 
 // CacheParams is the struct that implements ClientCacheParams interface from prism-go-client
 type CacheParams struct {

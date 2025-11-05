@@ -73,6 +73,21 @@ func (mr *MockServiceMockRecorder) CreateAddressGroup(ctx, request any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAddressGroup", reflect.TypeOf((*MockService)(nil).CreateAddressGroup), ctx, request)
 }
 
+// CreateIdempotenceIdentifiers mocks base method.
+func (m *MockService) CreateIdempotenceIdentifiers(ctx context.Context, request *models.IdempotenceIdentifiersInput) (*models.IdempotenceIdentifiersResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateIdempotenceIdentifiers", ctx, request)
+	ret0, _ := ret[0].(*models.IdempotenceIdentifiersResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateIdempotenceIdentifiers indicates an expected call of CreateIdempotenceIdentifiers.
+func (mr *MockServiceMockRecorder) CreateIdempotenceIdentifiers(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateIdempotenceIdentifiers", reflect.TypeOf((*MockService)(nil).CreateIdempotenceIdentifiers), ctx, request)
+}
+
 // CreateImage mocks base method.
 func (m *MockService) CreateImage(ctx context.Context, createRequest *v3.ImageIntentInput) (*v3.ImageIntentResponse, error) {
 	m.ctrl.T.Helper()
@@ -164,10 +179,10 @@ func (mr *MockServiceMockRecorder) CreateProtectionRule(ctx, request any) *gomoc
 }
 
 // CreateRecoveryPlan mocks base method.
-func (m *MockService) CreateRecoveryPlan(ctx context.Context, request *v3.RecoveryPlanInput) (*v3.RecoveryPlanResponse, error) {
+func (m *MockService) CreateRecoveryPlan(ctx context.Context, request *models.RecoveryPlanIntentInput) (*models.RecoveryPlanIntentResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateRecoveryPlan", ctx, request)
-	ret0, _ := ret[0].(*v3.RecoveryPlanResponse)
+	ret0, _ := ret[0].(*models.RecoveryPlanIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -338,6 +353,20 @@ func (m *MockService) DeleteCategoryValue(ctx context.Context, name, value strin
 func (mr *MockServiceMockRecorder) DeleteCategoryValue(ctx, name, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCategoryValue", reflect.TypeOf((*MockService)(nil).DeleteCategoryValue), ctx, name, value)
+}
+
+// DeleteIdempotenceIdentifiers mocks base method.
+func (m *MockService) DeleteIdempotenceIdentifiers(ctx context.Context, clientIdentifier string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteIdempotenceIdentifiers", ctx, clientIdentifier)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteIdempotenceIdentifiers indicates an expected call of DeleteIdempotenceIdentifiers.
+func (mr *MockServiceMockRecorder) DeleteIdempotenceIdentifiers(ctx, clientIdentifier any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIdempotenceIdentifiers", reflect.TypeOf((*MockService)(nil).DeleteIdempotenceIdentifiers), ctx, clientIdentifier)
 }
 
 // DeleteImage mocks base method.
@@ -652,6 +681,21 @@ func (mr *MockServiceMockRecorder) GetHost(ctx, taskUUID any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHost", reflect.TypeOf((*MockService)(nil).GetHost), ctx, taskUUID)
 }
 
+// GetIdempotenceIdentifiers mocks base method.
+func (m *MockService) GetIdempotenceIdentifiers(ctx context.Context, clientIdentifier string) (*models.IdempotenceIdentifiersResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetIdempotenceIdentifiers", ctx, clientIdentifier)
+	ret0, _ := ret[0].(*models.IdempotenceIdentifiersResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetIdempotenceIdentifiers indicates an expected call of GetIdempotenceIdentifiers.
+func (mr *MockServiceMockRecorder) GetIdempotenceIdentifiers(ctx, clientIdentifier any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIdempotenceIdentifiers", reflect.TypeOf((*MockService)(nil).GetIdempotenceIdentifiers), ctx, clientIdentifier)
+}
+
 // GetImage mocks base method.
 func (m *MockService) GetImage(ctx context.Context, uuid string) (*v3.ImageIntentResponse, error) {
 	m.ctrl.T.Helper()
@@ -743,10 +787,10 @@ func (mr *MockServiceMockRecorder) GetProtectionRule(ctx, uuid any) *gomock.Call
 }
 
 // GetRecoveryPlan mocks base method.
-func (m *MockService) GetRecoveryPlan(ctx context.Context, uuid string) (*v3.RecoveryPlanResponse, error) {
+func (m *MockService) GetRecoveryPlan(ctx context.Context, uuid string) (*models.RecoveryPlanIntentResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetRecoveryPlan", ctx, uuid)
-	ret0, _ := ret[0].(*v3.RecoveryPlanResponse)
+	ret0, _ := ret[0].(*models.RecoveryPlanIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1103,10 +1147,10 @@ func (mr *MockServiceMockRecorder) ListAllProtectionRules(ctx, filter any) *gomo
 }
 
 // ListAllRecoveryPlans mocks base method.
-func (m *MockService) ListAllRecoveryPlans(ctx context.Context, filter string) (*v3.RecoveryPlanListResponse, error) {
+func (m *MockService) ListAllRecoveryPlans(ctx context.Context, filter string) (*models.RecoveryPlanListIntentResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListAllRecoveryPlans", ctx, filter)
-	ret0, _ := ret[0].(*v3.RecoveryPlanListResponse)
+	ret0, _ := ret[0].(*models.RecoveryPlanListIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1358,10 +1402,10 @@ func (mr *MockServiceMockRecorder) ListRecoveryPlanJobs(ctx, getEntitiesRequest 
 }
 
 // ListRecoveryPlans mocks base method.
-func (m *MockService) ListRecoveryPlans(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.RecoveryPlanListResponse, error) {
+func (m *MockService) ListRecoveryPlans(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*models.RecoveryPlanListIntentResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListRecoveryPlans", ctx, getEntitiesRequest)
-	ret0, _ := ret[0].(*v3.RecoveryPlanListResponse)
+	ret0, _ := ret[0].(*models.RecoveryPlanListIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1581,10 +1625,10 @@ func (mr *MockServiceMockRecorder) UpdateProtectionRule(ctx, uuid, body any) *go
 }
 
 // UpdateRecoveryPlan mocks base method.
-func (m *MockService) UpdateRecoveryPlan(ctx context.Context, uuid string, body *v3.RecoveryPlanInput) (*v3.RecoveryPlanResponse, error) {
+func (m *MockService) UpdateRecoveryPlan(ctx context.Context, uuid string, body *models.RecoveryPlanIntentInput) (*models.RecoveryPlanIntentResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateRecoveryPlan", ctx, uuid, body)
-	ret0, _ := ret[0].(*v3.RecoveryPlanResponse)
+	ret0, _ := ret[0].(*models.RecoveryPlanIntentResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

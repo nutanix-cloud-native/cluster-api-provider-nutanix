@@ -10,14 +10,42 @@ LOCAL_IMAGE_REGISTRY ?= ko.local
 IMG_REPO=${LOCAL_IMAGE_REGISTRY}/cluster-api-provider-nutanix
 IMG_TAG=e2e-${GIT_COMMIT_HASH}
 MANAGER_IMAGE=${IMG_REPO}:${IMG_TAG}
-DOCKER_SOCKET := $(shell docker context inspect --format '{{.Endpoints.docker.Host}}')
+# Container engine detection (lazy evaluation - only computed when needed)
+CONTAINER_ENGINE = $(shell (command -v docker >/dev/null 2>&1 && echo docker) || \
+                           (command -v podman >/dev/null 2>&1 && echo podman) || \
+                           echo none)
 
+# Docker socket path (lazy evaluation)
+DOCKER_SOCKET = $(shell if [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
+                           docker context inspect --format '{{.Endpoints.docker.Host}}'; \
+                        elif [ "$(CONTAINER_ENGINE)" = "podman" ]; then \
+                           podman machine inspect --format '{{ .ConnectionInfo.PodmanSocket.Path }}'; \
+                        fi)
+
+# Function to setup container engine runtime
+define select_container_engine
+	@if [ "$(CONTAINER_ENGINE)" = "none" ]; then \
+		echo "Error: No container engine found (docker or podman required)"; \
+		exit 1; \
+	fi
+	@if [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
+		echo "Using Docker as container engine"; \
+	elif [ "$(CONTAINER_ENGINE)" = "podman" ]; then \
+		echo "Using Podman as container engine"; \
+		if ! pgrep -f "podman.*system.*service" >/dev/null 2>&1; then \
+			echo "Starting podman socket service..."; \
+			nohup podman system service --time=0 $(DOCKER_SOCKET) >/dev/null 2>&1 & \
+			sleep 2; \
+		fi; \
+	fi
+	@echo "DOCKER_HOST: $(DOCKER_SOCKET)"
+endef 
 # Extract base and tag from IMG
 LOCAL_PROVIDER_VERSION ?= ${IMG_TAG}
 
 ifeq (${LOCAL_PROVIDER_VERSION},${IMG_TAG})
 # TODO(release-blocker): Change this versions after release when required here
-LOCAL_PROVIDER_VERSION := v1.7.99
+LOCAL_PROVIDER_VERSION := v1.8.99
 endif
 
 # PLATFORMS is a list of platforms to build for.
@@ -52,7 +80,7 @@ CNI_PATH_CILIUM ?= "${E2E_DIR}/data/cni/cilium/cilium.yaml"
 CNI_PATH_CILIUM_NO_KUBEPROXY ?= "${E2E_DIR}/data/cni/cilium/cilium-no-kubeproxy.yaml"
 CNI_PATH_FLANNEL ?= "${E2E_DIR}/data/cni/flannel/flannel.yaml"
 CNI_PATH_KINDNET ?= "${E2E_DIR}/data/cni/kindnet/kindnet.yaml"
-CCM_VERSION ?= v0.5.0
+CCM_VERSION ?= v0.5.3
 
 # CRD_OPTIONS define options to add to the CONTROLLER_GEN
 CRD_OPTIONS ?= "crd:crdVersions=v1"
@@ -193,8 +221,8 @@ update-kindnet-cni: ## Updates the kindnet CNI manifests
 .PHONY: update-ccm
 update-ccm: ## Updates the Nutanix CCM tag in all the template manifests to CCM_VERSION
 	@echo "Updating Nutanix CCM tag"
-	@find $(TEMPLATES_DIR) -type f -exec sed -i 's|CCM_TAG=[^}]*|CCM_TAG=$(CCM_VERSION)|g' {} +
-	@find $(NUTANIX_E2E_TEMPLATES) -type f -exec sed -i 's|CCM_TAG=[^}]*|CCM_TAG=$(CCM_VERSION)|g' {} +
+	@find $(TEMPLATES_DIR) -type f -name "*.yaml" -exec sed -i '' 's|CCM_TAG=v[0-9]*\.[0-9]*\.[0-9]*|CCM_TAG=$(CCM_VERSION)|g' {} +
+	@find $(NUTANIX_E2E_TEMPLATES) -type f -name "*.yaml" -exec sed -i '' 's|CCM_TAG=v[0-9]*\.[0-9]*\.[0-9]*|CCM_TAG=$(CCM_VERSION)|g' {} +
 
 .PHONY: update-cni-manifests ## Updates all the CNI manifests to latest variants from upstream
 update-cni-manifests: update-calico-cni update-cilium-cni update-flannel-cni update-kindnet-cni  ## Updates all the CNI manifests to latest variants from upstream
@@ -216,16 +244,19 @@ run: manifests generate ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: docker-build
-docker-build:  ## Build docker image with the manager.
+docker-build: ## Build docker image with the manager.
+	$(select_container_engine)
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
 	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push
 docker-push:  ## Push docker image with the manager.
+	$(select_container_engine)
 	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=${IMG_REPO} GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push-kind
 docker-push-kind:  ## Make docker image available to kind cluster.
+	$(select_container_engine)
 	DOCKER_HOST=$(DOCKER_SOCKET) GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local ko build -B -t ${IMG_TAG} .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${MANAGER_IMAGE}
 	kind load docker-image --name ${KIND_CLUSTER_NAME} ${MANAGER_IMAGE}
@@ -257,10 +288,10 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 ##@ Templates
 
 .PHONY: cluster-e2e-templates
-cluster-e2e-templates: cluster-e2e-templates-v1beta1 cluster-e2e-templates-v170 ## Generate cluster templates for all versions
+cluster-e2e-templates: cluster-e2e-templates-v1beta1 cluster-e2e-templates-v171 ## Generate cluster templates for all versions
 
-cluster-e2e-templates-v170: ## Generate cluster templates for CAPX v1.7.0
-	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1.7.0/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1.7.0/cluster-template.yaml
+cluster-e2e-templates-v171: ## Generate cluster templates for CAPX v1.7.1
+	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1.7.1/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1.7.1/cluster-template.yaml
 
 cluster-e2e-templates-v1beta1: ## Generate cluster templates for v1beta1
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template.yaml
@@ -313,6 +344,7 @@ cluster-templates: ## Generate cluster templates for all flavors
 
 .PHONY: docker-build-e2e
 docker-build-e2e: ## Build docker image with the manager with e2e tag.
+	$(select_container_engine)
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
 	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS_E2E} -t ${IMG_TAG} .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:${IMG_TAG}
@@ -337,6 +369,16 @@ mocks: ## Generate mocks for the project
 	mockgen -destination=mocks/k8sclient/lister.go -package=mockk8sclient k8s.io/client-go/listers/core/v1 SecretLister,SecretNamespaceLister
 	mockgen -destination=mocks/k8sapimachinery/interfaces.go -package=mockmeta k8s.io/apimachinery/pkg/api/meta RESTMapper,RESTScope
 	mockgen -destination=mocks/nutanix/v3.go -package=mocknutanixv3 github.com/nutanix-cloud-native/prism-go-client/v3 Service
+	mockgen -destination=mocks/converged/vms.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged VMs
+	mockgen -destination=mocks/converged/operation.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Operation
+	mockgen -destination=mocks/converged/anti_affinity_policies.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged AntiAffinityPolicies
+	mockgen -destination=mocks/converged/clusters.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Clusters
+	mockgen -destination=mocks/converged/categories.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Categories
+	mockgen -destination=mocks/converged/images.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Images
+	mockgen -destination=mocks/converged/storage_containers.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged StorageContainers
+	mockgen -destination=mocks/converged/subnets.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Subnets
+	mockgen -destination=mocks/converged/tasks.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Tasks
+	mockgen -destination=mocks/converged/volume_groups.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged VolumeGroups
 
 GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
 
@@ -358,12 +400,14 @@ coverage: mocks ## Run the tests of the project and export the coverage
 
 .PHONY: template-test
 template-test: docker-build prepare-local-clusterctl ## Run the template tests
+	$(select_container_engine)
 	GOPROXY=off \
 	LOCAL_PROVIDER_VERSION=$(LOCAL_PROVIDER_VERSION) \
 		ginkgo --trace --v run templates
 
 .PHONY: test-e2e
 test-e2e: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the end-to-end tests
+	$(select_container_engine)
 	echo "Image tag for E2E test is ${IMG_TAG}"
 	LOCAL_PROVIDER_VERSION=$(LOCAL_PROVIDER_VERSION) \
 		MANAGER_IMAGE=$(MANAGER_IMAGE) \
@@ -393,6 +437,7 @@ test-e2e: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the en
 
 .PHONY: test-e2e-no-kubeproxy
 test-e2e-no-kubeproxy: docker-build-e2e cluster-e2e-templates-no-kubeproxy cluster-templates ## Run the end-to-end tests without kubeproxy
+	$(select_container_engine)
 	echo "Image tag for E2E test is ${IMG_TAG}"
 	MANAGER_IMAGE=$(MANAGER_IMAGE) envsubst < ${E2E_CONF_FILE} > ${E2E_CONF_FILE_TMP}
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:${IMG_TAG}
@@ -420,6 +465,7 @@ test-e2e-no-kubeproxy: docker-build-e2e cluster-e2e-templates-no-kubeproxy clust
 
 .PHONY: list-e2e
 list-e2e: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the end-to-end tests
+	$(select_container_engine)
 	mkdir -p $(ARTIFACTS)
 	ginkgo -v \
 	    --trace \
@@ -444,6 +490,7 @@ test-e2e-calico:
 
 .PHONY: test-e2e-flannel
 test-e2e-flannel:
+	$(select_container_engine)
 	CNI=$(CNI_PATH_FLANNEL) GIT_COMMIT="${GIT_COMMIT_HASH}" $(MAKE) test-e2e
 
 .PHONY: test-e2e-cilium

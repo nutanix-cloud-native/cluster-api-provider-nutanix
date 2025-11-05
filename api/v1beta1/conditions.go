@@ -54,11 +54,13 @@ const (
 
 const (
 	// PrismCentralClientCondition indicates the status of the client used to connect to Prism Central
-	PrismCentralClientCondition   capiv1beta1.ConditionType = "PrismClientInit"
-	PrismCentralV4ClientCondition capiv1beta1.ConditionType = "PrismClientV4Init"
+	PrismCentralClientCondition            capiv1beta1.ConditionType = "PrismClientInit"
+	PrismCentralV4ClientCondition          capiv1beta1.ConditionType = "PrismClientV4Init"
+	PrismCentralConvergedV4ClientCondition capiv1beta1.ConditionType = "PrismClientConvergedV4Init"
 
-	PrismCentralClientInitializationFailed   = "PrismClientInitFailed"
-	PrismCentralV4ClientInitializationFailed = "PrismClientV4InitFailed"
+	PrismCentralClientInitializationFailed            = "PrismClientInitFailed"
+	PrismCentralV4ClientInitializationFailed          = "PrismClientV4InitFailed"
+	PrismCentralConvergedV4ClientInitializationFailed = "PrismClientConvergedV4InitFailed"
 )
 
 const (

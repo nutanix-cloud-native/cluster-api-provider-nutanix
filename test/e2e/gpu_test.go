@@ -35,7 +35,7 @@ const (
 	nutanixGPUVirtualNameEnv     = "NUTANIX_GPU_VIRTUAL_NAME"
 )
 
-var _ = Describe("Nutanix Passthrough GPU", Label("nutanix-feature-test", "only-for-validation", "passthrough", "gpu"), func() {
+var _ = Describe("Nutanix Passthrough GPU", Label("passthrough", "gpu"), func() {
 	const specName = "cluster-gpu-passthrough"
 
 	var (
@@ -99,7 +99,7 @@ var _ = Describe("Nutanix Passthrough GPU", Label("nutanix-feature-test", "only-
 			testHelper.verifyFailureMessageOnClusterMachines(ctx, verifyFailureMessageOnClusterMachinesParams{
 				clusterName:            clusterName,
 				namespace:              namespace,
-				expectedFailureMessage: "no available GPU found",
+				expectedFailureMessage: "no available GPUs found",
 				bootstrapClusterProxy:  bootstrapClusterProxy,
 			})
 		})
@@ -186,7 +186,7 @@ var _ = Describe("Nutanix Passthrough GPU", Label("nutanix-feature-test", "only-
 	})
 })
 
-var _ = Describe("Nutanix Virtual GPU", Label("nutanix-feature-test", "only-for-validation", "virtual", "gpu"), func() {
+var _ = Describe("Nutanix Virtual GPU", Label("virtual", "gpu"), func() {
 	const specName = "cluster-gpu-virtual"
 
 	var (
@@ -250,7 +250,7 @@ var _ = Describe("Nutanix Virtual GPU", Label("nutanix-feature-test", "only-for-
 			testHelper.verifyFailureMessageOnClusterMachines(ctx, verifyFailureMessageOnClusterMachinesParams{
 				clusterName:            clusterName,
 				namespace:              namespace,
-				expectedFailureMessage: "no available GPU found",
+				expectedFailureMessage: "no available GPUs found",
 				bootstrapClusterProxy:  bootstrapClusterProxy,
 			})
 		})

@@ -63,13 +63,13 @@ providers:
   - name: nutanix
     type: InfrastructureProvider
     versions:
-      - name: v1.7.0
+      - name: v1.7.1
         type: url
-        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.7.0/infrastructure-components.yaml
+        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.7.1/infrastructure-components.yaml
         contract: v1beta1
         files:
           - sourcePath: "../../../metadata.yaml"
-          - sourcePath: "../data/infrastructure-nutanix/v1.7.0/cluster-template.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1.7.1/cluster-template.yaml"
           - sourcePath: "../data/infrastructure-nutanix/ccm-update.yaml"
       - name: ${LOCAL_PROVIDER_VERSION}
         type: kustomize
@@ -147,7 +147,7 @@ variables:
   EXP_CLUSTER_TOPOLOGY: "true"
   DOCKER_POD_CIDRS: "192.168.0.0/16"
   KUBERNETES_VERSION_UPGRADE_TO: "v1.34.0"
-  KUBERNETES_VERSION_UPGRADE_FROM: "v1.33.0"
+  KUBERNETES_VERSION_UPGRADE_FROM: "v1.34.0"
   ETCD_VERSION_UPGRADE_TO: "3.6.4-0"
   COREDNS_VERSION_UPGRADE_TO: "v1.12.1"
   KUBETEST_CONFIGURATION: "./data/kubetest/conformance.yaml"
@@ -172,8 +172,13 @@ variables:
   # NOTE: INIT_WITH_BINARY and INIT_WITH_KUBERNETES_VERSION are only used by the clusterctl upgrade test to initialize
   # the management cluster to be upgraded.
   # NOTE: We test the latest release with a previous contract.
-  INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.11.1/clusterctl-{OS}-{ARCH}"
+  INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.10.3/clusterctl-{OS}-{ARCH}"
   INIT_WITH_KUBERNETES_VERSION: "v1.34.0"
+  # NOTE: Following parameters are required for GPU testing
+  NUTANIX_GPU_PASSTHROUGH_VENDOR: "NVIDIA"
+  NUTANIX_GPU_PASSTHROUGH_NAME: "Ampere 40"
+  NUTANIX_GPU_VIRTUAL_VENDOR: "NVIDIA"
+  NUTANIX_GPU_VIRTUAL_NAME: "NVIDIA A40-1Q"
 
 intervals:
   default/wait-controllers: ["3m", "10s"]

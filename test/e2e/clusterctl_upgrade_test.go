@@ -41,10 +41,11 @@ import (
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/test/e2e/log"
 )
 
-var _ = Describe("clusterctl upgrade CAPX (v1.7.0 => current)", Label("clusterctl-upgrade"), func() {
+var _ = Describe("clusterctl upgrade CAPX (v1.7.1 => current)", Label("clusterctl-upgrade"), func() {
 	var (
-		kubernetesVersion               string
-		nutanixMachineTemplateImageName string
+		kubernetesVersion                      string
+		nutanixMachineTemplateImageName        string
+		nutanixMachineTemplateImageUpgradeFrom string
 	)
 
 	BeforeEach(func() {
@@ -54,7 +55,7 @@ var _ = Describe("clusterctl upgrade CAPX (v1.7.0 => current)", Label("clusterct
 
 	BeforeEach(func() {
 		os.Setenv("KUBERNETES_VERSION", kubernetesVersion)
-		os.Setenv("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME", nutanixMachineTemplateImageName)
+		os.Setenv("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME", nutanixMachineTemplateImageUpgradeFrom)
 	})
 
 	AfterEach(func() {
@@ -87,12 +88,12 @@ var _ = Describe("clusterctl upgrade CAPX (v1.7.0 => current)", Label("clusterct
 			BootstrapClusterProxy:           bootstrapClusterProxy,
 			ArtifactFolder:                  artifactFolder,
 			SkipCleanup:                     skipCleanup,
-			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.11.1/clusterctl-{OS}-{ARCH}",
+			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.10.3/clusterctl-{OS}-{ARCH}",
 			InitWithKubernetesVersion:       kubernetesVersion,
-			InitWithCoreProvider:            "cluster-api:v1.11.1",
-			InitWithBootstrapProviders:      []string{"kubeadm:v1.11.1"},
-			InitWithControlPlaneProviders:   []string{"kubeadm:v1.11.1"},
-			InitWithInfrastructureProviders: []string{"nutanix:v1.7.0"},
+			InitWithCoreProvider:            "cluster-api:v1.10.3",
+			InitWithBootstrapProviders:      []string{"kubeadm:v1.10.3"},
+			InitWithControlPlaneProviders:   []string{"kubeadm:v1.10.3"},
+			InitWithInfrastructureProviders: []string{"nutanix:v1.7.1"},
 			PreWaitForCluster:               preWaitForCluster,
 			PostUpgrade:                     postUpgradeFunc,
 		}
@@ -108,7 +109,7 @@ func createPreWaitForClusterFunc(testInputFunc func() capie2e.ClusterctlUpgradeS
 
 		By("Get latest version of CAPX provider")
 
-		latestVersionString := "v1.7.0"
+		latestVersionString := "v1.7.1"
 		latestVersion, err := semver.ParseTolerant(latestVersionString)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -167,7 +168,7 @@ func createPostUpgradeFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInp
 
 		yamlProc := yaml.NewSimpleProcessor()
 
-		latestVersionString := "v1.7.0"
+		latestVersionString := "v1.7.1"
 		latestVersion, err := semver.ParseTolerant(latestVersionString)
 		Expect(err).NotTo(HaveOccurred())
 

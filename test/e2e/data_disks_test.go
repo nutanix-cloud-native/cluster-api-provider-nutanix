@@ -156,7 +156,7 @@ var _ = Describe("Nutanix machine data disks", Label("nutanix-feature-test", "da
 			testHelper.verifyFailureMessageOnClusterMachines(ctx, verifyFailureMessageOnClusterMachinesParams{
 				clusterName:            clusterName,
 				namespace:              namespace,
-				expectedFailureMessage: "failed to find storage container 01010101-0101-0101-0101-0101010101",
+				expectedFailureMessage: "found no storage container",
 				bootstrapClusterProxy:  bootstrapClusterProxy,
 			})
 		})
@@ -214,7 +214,7 @@ var _ = Describe("Nutanix machine data disks", Label("nutanix-feature-test", "da
 			testHelper.verifyFailureMessageOnClusterMachines(ctx, verifyFailureMessageOnClusterMachinesParams{
 				clusterName:            clusterName,
 				namespace:              namespace,
-				expectedFailureMessage: "Slot scsi.10 is occupied: 10",
+				expectedFailureMessage: "index '10' is already in use",
 				bootstrapClusterProxy:  bootstrapClusterProxy,
 			})
 		})

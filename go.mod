@@ -11,13 +11,13 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/nutanix-cloud-native/prism-go-client v0.5.0
-	github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4 v4.0.1-beta.1
+	github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4 v4.1.1
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.38.0
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/pflag v1.0.7
 	github.com/stretchr/testify v1.10.0
-	go.uber.org/mock v0.4.0
+	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.40.0 // indirect; CVE fixes for https://avd.aquasec.com/nvd/cve-2025-22869
 	golang.org/x/time v0.9.0
@@ -33,6 +33,13 @@ require (
 	sigs.k8s.io/kind v0.30.0
 	sigs.k8s.io/kustomize/api v0.13.5-0.20230601165947-6ce0bf390ce3
 	sigs.k8s.io/kustomize/kyaml v0.14.3-0.20230601165947-6ce0bf390ce3
+)
+
+require (
+	github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4 v4.1.1
+	github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.1.1
+	github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4 v4.1.1
+	github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4 v4.1.1
 )
 
 require (
@@ -109,11 +116,6 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4 v4.0.1-beta.2 // indirect
-	github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.0.2-beta.1 // indirect
-	github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4 v4.0.1-beta.1 // indirect
-	github.com/nutanix/ntnx-api-golang-clients/storage-go-client/v4 v4.0.2-alpha.3 // indirect
-	github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4 v4.0.1-beta.1 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
@@ -181,6 +183,7 @@ require (
 )
 
 replace (
+	github.com/nutanix-cloud-native/prism-go-client => github.com/nutanix-cloud-native/prism-go-client v0.5.2-0.20251023040331-ea5df46774dd
 	// CVE fixes for https://avd.aquasec.com/nvd/2024/cve-2024-45338
 	golang.org/x/net => golang.org/x/net v0.33.0
 	sigs.k8s.io/kind v0.20.0 => sigs.k8s.io/kind v0.22.0
