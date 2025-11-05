@@ -137,7 +137,7 @@ type testHelperInterface interface {
 	deployClusterAndWait(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult)
 	deleteSecret(params deleteSecretParams)
 	deleteAllClustersAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, namespace *corev1.Namespace, intervalsGetter func(spec, key string) []interface{})
-	deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *capiv1.Cluster, intervalsGetter func(spec, key string) []interface{})
+	deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *capiv1beta2.Cluster, intervalsGetter func(spec, key string) []interface{})
 	findGPU(ctx context.Context, gpuName string) *vmmconfig.Gpu
 	generateNMTName(clusterName string) string
 	generateNMTProviderID(clusterName string) string
