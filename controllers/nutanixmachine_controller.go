@@ -780,7 +780,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 
 	// if VM exists
 	if vmFound != nil {
-		log.Info(fmt.Sprintf("vm %s found with UUID %s", *vm.Spec.Name, rctx.NutanixMachine.Status.VmUUID))
+		log.Info(fmt.Sprintf("vm %s found with UUID %s", *vmFound.Name, rctx.NutanixMachine.Status.VmUUID))
 		v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
 		return vmFound, nil
 	}
@@ -1116,8 +1116,8 @@ func (r *NutanixMachineReconciler) patchMachine(rctx *nctx.MachineContext) error
 	return nil
 }
 
-func getIpsFromIpv4Info(config *vmmconfig.Ipv4Info) []capiv1.MachineAddress {
-	addresses := []capiv1.MachineAddress{}
+func getIpsFromIpv4Info(config *vmmconfig.Ipv4Info) []capiv1beta1.MachineAddress {
+	addresses := []capiv1beta1.MachineAddress{}
 	if config == nil {
 		return addresses
 	}
@@ -1127,8 +1127,8 @@ func getIpsFromIpv4Info(config *vmmconfig.Ipv4Info) []capiv1.MachineAddress {
 			continue
 		}
 
-		addresses = append(addresses, capiv1.MachineAddress{
-			Type:    capiv1.MachineInternalIP,
+		addresses = append(addresses, capiv1beta1.MachineAddress{
+			Type:    capiv1beta1.MachineInternalIP,
 			Address: *ip.Value,
 		})
 	}
@@ -1137,7 +1137,7 @@ func getIpsFromIpv4Info(config *vmmconfig.Ipv4Info) []capiv1.MachineAddress {
 }
 
 func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
-	addresses := []capiv1.MachineAddress{}
+	addresses := []capiv1beta1.MachineAddress{}
 	for _, nic := range vm.Nics {
 		if nic.NetworkInfo == nil {
 			continue
@@ -1146,8 +1146,8 @@ func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineCo
 		ipv4Config := nic.NetworkInfo.Ipv4Config
 		ipv4Info := nic.NetworkInfo.Ipv4Info
 		if ipv4Config != nil && ipv4Config.IpAddress != nil && ipv4Config.IpAddress.Value != nil {
-			addresses = append(addresses, capiv1.MachineAddress{
-				Type:    capiv1.MachineInternalIP,
+			addresses = append(addresses, capiv1beta1.MachineAddress{
+				Type:    capiv1beta1.MachineInternalIP,
 				Address: *ipv4Config.IpAddress.Value,
 			})
 		} else {
@@ -1159,8 +1159,8 @@ func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineCo
 		return fmt.Errorf("unable to determine network interfaces from VM: %s. Retrying", *vm.Name)
 	}
 
-	addresses = append(addresses, capiv1.MachineAddress{
-		Type:    capiv1.MachineHostName,
+	addresses = append(addresses, capiv1beta1.MachineAddress{
+		Type:    capiv1beta1.MachineHostName,
 		Address: *vm.Name,
 	})
 

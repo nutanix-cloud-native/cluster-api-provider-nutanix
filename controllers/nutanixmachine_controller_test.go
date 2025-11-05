@@ -1444,7 +1444,7 @@ func TestGetSystemDisk(t *testing.T) {
 				Name: vmName,
 			},
 			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+				Version: k8sVersion,
 			},
 		}
 
@@ -1532,7 +1532,7 @@ func TestGetSystemDisk(t *testing.T) {
 				Name: vmName,
 			},
 			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+				Version: k8sVersion,
 			},
 		}
 
@@ -1600,7 +1600,7 @@ func TestGetSystemDisk(t *testing.T) {
 				Name: vmName,
 			},
 			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+				Version: k8sVersion,
 			},
 		}
 
@@ -1689,7 +1689,7 @@ func TestGetSystemDisk(t *testing.T) {
 				Name: vmName,
 			},
 			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+				Version: k8sVersion,
 			},
 		}
 
@@ -1751,7 +1751,7 @@ func TestGetSystemDisk(t *testing.T) {
 				Name: vmName,
 			},
 			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+				Version: k8sVersion,
 			},
 		}
 
@@ -1819,7 +1819,7 @@ func TestGetSystemDisk(t *testing.T) {
 				Name: vmName,
 			},
 			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+				Version: k8sVersion,
 			},
 		}
 
@@ -2849,7 +2849,7 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 				Name: vmName,
 			},
 			Spec: capiv1.MachineSpec{
-				Version: ptr.To("v1.28.0"),
+				Version: "v1.28.0",
 			},
 		}
 
