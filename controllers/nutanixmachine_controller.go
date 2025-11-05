@@ -925,7 +925,11 @@ func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineC
 
 		// Encode the bootstrapData by base64
 		bsdataEncoded := base64.StdEncoding.EncodeToString(bootstrapData)
-		metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"uuid\": \"%s\"}", rctx.Machine.Name, uuid.New())
+		// Use YAML format for metadata to fix AOS 7.3 regression where JSON format fails
+		// AOS 7.3 introduced a regression where cloud-init with JSON metadata fails during VM creation
+		// but YAML format works. This change ensures compatibility with AOS 7.3+ while maintaining
+		// backward compatibility with older versions.
+		metadata := fmt.Sprintf("hostname: %s\nuuid: %s\n", rctx.Machine.Name, uuid.New())
 		metadataEncoded := base64.StdEncoding.EncodeToString([]byte(metadata))
 
 		cloudInit := vmmconfig.NewCloudInit()
