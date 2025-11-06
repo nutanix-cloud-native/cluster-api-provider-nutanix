@@ -17,6 +17,7 @@ limitations under the License.
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -923,6 +924,17 @@ func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineC
 			return err
 		}
 
+		// TODO: Remove this once AOS 7.3 is no longer supported
+		// Remove the jinja template line to fix AOS 7.3 regression where VMM service
+		// incorrectly checks for #cloud-config being the prefix. The bootstrap data typically
+		// starts with "## template: jinja\n#cloud-config\n" but AOS 7.3 expects #cloud-config first.
+		bootstrapData = bytes.TrimPrefix(bootstrapData, []byte("## template: jinja\n"))
+		// TODO: Remove this once AOS 7.3 is no longer supported
+		// substitute {{ ds.meta_data.hostname }} with the machine name
+		// to fix AOS 7.3 regression where VMM service
+		// incorrectly checks for #cloud-config being the prefix. The bootstrap data typically
+		// starts with "## template: jinja\n#cloud-config\n" but AOS 7.3 expects #cloud-config first.
+		bootstrapData = bytes.ReplaceAll(bootstrapData, []byte("{{ ds.meta_data.hostname }}"), []byte(rctx.Machine.Name))
 		// Encode the bootstrapData by base64
 		bsdataEncoded := base64.StdEncoding.EncodeToString(bootstrapData)
 		metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"uuid\": \"%s\"}", rctx.Machine.Name, uuid.New())
