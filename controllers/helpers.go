@@ -462,15 +462,15 @@ func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID strin
 		// Validate filtered Subnets
 		foundSubnets := make([]subnetModels.Subnet, 0)
 		for _, subnet := range responseSubnets {
-			if subnet.Name == nil || subnet.SubnetType == nil || subnet.ClusterReference == nil {
+			if subnet.Name == nil || subnet.SubnetType == nil {
 				continue
 			}
 			if *subnet.Name == *subnetName {
 				if subnet.SubnetType.GetName() == subnetTypeOverlay {
 					foundSubnets = append(foundSubnets, subnet)
+					continue
 				}
-				// By default check if the PE UUID matches if it is not an overlay subnet.
-				if subnet.ClusterReferenceList != nil && *subnet.ClusterReference == peUUID {
+				if subnet.ClusterReferenceList != nil && subnet.ClusterReference != nil && *subnet.ClusterReference == peUUID {
 					foundSubnets = append(foundSubnets, subnet)
 				}
 			}
