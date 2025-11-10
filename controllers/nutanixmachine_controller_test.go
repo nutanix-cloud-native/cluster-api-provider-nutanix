@@ -47,7 +47,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -158,7 +158,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				// Create the NutanixFailureDomain object and expect creation success
 				g.Expect(k8sClient.Create(ctx, fdObj)).To(Succeed())
 
-				machine.Spec.FailureDomain = &fdObj.Name
+				machine.Spec.FailureDomain = fdObj.Name
 				ntnxMachine.Spec.Cluster = fdObj.Spec.PrismElementCluster
 				ntnxMachine.Spec.Subnets = fdObj.Spec.Subnets
 				mctx := &nctx.MachineContext{
@@ -174,7 +174,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 			})
 
 			It("should error if failureDomain is configured in the owner machine spec and the failureDomain object not found", func() {
-				machine.Spec.FailureDomain = &fdObj.Name
+				machine.Spec.FailureDomain = fdObj.Name
 				ntnxMachine.Spec.Cluster = fdObj.Spec.PrismElementCluster
 				ntnxMachine.Spec.Subnets = fdObj.Spec.Subnets
 				mctx := &nctx.MachineContext{
@@ -192,7 +192,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				// Create the NutanixFailureDomain object and expect creation success
 				g.Expect(k8sClient.Create(ctx, fdObj)).To(Succeed())
 
-				machine.Spec.FailureDomain = &fdObj.Name
+				machine.Spec.FailureDomain = fdObj.Name
 				ntnxMachine.Spec.Cluster = fdObj.Spec.PrismElementCluster
 				ntnxMachine.Spec.Cluster.Name = nil
 				mctx := &nctx.MachineContext{
@@ -210,7 +210,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				// Create the NutanixFailureDomain object and expect creation success
 				g.Expect(k8sClient.Create(ctx, fdObj)).To(Succeed())
 
-				machine.Spec.FailureDomain = &fdObj.Name
+				machine.Spec.FailureDomain = fdObj.Name
 				ntnxMachine.Spec.Cluster = fdObj.Spec.PrismElementCluster
 				// ntnxMachine.Spec.Subnets is empty
 				mctx := &nctx.MachineContext{
@@ -236,7 +236,6 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(result.RequeueAfter).To(BeZero())
-				g.Expect(result.Requeue).To(BeFalse())
 			})
 		})
 
@@ -282,7 +281,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 			})
 			It("returns error if invalid machine config is passed with reference to not-exist failure domain", func() {
-				machine.Spec.FailureDomain = &r
+				machine.Spec.FailureDomain = r
 				err := reconciler.validateMachineConfig(&nctx.MachineContext{
 					Context:        ctx,
 					NutanixMachine: ntnxMachine,
@@ -348,7 +347,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 						Subnets: fdObj.Spec.Subnets,
 					},
 				}
-				machine.Spec.FailureDomain = ptr.To("failure-domain")
+				machine.Spec.FailureDomain = "failure-domain"
 				fd, err := reconciler.getFailureDomainSpec(&nctx.MachineContext{
 					Context:        ctx,
 					NutanixMachine: ntnxMachine,
@@ -1445,7 +1444,7 @@ func TestGetSystemDisk(t *testing.T) {
 				Name: vmName,
 			},
 			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+				Version: k8sVersion,
 			},
 		}
 
@@ -1533,7 +1532,7 @@ func TestGetSystemDisk(t *testing.T) {
 				Name: vmName,
 			},
 			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+				Version: k8sVersion,
 			},
 		}
 
@@ -1601,7 +1600,7 @@ func TestGetSystemDisk(t *testing.T) {
 				Name: vmName,
 			},
 			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+				Version: k8sVersion,
 			},
 		}
 
@@ -1690,7 +1689,7 @@ func TestGetSystemDisk(t *testing.T) {
 				Name: vmName,
 			},
 			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+				Version: k8sVersion,
 			},
 		}
 
@@ -1752,7 +1751,7 @@ func TestGetSystemDisk(t *testing.T) {
 				Name: vmName,
 			},
 			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+				Version: k8sVersion,
 			},
 		}
 
@@ -1820,7 +1819,7 @@ func TestGetSystemDisk(t *testing.T) {
 				Name: vmName,
 			},
 			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+				Version: k8sVersion,
 			},
 		}
 
@@ -2850,7 +2849,7 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 				Name: vmName,
 			},
 			Spec: capiv1.MachineSpec{
-				Version: ptr.To("v1.28.0"),
+				Version: "v1.28.0",
 			},
 		}
 

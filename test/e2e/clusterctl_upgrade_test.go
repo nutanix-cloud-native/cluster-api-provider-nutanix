@@ -31,8 +31,8 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
+	bootstrapv1 "sigs.k8s.io/cluster-api/api/bootstrap/kubeadm/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"                //nolint:staticcheck // suppress complaining on Deprecated package
 	yaml "sigs.k8s.io/cluster-api/cmd/clusterctl/client/yamlprocessor"
 	capie2e "sigs.k8s.io/cluster-api/test/e2e"
 	"sigs.k8s.io/cluster-api/test/framework"
@@ -51,7 +51,6 @@ var _ = Describe("clusterctl upgrade CAPX (v1.7.1 => current)", Label("clusterct
 	BeforeEach(func() {
 		kubernetesVersion = e2eConfig.MustGetVariable("KUBERNETES_VERSION")
 		nutanixMachineTemplateImageName = e2eConfig.MustGetVariable("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME")
-		nutanixMachineTemplateImageUpgradeFrom = e2eConfig.MustGetVariable("NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_FROM")
 	})
 
 	BeforeEach(func() {

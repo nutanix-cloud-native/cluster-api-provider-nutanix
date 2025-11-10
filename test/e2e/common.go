@@ -28,7 +28,7 @@ import (
 	"github.com/onsi/gomega/types"
 	corev1 "k8s.io/api/core/v1"
 
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/util"
 )
@@ -39,8 +39,6 @@ const (
 	KubernetesVersion               = "KUBERNETES_VERSION"
 	CNIPath                         = "CNI"
 	CNIResources                    = "CNI_RESOURCES"
-	KubernetesVersionUpgradeFrom    = "KUBERNETES_VERSION_UPGRADE_FROM"
-	KubernetesVersionUpgradeTo      = "KUBERNETES_VERSION_UPGRADE_TO"
 	CPMachineTemplateUpgradeTo      = "CONTROL_PLANE_MACHINE_TEMPLATE_UPGRADE_TO"
 	WorkersMachineTemplateUpgradeTo = "WORKERS_MACHINE_TEMPLATE_UPGRADE_TO"
 	EtcdVersionUpgradeTo            = "ETCD_VERSION_UPGRADE_TO"
