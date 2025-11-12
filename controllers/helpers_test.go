@@ -1570,6 +1570,168 @@ func TestGetOrCreateCategories_Create(t *testing.T) {
 	require.Len(t, got, 1)
 }
 
+func TestGetOrCreateCategories_DuplicateEntitiesError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	duplicateErrorMsg := `status: 500 INTERNAL SERVER ERROR, error-response: {
+  "api_version": "3.1",
+  "code": 500,
+  "message_list": [
+    {
+      "message": "Internal Server Error. Duplicate entities {'name': u'KubernetesClusterName'}:c86735a9-4416-4119-92f6-a900882676f2\na26be737-ff9b-422b-a72e-346e7d95d0c6",
+      "reason": "INTERNAL_ERROR"
+    }
+  ],
+  "state": "ERROR"
+}`
+
+	// First List call with filter returns duplicate error
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New(duplicateErrorMsg))
+
+	// Second List call without filter returns all categories
+	allCategories := []prismModels.Category{
+		{
+			Key:   ptr.To(infrav1.DefaultCAPICategoryKeyForName),
+			Value: ptr.To("my-cluster"),
+			ExtId: ptr.To("c86735a9-4416-4119-92f6-a900882676f2"),
+		},
+		{
+			Key:   ptr.To(infrav1.DefaultCAPICategoryKeyForName),
+			Value: ptr.To("other-cluster"),
+			ExtId: ptr.To("a26be737-ff9b-422b-a72e-346e7d95d0c6"),
+		},
+	}
+	mockClient.MockCategories.EXPECT().List(ctx, nil).Return(allCategories, nil)
+
+	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "my-cluster", *got[0].Value)
+	assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, *got[0].Key)
+}
+
+func TestGetOrCreateCategories_DuplicateEntitiesErrorNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	duplicateErrorMsg := `status: 500 INTERNAL SERVER ERROR, error-response: {
+  "api_version": "3.1",
+  "code": 500,
+  "message_list": [
+    {
+      "message": "Internal Server Error. Duplicate entities {'name': u'KubernetesClusterName'}:c86735a9-4416-4119-92f6-a900882676f2\na26be737-ff9b-422b-a72e-346e7d95d0c6",
+      "reason": "INTERNAL_ERROR"
+    }
+  ],
+  "state": "ERROR"
+}`
+
+	// First List call with filter returns duplicate error
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New(duplicateErrorMsg))
+
+	// Second List call without filter returns categories, but none match our search
+	allCategories := []prismModels.Category{
+		{
+			Key:   ptr.To(infrav1.DefaultCAPICategoryKeyForName),
+			Value: ptr.To("other-cluster"),
+			ExtId: ptr.To("c86735a9-4416-4119-92f6-a900882676f2"),
+		},
+	}
+	mockClient.MockCategories.EXPECT().List(ctx, nil).Return(allCategories, nil)
+
+	// Since category not found, create should be called
+	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
+		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
+			assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, *in.Key)
+			assert.Equal(t, "my-cluster", *in.Value)
+			return in, nil
+		},
+	)
+
+	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+}
+
+func TestGetOrCreateCategories_CreateFailureWithRetry(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	// First List call returns empty (category doesn't exist)
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+
+	// Create fails (race condition - another process created it)
+	createErr := errors.New("category already exists")
+	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(nil, createErr)
+
+	// Retry List call succeeds and finds the category
+	existingCategory := prismModels.Category{
+		Key:   ptr.To(infrav1.DefaultCAPICategoryKeyForName),
+		Value: ptr.To("my-cluster"),
+		ExtId: ptr.To("c86735a9-4416-4119-92f6-a900882676f2"),
+	}
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{existingCategory}, nil)
+
+	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "my-cluster", *got[0].Value)
+	assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, *got[0].Key)
+}
+
+func TestGetOrCreateCategories_CreateFailureNoRetrySuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	// First List call returns empty (category doesn't exist)
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+
+	// Create fails
+	createErr := errors.New("API error")
+	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(nil, createErr)
+
+	// Retry List call still doesn't find it
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+
+	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
+	require.Error(t, err)
+	require.Empty(t, got)
+	assert.Contains(t, err.Error(), "API error")
+}
+
 func TestGetStorageContainerInCluster(t *testing.T) {
 	storageContainers := []clusterModels.StorageContainer{
 		{
