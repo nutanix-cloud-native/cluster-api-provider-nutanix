@@ -676,8 +676,25 @@ func GetOrCreateCategories(ctx context.Context, client *v4Converged.Client, cate
 }
 
 func getCategory(ctx context.Context, client *v4Converged.Client, key, value string) (*prismModels.Category, error) {
+	log := ctrl.LoggerFrom(ctx)
 	categories, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s' and value eq '%s'", key, value)))
 	if err != nil {
+		errStr := err.Error()
+		if strings.Contains(errStr, "Duplicate entities") && strings.Contains(errStr, "INTERNAL_ERROR") {
+			log.Info(fmt.Sprintf("Detected duplicate entities error for category key %s, attempting to retrieve without error", key))
+			allCategories, err := client.Categories.List(ctx, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to retrieve all categories after duplicate error for key %s. error: %v", key, err)
+			}
+			for _, category := range allCategories {
+				if category.Key != nil && *category.Key == key && category.Value != nil && *category.Value == value {
+					log.Info(fmt.Sprintf("Found category with key %s and value %s despite duplicate entities error", key, value))
+					return &category, nil
+				}
+			}
+			log.V(1).Info(fmt.Sprintf("Category with key %s and value %s not found even after retrieving all categories", key, value))
+			return nil, nil
+		}
 		return nil, fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
 	}
 	if len(categories) == 0 {
@@ -768,6 +785,20 @@ func getOrCreateCategory(ctx context.Context, client *v4Converged.Client, catego
 			Value:       ptr.To(categoryIdentifier.Value),
 		})
 		if err != nil {
+			// If creation fails, it might be due to a race condition where another process
+			// created the category between our check and create attempt. Retry the get operation.
+			log.Info(fmt.Sprintf("Failed to create category with key %s and value %s, retrying get operation in case of race condition. error: %v", categoryIdentifier.Key, categoryIdentifier.Value, err))
+			retryCategory, retryErr := getCategory(ctx, client, categoryIdentifier.Key, categoryIdentifier.Value)
+			if retryErr != nil {
+				errorMsg := fmt.Errorf("failed to create category and retry get failed for key %s and value %s. create error: %v, get error: %v", categoryIdentifier.Key, categoryIdentifier.Value, err, retryErr)
+				log.Error(errorMsg, "failed to create category and retry")
+				return nil, errorMsg
+			}
+			if retryCategory != nil {
+				log.Info(fmt.Sprintf("Successfully retrieved category with key %s and value %s on retry after create failure", categoryIdentifier.Key, categoryIdentifier.Value))
+				return retryCategory, nil
+			}
+			// If still not found after retry, return the original create error
 			errorMsg := fmt.Errorf("failed to create category with key %s and value %s. error: %v", categoryIdentifier.Key, categoryIdentifier.Value, err)
 			log.Error(errorMsg, "failed to create category")
 			return nil, errorMsg
