@@ -21,13 +21,15 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"                              //nolint:staticcheck // suppress complaining on Deprecated package
-	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions" //nolint:staticcheck // suppress complaining on Deprecated package
-	"sigs.k8s.io/cluster-api/util/patch"
+	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"                                      //nolint:staticcheck // suppress complaining on Deprecated package
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"         //nolint:staticcheck // suppress complaining on Deprecated package
+	v1beta2conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions/v1beta2" //nolint:staticcheck // suppress complaining on Deprecated package
+	v1beta1patch "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"                   //nolint:staticcheck // suppress complaining on Deprecated package
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -150,7 +152,7 @@ func (r *NutanixFailureDomainReconciler) Reconcile(ctx context.Context, req ctrl
 	}
 
 	// Initialize the patch helper.
-	patchHelper, err := patch.NewHelper(fd, r.Client)
+	patchHelper, err := v1beta1patch.NewHelper(fd, r.Client)
 	if err != nil {
 		log.Error(err, "Failed to configure the patch helper")
 		return ctrl.Result{Requeue: true}, nil
@@ -208,6 +210,10 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 
 	if len(ntxMachines) == 0 {
 		v1beta1conditions.MarkTrue(fd, infrav1.FailureDomainSafeForDeletionCondition)
+		v1beta2conditions.Set(fd, metav1.Condition{
+			Type:   string(infrav1.FailureDomainSafeForDeletionCondition),
+			Status: metav1.ConditionTrue,
+		})
 
 		// Remove the finalizer from the failure domain object
 		ctrlutil.RemoveFinalizer(fd, infrav1.NutanixFailureDomainFinalizer)
@@ -217,6 +223,12 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 	errMsg := fmt.Sprintf("The failure domain is used by machines: %v", ntxMachines)
 	v1beta1conditions.MarkFalse(fd, infrav1.FailureDomainSafeForDeletionCondition,
 		infrav1.FailureDomainInUseReason, capiv1.ConditionSeverityError, "%s", errMsg)
+	v1beta2conditions.Set(fd, metav1.Condition{
+		Type:    string(infrav1.FailureDomainSafeForDeletionCondition),
+		Status:  metav1.ConditionFalse,
+		Reason:  infrav1.FailureDomainInUseReason,
+		Message: errMsg,
+	})
 
 	reterr := fmt.Errorf("the failure domain %q is not safe for deletion since it is in use", fd.Name)
 	log.Error(reterr, errMsg)
@@ -229,6 +241,7 @@ func (r *NutanixFailureDomainReconciler) reconcileNormal(ctx context.Context, fd
 
 	// Remove the FailureDomainSafeForDeletionCondition if there are any
 	v1beta1conditions.Delete(fd, infrav1.FailureDomainSafeForDeletionCondition)
+	v1beta2conditions.Delete(fd, string(infrav1.FailureDomainSafeForDeletionCondition))
 
 	return ctrl.Result{}, nil
 }

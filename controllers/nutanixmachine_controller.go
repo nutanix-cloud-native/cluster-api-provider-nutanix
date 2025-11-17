@@ -31,6 +31,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -40,8 +41,9 @@ import (
 	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	capiutil "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
-	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions" //nolint:staticcheck // suppress complaining on Deprecated package
-	v1beta1patch "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"           //nolint:staticcheck // suppress complaining on Deprecated package
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"         //nolint:staticcheck // suppress complaining on Deprecated package
+	v1beta2conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions/v1beta2" //nolint:staticcheck // suppress complaining on Deprecated package
+	v1beta1patch "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"                   //nolint:staticcheck // suppress complaining on Deprecated package
 
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -309,6 +311,11 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	vmName := rctx.Machine.Name
 	log.Info(fmt.Sprintf("Handling deletion of VM: %s", vmName))
 	v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, capiv1beta1.DeletingReason, capiv1beta1.ConditionSeverityInfo, "")
+	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+		Type:   string(infrav1.VMProvisionedCondition),
+		Status: metav1.ConditionFalse,
+		Reason: capiv1beta1.DeletingReason,
+	})
 	vmUUID, err := GetVMUUID(rctx.NutanixMachine)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get VM UUID during delete: %v", err)
@@ -330,6 +337,12 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		errorMsg := fmt.Errorf("error finding VM %s with UUID %s: %v", vmName, vmUUID, err)
 		log.Error(errorMsg, "error finding VM")
 		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1beta1.ConditionSeverityWarning, "%s", errorMsg.Error())
+		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+			Type:    string(infrav1.VMProvisionedCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.DeletionFailed,
+			Message: errorMsg.Error(),
+		})
 		return reconcile.Result{}, errorMsg
 	}
 
@@ -357,6 +370,12 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		errorMsg := fmt.Errorf("error occurred fetching task UUID from VM: %v", err)
 		log.Error(errorMsg, "error fetching task UUID")
 		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1beta1.ConditionSeverityWarning, "%s", errorMsg.Error())
+		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+			Type:    string(infrav1.VMProvisionedCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.DeletionFailed,
+			Message: errorMsg.Error(),
+		})
 		return reconcile.Result{}, errorMsg
 	}
 	if taskInProgress {
@@ -378,6 +397,12 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 			err := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %v", vmName, vmUUID, err)
 			log.Error(err, "failed to detach volume groups from VM")
 			v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VolumeGroupDetachFailed, capiv1beta1.ConditionSeverityWarning, "%s", err.Error())
+			v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+				Type:    string(infrav1.VMProvisionedCondition),
+				Status:  metav1.ConditionFalse,
+				Reason:  infrav1.VolumeGroupDetachFailed,
+				Message: err.Error(),
+			})
 
 			return reconcile.Result{}, err
 		}
@@ -394,6 +419,12 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		err := fmt.Errorf("failed to delete VM %s with UUID %s: %v", vmName, vmUUID, err)
 		log.Error(err, "failed to delete VM")
 		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1beta1.ConditionSeverityWarning, "%s", err.Error())
+		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+			Type:    string(infrav1.VMProvisionedCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.DeletionFailed,
+			Message: err.Error(),
+		})
 
 		return reconcile.Result{}, err
 	}
@@ -441,6 +472,11 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	if !infraReady {
 		log.Info("The cluster infrastructure is not ready yet")
 		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.ClusterInfrastructureNotReady, capiv1beta1.ConditionSeverityInfo, "")
+		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+			Type:   string(infrav1.VMProvisionedCondition),
+			Status: metav1.ConditionFalse,
+			Reason: infrav1.ClusterInfrastructureNotReady,
+		})
 		return reconcile.Result{}, nil
 	}
 
@@ -451,8 +487,18 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 			if !nctx.IsControlPlaneMachine(rctx.NutanixMachine) && !controlPlaneInitialized {
 				log.Info("Waiting for the control plane to be initialized")
 				v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.ControlplaneNotInitialized, capiv1beta1.ConditionSeverityInfo, "")
+				v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+					Type:   string(infrav1.VMProvisionedCondition),
+					Status: metav1.ConditionFalse,
+					Reason: infrav1.ControlplaneNotInitialized,
+				})
 			} else {
 				v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.BootstrapDataNotReady, capiv1beta1.ConditionSeverityInfo, "")
+				v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+					Type:   string(infrav1.VMProvisionedCondition),
+					Status: metav1.ConditionFalse,
+					Reason: infrav1.BootstrapDataNotReady,
+				})
 				log.Info("Waiting for bootstrap data to be available")
 			}
 			return reconcile.Result{}, nil
@@ -494,10 +540,21 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		errorMsg := fmt.Errorf("failed to assign addresses to VM %s with UUID %s...: %v", rctx.Machine.Name, rctx.NutanixMachine.Status.VmUUID, err)
 		log.Error(errorMsg, "failed to assign addresses")
 		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMAddressesAssignedCondition, infrav1.VMAddressesFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
+		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+			Type:    string(infrav1.VMAddressesAssignedCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.VMAddressesFailed,
+			Message: err.Error(),
+		})
 		return reconcile.Result{}, errorMsg
 	}
 
 	v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMAddressesAssignedCondition)
+	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+		Type:   string(infrav1.VMAddressesAssignedCondition),
+		Status: metav1.ConditionTrue,
+	})
+
 	// Update the NutanixMachine Spec.ProviderID
 	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(rctx.NutanixMachine.Status.VmUUID)
 	rctx.NutanixMachine.Status.Ready = true
@@ -783,6 +840,10 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	if vmFound != nil {
 		log.Info(fmt.Sprintf("vm %s found with UUID %s", *vmFound.Name, rctx.NutanixMachine.Status.VmUUID))
 		v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
+		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+			Type:   string(infrav1.VMProvisionedCondition),
+			Status: metav1.ConditionTrue,
+		})
 		return vmFound, nil
 	}
 
@@ -916,6 +977,10 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	}
 
 	v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
+	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+		Type:   string(infrav1.VMProvisionedCondition),
+		Status: metav1.ConditionTrue,
+	})
 	return vm, nil
 }
 
@@ -1209,6 +1274,12 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 		if bootType != infrav1.NutanixBootTypeLegacy && bootType != infrav1.NutanixBootTypeUEFI {
 			errorMsg := fmt.Errorf("boot type must be %s or %s but was %s", string(infrav1.NutanixBootTypeLegacy), string(infrav1.NutanixBootTypeUEFI), bootType)
 			v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VMBootTypeInvalid, capiv1beta1.ConditionSeverityError, "%s", errorMsg.Error())
+			v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+				Type:    string(infrav1.VMProvisionedCondition),
+				Status:  metav1.ConditionFalse,
+				Reason:  infrav1.VMBootTypeInvalid,
+				Message: errorMsg.Error(),
+			})
 			return errorMsg
 		}
 
@@ -1249,6 +1320,12 @@ func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vm 
 		errorMsg := fmt.Errorf("VM cannot be nil when adding VM %s to project", vmName)
 		log.Error(errorMsg, "failed to add vm to project")
 		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.ProjectAssignedCondition, infrav1.ProjectAssignationFailed, capiv1beta1.ConditionSeverityError, "%s", errorMsg.Error())
+		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+			Type:    string(infrav1.ProjectAssignedCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.ProjectAssignationFailed,
+			Message: errorMsg.Error(),
+		})
 		return errorMsg
 	}
 
@@ -1257,6 +1334,12 @@ func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vm 
 		errorMsg := fmt.Errorf("error occurred while searching for project for VM %s: %v", vmName, err)
 		log.Error(errorMsg, "error occurred while searching for project")
 		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.ProjectAssignedCondition, infrav1.ProjectAssignationFailed, capiv1beta1.ConditionSeverityError, "%s", errorMsg.Error())
+		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+			Type:    string(infrav1.ProjectAssignedCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.ProjectAssignationFailed,
+			Message: errorMsg.Error(),
+		})
 		return errorMsg
 	}
 
@@ -1265,6 +1348,10 @@ func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vm 
 	vm.Project = projRef
 
 	v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.ProjectAssignedCondition)
+	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+		Type:   string(infrav1.ProjectAssignedCondition),
+		Status: metav1.ConditionTrue,
+	})
 	return nil
 }
 
