@@ -40,6 +40,9 @@ const (
 	// FailureDomainsValidatedCondition indicates whether the failure domains are configured correctly or not.
 	FailureDomainsValidatedCondition capiv1beta1.ConditionType = "FailureDomainsValidated"
 
+	// FailureDomainsValidatedCondition indicates that the failure domains are being validated.
+	FailureDomainsValidationInProgressReason = "FailureDomainsValidationInProgress"
+
 	// FailureDomainsMisconfiguredReason (Severity=Warning) indicates that some of the failure domains
 	// are misconfigured.
 	FailureDomainsMisconfiguredReason = "FailureDomainsMisconfigured"
