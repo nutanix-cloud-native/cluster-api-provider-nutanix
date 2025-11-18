@@ -1,4 +1,4 @@
-//go:build e2e
+//
 
 /*
 Copyright 2023 Nutanix

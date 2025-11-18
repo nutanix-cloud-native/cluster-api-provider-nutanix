@@ -1,4 +1,4 @@
-//go:build e2e
+//
 
 /*
 Copyright 2022 Nutanix
@@ -64,8 +64,6 @@ const (
 	defaultSystemDiskSize = "40Gi"
 	defaultBootType       = "legacy"
 
-	categoryKeyVarKey   = "NUTANIX_ADDITIONAL_CATEGORY_KEY"
-	categoryValueVarKey = "NUTANIX_ADDITIONAL_CATEGORY_VALUE"
 	imageVarKey         = "NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME"
 	clusterVarKey       = "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME"
 	subnetVarKey        = "NUTANIX_SUBNET_NAME"
