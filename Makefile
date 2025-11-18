@@ -368,7 +368,6 @@ mocks: ## Generate mocks for the project
 	mockgen -destination=mocks/k8sclient/informer.go -package=mockk8sclient k8s.io/client-go/informers/core/v1 ConfigMapInformer,SecretInformer
 	mockgen -destination=mocks/k8sclient/lister.go -package=mockk8sclient k8s.io/client-go/listers/core/v1 SecretLister,SecretNamespaceLister
 	mockgen -destination=mocks/k8sapimachinery/interfaces.go -package=mockmeta k8s.io/apimachinery/pkg/api/meta RESTMapper,RESTScope
-	mockgen -destination=mocks/nutanix/v3.go -package=mocknutanixv3 github.com/nutanix-cloud-native/prism-go-client/v3 Service
 	mockgen -destination=mocks/converged/vms.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged VMs
 	mockgen -destination=mocks/converged/operation.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Operation
 	mockgen -destination=mocks/converged/anti_affinity_policies.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged AntiAffinityPolicies
