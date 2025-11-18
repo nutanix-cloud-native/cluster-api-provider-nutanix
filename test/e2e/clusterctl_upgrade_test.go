@@ -31,8 +31,9 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	bootstrapv1 "sigs.k8s.io/cluster-api/api/bootstrap/kubeadm/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated
-	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"                //nolint:staticcheck // suppress complaining on Deprecated package
+	"k8s.io/utils/ptr"
+	bootstrapv1 "sigs.k8s.io/cluster-api/api/bootstrap/kubeadm/v1beta2"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	yaml "sigs.k8s.io/cluster-api/cmd/clusterctl/client/yamlprocessor"
 	capie2e "sigs.k8s.io/cluster-api/test/e2e"
 	"sigs.k8s.io/cluster-api/test/framework"
@@ -261,16 +262,17 @@ func createPostUpgradeFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInp
 
 		// Update all KubeadmConfigTemplates
 		for _, kubeadmConfigTemplate := range kubeadmConfigTemplateList.Items {
-			if kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration == nil {
-				kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration = &bootstrapv1.JoinConfiguration{
-					NodeRegistration: bootstrapv1.NodeRegistrationOptions{},
+			args := kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs
+			updatedArgs := make([]bootstrapv1.Arg, max(0, len(args) - 1))
+			for _, arg := range args {
+				if arg.Name == "cloud-provider" {
+					continue
 				}
+				updatedArgs = append(updatedArgs, arg)
 			}
-			if kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs == nil {
-				kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs = map[string]string{}
-			}
+			updatedArgs = append(updatedArgs, bootstrapv1.Arg{Name: "cloud-provider", Value: ptr.To("external")})
+			kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs = updatedArgs
 
-			kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs["cloud-provider"] = "external"
 			err = managementClusterProxy.GetClient().Update(context.Background(), &kubeadmConfigTemplate)
 			Expect(err).NotTo(HaveOccurred())
 			log.Debugf("Updated KubeadmConfigTemplate %s/%s with kubeletExtraArgs cloud-provider: external", kubeadmConfigTemplate.Namespace, kubeadmConfigTemplate.Name)
