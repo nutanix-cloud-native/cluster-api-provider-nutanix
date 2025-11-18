@@ -64,9 +64,9 @@ const (
 	defaultSystemDiskSize = "40Gi"
 	defaultBootType       = "legacy"
 
-	imageVarKey         = "NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME"
-	clusterVarKey       = "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME"
-	subnetVarKey        = "NUTANIX_SUBNET_NAME"
+	imageVarKey   = "NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME"
+	clusterVarKey = "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME"
+	subnetVarKey  = "NUTANIX_SUBNET_NAME"
 
 	nameType = "name"
 
