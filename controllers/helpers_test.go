@@ -2513,7 +2513,7 @@ type MockConvergedClientWrapper struct {
 	Client *v4Converged.Client
 
 	MockAntiAffinityPolicies *mockconverged.MockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy]
-	MockClusters             *mockconverged.MockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile]
+	MockClusters             *mockconverged.MockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile, clusterModels.Host]
 	MockCategories           *mockconverged.MockCategories[prismModels.Category]
 	MockImages               *mockconverged.MockImages[imageModels.Image]
 	MockStorageContainers    *mockconverged.MockStorageContainers[clusterModels.StorageContainer]
@@ -2526,7 +2526,7 @@ type MockConvergedClientWrapper struct {
 // NewMockConvergedClient creates a new mock converged client
 func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper {
 	mockAntiAffinityPolicies := mockconverged.NewMockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy](ctrl)
-	mockClusters := mockconverged.NewMockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile](ctrl)
+	mockClusters := mockconverged.NewMockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile, clusterModels.Host](ctrl)
 	mockCategories := mockconverged.NewMockCategories[prismModels.Category](ctrl)
 	mockImages := mockconverged.NewMockImages[imageModels.Image](ctrl)
 	mockStorageContainers := mockconverged.NewMockStorageContainers[clusterModels.StorageContainer](ctrl)
@@ -2542,6 +2542,7 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			clusterModels.Cluster,
 			clusterModels.VirtualGpuProfile,
 			clusterModels.PhysicalGpuProfile,
+			clusterModels.Host,
 			prismModels.Category,
 			imageModels.Image,
 			clusterModels.StorageContainer,
