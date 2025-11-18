@@ -1058,6 +1058,7 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 	v1beta2conditions.Set(cluster, metav1.Condition{
 		Type:   string(infrav1.PrismCentralClientCondition),
 		Status: metav1.ConditionTrue,
+		Reason: infrav1.Succeeded,
 	})
 	return v3Client, nil
 }
@@ -1099,6 +1100,7 @@ func getPrismCentralConvergedV4ClientForCluster(ctx context.Context, cluster *in
 	v1beta2conditions.Set(cluster, metav1.Condition{
 		Type:   string(infrav1.PrismCentralV4ClientCondition),
 		Status: metav1.ConditionTrue,
+		Reason: infrav1.Succeeded,
 	})
 	return client, nil
 }

@@ -553,6 +553,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
 		Type:   string(infrav1.VMAddressesAssignedCondition),
 		Status: metav1.ConditionTrue,
+		Reason: infrav1.Succeeded,
 	})
 
 	// Update the NutanixMachine Spec.ProviderID
@@ -843,6 +844,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
 			Type:   string(infrav1.VMProvisionedCondition),
 			Status: metav1.ConditionTrue,
+			Reason: capiv1beta1.ProvisionedV1Beta2Reason,
 		})
 		return vmFound, nil
 	}
@@ -980,6 +982,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
 		Type:   string(infrav1.VMProvisionedCondition),
 		Status: metav1.ConditionTrue,
+		Reason: capiv1beta1.ProvisionedV1Beta2Reason,
 	})
 	return vm, nil
 }
@@ -1351,6 +1354,7 @@ func (r *NutanixMachineReconciler) addVMToProject(rctx *nctx.MachineContext, vm 
 	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
 		Type:   string(infrav1.ProjectAssignedCondition),
 		Status: metav1.ConditionTrue,
+		Reason: infrav1.Succeeded,
 	})
 	return nil
 }

@@ -213,6 +213,7 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 		v1beta2conditions.Set(fd, metav1.Condition{
 			Type:   string(infrav1.FailureDomainSafeForDeletionCondition),
 			Status: metav1.ConditionTrue,
+			Reason: capiv1.ReadyV1Beta2Reason,
 		})
 
 		// Remove the finalizer from the failure domain object
@@ -243,6 +244,7 @@ func (r *NutanixFailureDomainReconciler) reconcileNormal(ctx context.Context, fd
 	v1beta2conditions.Set(fd, metav1.Condition{
 		Type:   string(infrav1.FailureDomainSafeForDeletionCondition),
 		Status: metav1.ConditionFalse,
+		Reason: capiv1.AvailableV1Beta2Reason,
 	})
 	// Remove the FailureDomainSafeForDeletionCondition if there are any
 	v1beta1conditions.Delete(fd, infrav1.FailureDomainSafeForDeletionCondition)

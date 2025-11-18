@@ -162,6 +162,7 @@ func TestNutanixFailureDomainReconciler(t *testing.T) {
 				condv1beta2 := v1beta2conditions.Get(fdObj, string(infrav1.FailureDomainSafeForDeletionCondition))
 				g.Expect(condv1beta2).NotTo(BeNil())
 				g.Expect(condv1beta2.Status).To(Equal(metav1.ConditionTrue))
+				g.Expect(condv1beta2.Reason).To(Equal(capiv1.ReadyV1Beta2Reason))
 
 				// Delete the failure domain object and expect deletion success
 				g.Expect(k8sClient.Delete(ctx, fdObj)).To(Succeed())

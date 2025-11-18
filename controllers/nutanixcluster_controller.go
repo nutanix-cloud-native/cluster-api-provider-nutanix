@@ -228,6 +228,7 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	v1beta2conditions.Set(cluster, metav1.Condition{
 		Type:   string(infrav1.CredentialRefSecretOwnerSetCondition),
 		Status: metav1.ConditionTrue,
+		Reason: infrav1.Succeeded,
 	})
 
 	if err := r.reconcileTrustBundleRef(ctx, cluster); err != nil {
@@ -369,6 +370,7 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 		v1beta2conditions.Set(rctx.NutanixCluster, metav1.Condition{
 			Type:   string(infrav1.NoFailureDomainsConfiguredCondition),
 			Status: metav1.ConditionTrue,
+			Reason: string(infrav1.NoFailureDomainsConfiguredCondition),
 		})
 		v1beta1conditions.Delete(rctx.NutanixCluster, infrav1.FailureDomainsValidatedCondition)
 		v1beta2conditions.Delete(rctx.NutanixCluster, string(infrav1.FailureDomainsValidatedCondition))
@@ -430,6 +432,7 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 	v1beta2conditions.Set(rctx.NutanixCluster, metav1.Condition{
 		Type:   string(infrav1.FailureDomainsValidatedCondition),
 		Status: metav1.ConditionTrue,
+		Reason: infrav1.Succeeded,
 	})
 	return nil
 }
@@ -471,6 +474,7 @@ func (r *NutanixClusterReconciler) reconcileCategories(rctx *nctx.ClusterContext
 	v1beta2conditions.Set(rctx.NutanixCluster, metav1.Condition{
 		Type:   string(infrav1.ClusterCategoryCreatedCondition),
 		Status: metav1.ConditionTrue,
+		Reason: infrav1.Succeeded,
 	})
 	return nil
 }
@@ -609,6 +613,7 @@ func (r *NutanixClusterReconciler) reconcileTrustBundleRef(ctx context.Context, 
 	v1beta2conditions.Set(nutanixCluster, metav1.Condition{
 		Type:   string(infrav1.TrustBundleSecretOwnerSetCondition),
 		Status: metav1.ConditionTrue,
+		Reason: infrav1.Succeeded,
 	})
 	return nil
 }
