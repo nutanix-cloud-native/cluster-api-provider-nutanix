@@ -263,7 +263,7 @@ func createPostUpgradeFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInp
 		// Update all KubeadmConfigTemplates
 		for _, kubeadmConfigTemplate := range kubeadmConfigTemplateList.Items {
 			args := kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs
-			updatedArgs := make([]bootstrapv1.Arg, max(0, len(args) - 1))
+			updatedArgs := make([]bootstrapv1.Arg, max(0, len(args)-1))
 			for _, arg := range args {
 				if arg.Name == "cloud-provider" {
 					continue
