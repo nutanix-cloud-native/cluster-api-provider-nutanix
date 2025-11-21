@@ -545,7 +545,6 @@ func TestKubebuilderValidations(t *testing.T) {
 							MemorySize:     resource.Quantity{},
 							Cluster: infrav1.NutanixResourceIdentifier{
 								Type: infrav1.NutanixIdentifierUUID,
-								UUID: ptr.To("550e8400-e29b-41d4-a716-446655440000"),
 							},
 							Image: &infrav1.NutanixResourceIdentifier{
 								Type: infrav1.NutanixIdentifierName,
@@ -573,7 +572,6 @@ func TestKubebuilderValidations(t *testing.T) {
 							VCPUSockets:    1,
 							Cluster: infrav1.NutanixResourceIdentifier{
 								Type: infrav1.NutanixIdentifierUUID,
-								UUID: ptr.To("550e8400-e29b-41d4-a716-446655440001"),
 							},
 							MemorySize: resource.Quantity{},
 							ImageLookup: &infrav1.NutanixImageLookup{
@@ -601,7 +599,6 @@ func TestKubebuilderValidations(t *testing.T) {
 							VCPUSockets:    1,
 							Cluster: infrav1.NutanixResourceIdentifier{
 								Type: infrav1.NutanixIdentifierUUID,
-								UUID: ptr.To("550e8400-e29b-41d4-a716-446655440002"),
 							},
 							MemorySize:     resource.Quantity{},
 							SystemDiskSize: resource.Quantity{},
@@ -625,7 +622,6 @@ func TestKubebuilderValidations(t *testing.T) {
 							VCPUsPerSocket: 1,
 							Cluster: infrav1.NutanixResourceIdentifier{
 								Type: infrav1.NutanixIdentifierUUID,
-								UUID: ptr.To("550e8400-e29b-41d4-a716-446655440003"),
 							},
 							VCPUSockets: 1,
 							ImageLookup: &infrav1.NutanixImageLookup{
