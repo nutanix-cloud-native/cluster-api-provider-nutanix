@@ -447,7 +447,7 @@ var _ = Describe("Cluster Class Template Patches Test Suite", Ordered, func() {
 			}).Within(time.Minute).Should(And(HaveLen(2),
 				HaveEach(HaveExistingField("Spec.Template.Spec.Project")),
 				HaveEach(HaveField("Spec.Template.Spec.Project.Type", Equal(v1beta1.NutanixIdentifierUUID))),
-				HaveEach(HaveField("Spec.Template.Spec.Project.UUID", HaveValue(Equal("00000000-0000-0000-0000-000000000001"))))))
+				HaveEach(HaveField("Spec.Template.Spec.Project.Name", HaveValue(Equal("00000000-0000-0000-0000-000000000001"))))))
 		})
 	})
 
