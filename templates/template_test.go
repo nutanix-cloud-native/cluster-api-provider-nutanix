@@ -21,8 +21,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2/textlogger"
 	"k8s.io/utils/ptr"
-	controlplanev1 "sigs.k8s.io/cluster-api/api/controlplane/kubeadm/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
-	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"                         //nolint:staticcheck // suppress complaining on Deprecated package
+	controlplanev1beta1 "sigs.k8s.io/cluster-api/api/controlplane/kubeadm/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"                         //nolint:staticcheck // suppress complaining on Deprecated package
 	clusterctllog "sigs.k8s.io/cluster-api/cmd/clusterctl/log"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,9 +48,9 @@ func init() {
 	format.MaxLength = 100000
 	// Add NutanixCluster and NutanixMachine to the scheme
 	_ = v1beta1.AddToScheme(scheme.Scheme)
-	_ = capiv1.AddToScheme(scheme.Scheme)
+	_ = capiv1beta1.AddToScheme(scheme.Scheme)
 	_ = apiextensionsv1.AddToScheme(scheme.Scheme)
-	_ = controlplanev1.AddToScheme(scheme.Scheme)
+	_ = controlplanev1beta1.AddToScheme(scheme.Scheme)
 }
 
 func teardownTestEnvironment() error {
@@ -254,7 +254,7 @@ func fetchMachineTemplates(clnt client.Client, clusterName string) ([]*v1beta1.N
 
 	nmts := make([]*v1beta1.NutanixMachineTemplate, 0)
 	for _, nmt := range nutanixMachineTemplateList.Items {
-		if nmt.Labels[capiv1.ClusterNameLabel] == clusterName {
+		if nmt.Labels[capiv1beta1.ClusterNameLabel] == clusterName {
 			nmts = append(nmts, &nmt)
 		}
 	}
@@ -266,14 +266,14 @@ func fetchMachineTemplates(clnt client.Client, clusterName string) ([]*v1beta1.N
 	return nmts, nil
 }
 
-func fetchKubeadmControlPlane(clnt client.Client, clusterName string) (*controlplanev1.KubeadmControlPlane, error) {
-	kubeadmControlPlaneList := &controlplanev1.KubeadmControlPlaneList{}
+func fetchKubeadmControlPlane(clnt client.Client, clusterName string) (*controlplanev1beta1.KubeadmControlPlane, error) {
+	kubeadmControlPlaneList := &controlplanev1beta1.KubeadmControlPlaneList{}
 	if err := clnt.List(context.Background(), kubeadmControlPlaneList, &client.ListOptions{Namespace: defaultNamespace}); err != nil {
 		return nil, fmt.Errorf("failed to list KubeadmControlPlane: %w", err)
 	}
 
 	for _, kcp := range kubeadmControlPlaneList.Items {
-		if kcp.Labels[capiv1.ClusterNameLabel] == clusterName {
+		if kcp.Labels[capiv1beta1.ClusterNameLabel] == clusterName {
 			return &kcp, nil
 		}
 	}
@@ -402,7 +402,7 @@ var _ = Describe("Cluster Class Template Patches Test Suite", Ordered, func() {
 			Expect(nutanixCluster.Spec.ControlPlaneEndpoint.Host).To(Equal("1.2.3.4"))
 			Expect(nutanixCluster.Spec.ControlPlaneEndpoint.Port).To(Equal(int32(6443)))
 
-			var kubeadmcontrolplane *controlplanev1.KubeadmControlPlane
+			var kubeadmcontrolplane *controlplanev1beta1.KubeadmControlPlane
 			Eventually(func() error {
 				kcp, err := fetchKubeadmControlPlane(clnt, obj.GetName())
 				kubeadmcontrolplane = kcp

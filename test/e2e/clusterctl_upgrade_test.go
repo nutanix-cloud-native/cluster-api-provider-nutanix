@@ -32,8 +32,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
-	bootstrapv1 "sigs.k8s.io/cluster-api/api/bootstrap/kubeadm/v1beta2"
-	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	bootstrapv1beta2 "sigs.k8s.io/cluster-api/api/bootstrap/kubeadm/v1beta2"
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	yaml "sigs.k8s.io/cluster-api/cmd/clusterctl/client/yamlprocessor"
 	capie2e "sigs.k8s.io/cluster-api/test/e2e"
 	"sigs.k8s.io/cluster-api/test/framework"
@@ -218,7 +218,7 @@ func createPostUpgradeFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInp
 		// Update Clusters with Nutanix CCM label
 		log.Debugf("Updating Clusters with Nutanix CCM label")
 		// List all clusters
-		clusterList := &clusterv1.ClusterList{}
+		clusterList := &capiv1beta2.ClusterList{}
 		err = managementClusterProxy.GetClient().List(context.Background(), clusterList)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -256,21 +256,21 @@ func createPostUpgradeFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInp
 
 		By("Update KubeadmConfigTemplate with kubeletExtraArgs cloud-provider: external")
 		// List all KubeadmConfigTemplates
-		kubeadmConfigTemplateList := &bootstrapv1.KubeadmConfigTemplateList{}
+		kubeadmConfigTemplateList := &bootstrapv1beta2.KubeadmConfigTemplateList{}
 		err = managementClusterProxy.GetClient().List(context.Background(), kubeadmConfigTemplateList)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Update all KubeadmConfigTemplates
 		for _, kubeadmConfigTemplate := range kubeadmConfigTemplateList.Items {
 			args := kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs
-			updatedArgs := make([]bootstrapv1.Arg, 0)
+			updatedArgs := make([]bootstrapv1beta2.Arg, 0)
 			for _, arg := range args {
 				if arg.Name == "cloud-provider" {
 					continue
 				}
 				updatedArgs = append(updatedArgs, arg)
 			}
-			updatedArgs = append(updatedArgs, bootstrapv1.Arg{Name: "cloud-provider", Value: ptr.To("external")})
+			updatedArgs = append(updatedArgs, bootstrapv1beta2.Arg{Name: "cloud-provider", Value: ptr.To("external")})
 			kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs = updatedArgs
 
 			err = managementClusterProxy.GetClient().Update(context.Background(), &kubeadmConfigTemplate)

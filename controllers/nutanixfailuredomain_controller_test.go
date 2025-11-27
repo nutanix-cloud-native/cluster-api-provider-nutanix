@@ -29,7 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/uuid"
-	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 	"sigs.k8s.io/cluster-api/util"
 	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"         //nolint:staticcheck // suppress complaining on Deprecated package
 	v1beta2conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions/v1beta2" //nolint:staticcheck // suppress complaining on Deprecated package
@@ -162,7 +162,7 @@ func TestNutanixFailureDomainReconciler(t *testing.T) {
 				condv1beta2 := v1beta2conditions.Get(fdObj, string(infrav1.FailureDomainSafeForDeletionCondition))
 				g.Expect(condv1beta2).NotTo(BeNil())
 				g.Expect(condv1beta2.Status).To(Equal(metav1.ConditionTrue))
-				g.Expect(condv1beta2.Reason).To(Equal(capiv1.ReadyV1Beta2Reason))
+				g.Expect(condv1beta2.Reason).To(Equal(capiv1beta1.ReadyV1Beta2Reason))
 
 				// Delete the failure domain object and expect deletion success
 				g.Expect(k8sClient.Delete(ctx, fdObj)).To(Succeed())
@@ -185,7 +185,7 @@ func TestNutanixFailureDomainReconciler(t *testing.T) {
 				cond := v1beta1conditions.Get(fdObj, infrav1.FailureDomainSafeForDeletionCondition)
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(corev1.ConditionFalse))
-				g.Expect(cond.Severity).To(Equal(capiv1.ConditionSeverityError))
+				g.Expect(cond.Severity).To(Equal(capiv1beta1.ConditionSeverityError))
 				g.Expect(cond.Reason).To(Equal(infrav1.FailureDomainInUseReason))
 				condv1beta2 := v1beta2conditions.Get(fdObj, string(infrav1.FailureDomainSafeForDeletionCondition))
 				g.Expect(condv1beta2).NotTo(BeNil())

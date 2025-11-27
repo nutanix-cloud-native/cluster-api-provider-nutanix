@@ -20,7 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -255,7 +255,7 @@ type NutanixMachineStatus struct {
 
 	// Addresses contains the Nutanix VM associated addresses.
 	// Address type is one of Hostname, ExternalIP, InternalIP, ExternalDNS, InternalDNS
-	Addresses []capiv1.MachineAddress `json:"addresses,omitempty"`
+	Addresses []capiv1beta1.MachineAddress `json:"addresses,omitempty"`
 
 	// The Nutanix VM's UUID
 	// +optional
@@ -268,7 +268,7 @@ type NutanixMachineStatus struct {
 
 	// Conditions defines current service state of the NutanixMachine.
 	// +optional
-	Conditions capiv1.Conditions `json:"conditions,omitempty"`
+	Conditions capiv1beta1.Conditions `json:"conditions,omitempty"`
 
 	// Will be set in case of failure of Machine instance
 	// +optional
@@ -317,12 +317,12 @@ type NutanixMachine struct {
 }
 
 // GetConditions returns the set of conditions for this object.
-func (nm *NutanixMachine) GetConditions() capiv1.Conditions {
+func (nm *NutanixMachine) GetConditions() capiv1beta1.Conditions {
 	return nm.Status.Conditions
 }
 
 // SetConditions sets the conditions on this object.
-func (nm *NutanixMachine) SetConditions(conditions capiv1.Conditions) {
+func (nm *NutanixMachine) SetConditions(conditions capiv1beta1.Conditions) {
 	nm.Status.Conditions = conditions
 }
 

@@ -26,7 +26,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"                                      //nolint:staticcheck // suppress complaining on Deprecated package
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"                                 //nolint:staticcheck // suppress complaining on Deprecated package
 	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"         //nolint:staticcheck // suppress complaining on Deprecated package
 	v1beta2conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions/v1beta2" //nolint:staticcheck // suppress complaining on Deprecated package
 	v1beta1patch "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"                   //nolint:staticcheck // suppress complaining on Deprecated package
@@ -204,7 +204,7 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 		}
 
 		if nm.Status.FailureDomain != nil && *nm.Status.FailureDomain == fd.Name {
-			ntxMachines[nm.Name] = nm.GetLabels()[capiv1.ClusterNameLabel]
+			ntxMachines[nm.Name] = nm.GetLabels()[capiv1beta1.ClusterNameLabel]
 		}
 	}
 
@@ -213,7 +213,7 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 		v1beta2conditions.Set(fd, metav1.Condition{
 			Type:   string(infrav1.FailureDomainSafeForDeletionCondition),
 			Status: metav1.ConditionTrue,
-			Reason: capiv1.ReadyV1Beta2Reason,
+			Reason: capiv1beta1.ReadyV1Beta2Reason,
 		})
 
 		// Remove the finalizer from the failure domain object
@@ -223,7 +223,7 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 
 	errMsg := fmt.Sprintf("The failure domain is used by machines: %v", ntxMachines)
 	v1beta1conditions.MarkFalse(fd, infrav1.FailureDomainSafeForDeletionCondition,
-		infrav1.FailureDomainInUseReason, capiv1.ConditionSeverityError, "%s", errMsg)
+		infrav1.FailureDomainInUseReason, capiv1beta1.ConditionSeverityError, "%s", errMsg)
 	v1beta2conditions.Set(fd, metav1.Condition{
 		Type:    string(infrav1.FailureDomainSafeForDeletionCondition),
 		Status:  metav1.ConditionFalse,
@@ -244,7 +244,7 @@ func (r *NutanixFailureDomainReconciler) reconcileNormal(ctx context.Context, fd
 	v1beta2conditions.Set(fd, metav1.Condition{
 		Type:   string(infrav1.FailureDomainSafeForDeletionCondition),
 		Status: metav1.ConditionFalse,
-		Reason: capiv1.AvailableV1Beta2Reason,
+		Reason: capiv1beta1.AvailableV1Beta2Reason,
 	})
 	// Remove the FailureDomainSafeForDeletionCondition if there are any
 	v1beta1conditions.Delete(fd, infrav1.FailureDomainSafeForDeletionCondition)

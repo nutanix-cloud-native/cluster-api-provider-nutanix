@@ -27,7 +27,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
@@ -119,11 +119,11 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client"),
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
+				expectedCondition: capiv1beta1.Condition{
 					Type:     infrav1.CredentialRefSecretOwnerSetCondition,
 					Status:   corev1.ConditionFalse,
 					Reason:   infrav1.CredentialRefSecretOwnerSetFailed,
-					Severity: clusterv1.ConditionSeverityError,
+					Severity: capiv1beta1.ConditionSeverityError,
 				},
 			})
 		})
@@ -165,7 +165,7 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client"),
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
+				expectedCondition: capiv1beta1.Condition{
 					Type:   infrav1.PrismCentralClientCondition,
 					Status: corev1.ConditionTrue,
 				},
@@ -196,10 +196,10 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client"),
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
+				expectedCondition: capiv1beta1.Condition{
 					Type:     infrav1.CredentialRefSecretOwnerSetCondition,
 					Reason:   infrav1.CredentialRefSecretOwnerSetFailed,
-					Severity: clusterv1.ConditionSeverityError,
+					Severity: capiv1beta1.ConditionSeverityError,
 					Status:   corev1.ConditionFalse,
 				},
 			})
@@ -220,7 +220,7 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client"),
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
+				expectedCondition: capiv1beta1.Condition{
 					Type:   infrav1.CredentialRefSecretOwnerSetCondition,
 					Status: corev1.ConditionTrue,
 				},
@@ -232,7 +232,7 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client"),
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
+				expectedCondition: capiv1beta1.Condition{
 					Type:   infrav1.PrismCentralClientCondition,
 					Status: corev1.ConditionTrue,
 				},
@@ -276,7 +276,7 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client"),
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
+				expectedCondition: capiv1beta1.Condition{
 					Type:   infrav1.CredentialRefSecretOwnerSetCondition,
 					Status: corev1.ConditionTrue,
 				},
@@ -288,10 +288,10 @@ var _ = Describe("Nutanix client", Label("capx-feature-test", "nutanix-client"),
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
+				expectedCondition: capiv1beta1.Condition{
 					Type:     infrav1.PrismCentralClientCondition,
 					Reason:   infrav1.PrismCentralClientInitializationFailed,
-					Severity: clusterv1.ConditionSeverityError,
+					Severity: capiv1beta1.ConditionSeverityError,
 					Status:   corev1.ConditionFalse,
 				},
 			})

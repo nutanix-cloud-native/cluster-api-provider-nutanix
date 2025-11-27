@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
@@ -27,7 +27,7 @@ func TestIsControlPlaneMachine(t *testing.T) {
 			machine: &infrav1.NutanixMachine{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						capiv1.MachineControlPlaneNameLabel: "",
+						capiv1beta1.MachineControlPlaneNameLabel: "",
 					},
 				},
 			},
