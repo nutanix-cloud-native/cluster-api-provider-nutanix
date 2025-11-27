@@ -27,8 +27,8 @@ require (
 	k8s.io/client-go v0.33.4
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d
-	sigs.k8s.io/cluster-api v1.11.1
-	sigs.k8s.io/cluster-api/test v1.11.1
+	sigs.k8s.io/cluster-api v1.11.3
+	sigs.k8s.io/cluster-api/test v1.11.3
 	sigs.k8s.io/controller-runtime v0.21.0
 	sigs.k8s.io/kind v0.30.0
 	sigs.k8s.io/kustomize/api v0.13.5-0.20230601165947-6ce0bf390ce3
