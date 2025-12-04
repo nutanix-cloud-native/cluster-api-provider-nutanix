@@ -470,7 +470,7 @@ func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID strin
 					foundSubnets = append(foundSubnets, subnet)
 					continue
 				}
-				if subnet.ClusterReferenceList != nil && subnet.ClusterReference != nil && *subnet.ClusterReference == peUUID {
+				if subnet.ClusterReference != nil && *subnet.ClusterReference == peUUID {
 					foundSubnets = append(foundSubnets, subnet)
 				}
 			}
