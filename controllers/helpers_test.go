@@ -2578,3 +2578,111 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 		MockVolumeGroups:         mockVolumeGroups,
 	}
 }
+
+func TestSubnetBelongsToCluster(t *testing.T) {
+	peUUID := "11111111-1111-1111-1111-111111111111"
+	otherUUID := "22222222-2222-2222-2222-222222222222"
+	anotherUUID := "33333333-3333-3333-3333-333333333333"
+
+	tests := []struct {
+		name           string
+		subnet         *subnetModels.Subnet
+		peUUID         string
+		expectedResult bool
+		description    string
+	}{
+		{
+			name: "subnet with matching ClusterReference",
+			subnet: &subnetModels.Subnet{
+				ClusterReference: ptr.To(peUUID),
+			},
+			peUUID:         peUUID,
+			expectedResult: true,
+			description:    "Should return true when ClusterReference matches the PE UUID",
+		},
+		{
+			name: "subnet with non-matching ClusterReference",
+			subnet: &subnetModels.Subnet{
+				ClusterReference: ptr.To(otherUUID),
+			},
+			peUUID:         peUUID,
+			expectedResult: false,
+			description:    "Should return false when ClusterReference does not match the PE UUID",
+		},
+		{
+			name: "subnet with matching UUID in ClusterReferenceList",
+			subnet: &subnetModels.Subnet{
+				ClusterReferenceList: []string{otherUUID, peUUID, anotherUUID},
+			},
+			peUUID:         peUUID,
+			expectedResult: true,
+			description:    "Should return true when PE UUID is in ClusterReferenceList",
+		},
+		{
+			name: "subnet with non-matching ClusterReferenceList",
+			subnet: &subnetModels.Subnet{
+				ClusterReferenceList: []string{otherUUID, anotherUUID},
+			},
+			peUUID:         peUUID,
+			expectedResult: false,
+			description:    "Should return false when PE UUID is not in ClusterReferenceList",
+		},
+		{
+			name: "subnet with both ClusterReference and ClusterReferenceList matching",
+			subnet: &subnetModels.Subnet{
+				ClusterReference:     ptr.To(peUUID),
+				ClusterReferenceList: []string{peUUID, otherUUID},
+			},
+			peUUID:         peUUID,
+			expectedResult: true,
+			description:    "Should return true when both ClusterReference and ClusterReferenceList contain PE UUID",
+		},
+		{
+			name: "subnet with ClusterReference matching but ClusterReferenceList not matching",
+			subnet: &subnetModels.Subnet{
+				ClusterReference:     ptr.To(peUUID),
+				ClusterReferenceList: []string{otherUUID},
+			},
+			peUUID:         peUUID,
+			expectedResult: true,
+			description:    "Should return true when ClusterReference matches even if ClusterReferenceList doesn't",
+		},
+		{
+			name: "subnet with ClusterReferenceList matching but ClusterReference not matching",
+			subnet: &subnetModels.Subnet{
+				ClusterReference:     ptr.To(otherUUID),
+				ClusterReferenceList: []string{peUUID},
+			},
+			peUUID:         peUUID,
+			expectedResult: true,
+			description:    "Should return true when ClusterReferenceList matches even if ClusterReference doesn't",
+		},
+		{
+			name: "subnet with nil ClusterReference and nil ClusterReferenceList",
+			subnet: &subnetModels.Subnet{
+				ClusterReference:     nil,
+				ClusterReferenceList: nil,
+			},
+			peUUID:         peUUID,
+			expectedResult: false,
+			description:    "Should return false when both ClusterReference and ClusterReferenceList are nil",
+		},
+		{
+			name: "subnet with nil ClusterReference and empty ClusterReferenceList",
+			subnet: &subnetModels.Subnet{
+				ClusterReference:     nil,
+				ClusterReferenceList: []string{},
+			},
+			peUUID:         peUUID,
+			expectedResult: false,
+			description:    "Should return false when ClusterReference is nil and ClusterReferenceList is empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := subnetBelongsToCluster(tt.subnet, tt.peUUID)
+			assert.Equal(t, tt.expectedResult, result, tt.description)
+		})
+	}
+}
