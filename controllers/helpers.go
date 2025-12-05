@@ -640,21 +640,25 @@ func VmHasTaskInProgress(ctx context.Context, client *v4Converged.Client, vmExtI
 	}
 
 	runningTasks := make([]*prismModels.Task, 0)
+	runningTasksUUIDs := ""
 	queuedTasks := make([]*prismModels.Task, 0)
+	queuedTasksUUIDs := ""
 	for _, task := range tasks {
-		if task.Status != nil {
+		if task.Status != nil && task.ExtId != nil {
 			switch *task.Status {
 			case prismModels.TASKSTATUS_RUNNING:
 				runningTasks = append(runningTasks, &task)
+				runningTasksUUIDs = fmt.Sprintf("%s,%s", runningTasksUUIDs, *task.ExtId)
 			case prismModels.TASKSTATUS_QUEUED:
 				queuedTasks = append(queuedTasks, &task)
+				queuedTasksUUIDs = fmt.Sprintf("%s,%s", queuedTasksUUIDs, *task.ExtId)
 			default:
 				continue
 			}
 		}
 	}
-	log.V(1).Info(fmt.Sprintf("Found %d running tasks for vm: %s", len(runningTasks), vmExtId))
-	log.V(1).Info(fmt.Sprintf("Found %d queued tasks for vm: %s", len(queuedTasks), vmExtId))
+	log.V(1).Info(fmt.Sprintf("Found %d running tasks for vm: %s, UUIDs: [%s]", len(runningTasks), vmExtId, runningTasksUUIDs))
+	log.V(1).Info(fmt.Sprintf("Found %d queued tasks for vm: %s, UUIDs: [%s]", len(queuedTasks), vmExtId, queuedTasksUUIDs))
 	return len(runningTasks) > 0 || len(queuedTasks) > 0, nil
 }
 
