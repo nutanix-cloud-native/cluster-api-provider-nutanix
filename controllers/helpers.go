@@ -639,7 +639,20 @@ func VmHasTaskInProgress(ctx context.Context, client *v4Converged.Client, vmExtI
 		return false, err
 	}
 
-	log.V(1).Info(fmt.Sprintf("Found %d running or queued DeleteVm tasks for vm: %s", len(tasks), vmExtId))
+	runningTasks := make([]*prismModels.Task, 0)
+	queuedTasks := make([]*prismModels.Task, 0)
+	for _, task := range tasks {
+		switch *task.Status {
+		case prismModels.TASKSTATUS_RUNNING:
+			runningTasks = append(runningTasks, &task)
+		case prismModels.TASKSTATUS_QUEUED:
+			queuedTasks = append(queuedTasks, &task)
+		default:
+			continue
+		}
+	}
+	log.V(1).Info(fmt.Sprintf("Found %d running tasks for vm: %s", len(runningTasks), vmExtId))
+	log.V(1).Info(fmt.Sprintf("Found %d queued tasks for vm: %s", len(queuedTasks), vmExtId))
 	return len(tasks) > 0, nil
 }
 
