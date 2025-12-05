@@ -642,18 +642,20 @@ func VmHasTaskInProgress(ctx context.Context, client *v4Converged.Client, vmExtI
 	runningTasks := make([]*prismModels.Task, 0)
 	queuedTasks := make([]*prismModels.Task, 0)
 	for _, task := range tasks {
-		switch *task.Status {
-		case prismModels.TASKSTATUS_RUNNING:
-			runningTasks = append(runningTasks, &task)
-		case prismModels.TASKSTATUS_QUEUED:
-			queuedTasks = append(queuedTasks, &task)
-		default:
-			continue
+		if task.Status != nil {
+			switch *task.Status {
+			case prismModels.TASKSTATUS_RUNNING:
+				runningTasks = append(runningTasks, &task)
+			case prismModels.TASKSTATUS_QUEUED:
+				queuedTasks = append(queuedTasks, &task)
+			default:
+				continue
+			}
 		}
 	}
 	log.V(1).Info(fmt.Sprintf("Found %d running tasks for vm: %s", len(runningTasks), vmExtId))
 	log.V(1).Info(fmt.Sprintf("Found %d queued tasks for vm: %s", len(queuedTasks), vmExtId))
-	return len(tasks) > 0, nil
+	return len(runningTasks) > 0 || len(queuedTasks) > 0, nil
 }
 
 // GetSubnetUUIDList returns a list of subnet UUIDs for the given list of subnet names
