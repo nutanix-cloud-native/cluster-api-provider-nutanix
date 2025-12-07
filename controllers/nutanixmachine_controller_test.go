@@ -2585,7 +2585,11 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		mockConvergedClient.MockVMs.EXPECT().Get(gomock.Any(), gomock.Any()).Return(vm, nil)
 		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(
 			[]prismModels.Task{{
-				ExtId: ptr.To(taskUUID),
+				ExtId:  ptr.To(taskUUID),
+				Status: ptr.To(prismModels.TASKSTATUS_RUNNING),
+			}, {
+				ExtId:  ptr.To(taskUUID),
+				Status: ptr.To(prismModels.TASKSTATUS_QUEUED),
 			}}, nil)
 
 		// Create machine context
