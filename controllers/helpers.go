@@ -440,6 +440,26 @@ func adapterTypeToCdRomBusType(adapterType infrav1.NutanixMachineDiskAdapterType
 	}
 }
 
+// subnetBelongsToCluster checks if a subnet belongs to the specified PE cluster.
+// It checks both ClusterReference (single UUID) and ClusterReferenceList (list of UUIDs).
+// According to the networking team, non-overlay subnets may have:
+// - Both ClusterReference and ClusterReferenceList present (most cases): clusterReference will be deprecated in the future
+// - Only ClusterReference present: Old AOS clusters (i.e. <=7.0) that don't support ClusterReferenceList on basic vlan subnets
+// - Only ClusterReferenceList present: subnets backed by PC based vSwitches (i.e. >=7.3)
+func subnetBelongsToCluster(subnet *subnetModels.Subnet, peUUID string) bool {
+	// Check ClusterReference field
+	if subnet.ClusterReference != nil && *subnet.ClusterReference == peUUID {
+		return true
+	}
+
+	// Check ClusterReferenceList field
+	if subnet.ClusterReferenceList != nil && slices.Contains(subnet.ClusterReferenceList, peUUID) {
+		return true
+	}
+
+	return false
+}
+
 // GetSubnetUUID returns the UUID of the subnet with the given name
 func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
 	var foundSubnetUUID string
@@ -472,11 +492,14 @@ func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID strin
 					foundSubnets = append(foundSubnets, subnet)
 					continue
 				}
-				if subnet.ClusterReferenceList != nil && subnet.ClusterReference != nil && *subnet.ClusterReference == peUUID {
+
+				// Check if subnet belongs to the PE cluster via ClusterReference or ClusterReferenceList
+				if subnetBelongsToCluster(&subnet, peUUID) {
 					foundSubnets = append(foundSubnets, subnet)
 				}
 			}
 		}
+
 		if len(foundSubnets) == 0 {
 			return "", fmt.Errorf("failed to retrieve subnet by name %s", *subnetName)
 		} else if len(foundSubnets) > 1 {
@@ -618,8 +641,27 @@ func VmHasTaskInProgress(ctx context.Context, client *v4Converged.Client, vmExtI
 		return false, err
 	}
 
-	log.V(1).Info(fmt.Sprintf("Found %d running or queued DeleteVm tasks for vm: %s", len(tasks), vmExtId))
-	return len(tasks) > 0, nil
+	runningTasks := make([]*prismModels.Task, 0)
+	runningTasksUUIDs := ""
+	queuedTasks := make([]*prismModels.Task, 0)
+	queuedTasksUUIDs := ""
+	for _, task := range tasks {
+		if task.Status != nil && task.ExtId != nil {
+			switch *task.Status {
+			case prismModels.TASKSTATUS_RUNNING:
+				runningTasks = append(runningTasks, &task)
+				runningTasksUUIDs = fmt.Sprintf("%s,%s", runningTasksUUIDs, *task.ExtId)
+			case prismModels.TASKSTATUS_QUEUED:
+				queuedTasks = append(queuedTasks, &task)
+				queuedTasksUUIDs = fmt.Sprintf("%s,%s", queuedTasksUUIDs, *task.ExtId)
+			default:
+				continue
+			}
+		}
+	}
+	log.V(1).Info(fmt.Sprintf("Found %d running tasks for vm: %s, UUIDs: [%s]", len(runningTasks), vmExtId, runningTasksUUIDs))
+	log.V(1).Info(fmt.Sprintf("Found %d queued tasks for vm: %s, UUIDs: [%s]", len(queuedTasks), vmExtId, queuedTasksUUIDs))
+	return len(runningTasks) > 0 || len(queuedTasks) > 0, nil
 }
 
 // GetSubnetUUIDList returns a list of subnet UUIDs for the given list of subnet names
