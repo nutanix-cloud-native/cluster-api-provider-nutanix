@@ -103,3 +103,4 @@ jobs:
           NUTANIX_PROJECT_NAME: ${{ vars.NUTANIX_PROJECT_NAME }}
           CONTROL_PLANE_ENDPOINT_IP: ${{ steps.get-control-plane-endpoint-ip.outputs.control_plane_endpoint_ip }}
           CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER: ${{ steps.get-control-plane-endpoint-ip-clusterctl-upgrade.outputs.control_plane_endpoint_ip_clusterctl_upgrade }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
