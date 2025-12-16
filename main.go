@@ -323,6 +323,27 @@ func setupNutanixFailureDomainController(ctx context.Context, mgr manager.Manage
 	return nil
 }
 
+func setupNutanixMachineTemplateController(ctx context.Context, mgr manager.Manager, secretInformer coreinformers.SecretInformer,
+	configMapInformer coreinformers.ConfigMapInformer, opts ...controllers.ControllerConfigOpts,
+) error {
+	machineTemplateCtrl, err := controllers.NewNutanixMachineTemplateReconciler(
+		mgr.GetClient(),
+		secretInformer,
+		configMapInformer,
+		mgr.GetScheme(),
+		opts...,
+	)
+	if err != nil {
+		return fmt.Errorf("unable to create NutanixMachineTemplate controller: %w", err)
+	}
+
+	if err := machineTemplateCtrl.SetupWithManager(ctx, mgr); err != nil {
+		return fmt.Errorf("unable to setup NutanixMachineTemplate controller with manager: %w", err)
+	}
+
+	return nil
+}
+
 func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig) error {
 	secretInformer, configMapInformer, err := createInformers(ctx, mgr)
 	if err != nil {
@@ -359,6 +380,11 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 
 	// Use the same opts for failure domain controller as machine controller
 	if err := setupNutanixFailureDomainController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
+		return fmt.Errorf("unable to setup controllers: %w", err)
+	}
+
+	// Use the same opts for machine template controller as machine controller
+	if err := setupNutanixMachineTemplateController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
 		return fmt.Errorf("unable to setup controllers: %w", err)
 	}
 
