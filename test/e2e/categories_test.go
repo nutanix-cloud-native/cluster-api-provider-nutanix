@@ -25,7 +25,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
@@ -82,7 +82,7 @@ var _ = Describe("Nutanix categories", Label("nutanix-feature-test", "categories
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
+				expectedCondition: capiv1beta1.Condition{
 					Type:   infrav1.ClusterCategoryCreatedCondition,
 					Status: corev1.ConditionTrue,
 				},
@@ -197,7 +197,7 @@ var _ = Describe("Nutanix categories", Label("nutanix-feature-test", "categories
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
+				expectedCondition: capiv1beta1.Condition{
 					Type:   infrav1.ClusterCategoryCreatedCondition,
 					Status: corev1.ConditionTrue,
 				},
@@ -254,7 +254,7 @@ var _ = Describe("Nutanix categories", Label("nutanix-feature-test", "categories
 				clusterName:           clusterName,
 				namespace:             namespace2,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: clusterv1.Condition{
+				expectedCondition: capiv1beta1.Condition{
 					Type:   infrav1.ClusterCategoryCreatedCondition,
 					Status: corev1.ConditionTrue,
 				},

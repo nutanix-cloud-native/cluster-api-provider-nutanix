@@ -30,7 +30,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/test/framework/bootstrap"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
@@ -225,8 +225,8 @@ func dumpBootstrapClusterLogs(bootstrapClusterProxy framework.ClusterProxy) {
 			// we create a fake machine that wraps the node.
 			// NOTE: This assumes a naming convention between machines and nodes, which e.g. applies to the bootstrap clusters generated with kind.
 			//       This might not work if you are using an existing bootstrap cluster provided by other means.
-			&clusterv1.Machine{
-				Spec:       clusterv1.MachineSpec{ClusterName: nodeName},
+			&capiv1beta1.Machine{
+				Spec:       capiv1beta1.MachineSpec{ClusterName: nodeName},
 				ObjectMeta: metav1.ObjectMeta{Name: nodeName},
 			},
 			filepath.Join(artifactFolder, "clusters", bootstrapClusterProxy.GetName(), "machines", nodeName),

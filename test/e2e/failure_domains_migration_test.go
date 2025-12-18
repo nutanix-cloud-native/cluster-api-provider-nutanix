@@ -28,7 +28,7 @@ import (
 	"github.com/onsi/gomega/gstruct"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -87,7 +87,7 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: capiv1.Condition{
+				expectedCondition: capiv1beta1.Condition{
 					Type:   infrav1.FailureDomainsValidatedCondition,
 					Status: corev1.ConditionTrue,
 				},
@@ -159,7 +159,7 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 				bootstrapClusterProxy,
 				clusterName,
 				namespace,
-				capiv1.Condition{
+				capiv1beta1.Condition{
 					Type:   infrav1.FailureDomainsValidatedCondition,
 					Status: corev1.ConditionTrue,
 				},
@@ -179,7 +179,7 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 
 			waitForMachineUpgrade := e2eConfig.GetIntervals("", "wait-machine-upgrade")
 			Eventually(
-				func() []capiv1.Condition {
+				func() []capiv1beta1.Condition {
 					err := bootstrapClient.Get(ctx, client.ObjectKeyFromObject(kcp), kcp)
 					Expect(err).To(BeNil())
 					return kcp.Status.Conditions

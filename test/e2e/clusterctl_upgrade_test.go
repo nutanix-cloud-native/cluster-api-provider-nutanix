@@ -31,7 +31,7 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
 	yaml "sigs.k8s.io/cluster-api/cmd/clusterctl/client/yamlprocessor"
 	capie2e "sigs.k8s.io/cluster-api/test/e2e"
@@ -217,7 +217,7 @@ func createPostUpgradeFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInp
 		// Update Clusters with Nutanix CCM label
 		log.Debugf("Updating Clusters with Nutanix CCM label")
 		// List all clusters
-		clusterList := &clusterv1.ClusterList{}
+		clusterList := &capiv1beta1.ClusterList{}
 		err = managementClusterProxy.GetClient().List(context.Background(), clusterList)
 		Expect(err).NotTo(HaveOccurred())
 

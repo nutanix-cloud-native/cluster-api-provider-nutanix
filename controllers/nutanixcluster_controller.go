@@ -32,7 +32,7 @@ import (
 	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	capiutil "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -88,7 +88,7 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 		Named("nutanixcluster-controller").
 		For(&infrav1.NutanixCluster{}). // Watch the controlled, infrastructure resource.
 		Watches(
-			&capiv1.Cluster{},
+			&capiv1beta1.Cluster{},
 			handler.EnqueueRequestsFromMapFunc(
 				capiutil.ClusterToInfrastructureMapFunc(
 					ctx,
@@ -212,7 +212,7 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	if err := r.reconcileCredentialRef(ctx, cluster); err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while reconciling credential ref for cluster %s", capiCluster.Name))
-		conditions.MarkFalse(cluster, infrav1.CredentialRefSecretOwnerSetCondition, infrav1.CredentialRefSecretOwnerSetFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		conditions.MarkFalse(cluster, infrav1.CredentialRefSecretOwnerSetCondition, infrav1.CredentialRefSecretOwnerSetFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
 		return reconcile.Result{}, err
 	}
 	conditions.MarkTrue(cluster, infrav1.CredentialRefSecretOwnerSetCondition)
@@ -342,7 +342,7 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 	log := ctrl.LoggerFrom(rctx.Context)
 	log.Info("Reconciling failure domains for cluster")
 
-	failureDomains := capiv1.FailureDomains{}
+	failureDomains := capiv1beta1.FailureDomains{}
 	if len(rctx.NutanixCluster.Spec.ControlPlaneFailureDomains) == 0 && len(rctx.NutanixCluster.Spec.FailureDomains) == 0 { //nolint:staticcheck // suppress complaining on Deprecated field
 		log.Info("No failure domains configured for cluster.")
 		conditions.MarkTrue(rctx.NutanixCluster, infrav1.NoFailureDomainsConfiguredCondition)
@@ -377,12 +377,12 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 		}
 
 		// The failure domain configuration passed validation. Add it to the result map.
-		failureDomains[fdObj.Name] = capiv1.FailureDomainSpec{ControlPlane: true}
+		failureDomains[fdObj.Name] = capiv1beta1.FailureDomainSpec{ControlPlane: true}
 	}
 
 	// Remove below when the Deprecated field NutanixCluster.Spec.FailureDomains is removed
 	for _, fd := range rctx.NutanixCluster.Spec.FailureDomains { //nolint:staticcheck // suppress complaining on Deprecated field
-		failureDomains[fd.Name] = capiv1.FailureDomainSpec{ControlPlane: fd.ControlPlane}
+		failureDomains[fd.Name] = capiv1beta1.FailureDomainSpec{ControlPlane: fd.ControlPlane}
 	}
 
 	// Set the failure domains for nutanixcluster status
@@ -390,7 +390,7 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 
 	if len(validationErrs) != 0 {
 		conditions.MarkFalse(rctx.NutanixCluster, infrav1.FailureDomainsValidatedCondition,
-			infrav1.FailureDomainsMisconfiguredReason, capiv1.ConditionSeverityWarning, "%s", errors.Join(validationErrs...).Error())
+			infrav1.FailureDomainsMisconfiguredReason, capiv1beta1.ConditionSeverityWarning, "%s", errors.Join(validationErrs...).Error())
 		return nil
 	}
 
@@ -422,7 +422,7 @@ func (r *NutanixClusterReconciler) reconcileCategories(rctx *nctx.ClusterContext
 	defaultCategories := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
 	_, err := GetOrCreateCategories(rctx.Context, rctx.ConvergedClient, defaultCategories)
 	if err != nil {
-		conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.ClusterCategoryCreationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.ClusterCategoryCreationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
 		return err
 	}
 	conditions.MarkTrue(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition)
@@ -438,13 +438,13 @@ func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterC
 		obsoleteCategories := GetObsoleteDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
 		err := DeleteCategories(rctx.Context, rctx.ConvergedClient, defaultCategories, obsoleteCategories)
 		if err != nil {
-			conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.DeletionFailed, capiv1.ConditionSeverityWarning, "%s", err.Error())
+			conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.DeletionFailed, capiv1beta1.ConditionSeverityWarning, "%s", err.Error())
 			return err
 		}
 	} else {
 		log.V(1).Info(fmt.Sprintf("skipping category deletion since they were not created for cluster %s", rctx.Cluster.Name))
 	}
-	conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, capiv1.DeletingReason, capiv1.ConditionSeverityInfo, "")
+	conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, capiv1beta1.DeletingReason, capiv1beta1.ConditionSeverityInfo, "")
 	return nil
 }
 
@@ -507,7 +507,7 @@ func (r *NutanixClusterReconciler) reconcileTrustBundleRef(ctx context.Context, 
 	}
 	if err := r.Client.Get(ctx, configMapKey, configMap); err != nil {
 		log.Error(err, "error occurred while fetching trust bundle configmap", "nutanixCluster", nutanixCluster.Name)
-		conditions.MarkFalse(nutanixCluster, infrav1.TrustBundleSecretOwnerSetCondition, infrav1.TrustBundleSecretOwnerSetFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		conditions.MarkFalse(nutanixCluster, infrav1.TrustBundleSecretOwnerSetCondition, infrav1.TrustBundleSecretOwnerSetFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
 		return err
 	}
 
@@ -532,7 +532,7 @@ func (r *NutanixClusterReconciler) reconcileTrustBundleRef(ctx context.Context, 
 
 	if err := r.Client.Update(ctx, configMap); err != nil {
 		log.Error(err, "error occurred while updating trust bundle configmap", "nutanixCluster", nutanixCluster)
-		conditions.MarkFalse(nutanixCluster, infrav1.TrustBundleSecretOwnerSetCondition, infrav1.TrustBundleSecretOwnerSetFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		conditions.MarkFalse(nutanixCluster, infrav1.TrustBundleSecretOwnerSetCondition, infrav1.TrustBundleSecretOwnerSetFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
 		return err
 	}
 

@@ -18,7 +18,7 @@ package v1beta1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 const (
@@ -51,7 +51,7 @@ type NutanixFailureDomainSpec struct {
 type NutanixFailureDomainStatus struct {
 	// conditions represent the latest states of the failure domain.
 	// +optional
-	Conditions []capiv1.Condition `json:"conditions,omitempty"`
+	Conditions []capiv1beta1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -70,12 +70,12 @@ type NutanixFailureDomain struct {
 }
 
 // GetConditions returns the set of conditions for this object.
-func (nfd *NutanixFailureDomain) GetConditions() capiv1.Conditions {
+func (nfd *NutanixFailureDomain) GetConditions() capiv1beta1.Conditions {
 	return nfd.Status.Conditions
 }
 
 // SetConditions sets the conditions on this object.
-func (nfd *NutanixFailureDomain) SetConditions(conditions capiv1.Conditions) {
+func (nfd *NutanixFailureDomain) SetConditions(conditions capiv1beta1.Conditions) {
 	nfd.Status.Conditions = conditions
 }
 

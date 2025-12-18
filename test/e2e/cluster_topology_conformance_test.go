@@ -25,7 +25,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 var _ = Describe("When creating a cluster with topology and running kubetest/conformance", Label("clusterclass", "only-for-validation"), func() {
@@ -35,7 +35,7 @@ var _ = Describe("When creating a cluster with topology and running kubetest/con
 	var (
 		namespace      *corev1.Namespace
 		clusterName    string
-		cluster        *clusterv1.Cluster
+		cluster        *capiv1beta1.Cluster
 		cancelWatches  context.CancelFunc
 		testHelper     testHelperInterface
 		nutanixE2ETest *NutanixE2ETest

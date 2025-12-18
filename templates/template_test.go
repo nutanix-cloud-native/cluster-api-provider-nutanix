@@ -21,7 +21,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2/textlogger"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	clusterctllog "sigs.k8s.io/cluster-api/cmd/clusterctl/log"
 	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
@@ -48,7 +48,7 @@ func init() {
 	format.MaxLength = 100000
 	// Add NutanixCluster and NutanixMachine to the scheme
 	_ = v1beta1.AddToScheme(scheme.Scheme)
-	_ = capiv1.AddToScheme(scheme.Scheme)
+	_ = capiv1beta1.AddToScheme(scheme.Scheme)
 	_ = apiextensionsv1.AddToScheme(scheme.Scheme)
 	_ = controlplanev1.AddToScheme(scheme.Scheme)
 }
@@ -254,7 +254,7 @@ func fetchMachineTemplates(clnt client.Client, clusterName string) ([]*v1beta1.N
 
 	nmts := make([]*v1beta1.NutanixMachineTemplate, 0)
 	for _, nmt := range nutanixMachineTemplateList.Items {
-		if nmt.Labels[capiv1.ClusterNameLabel] == clusterName {
+		if nmt.Labels[capiv1beta1.ClusterNameLabel] == clusterName {
 			nmts = append(nmts, &nmt)
 		}
 	}
@@ -273,7 +273,7 @@ func fetchKubeadmControlPlane(clnt client.Client, clusterName string) (*controlp
 	}
 
 	for _, kcp := range kubeadmControlPlaneList.Items {
-		if kcp.Labels[capiv1.ClusterNameLabel] == clusterName {
+		if kcp.Labels[capiv1beta1.ClusterNameLabel] == clusterName {
 			return &kcp, nil
 		}
 	}

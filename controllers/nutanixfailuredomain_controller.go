@@ -25,7 +25,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -202,7 +202,7 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 		}
 
 		if nm.Status.FailureDomain != nil && *nm.Status.FailureDomain == fd.Name {
-			ntxMachines[nm.Name] = nm.GetLabels()[capiv1.ClusterNameLabel]
+			ntxMachines[nm.Name] = nm.GetLabels()[capiv1beta1.ClusterNameLabel]
 		}
 	}
 
@@ -216,7 +216,7 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 
 	errMsg := fmt.Sprintf("The failure domain is used by machines: %v", ntxMachines)
 	conditions.MarkFalse(fd, infrav1.FailureDomainSafeForDeletionCondition,
-		infrav1.FailureDomainInUseReason, capiv1.ConditionSeverityError, "%s", errMsg)
+		infrav1.FailureDomainInUseReason, capiv1beta1.ConditionSeverityError, "%s", errMsg)
 
 	reterr := fmt.Errorf("the failure domain %q is not safe for deletion since it is in use", fd.Name)
 	log.Error(reterr, errMsg)

@@ -36,7 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -99,7 +99,7 @@ func TestNutanixClusterReconciler_ConvergedClientCacheDeletion(t *testing.T) {
 		}
 
 		// Create cluster context
-		capiCluster := &capiv1.Cluster{
+		capiCluster := &capiv1beta1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-cluster",
 				Namespace: "default",
@@ -159,7 +159,7 @@ func TestNutanixClusterReconciler_ConvergedClientCacheDeletion(t *testing.T) {
 		}
 
 		// Create cluster context
-		capiCluster := &capiv1.Cluster{
+		capiCluster := &capiv1beta1.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-cluster",
 				Namespace: "default",
@@ -501,8 +501,8 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				// Add an ownerReference for a fake object
 				ntnxSecret.OwnerReferences = []metav1.OwnerReference{
 					{
-						APIVersion: capiv1.GroupVersion.String(),
-						Kind:       capiv1.ClusterKind,
+						APIVersion: capiv1beta1.GroupVersion.String(),
+						Kind:       capiv1beta1.ClusterKind,
 						UID:        ntnxCluster.UID,
 						Name:       r,
 					},
@@ -1205,7 +1205,7 @@ func TestNutanixClusterReconciler_SetupWithManager(t *testing.T) {
 	scheme := runtime.NewScheme()
 	err := infrav1.AddToScheme(scheme)
 	require.NoError(t, err)
-	err = capiv1.AddToScheme(scheme)
+	err = capiv1beta1.AddToScheme(scheme)
 	require.NoError(t, err)
 
 	restScope := mockmeta.NewMockRESTScope(mockCtrl)

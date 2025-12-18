@@ -41,7 +41,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -1067,7 +1067,7 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
-		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
 		return nil, err
 	}
 
@@ -1078,7 +1078,7 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 	})
 	if err != nil {
 		log.Error(err, "error occurred while getting nutanix prism v3 Client from cache")
-		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
 		return nil, fmt.Errorf("nutanix prism v3 Client error: %w", err)
 	}
 
@@ -1093,7 +1093,7 @@ func getPrismCentralConvergedV4ClientForCluster(ctx context.Context, cluster *in
 	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
-		conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
 		return nil, err
 	}
 
@@ -1103,7 +1103,7 @@ func getPrismCentralConvergedV4ClientForCluster(ctx context.Context, cluster *in
 	})
 	if err != nil {
 		log.Error(err, "error occurred while getting nutanix prism converged v4 client from cache")
-		conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
 		return nil, fmt.Errorf("nutanix prism converged v4 client error: %w", err)
 	}
 
