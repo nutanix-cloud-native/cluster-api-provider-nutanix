@@ -1016,7 +1016,7 @@ func gpuVendorStringToGpuVendor(vendor string) *vmmconfig.GpuVendor {
 }
 
 // GetLegacyFailureDomainFromNutanixCluster gets the failure domain with a given name from a NutanixCluster object.
-func GetLegacyFailureDomainFromNutanixCluster(failureDomainName string, nutanixCluster *infrav1.NutanixCluster) *infrav1.NutanixFailureDomainConfig { //nolint:staticcheck // suppress complaining on Deprecated package
+func GetLegacyFailureDomainFromNutanixCluster(failureDomainName string, nutanixCluster *infrav1.NutanixCluster) *infrav1.NutanixFailureDomainConfig { //nolint:staticcheck // suppress complaining on Deprecated type
 	for _, fd := range nutanixCluster.Spec.FailureDomains { //nolint:staticcheck // suppress complaining on Deprecated field
 		if fd.Name == failureDomainName {
 			return &fd

@@ -274,7 +274,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				g.Expect(result.RequeueAfter).To(BeZero())
 			})
 			It("should not error and not requeue if failure domains (deprecated) are configured and cluster is Ready", func() {
-				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{{ //nolint:staticcheck // suppress complaining on Deprecated package
+				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{{ //nolint:staticcheck // suppress complaining on Deprecated field and type
 					Name: "fd-1",
 					Cluster: infrav1.NutanixResourceIdentifier{
 						Type: infrav1.NutanixIdentifierName,
