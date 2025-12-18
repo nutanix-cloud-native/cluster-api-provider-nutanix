@@ -36,7 +36,7 @@ import (
 	capiutil "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	v1beta1conditions "sigs.k8s.io/cluster-api/util/conditions"
-	"sigs.k8s.io/cluster-api/util/patch"
+	v1beta1patch "sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -196,7 +196,7 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	log.Info(fmt.Sprintf("Fetched the owner Cluster: %s", capiCluster.Name))
 
 	// Initialize the patch helper.
-	patchHelper, err := patch.NewHelper(cluster, r.Client)
+	patchHelper, err := v1beta1patch.NewHelper(cluster, r.Client)
 	if err != nil {
 		log.Error(err, "Failed to configure the patch helper")
 		return ctrl.Result{Requeue: true}, nil

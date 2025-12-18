@@ -29,7 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
+	controlplanev1beta1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -190,7 +190,7 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 					gstruct.MatchFields(
 						gstruct.IgnoreExtras,
 						gstruct.Fields{
-							"Type":   Equal(controlplanev1.MachinesSpecUpToDateCondition),
+							"Type":   Equal(controlplanev1beta1.MachinesSpecUpToDateCondition),
 							"Status": Equal(corev1.ConditionTrue),
 						},
 					),

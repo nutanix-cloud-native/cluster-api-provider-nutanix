@@ -23,7 +23,7 @@ import (
 	"k8s.io/utils/ptr"
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	clusterctllog "sigs.k8s.io/cluster-api/cmd/clusterctl/log"
-	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
+	controlplanev1beta1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -50,7 +50,7 @@ func init() {
 	_ = v1beta1.AddToScheme(scheme.Scheme)
 	_ = capiv1beta1.AddToScheme(scheme.Scheme)
 	_ = apiextensionsv1.AddToScheme(scheme.Scheme)
-	_ = controlplanev1.AddToScheme(scheme.Scheme)
+	_ = controlplanev1beta1.AddToScheme(scheme.Scheme)
 }
 
 func teardownTestEnvironment() error {
@@ -266,8 +266,8 @@ func fetchMachineTemplates(clnt client.Client, clusterName string) ([]*v1beta1.N
 	return nmts, nil
 }
 
-func fetchKubeadmControlPlane(clnt client.Client, clusterName string) (*controlplanev1.KubeadmControlPlane, error) {
-	kubeadmControlPlaneList := &controlplanev1.KubeadmControlPlaneList{}
+func fetchKubeadmControlPlane(clnt client.Client, clusterName string) (*controlplanev1beta1.KubeadmControlPlane, error) {
+	kubeadmControlPlaneList := &controlplanev1beta1.KubeadmControlPlaneList{}
 	if err := clnt.List(context.Background(), kubeadmControlPlaneList, &client.ListOptions{Namespace: defaultNamespace}); err != nil {
 		return nil, fmt.Errorf("failed to list KubeadmControlPlane: %w", err)
 	}
@@ -402,7 +402,7 @@ var _ = Describe("Cluster Class Template Patches Test Suite", Ordered, func() {
 			Expect(nutanixCluster.Spec.ControlPlaneEndpoint.Host).To(Equal("1.2.3.4"))
 			Expect(nutanixCluster.Spec.ControlPlaneEndpoint.Port).To(Equal(int32(6443)))
 
-			var kubeadmcontrolplane *controlplanev1.KubeadmControlPlane
+			var kubeadmcontrolplane *controlplanev1beta1.KubeadmControlPlane
 			Eventually(func() error {
 				kcp, err := fetchKubeadmControlPlane(clnt, obj.GetName())
 				kubeadmcontrolplane = kcp

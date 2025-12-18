@@ -27,7 +27,7 @@ import (
 	"k8s.io/utils/ptr"
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	v1beta1conditions "sigs.k8s.io/cluster-api/util/conditions"
-	"sigs.k8s.io/cluster-api/util/patch"
+	v1beta1patch "sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -150,7 +150,7 @@ func (r *NutanixFailureDomainReconciler) Reconcile(ctx context.Context, req ctrl
 	}
 
 	// Initialize the patch helper.
-	patchHelper, err := patch.NewHelper(fd, r.Client)
+	patchHelper, err := v1beta1patch.NewHelper(fd, r.Client)
 	if err != nil {
 		log.Error(err, "Failed to configure the patch helper")
 		return ctrl.Result{Requeue: true}, nil

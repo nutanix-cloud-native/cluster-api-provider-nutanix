@@ -40,7 +40,7 @@ import (
 	capiutil "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	v1beta1conditions "sigs.k8s.io/cluster-api/util/conditions"
-	"sigs.k8s.io/cluster-api/util/patch"
+	v1beta1patch "sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -247,7 +247,7 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// Initialize the patch helper.
-	patchHelper, err := patch.NewHelper(ntxMachine, r.Client)
+	patchHelper, err := v1beta1patch.NewHelper(ntxMachine, r.Client)
 	if err != nil {
 		log.Error(err, "failed to configure the patch helper")
 		return ctrl.Result{Requeue: true}, nil
@@ -1110,7 +1110,7 @@ func (r *NutanixMachineReconciler) getBootstrapData(rctx *nctx.MachineContext) (
 
 func (r *NutanixMachineReconciler) patchMachine(rctx *nctx.MachineContext) error {
 	log := ctrl.LoggerFrom(rctx.Context)
-	patchHelper, err := patch.NewHelper(rctx.NutanixMachine, r.Client)
+	patchHelper, err := v1beta1patch.NewHelper(rctx.NutanixMachine, r.Client)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to create patch helper to patch machine %s: %v", rctx.NutanixMachine.Name, err)
 		return errorMsg
