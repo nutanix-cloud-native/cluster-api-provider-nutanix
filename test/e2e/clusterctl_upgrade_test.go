@@ -42,7 +42,7 @@ import (
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/test/e2e/log"
 )
 
-var _ = Describe("clusterctl upgrade CAPX (v1.7.2 => current)", Label("clusterctl-upgrade"), func() {
+var _ = Describe("clusterctl upgrade CAPX (v1.8.3 => current)", Label("clusterctl-upgrade"), func() {
 	var (
 		kubernetesVersion                      string
 		nutanixMachineTemplateImageName        string
@@ -90,12 +90,12 @@ var _ = Describe("clusterctl upgrade CAPX (v1.7.2 => current)", Label("clusterct
 			BootstrapClusterProxy:           bootstrapClusterProxy,
 			ArtifactFolder:                  artifactFolder,
 			SkipCleanup:                     skipCleanup,
-			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.11.3/clusterctl-{OS}-{ARCH}",
+			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.11.4/clusterctl-{OS}-{ARCH}",
 			InitWithKubernetesVersion:       kubernetesVersion,
-			InitWithCoreProvider:            "cluster-api:v1.11.3",
-			InitWithBootstrapProviders:      []string{"kubeadm:v1.11.3"},
-			InitWithControlPlaneProviders:   []string{"kubeadm:v1.11.3"},
-			InitWithInfrastructureProviders: []string{"nutanix:v1.7.2"},
+			InitWithCoreProvider:            "cluster-api:v1.11.4",
+			InitWithBootstrapProviders:      []string{"kubeadm:v1.11.4"},
+			InitWithControlPlaneProviders:   []string{"kubeadm:v1.11.4"},
+			InitWithInfrastructureProviders: []string{"nutanix:v1.8.3"},
 			PreWaitForCluster:               preWaitForCluster,
 			PostUpgrade:                     postUpgradeFunc,
 		}
@@ -111,7 +111,7 @@ func createPreWaitForClusterFunc(testInputFunc func() capie2e.ClusterctlUpgradeS
 
 		By("Get latest version of CAPX provider")
 
-		latestVersionString := "v1.7.2"
+		latestVersionString := "v1.8.3"
 		latestVersion, err := semver.ParseTolerant(latestVersionString)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -170,7 +170,7 @@ func createPostUpgradeFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInp
 
 		yamlProc := yaml.NewSimpleProcessor()
 
-		latestVersionString := "v1.7.2"
+		latestVersionString := "v1.8.3"
 		latestVersion, err := semver.ParseTolerant(latestVersionString)
 		Expect(err).NotTo(HaveOccurred())
 
