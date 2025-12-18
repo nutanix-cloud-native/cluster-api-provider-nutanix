@@ -1114,9 +1114,9 @@ func getPrismCentralConvergedV4ClientForCluster(ctx context.Context, cluster *in
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
 		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
 		v1beta2conditions.Set(cluster, metav1.Condition{
-			Type:    string(infrav1.PrismCentralV4ClientCondition),
+			Type:    string(infrav1.PrismCentralConvergedV4ClientCondition),
 			Status:  metav1.ConditionFalse,
-			Reason:  infrav1.PrismCentralV4ClientInitializationFailed,
+			Reason:  infrav1.PrismCentralConvergedV4ClientInitializationFailed,
 			Message: err.Error(),
 		})
 		return nil, err
