@@ -28,7 +28,7 @@ import (
 	"github.com/onsi/gomega/types"
 	corev1 "k8s.io/api/core/v1"
 
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/util"
 )

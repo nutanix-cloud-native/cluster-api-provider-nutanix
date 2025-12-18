@@ -38,7 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/test/framework/bootstrap"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
@@ -63,11 +63,9 @@ const (
 	defaultSystemDiskSize = "40Gi"
 	defaultBootType       = "legacy"
 
-	categoryKeyVarKey   = "NUTANIX_ADDITIONAL_CATEGORY_KEY"
-	categoryValueVarKey = "NUTANIX_ADDITIONAL_CATEGORY_VALUE"
-	imageVarKey         = "NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME"
-	clusterVarKey       = "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME"
-	subnetVarKey        = "NUTANIX_SUBNET_NAME"
+	imageVarKey   = "NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME"
+	clusterVarKey = "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME"
+	subnetVarKey  = "NUTANIX_SUBNET_NAME"
 
 	nameType = "name"
 
@@ -855,7 +853,6 @@ func (t testHelper) verifyNewFailureDomainsOnClusterMachines(ctx context.Context
 type verifyFailureMessageOnClusterMachinesParams struct {
 	clusterName            string
 	namespace              *corev1.Namespace
-	expectedPhase          string
 	expectedFailureMessage string
 	bootstrapClusterProxy  framework.ClusterProxy
 }
@@ -865,7 +862,7 @@ func (t testHelper) verifyFailureMessageOnClusterMachines(ctx context.Context, p
 		nutanixMachines := t.getMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
 		for _, m := range nutanixMachines.Items {
 			machineStatus := m.Status
-			if machineStatus.Phase == params.expectedPhase && machineStatus.FailureMessage != nil && strings.Contains(*machineStatus.FailureMessage, params.expectedFailureMessage) { //nolint:staticcheck // deprecated field needed for compatibility
+			if machineStatus.FailureMessage != nil && strings.Contains(*machineStatus.FailureMessage, params.expectedFailureMessage) { //nolint:staticcheck // deprecated field needed for compatibility
 				return true
 			}
 		}

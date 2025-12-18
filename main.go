@@ -38,8 +38,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
+	bootstrapv1beta2 "sigs.k8s.io/cluster-api/api/bootstrap/kubeadm/v1beta2"
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	capiflags "sigs.k8s.io/cluster-api/util/flags"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -61,8 +61,8 @@ var gitCommitHash string
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(capiv1beta1.AddToScheme(scheme))
-	utilruntime.Must(bootstrapv1.AddToScheme(scheme))
+	utilruntime.Must(capiv1beta2.AddToScheme(scheme))
+	utilruntime.Must(bootstrapv1beta2.AddToScheme(scheme))
 	utilruntime.Must(infrav1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
@@ -107,7 +107,7 @@ func compositeRateLimiter(baseDelay, maxDelay time.Duration, bucketSize, qps int
 	}
 	exponentialBackoffLimiter := workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](baseDelay, maxDelay)
 	bucketLimiter := &workqueue.TypedBucketRateLimiter[reconcile.Request]{Limiter: rate.NewLimiter(rate.Limit(qps), bucketSize)}
-	return workqueue.NewTypedMaxOfRateLimiter[reconcile.Request](exponentialBackoffLimiter, bucketLimiter), nil
+	return workqueue.NewTypedMaxOfRateLimiter(exponentialBackoffLimiter, bucketLimiter), nil
 }
 
 // validateRateLimiterConfig validates the rate limiter configuration parameters

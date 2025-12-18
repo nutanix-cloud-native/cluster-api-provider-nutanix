@@ -41,8 +41,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	v1beta1conditions "sigs.k8s.io/cluster-api/util/conditions"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"                         //nolint:staticcheck // suppress complaining on Deprecated package
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions" //nolint:staticcheck // suppress complaining on Deprecated package
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"

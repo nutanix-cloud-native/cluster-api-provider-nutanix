@@ -25,7 +25,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
@@ -108,7 +108,6 @@ var _ = Describe("Nutanix projects", Label("nutanix-feature-test", "projects"), 
 			testHelper.verifyFailureMessageOnClusterMachines(ctx, verifyFailureMessageOnClusterMachinesParams{
 				clusterName:            clusterName,
 				namespace:              namespace,
-				expectedPhase:          "Failed",
 				expectedFailureMessage: "failed to retrieve project",
 				bootstrapClusterProxy:  bootstrapClusterProxy,
 			})

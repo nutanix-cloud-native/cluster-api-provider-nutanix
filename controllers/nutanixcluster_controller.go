@@ -32,11 +32,11 @@ import (
 	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 	capiutil "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
-	v1beta1conditions "sigs.k8s.io/cluster-api/util/conditions"
-	v1beta1patch "sigs.k8s.io/cluster-api/util/patch"
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions" //nolint:staticcheck // suppress complaining on Deprecated package
+	v1beta1patch "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"           //nolint:staticcheck // suppress complaining on Deprecated package
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -97,7 +97,7 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 					&infrav1.NutanixCluster{},
 				),
 			),
-			builder.WithPredicates(predicates.ClusterPausedTransitionsOrInfrastructureReady(r.Scheme, ctrl.LoggerFrom(ctx))),
+			builder.WithPredicates(predicates.ClusterPausedTransitionsOrInfrastructureProvisioned(r.Scheme, ctrl.LoggerFrom(ctx))),
 		).
 		Watches(
 			&infrav1.NutanixFailureDomain{},

@@ -31,8 +31,9 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
+	"k8s.io/utils/ptr"
+	bootstrapv1beta2 "sigs.k8s.io/cluster-api/api/bootstrap/kubeadm/v1beta2"
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	yaml "sigs.k8s.io/cluster-api/cmd/clusterctl/client/yamlprocessor"
 	capie2e "sigs.k8s.io/cluster-api/test/e2e"
 	"sigs.k8s.io/cluster-api/test/framework"
@@ -89,11 +90,11 @@ var _ = Describe("clusterctl upgrade CAPX (v1.7.1 => current)", Label("clusterct
 			BootstrapClusterProxy:           bootstrapClusterProxy,
 			ArtifactFolder:                  artifactFolder,
 			SkipCleanup:                     skipCleanup,
-			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.10.3/clusterctl-{OS}-{ARCH}",
+			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.11.4/clusterctl-{OS}-{ARCH}",
 			InitWithKubernetesVersion:       kubernetesVersion,
-			InitWithCoreProvider:            "cluster-api:v1.10.3",
-			InitWithBootstrapProviders:      []string{"kubeadm:v1.10.3"},
-			InitWithControlPlaneProviders:   []string{"kubeadm:v1.10.3"},
+			InitWithCoreProvider:            "cluster-api:v1.11.4",
+			InitWithBootstrapProviders:      []string{"kubeadm:v1.11.4"},
+			InitWithControlPlaneProviders:   []string{"kubeadm:v1.11.4"},
 			InitWithInfrastructureProviders: []string{"nutanix:v1.7.1"},
 			PreWaitForCluster:               preWaitForCluster,
 			PostUpgrade:                     postUpgradeFunc,
@@ -217,7 +218,7 @@ func createPostUpgradeFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInp
 		// Update Clusters with Nutanix CCM label
 		log.Debugf("Updating Clusters with Nutanix CCM label")
 		// List all clusters
-		clusterList := &capiv1beta1.ClusterList{}
+		clusterList := &capiv1beta2.ClusterList{}
 		err = managementClusterProxy.GetClient().List(context.Background(), clusterList)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -255,22 +256,23 @@ func createPostUpgradeFunc(testInputFunc func() capie2e.ClusterctlUpgradeSpecInp
 
 		By("Update KubeadmConfigTemplate with kubeletExtraArgs cloud-provider: external")
 		// List all KubeadmConfigTemplates
-		kubeadmConfigTemplateList := &bootstrapv1.KubeadmConfigTemplateList{}
+		kubeadmConfigTemplateList := &bootstrapv1beta2.KubeadmConfigTemplateList{}
 		err = managementClusterProxy.GetClient().List(context.Background(), kubeadmConfigTemplateList)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Update all KubeadmConfigTemplates
 		for _, kubeadmConfigTemplate := range kubeadmConfigTemplateList.Items {
-			if kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration == nil {
-				kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration = &bootstrapv1.JoinConfiguration{
-					NodeRegistration: bootstrapv1.NodeRegistrationOptions{},
+			args := kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs
+			updatedArgs := make([]bootstrapv1beta2.Arg, 0)
+			for _, arg := range args {
+				if arg.Name == "cloud-provider" {
+					continue
 				}
+				updatedArgs = append(updatedArgs, arg)
 			}
-			if kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs == nil {
-				kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs = map[string]string{}
-			}
+			updatedArgs = append(updatedArgs, bootstrapv1beta2.Arg{Name: "cloud-provider", Value: ptr.To("external")})
+			kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs = updatedArgs
 
-			kubeadmConfigTemplate.Spec.Template.Spec.JoinConfiguration.NodeRegistration.KubeletExtraArgs["cloud-provider"] = "external"
 			err = managementClusterProxy.GetClient().Update(context.Background(), &kubeadmConfigTemplate)
 			Expect(err).NotTo(HaveOccurred())
 			log.Debugf("Updated KubeadmConfigTemplate %s/%s with kubeletExtraArgs cloud-provider: external", kubeadmConfigTemplate.Namespace, kubeadmConfigTemplate.Name)

@@ -25,9 +25,9 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	v1beta1conditions "sigs.k8s.io/cluster-api/util/conditions"
-	v1beta1patch "sigs.k8s.io/cluster-api/util/patch"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"                         //nolint:staticcheck // suppress complaining on Deprecated package
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions" //nolint:staticcheck // suppress complaining on Deprecated package
+	v1beta1patch "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"           //nolint:staticcheck // suppress complaining on Deprecated package
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
