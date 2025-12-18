@@ -26,7 +26,7 @@ import (
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -207,7 +207,7 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 	}
 
 	if len(ntxMachines) == 0 {
-		conditions.MarkTrue(fd, infrav1.FailureDomainSafeForDeletionCondition)
+		v1beta1conditions.MarkTrue(fd, infrav1.FailureDomainSafeForDeletionCondition)
 
 		// Remove the finalizer from the failure domain object
 		ctrlutil.RemoveFinalizer(fd, infrav1.NutanixFailureDomainFinalizer)
@@ -215,7 +215,7 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 	}
 
 	errMsg := fmt.Sprintf("The failure domain is used by machines: %v", ntxMachines)
-	conditions.MarkFalse(fd, infrav1.FailureDomainSafeForDeletionCondition,
+	v1beta1conditions.MarkFalse(fd, infrav1.FailureDomainSafeForDeletionCondition,
 		infrav1.FailureDomainInUseReason, capiv1beta1.ConditionSeverityError, "%s", errMsg)
 
 	reterr := fmt.Errorf("the failure domain %q is not safe for deletion since it is in use", fd.Name)
@@ -228,7 +228,7 @@ func (r *NutanixFailureDomainReconciler) reconcileNormal(ctx context.Context, fd
 	log.Info("Handling NutanixFailureDomain reconciling")
 
 	// Remove the FailureDomainSafeForDeletionCondition if there are any
-	conditions.Delete(fd, infrav1.FailureDomainSafeForDeletionCondition)
+	v1beta1conditions.Delete(fd, infrav1.FailureDomainSafeForDeletionCondition)
 
 	return ctrl.Result{}, nil
 }
