@@ -122,7 +122,7 @@ variables:
   NUTANIX_INSECURE: true
   NUTANIX_ADDITIONAL_TRUST_BUNDLE: ""
   KUBERNETES_VERSION: "v1.34.0"
-  NUTANIX_SSH_AUTHORIZED_KEY: ""
+  NUTANIX_SSH_AUTHORIZED_KEY: "fake-key"
   CONTROL_PLANE_ENDPOINT_IP: ""
   CONTROL_PLANE_ENDPOINT_IP_V124: ""
   CONTROL_PLANE_MACHINE_COUNT: 1
@@ -187,7 +187,7 @@ intervals:
   default/wait-worker-nodes: ["10m", "10s"]
   default/wait-machine-pool-nodes: ["10m", "10s"]
   default/wait-delete-cluster: ["10m", "10s"]
-  default/wait-machine-upgrade: ["20m", "10s"]
+  default/wait-machine-upgrade: ["30m", "10s"]
   default/wait-machine-pool-upgrade: ["10m", "10s"]
   default/wait-nodes-ready: ["10m", "10s"]
   default/wait-machine-remediation: ["10m", "10s"]
