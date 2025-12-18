@@ -39,10 +39,12 @@ import (
 	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"                         //nolint:staticcheck // suppress complaining on Deprecated package
-	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions" //nolint:staticcheck // suppress complaining on Deprecated package
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"                                 //nolint:staticcheck // suppress complaining on Deprecated package
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"         //nolint:staticcheck // suppress complaining on Deprecated package
+	v1beta2conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions/v1beta2" //nolint:staticcheck // suppress complaining on Deprecated package
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
@@ -1068,6 +1070,12 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
 		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
+		v1beta2conditions.Set(cluster, metav1.Condition{
+			Type:    string(infrav1.PrismCentralClientCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.PrismCentralClientInitializationFailed,
+			Message: err.Error(),
+		})
 		return nil, err
 	}
 
@@ -1079,10 +1087,21 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 	if err != nil {
 		log.Error(err, "error occurred while getting nutanix prism v3 Client from cache")
 		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
+		v1beta2conditions.Set(cluster, metav1.Condition{
+			Type:    string(infrav1.PrismCentralClientCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.PrismCentralClientInitializationFailed,
+			Message: err.Error(),
+		})
 		return nil, fmt.Errorf("nutanix prism v3 Client error: %w", err)
 	}
 
 	v1beta1conditions.MarkTrue(cluster, infrav1.PrismCentralClientCondition)
+	v1beta2conditions.Set(cluster, metav1.Condition{
+		Type:   string(infrav1.PrismCentralClientCondition),
+		Status: metav1.ConditionTrue,
+		Reason: infrav1.Succeeded,
+	})
 	return v3Client, nil
 }
 
@@ -1094,6 +1113,12 @@ func getPrismCentralConvergedV4ClientForCluster(ctx context.Context, cluster *in
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
 		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
+		v1beta2conditions.Set(cluster, metav1.Condition{
+			Type:    string(infrav1.PrismCentralV4ClientCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.PrismCentralV4ClientInitializationFailed,
+			Message: err.Error(),
+		})
 		return nil, err
 	}
 
@@ -1104,10 +1129,21 @@ func getPrismCentralConvergedV4ClientForCluster(ctx context.Context, cluster *in
 	if err != nil {
 		log.Error(err, "error occurred while getting nutanix prism converged v4 client from cache")
 		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
+		v1beta2conditions.Set(cluster, metav1.Condition{
+			Type:    string(infrav1.PrismCentralConvergedV4ClientCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.PrismCentralConvergedV4ClientInitializationFailed,
+			Message: err.Error(),
+		})
 		return nil, fmt.Errorf("nutanix prism converged v4 client error: %w", err)
 	}
 
 	v1beta1conditions.MarkTrue(cluster, infrav1.PrismCentralConvergedV4ClientCondition)
+	v1beta2conditions.Set(cluster, metav1.Condition{
+		Type:   string(infrav1.PrismCentralConvergedV4ClientCondition),
+		Status: metav1.ConditionTrue,
+		Reason: infrav1.Succeeded,
+	})
 	return client, nil
 }
 

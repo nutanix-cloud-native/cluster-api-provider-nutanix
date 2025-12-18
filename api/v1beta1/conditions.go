@@ -19,6 +19,8 @@ package v1beta1
 import capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 
 const (
+	Succeeded = "Succeeded"
+
 	DeletionFailed = "DeletionFailed"
 
 	VolumeGroupDetachFailed = "VolumeGroupDetachFailed"

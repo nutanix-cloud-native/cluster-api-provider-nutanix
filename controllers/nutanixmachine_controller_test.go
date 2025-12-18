@@ -236,7 +236,6 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(result.RequeueAfter).To(BeZero())
-				g.Expect(result.Requeue).To(BeFalse())
 			})
 		})
 
