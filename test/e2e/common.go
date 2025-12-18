@@ -28,24 +28,18 @@ import (
 	"github.com/onsi/gomega/types"
 	corev1 "k8s.io/api/core/v1"
 
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/util"
 )
 
 // Test suite constants for e2e config variables.
 const (
-	KubernetesVersionManagement     = "KUBERNETES_VERSION_MANAGEMENT"
-	KubernetesVersion               = "KUBERNETES_VERSION"
-	CNIPath                         = "CNI"
-	CNIResources                    = "CNI_RESOURCES"
-	KubernetesVersionUpgradeFrom    = "KUBERNETES_VERSION_UPGRADE_FROM"
-	KubernetesVersionUpgradeTo      = "KUBERNETES_VERSION_UPGRADE_TO"
-	CPMachineTemplateUpgradeTo      = "CONTROL_PLANE_MACHINE_TEMPLATE_UPGRADE_TO"
-	WorkersMachineTemplateUpgradeTo = "WORKERS_MACHINE_TEMPLATE_UPGRADE_TO"
-	EtcdVersionUpgradeTo            = "ETCD_VERSION_UPGRADE_TO"
-	CoreDNSVersionUpgradeTo         = "COREDNS_VERSION_UPGRADE_TO"
-	IPFamily                        = "IP_FAMILY"
+	KubernetesVersionManagement = "KUBERNETES_VERSION_MANAGEMENT"
+	KubernetesVersion           = "KUBERNETES_VERSION"
+	CNIPath                     = "CNI"
+	CNIResources                = "CNI_RESOURCES"
+	IPFamily                    = "IP_FAMILY"
 )
 
 func Byf(format string, a ...interface{}) {
@@ -72,7 +66,7 @@ func unsetupNamespace(ctx context.Context, specName string, clusterProxy framewo
 	})
 }
 
-func dumpSpecResourcesAndCleanup(ctx context.Context, specName string, clusterProxy framework.ClusterProxy, artifactFolder string, namespace *corev1.Namespace, cancelWatches context.CancelFunc, cluster *capiv1beta1.Cluster, intervalsGetter func(spec, key string) []interface{}, skipCleanup bool) {
+func dumpSpecResourcesAndCleanup(ctx context.Context, specName string, clusterProxy framework.ClusterProxy, artifactFolder string, namespace *corev1.Namespace, cancelWatches context.CancelFunc, cluster *capiv1beta2.Cluster, intervalsGetter func(spec, key string) []interface{}, skipCleanup bool) {
 	Byf("Dumping logs from the %q workload cluster", cluster.Name)
 
 	// Dump all the logs from the workload cluster before deleting them.
