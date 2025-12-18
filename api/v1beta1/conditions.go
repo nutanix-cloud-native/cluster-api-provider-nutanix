@@ -45,6 +45,9 @@ const (
 	// FailureDomainsMisconfiguredReason (Severity=Warning) indicates that some of the failure domains
 	// are misconfigured.
 	FailureDomainsMisconfiguredReason = "FailureDomainsMisconfigured"
+
+	// FailureDomainsValidatedCondition indicates that the failure domains are being validated.
+	FailureDomainsValidationInProgressReason = "FailureDomainsValidationInProgress"
 )
 
 const (
