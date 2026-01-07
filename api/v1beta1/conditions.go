@@ -43,6 +43,13 @@ const (
 	// FailureDomainsMisconfiguredReason (Severity=Warning) indicates that some of the failure domains
 	// are misconfigured.
 	FailureDomainsMisconfiguredReason = "FailureDomainsMisconfigured"
+
+	// FailureDomainMatchCondition indicates whether the machine's VM is in the correct failure domain
+	FailureDomainMatchCondition capiv1.ConditionType = "FailureDomainMatch"
+
+	// FailureDomainMismatchReason (Severity=Error) indicates that the machine's VM is in a different
+	// failure domain than specified in Machine.Spec.FailureDomain and needs to be recreated
+	FailureDomainMismatchReason = "FailureDomainMismatch"
 )
 
 const (

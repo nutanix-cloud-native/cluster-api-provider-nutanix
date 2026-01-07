@@ -429,6 +429,14 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		}
 		log.Info(fmt.Sprintf("The NutanixMachine is ready, providerID: %s", rctx.NutanixMachine.Spec.ProviderID))
 
+		// Check for failure domain mismatch on ready machines
+		if err := r.checkForFailureDomainMismatch(rctx); err != nil {
+			log.Error(err, "Failure domain mismatch detected on ready machine")
+			// Mark the machine as failed so CAPI will replace it
+			rctx.SetFailureStatus("FailureDomainMismatch", err)
+			return reconcile.Result{}, err
+		}
+
 		return reconcile.Result{}, nil
 	}
 
@@ -579,6 +587,87 @@ func (r *NutanixMachineReconciler) getFailureDomainSpec(rctx *nctx.MachineContex
 		return nil, fmt.Errorf("failed to fetch the referent failure domain object %q: %w", fdName, err)
 	}
 	return &fdObj.Spec, nil
+}
+
+// checkForFailureDomainMismatch checks if an existing machine's VM needs to be recreated due to failure domain configuration changes.
+func (r *NutanixMachineReconciler) checkForFailureDomainMismatch(rctx *nctx.MachineContext) error {
+	log := ctrl.LoggerFrom(rctx.Context)
+
+	desiredFD := rctx.Machine.Spec.FailureDomain
+	currentFD := rctx.NutanixMachine.Status.FailureDomain
+
+	// No failure domain specified in Machine.Spec
+	if desiredFD == nil || *desiredFD == "" {
+		if currentFD != nil && *currentFD != "" {
+			// Machine was created with FD but now doesn't have one
+			log.Info("Failure domain mismatch detected: machine was created with failure domain but none is specified now",
+				"currentFailureDomain", *currentFD)
+			conditions.MarkFalse(rctx.NutanixMachine, infrav1.FailureDomainMatchCondition,
+				infrav1.FailureDomainMismatchReason, capiv1.ConditionSeverityError,
+				"Machine was created with failure domain %s but Machine.Spec.FailureDomain is not set", *currentFD)
+			return fmt.Errorf("failure domain mismatch: machine has failure domain %s but Machine.Spec.FailureDomain is not set", *currentFD)
+		}
+		conditions.MarkTrue(rctx.NutanixMachine, infrav1.FailureDomainMatchCondition)
+		return nil
+	}
+
+	// Failure domain specified but machine doesn't have one set yet
+	if currentFD == nil || *currentFD == "" {
+		log.Info("Failure domain mismatch detected: machine needs to be recreated in failure domain",
+			"desiredFailureDomain", *desiredFD)
+		conditions.MarkFalse(rctx.NutanixMachine, infrav1.FailureDomainMatchCondition,
+			infrav1.FailureDomainMismatchReason, capiv1.ConditionSeverityError,
+			"Machine needs to be recreated in failure domain %s", *desiredFD)
+		return fmt.Errorf("failure domain mismatch: Machine.Spec.FailureDomain is %s but machine was not created with a failure domain", *desiredFD)
+	}
+
+	// Both are set, check if they match
+	if *desiredFD != *currentFD {
+		log.Info("Failure domain mismatch detected: machine needs to be recreated in different failure domain",
+			"desiredFailureDomain", *desiredFD,
+			"currentFailureDomain", *currentFD)
+		conditions.MarkFalse(rctx.NutanixMachine, infrav1.FailureDomainMatchCondition,
+			infrav1.FailureDomainMismatchReason, capiv1.ConditionSeverityError,
+			"Machine is in failure domain %s but needs to be in %s", *currentFD, *desiredFD)
+		return fmt.Errorf("failure domain mismatch: machine is in failure domain %s but Machine.Spec.FailureDomain is %s", *currentFD, *desiredFD)
+	}
+
+	// Failure domains match - validate that the VM configuration matches the FD spec
+	fdSpec, err := r.getFailureDomainSpec(rctx, *desiredFD)
+	if err != nil {
+		log.Error(err, "Failed to get failure domain spec for mismatch check")
+		return err
+	}
+
+	// Check if the machine's cluster and subnets match the failure domain spec
+	errMessages := []string{}
+	if !rctx.NutanixMachine.Spec.Cluster.EqualTo(&fdSpec.PrismElementCluster) {
+		errMessages = append(errMessages,
+			fmt.Sprintf("cluster mismatch: NutanixMachine.spec.cluster=%s, FailureDomain.spec.prismElementCluster=%s",
+				rctx.NutanixMachine.Spec.Cluster.DisplayString(),
+				fdSpec.PrismElementCluster.DisplayString()))
+	}
+	if !resourceIdsEquals(rctx.NutanixMachine.Spec.Subnets, fdSpec.Subnets) {
+		errMessages = append(errMessages,
+			fmt.Sprintf("subnets mismatch: NutanixMachine.spec.subnets=%v, FailureDomain.spec.subnets=%v",
+				rctx.NutanixMachine.Spec.Subnets,
+				fdSpec.Subnets))
+	}
+
+	if len(errMessages) > 0 {
+		errorMsg := strings.Join(errMessages, "; ")
+		log.Info("Failure domain configuration mismatch detected",
+			"failureDomain", *desiredFD,
+			"mismatches", errorMsg)
+		conditions.MarkFalse(rctx.NutanixMachine, infrav1.FailureDomainMatchCondition,
+			infrav1.FailureDomainMismatchReason, capiv1.ConditionSeverityError,
+			"Machine configuration does not match failure domain %s: %s", *desiredFD, errorMsg)
+		return fmt.Errorf("failure domain configuration mismatch for failure domain %s: %s", *desiredFD, errorMsg)
+	}
+
+	conditions.MarkTrue(rctx.NutanixMachine, infrav1.FailureDomainMatchCondition)
+	log.V(1).Info("Failure domain configuration matches", "failureDomain", *desiredFD)
+	return nil
 }
 
 func (r *NutanixMachineReconciler) validateFailureDomainSpec(rctx *nctx.MachineContext, fdSpec *infrav1.NutanixFailureDomainSpec) error {

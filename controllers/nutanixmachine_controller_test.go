@@ -225,6 +225,141 @@ func TestNutanixMachineReconciler(t *testing.T) {
 			})
 		})
 
+		Context("Validate failure domain mismatch detection", func() {
+			It("should pass if no failure domain is specified in Machine.Spec", func() {
+				mctx := &nctx.MachineContext{
+					Context:        ctx,
+					NutanixMachine: ntnxMachine,
+					Machine:        machine,
+					NutanixCluster: ntnxCluster,
+				}
+				err := reconciler.checkForFailureDomainMismatch(mctx)
+				g.Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("should pass if failure domains match and configuration is consistent", func() {
+				// Create the NutanixFailureDomain object
+				g.Expect(k8sClient.Create(ctx, fdObj)).To(Succeed())
+
+				machine.Spec.FailureDomain = &fdObj.Name
+				ntnxMachine.Spec.Cluster = fdObj.Spec.PrismElementCluster
+				ntnxMachine.Spec.Subnets = fdObj.Spec.Subnets
+				ntnxMachine.Status.FailureDomain = &fdObj.Name
+				mctx := &nctx.MachineContext{
+					Context:        ctx,
+					NutanixMachine: ntnxMachine,
+					Machine:        machine,
+					NutanixCluster: ntnxCluster,
+				}
+				err := reconciler.checkForFailureDomainMismatch(mctx)
+				g.Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("should error if Machine.Spec.FailureDomain is set but NutanixMachine.Status.FailureDomain is empty", func() {
+				// Create the NutanixFailureDomain object
+				g.Expect(k8sClient.Create(ctx, fdObj)).To(Succeed())
+
+				machine.Spec.FailureDomain = &fdObj.Name
+				ntnxMachine.Status.FailureDomain = nil
+				mctx := &nctx.MachineContext{
+					Context:        ctx,
+					NutanixMachine: ntnxMachine,
+					Machine:        machine,
+					NutanixCluster: ntnxCluster,
+				}
+				err := reconciler.checkForFailureDomainMismatch(mctx)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("Machine.Spec.FailureDomain is"))
+				g.Expect(err.Error()).To(ContainSubstring("but machine was not created with a failure domain"))
+			})
+
+			It("should error if NutanixMachine.Status.FailureDomain is set but Machine.Spec.FailureDomain is empty", func() {
+				fdName := "test-fd"
+				ntnxMachine.Status.FailureDomain = &fdName
+				machine.Spec.FailureDomain = nil
+				mctx := &nctx.MachineContext{
+					Context:        ctx,
+					NutanixMachine: ntnxMachine,
+					Machine:        machine,
+					NutanixCluster: ntnxCluster,
+				}
+				err := reconciler.checkForFailureDomainMismatch(mctx)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("machine has failure domain"))
+				g.Expect(err.Error()).To(ContainSubstring("but Machine.Spec.FailureDomain is not set"))
+			})
+
+			It("should error if failure domain names don't match", func() {
+				// Create the NutanixFailureDomain object
+				g.Expect(k8sClient.Create(ctx, fdObj)).To(Succeed())
+
+				desiredFD := "desired-fd"
+				currentFD := "current-fd"
+				machine.Spec.FailureDomain = &desiredFD
+				ntnxMachine.Status.FailureDomain = &currentFD
+				mctx := &nctx.MachineContext{
+					Context:        ctx,
+					NutanixMachine: ntnxMachine,
+					Machine:        machine,
+					NutanixCluster: ntnxCluster,
+				}
+				err := reconciler.checkForFailureDomainMismatch(mctx)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("machine is in failure domain current-fd"))
+				g.Expect(err.Error()).To(ContainSubstring("but Machine.Spec.FailureDomain is desired-fd"))
+			})
+
+			It("should error if failure domain names match but cluster configuration doesn't match", func() {
+				// Create the NutanixFailureDomain object
+				g.Expect(k8sClient.Create(ctx, fdObj)).To(Succeed())
+
+				machine.Spec.FailureDomain = &fdObj.Name
+				ntnxMachine.Status.FailureDomain = &fdObj.Name
+				// Set a different cluster in the NutanixMachine spec
+				differentClusterName := "different-cluster"
+				ntnxMachine.Spec.Cluster = infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierName,
+					Name: &differentClusterName,
+				}
+				ntnxMachine.Spec.Subnets = fdObj.Spec.Subnets
+				mctx := &nctx.MachineContext{
+					Context:        ctx,
+					NutanixMachine: ntnxMachine,
+					Machine:        machine,
+					NutanixCluster: ntnxCluster,
+				}
+				err := reconciler.checkForFailureDomainMismatch(mctx)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("cluster mismatch"))
+			})
+
+			It("should error if failure domain names match but subnet configuration doesn't match", func() {
+				// Create the NutanixFailureDomain object
+				g.Expect(k8sClient.Create(ctx, fdObj)).To(Succeed())
+
+				machine.Spec.FailureDomain = &fdObj.Name
+				ntnxMachine.Status.FailureDomain = &fdObj.Name
+				ntnxMachine.Spec.Cluster = fdObj.Spec.PrismElementCluster
+				// Set different subnets in the NutanixMachine spec
+				differentSubnetName := "different-subnet"
+				ntnxMachine.Spec.Subnets = []infrav1.NutanixResourceIdentifier{
+					{
+						Type: infrav1.NutanixIdentifierName,
+						Name: &differentSubnetName,
+					},
+				}
+				mctx := &nctx.MachineContext{
+					Context:        ctx,
+					NutanixMachine: ntnxMachine,
+					Machine:        machine,
+					NutanixCluster: ntnxCluster,
+				}
+				err := reconciler.checkForFailureDomainMismatch(mctx)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("subnets mismatch"))
+			})
+		})
+
 		Context("Reconcile an NutanixMachine", func() {
 			It("should not error or requeue the request", func() {
 				By("Calling reconcile")
