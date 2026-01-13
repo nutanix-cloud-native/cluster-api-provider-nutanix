@@ -3030,3 +3030,252 @@ func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
 		assert.NotNil(t, err)
 	})
 }
+
+func TestNutanixMachineReconciler_addMetroCategoryIfNeeded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	clusterName := "test-cluster"
+	vmName := "test-vm"
+	vmUUID := "test-vm-uuid"
+
+	t.Run("should skip if no failureDomain is set", func(t *testing.T) {
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		reconciler := &NutanixMachineReconciler{}
+
+		machine := &capiv1.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: vmName,
+			},
+			Spec: capiv1.MachineSpec{
+				FailureDomain: nil,
+			},
+		}
+
+		cluster := &capiv1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: clusterName,
+			},
+		}
+
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Machine:         machine,
+			Cluster:         cluster,
+			ConvergedClient: mockConvergedClient.Client,
+		}
+
+		vm := vmmModels.NewVm()
+		vm.Name = &vmName
+		vm.ExtId = &vmUUID
+
+		err := reconciler.addMetroCategory(rctx, vm)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should skip if failureDomain does not start with AHVMetroZone/", func(t *testing.T) {
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		reconciler := &NutanixMachineReconciler{}
+
+		failureDomain := "regular-failure-domain"
+		machine := &capiv1.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: vmName,
+			},
+			Spec: capiv1.MachineSpec{
+				FailureDomain: &failureDomain,
+			},
+		}
+
+		cluster := &capiv1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: clusterName,
+			},
+		}
+
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Machine:         machine,
+			Cluster:         cluster,
+			ConvergedClient: mockConvergedClient.Client,
+		}
+
+		vm := vmmModels.NewVm()
+		vm.Name = &vmName
+		vm.ExtId = &vmUUID
+
+		err := reconciler.addMetroCategory(rctx, vm)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should add Metro category when failureDomain starts with AHVMetroZone/", func(t *testing.T) {
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		reconciler := &NutanixMachineReconciler{}
+
+		failureDomain := "AHVMetroZone/metro-cr-1"
+		machine := &capiv1.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: vmName,
+			},
+			Spec: capiv1.MachineSpec{
+				FailureDomain: &failureDomain,
+			},
+		}
+
+		cluster := &capiv1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: clusterName,
+			},
+		}
+
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Machine:         machine,
+			Cluster:         cluster,
+			ConvergedClient: mockConvergedClient.Client,
+		}
+
+		vm := vmmModels.NewVm()
+		vm.Name = &vmName
+		vm.ExtId = &vmUUID
+		vm.Categories = []vmmModels.CategoryReference{}
+
+		// Expected Metro category key and value
+		metroCategoryKey := fmt.Sprintf("ahvMetro-%s-%s", clusterName, vmName)
+		metroCategoryValue := vmUUID
+		categoryExtId := "metro-category-ext-id"
+
+		createdCategory := &prismModels.Category{
+			ExtId: &categoryExtId,
+			Key:   &metroCategoryKey,
+			Value: &metroCategoryValue,
+		}
+
+		// Mock category operations
+		gomock.InOrder(
+			// First List call to check if category exists (returns empty - doesn't exist)
+			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil),
+			// Create call to create the category
+			mockConvergedClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(createdCategory, nil),
+			// Second List call to get the category reference (returns the created category)
+			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{*createdCategory}, nil),
+		)
+
+		// Mock VM Update call
+		updatedVM := vmmModels.NewVm()
+		updatedVM.Name = &vmName
+		updatedVM.ExtId = &vmUUID
+		updatedVM.Categories = []vmmModels.CategoryReference{
+			{
+				ExtId: &categoryExtId,
+			},
+		}
+		mockConvergedClient.MockVMs.EXPECT().Update(ctx, vmUUID, vm).Return(updatedVM, nil)
+
+		err := reconciler.addMetroCategory(rctx, vm)
+		assert.NoError(t, err)
+
+		// Verify that the VM was updated with the category
+		assert.Len(t, vm.Categories, 1)
+		assert.Equal(t, categoryExtId, *vm.Categories[0].ExtId)
+	})
+
+	t.Run("should return error if category creation fails", func(t *testing.T) {
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		reconciler := &NutanixMachineReconciler{}
+
+		failureDomain := "AHVMetroZone/metro-cr-1"
+		machine := &capiv1.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: vmName,
+			},
+			Spec: capiv1.MachineSpec{
+				FailureDomain: &failureDomain,
+			},
+		}
+
+		cluster := &capiv1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: clusterName,
+			},
+		}
+
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Machine:         machine,
+			Cluster:         cluster,
+			ConvergedClient: mockConvergedClient.Client,
+		}
+
+		vm := vmmModels.NewVm()
+		vm.Name = &vmName
+		vm.ExtId = &vmUUID
+		vm.Categories = []vmmModels.CategoryReference{}
+
+		// Mock category creation failure
+		mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+		mockConvergedClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(nil, fmt.Errorf("category creation failed"))
+
+		err := reconciler.addMetroCategory(rctx, vm)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get or create Metro category")
+	})
+
+	t.Run("should return error if VM update fails", func(t *testing.T) {
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		reconciler := &NutanixMachineReconciler{}
+
+		failureDomain := "AHVMetroZone/metro-cr-1"
+		machine := &capiv1.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: vmName,
+			},
+			Spec: capiv1.MachineSpec{
+				FailureDomain: &failureDomain,
+			},
+		}
+
+		cluster := &capiv1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: clusterName,
+			},
+		}
+
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Machine:         machine,
+			Cluster:         cluster,
+			ConvergedClient: mockConvergedClient.Client,
+		}
+
+		vm := vmmModels.NewVm()
+		vm.Name = &vmName
+		vm.ExtId = &vmUUID
+		vm.Categories = []vmmModels.CategoryReference{}
+
+		metroCategoryKey := fmt.Sprintf("ahvMetro-%s-%s", clusterName, vmName)
+		metroCategoryValue := vmUUID
+		categoryExtId := "metro-category-ext-id"
+
+		createdCategory := &prismModels.Category{
+			ExtId: &categoryExtId,
+			Key:   &metroCategoryKey,
+			Value: &metroCategoryValue,
+		}
+
+		// Mock category operations succeed
+		gomock.InOrder(
+			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil),
+			mockConvergedClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(createdCategory, nil),
+			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{*createdCategory}, nil),
+		)
+
+		// Mock VM Update to fail
+		mockConvergedClient.MockVMs.EXPECT().Update(ctx, vmUUID, vm).Return(nil, fmt.Errorf("VM update failed"))
+
+		err := reconciler.addMetroCategory(rctx, vm)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to update VM with Metro category")
+	})
+}

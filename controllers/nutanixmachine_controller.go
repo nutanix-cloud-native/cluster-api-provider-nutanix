@@ -911,8 +911,86 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		return nil, errorMsg
 	}
 
+	// Add Metro category if the Machine is deployed with Metro failureDomain
+	if err := r.addMetroCategory(rctx, vm); err != nil {
+		errorMsg := fmt.Errorf("error occurred while adding metro category to VM %s: %v", vmName, err)
+		log.Error(errorMsg, "failed to add metro category")
+	}
+
 	conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
 	return vm, nil
+}
+
+// addMetroCategory adds a Metro-specific category to the VM if the Machine is deployed with Metro failureDomain
+func (r *NutanixMachineReconciler) addMetroCategory(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
+	ctx := rctx.Context
+	log := ctrl.LoggerFrom(ctx)
+
+	// Check if Machine has failureDomain set
+	if rctx.Machine.Spec.FailureDomain == nil || *rctx.Machine.Spec.FailureDomain == "" {
+		return nil
+	}
+
+	failureDomain := *rctx.Machine.Spec.FailureDomain
+
+	// Check if the failureDomain starts with "AHVMetroZone/"
+	if !strings.HasPrefix(failureDomain, "AHVMetroZone/") {
+		return nil
+	}
+
+	log.Info(fmt.Sprintf("Machine %s is deployed with Metro setup (failureDomain: %s). Adding Metro category.", rctx.Machine.Name, failureDomain))
+
+	vmName := *vm.Name
+	vmUUID := *vm.ExtId
+	clusterName := rctx.Cluster.Name
+
+	// Create the Metro category: ahvMetro-<clusterName>-<vmName> : <vmUUID>
+	metroCategoryKey := fmt.Sprintf("ahvMetro-%s-%s", clusterName, vmName)
+	metroCategoryValue := vmUUID
+
+	categoryIdentifier := &infrav1.NutanixCategoryIdentifier{
+		Key:   metroCategoryKey,
+		Value: metroCategoryValue,
+	}
+
+	log.V(1).Info(fmt.Sprintf("Creating/Getting Metro category: key=%s, value=%s", metroCategoryKey, metroCategoryValue))
+
+	// Get or create the Metro category
+	_, err := getOrCreateCategory(ctx, rctx.ConvergedClient, categoryIdentifier)
+	if err != nil {
+		return fmt.Errorf("failed to get or create Metro category: %w", err)
+	}
+
+	// Get the category reference
+	categoryReferences, err := GetPrismReferencesOfCategoryIdentifiers(ctx, rctx.ConvergedClient, []*infrav1.NutanixCategoryIdentifier{categoryIdentifier})
+	if err != nil {
+		return fmt.Errorf("failed to get Metro category reference: %w", err)
+	}
+
+	if len(categoryReferences) == 0 {
+		return fmt.Errorf("no category reference returned for Metro category")
+	}
+
+	// Add the Metro category to the existing VM categories
+	if vm.Categories == nil {
+		vm.Categories = []vmmconfig.CategoryReference{}
+	}
+	vm.Categories = append(vm.Categories, categoryReferences...)
+
+	log.Info(fmt.Sprintf("Updating VM %s with Metro category", vmName))
+
+	// Update the VM with the new category
+	updatedVM, err := rctx.ConvergedClient.VMs.Update(ctx, vmUUID, vm)
+	if err != nil {
+		return fmt.Errorf("failed to update VM with Metro category: %w", err)
+	}
+
+	log.Info(fmt.Sprintf("Successfully added Metro category to VM %s", vmName))
+
+	// Update the vm reference with the updated VM
+	*vm = *updatedVM
+
+	return nil
 }
 
 func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
