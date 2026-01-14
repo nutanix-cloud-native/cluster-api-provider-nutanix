@@ -34,7 +34,9 @@ import (
 	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
+	iamModels "github.com/nutanix/ntnx-api-golang-clients/iam-go-client/v4/models/iam/v4/authn"
 	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
+	prismNetworkingModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/prism/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	prismErrors "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/error"
 	vmmModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
@@ -2517,10 +2519,12 @@ type MockConvergedClientWrapper struct {
 	MockCategories           *mockconverged.MockCategories[prismModels.Category]
 	MockImages               *mockconverged.MockImages[imageModels.Image]
 	MockStorageContainers    *mockconverged.MockStorageContainers[clusterModels.StorageContainer]
-	MockSubnets              *mockconverged.MockSubnets[subnetModels.Subnet]
+	MockSubnets              *mockconverged.MockSubnets[subnetModels.Subnet, prismNetworkingModels.TaskReference]
 	MockVMs                  *mockconverged.MockVMs[vmmModels.Vm]
 	MockTasks                *mockconverged.MockTasks[prismModels.Task, prismErrors.AppMessage]
 	MockVolumeGroups         *mockconverged.MockVolumeGroups[volumesconfig.VolumeGroup, volumesconfig.VmAttachment]
+	MockDomainManager        *mockconverged.MockDomainManager[prismModels.DomainManager]
+	MockUsers                *mockconverged.MockUsers[iamModels.User]
 }
 
 // NewMockConvergedClient creates a new mock converged client
@@ -2530,11 +2534,13 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 	mockCategories := mockconverged.NewMockCategories[prismModels.Category](ctrl)
 	mockImages := mockconverged.NewMockImages[imageModels.Image](ctrl)
 	mockStorageContainers := mockconverged.NewMockStorageContainers[clusterModels.StorageContainer](ctrl)
-	mockSubnets := mockconverged.NewMockSubnets[subnetModels.Subnet](ctrl)
+	mockSubnets := mockconverged.NewMockSubnets[subnetModels.Subnet, prismNetworkingModels.TaskReference](ctrl)
 	mockTasks := mockconverged.NewMockTasks[prismModels.Task, prismErrors.AppMessage](ctrl)
 	// Create mock VMs service with the correct type
 	mockVMs := mockconverged.NewMockVMs[vmmModels.Vm](ctrl)
 	mockVolumeGroups := mockconverged.NewMockVolumeGroups[volumesconfig.VolumeGroup, volumesconfig.VmAttachment](ctrl)
+	mockDomainManager := mockconverged.NewMockDomainManager[prismModels.DomainManager](ctrl)
+	mockUsers := mockconverged.NewMockUsers[iamModels.User](ctrl)
 
 	realClient := &v4Converged.Client{
 		Client: converged.Client[
@@ -2547,11 +2553,14 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			imageModels.Image,
 			clusterModels.StorageContainer,
 			subnetModels.Subnet,
+			prismNetworkingModels.TaskReference,
 			vmmModels.Vm,
 			prismModels.Task,
 			prismErrors.AppMessage,
 			volumesconfig.VolumeGroup,
 			volumesconfig.VmAttachment,
+			prismModels.DomainManager,
+			iamModels.User,
 		]{
 			AntiAffinityPolicies: mockAntiAffinityPolicies,
 			Clusters:             mockClusters,
@@ -2562,6 +2571,8 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			VMs:                  mockVMs,
 			Tasks:                mockTasks,
 			VolumeGroups:         mockVolumeGroups,
+			DomainManager:        mockDomainManager,
+			Users:                mockUsers,
 		},
 	}
 
@@ -2576,6 +2587,8 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 		MockVMs:                  mockVMs,
 		MockTasks:                mockTasks,
 		MockVolumeGroups:         mockVolumeGroups,
+		MockDomainManager:        mockDomainManager,
+		MockUsers:                mockUsers,
 	}
 }
 

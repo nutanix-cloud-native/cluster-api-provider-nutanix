@@ -7,19 +7,19 @@ toolchain go1.24.4
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/blang/semver/v4 v4.0.0
-	github.com/go-logr/logr v1.4.2
+	github.com/go-logr/logr v1.4.3
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
-	github.com/nutanix-cloud-native/prism-go-client v0.6.0
-	github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4 v4.1.1
-	github.com/onsi/ginkgo/v2 v2.23.4
-	github.com/onsi/gomega v1.36.3
+	github.com/nutanix-cloud-native/prism-go-client v0.6.1-0.20260114031709-d23758422537
+	github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4 v4.2.1
+	github.com/onsi/ginkgo/v2 v2.27.3
+	github.com/onsi/gomega v1.38.2
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/crypto v0.41.0 // indirect; CVE fixes for https://avd.aquasec.com/nvd/cve-2025-22869
+	golang.org/x/crypto v0.45.0 // indirect; CVE fixes for https://avd.aquasec.com/nvd/cve-2025-22869
 	golang.org/x/time v0.8.0
 	k8s.io/api v0.32.3
 	k8s.io/apiextensions-apiserver v0.32.3
@@ -36,10 +36,11 @@ require (
 )
 
 require (
-	github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4 v4.1.1
-	github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.1.1
-	github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4 v4.1.1
-	github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4 v4.1.1
+	github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4 v4.2.1
+	github.com/nutanix/ntnx-api-golang-clients/iam-go-client/v4 v4.0.1
+	github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.2.1
+	github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4 v4.2.1
+	github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4 v4.2.1
 )
 
 require (
@@ -49,7 +50,7 @@ require (
 	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
-	github.com/Masterminds/semver/v3 v3.3.0 // indirect
+	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/Microsoft/go-winio v0.5.0 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
@@ -157,21 +158,22 @@ require (
 	go.opentelemetry.io/otel/trace v1.29.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
-	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
-	golang.org/x/net v0.43.0 // indirect
+	golang.org/x/mod v0.29.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/oauth2 v0.28.0 // indirect
-	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
-	golang.org/x/term v0.34.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
-	golang.org/x/tools v0.36.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/term v0.37.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/tools v0.38.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241223144023-3abc09e42ca8 // indirect
 	google.golang.org/grpc v1.67.3 // indirect
-	google.golang.org/protobuf v1.36.5 // indirect
+	google.golang.org/protobuf v1.36.7 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
