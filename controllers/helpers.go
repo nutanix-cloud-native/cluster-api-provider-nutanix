@@ -119,8 +119,16 @@ func GenerateProviderID(uuid string) string {
 	return fmt.Sprintf("%s%s", providerIdPrefix, uuid)
 }
 
-// GetVMUUID returns the UUID of the VM with the given name
-func GetVMUUID(nutanixMachine *infrav1.NutanixMachine) (string, error) {
+// GetVMUUID returns the UUID of the VM.
+func GetVMUUID(machine *capiv1.Machine, nutanixMachine *infrav1.NutanixMachine) (string, error) {
+	// First, try to get the systemUUID from Machine.Status.NodeInfo
+	if machine != nil && machine.Status.NodeInfo != nil && machine.Status.NodeInfo.SystemUUID != "" {
+		systemUUID := machine.Status.NodeInfo.SystemUUID
+		if _, err := uuid.Parse(systemUUID); err != nil {
+			return "", fmt.Errorf("Machine.Status.NodeInfo.SystemUUID was set but was not a valid UUID: %s err: %v", systemUUID, err)
+		}
+		return systemUUID, nil
+	}
 	vmUUID := nutanixMachine.Status.VmUUID
 	if vmUUID != "" {
 		if _, err := uuid.Parse(vmUUID); err != nil {
@@ -128,23 +136,13 @@ func GetVMUUID(nutanixMachine *infrav1.NutanixMachine) (string, error) {
 		}
 		return vmUUID, nil
 	}
-	providerID := nutanixMachine.Spec.ProviderID
-	if providerID == "" {
-		return "", nil
-	}
-	id := strings.TrimPrefix(providerID, providerIdPrefix)
-	// Not returning error since the ProviderID initially is not a UUID. CAPX only sets the UUID after VM provisioning.
-	// If it is not a UUID, continue.
-	if _, err := uuid.Parse(id); err != nil {
-		return "", nil
-	}
-	return id, nil
+	return "", nil
 }
 
 // FindVM retrieves the VM with the given uuid or name
-func FindVM(ctx context.Context, client *v4Converged.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
+func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1.Machine, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
-	vmUUID, err := GetVMUUID(nutanixMachine)
+	vmUUID, err := GetVMUUID(machine, nutanixMachine)
 	if err != nil {
 		return nil, err
 	}

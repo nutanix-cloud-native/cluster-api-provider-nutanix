@@ -53,6 +53,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 )
 
@@ -2696,6 +2697,197 @@ func TestSubnetBelongsToCluster(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := subnetBelongsToCluster(tt.subnet, tt.peUUID)
 			assert.Equal(t, tt.expectedResult, result, tt.description)
+		})
+	}
+}
+
+func TestGetVMUUID(t *testing.T) {
+	validUUID := "550e8400-e29b-41d4-a716-446655440000"
+	invalidUUID := "not-a-valid-uuid"
+	anotherValidUUID := "660e8400-e29b-41d4-a716-446655440001"
+
+	tests := []struct {
+		name           string
+		machine        *capiv1.Machine
+		nutanixMachine *infrav1.NutanixMachine
+		want           string
+		wantErr        bool
+		errorMessage   string
+	}{
+		{
+			name: "should return systemUUID from Machine.Status.NodeInfo when available",
+			machine: &capiv1.Machine{
+				Status: capiv1.MachineStatus{
+					NodeInfo: &corev1.NodeSystemInfo{
+						SystemUUID: validUUID,
+					},
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: anotherValidUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name: "should fall back to VmUUID when Machine.Status.NodeInfo is nil",
+			machine: &capiv1.Machine{
+				Status: capiv1.MachineStatus{
+					NodeInfo: nil,
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name: "should fall back to VmUUID when Machine.Status.NodeInfo.SystemUUID is empty",
+			machine: &capiv1.Machine{
+				Status: capiv1.MachineStatus{
+					NodeInfo: &corev1.NodeSystemInfo{
+						SystemUUID: "",
+					},
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name:    "should fall back to VmUUID when machine is nil",
+			machine: nil,
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name: "should return empty string when both systemUUID and VmUUID are not available",
+			machine: &capiv1.Machine{
+				Status: capiv1.MachineStatus{
+					NodeInfo: nil,
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: "",
+				},
+			},
+			want:    "",
+			wantErr: false,
+		},
+		{
+			name: "should return error when systemUUID is not a valid UUID",
+			machine: &capiv1.Machine{
+				Status: capiv1.MachineStatus{
+					NodeInfo: &corev1.NodeSystemInfo{
+						SystemUUID: invalidUUID,
+					},
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: "",
+				},
+			},
+			want:         "",
+			wantErr:      true,
+			errorMessage: "Machine.Status.NodeInfo.SystemUUID was set but was not a valid UUID",
+		},
+		{
+			name: "should return error when VmUUID is not a valid UUID",
+			machine: &capiv1.Machine{
+				Status: capiv1.MachineStatus{
+					NodeInfo: nil,
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: invalidUUID,
+				},
+			},
+			want:         "",
+			wantErr:      true,
+			errorMessage: "VMUUID was set but was not a valid UUID",
+		},
+		{
+			name: "should prioritize systemUUID even when VmUUID has different UUID",
+			machine: &capiv1.Machine{
+				Status: capiv1.MachineStatus{
+					NodeInfo: &corev1.NodeSystemInfo{
+						SystemUUID: validUUID,
+					},
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: anotherValidUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name: "should use VmUUID when SystemUUID is empty",
+			machine: &capiv1.Machine{
+				Status: capiv1.MachineStatus{
+					NodeInfo: &corev1.NodeSystemInfo{
+						SystemUUID: "",
+					},
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name: "should handle Machine with empty Status",
+			machine: &capiv1.Machine{
+				Status: capiv1.MachineStatus{},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Log("Running test case ", tt.name)
+			got, err := GetVMUUID(tt.machine, tt.nutanixMachine)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetVMUUID() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("GetVMUUID() = %v, want %v", got, tt.want)
+			}
+			if tt.errorMessage != "" && err != nil {
+				if !strings.Contains(err.Error(), tt.errorMessage) {
+					t.Errorf("GetVMUUID() error message = %v, want to contain %v", err.Error(), tt.errorMessage)
+				}
+			}
 		})
 	}
 }
