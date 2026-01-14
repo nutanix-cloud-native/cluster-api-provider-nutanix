@@ -3000,12 +3000,12 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		assert.Equal(t, vmName, *vm.Name)
 		assert.Equal(t, vmUUID, *vm.ExtId)
 
-		// Verify ProviderID is set (set by getOrCreateVM line 930)
+		// Verify ProviderID is set (set by getOrCreateVM line 927)
 		assert.Contains(t, ntnxMachine.Spec.ProviderID, vmUUID)
 
-		// VmUUID should be set from vmExtId fallback since SystemUUID is not available yet
-		// This is the fix - syncVmUUID now properly falls back to vmExtId when SystemUUID is unavailable
-		assert.Equal(t, vmUUID, ntnxMachine.Status.VmUUID)
+		// Note: Status.VmUUID is NOT set by getOrCreateVM itself.
+		// It is set by syncVmUUID which is called from reconcileNormal after getOrCreateVM returns.
+		// When testing getOrCreateVM in isolation, Status.VmUUID will not be populated.
 	})
 }
 

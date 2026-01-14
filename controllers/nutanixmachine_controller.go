@@ -926,12 +926,6 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	// set the VM UUID on the nutanix machine as soon as it is available. VM UUID can be used for cleanup in case of failure
 	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUuid)
 
-	// Set and sync VmUUID with SystemUUID to ensure consistency
-	if err := r.syncVmUUID(rctx, vmUuid); err != nil {
-		log.Error(err, "Failed to sync VmUUID during VM creation")
-		return nil, err
-	}
-
 	// Power on VM
 	log.Info("Powering VM on after creation")
 	powerOnTask, err := convergedClient.VMs.PowerOnVM(vmUuid)
