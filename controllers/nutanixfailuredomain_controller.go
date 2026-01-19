@@ -240,13 +240,6 @@ func (r *NutanixFailureDomainReconciler) reconcileNormal(ctx context.Context, fd
 	log := ctrl.LoggerFrom(ctx)
 	log.Info("Handling NutanixFailureDomain reconciling")
 
-	// To avoid panic on delete here https://github.com/kubernetes-sigs/cluster-api/blob/93adf87d24267c4504ae79bf3050e2aa363a6a43/util/deprecated/v1beta1/conditions/v1beta2/setter.go#L120
-	v1beta2conditions.Set(fd, metav1.Condition{
-		Type:   string(infrav1.FailureDomainSafeForDeletionCondition),
-		Status: metav1.ConditionFalse,
-		Reason: capiv1beta1.AvailableV1Beta2Reason,
-	})
-
 	// Remove the FailureDomainSafeForDeletionCondition if there are any
 	v1beta1conditions.Delete(fd, infrav1.FailureDomainSafeForDeletionCondition)
 	v1beta2conditions.Delete(fd, string(infrav1.FailureDomainSafeForDeletionCondition))

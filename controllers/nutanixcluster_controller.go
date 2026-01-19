@@ -356,13 +356,6 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 	log := ctrl.LoggerFrom(rctx.Context)
 	log.Info("Reconciling failure domains for cluster")
 
-	// To avoid panic on delete here https://github.com/kubernetes-sigs/cluster-api/blob/93adf87d24267c4504ae79bf3050e2aa363a6a43/util/deprecated/v1beta1/conditions/v1beta2/setter.go#L120
-	v1beta2conditions.Set(rctx.NutanixCluster, metav1.Condition{
-		Type:   string(infrav1.FailureDomainsValidatedCondition),
-		Status: metav1.ConditionFalse,
-		Reason: infrav1.FailureDomainsValidationInProgressReason,
-	})
-
 	failureDomains := capiv1beta1.FailureDomains{}
 	if len(rctx.NutanixCluster.Spec.ControlPlaneFailureDomains) == 0 && len(rctx.NutanixCluster.Spec.FailureDomains) == 0 { //nolint:staticcheck // suppress complaining on Deprecated field
 		log.Info("No failure domains configured for cluster.")
