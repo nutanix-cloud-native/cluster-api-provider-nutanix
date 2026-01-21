@@ -928,6 +928,12 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUuid)
 	rctx.NutanixMachine.Status.VmUUID = vmUuid
 
+	err = r.patchMachine(rctx)
+	if err != nil {
+		log.Error(err, "failed to patch NutanixMachine after setting VmUUID")
+		return nil, err
+	}
+
 	// Power on VM
 	log.Info("Powering VM on after creation")
 	powerOnTask, err := convergedClient.VMs.PowerOnVM(vmUuid)
