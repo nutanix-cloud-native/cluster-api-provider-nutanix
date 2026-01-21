@@ -533,6 +533,7 @@ func (r *NutanixMachineReconciler) syncVmUUID(rctx *nctx.MachineContext, vmExtId
 	// Update and patch if needed
 	if rctx.NutanixMachine.Status.VmUUID != targetUUID {
 		rctx.NutanixMachine.Status.VmUUID = targetUUID
+		log.Info("Updated NutanixMachine VmUUID status", "vmUUID", targetUUID)
 
 		if err := r.patchMachine(rctx); err != nil {
 			return fmt.Errorf("failed to patch NutanixMachine %s after setting VmUUID from %s: %v", rctx.NutanixMachine.Name, targetUUID, err)
@@ -925,6 +926,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 
 	// set the VM UUID on the nutanix machine as soon as it is available. VM UUID can be used for cleanup in case of failure
 	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUuid)
+	rctx.NutanixMachine.Status.VmUUID = vmUuid
 
 	// Power on VM
 	log.Info("Powering VM on after creation")
