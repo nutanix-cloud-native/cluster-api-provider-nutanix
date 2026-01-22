@@ -632,7 +632,7 @@ spec:
     spec:
       bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
       image:
-        name: ${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}
+        name: ${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME:=placeholder-image}
         type: name
       memorySize: ${NUTANIX_MACHINE_MEMORY_SIZE=4Gi}
       providerID: nutanix://${CLUSTER_NAME}-m1

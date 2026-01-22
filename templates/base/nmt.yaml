@@ -16,7 +16,7 @@ spec:
       systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"
       image:
         type: name
-        name: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}"
+        name: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME:=placeholder-image}"
       cluster:
         type: name
         name: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
