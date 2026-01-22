@@ -36,7 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -99,7 +99,7 @@ func TestNutanixClusterReconciler_ConvergedClientCacheDeletion(t *testing.T) {
 		}
 
 		// Create cluster context
-		capiCluster := &capiv1.Cluster{
+		capiCluster := &capiv1beta2.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-cluster",
 				Namespace: "default",
@@ -159,7 +159,7 @@ func TestNutanixClusterReconciler_ConvergedClientCacheDeletion(t *testing.T) {
 		}
 
 		// Create cluster context
-		capiCluster := &capiv1.Cluster{
+		capiCluster := &capiv1beta2.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-cluster",
 				Namespace: "default",
@@ -249,7 +249,6 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(result.RequeueAfter).To(BeZero())
-				g.Expect(result.Requeue).To(BeFalse())
 			})
 		})
 
@@ -263,7 +262,6 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(result.RequeueAfter).To(BeZero())
-				g.Expect(result.Requeue).To(BeFalse())
 			})
 			It("should not error and not requeue if no failure domains are configured and cluster is Ready", func() {
 				g.Expect(k8sClient.Create(ctx, ntnxCluster)).To(Succeed())
@@ -274,7 +272,6 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(result.RequeueAfter).To(BeZero())
-				g.Expect(result.Requeue).To(BeFalse())
 			})
 			It("should not error and not requeue if failure domains (deprecated) are configured and cluster is Ready", func() {
 				ntnxCluster.Spec.FailureDomains = []infrav1.NutanixFailureDomainConfig{{ //nolint:staticcheck // suppress complaining on Deprecated type
@@ -299,7 +296,6 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(result.RequeueAfter).To(BeZero())
-				g.Expect(result.Requeue).To(BeFalse())
 			})
 			It("should not error and not requeue if controlPlaneFailureDomains are configured and cluster is Ready", func() {
 				ntnxCluster.Spec.ControlPlaneFailureDomains = []corev1.LocalObjectReference{fdRef}
@@ -311,7 +307,6 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(result.RequeueAfter).To(BeZero())
-				g.Expect(result.Requeue).To(BeFalse())
 			})
 			It("should not error if controlPlaneFailureDomains are configured with unique failure domain names", func() {
 				fdRef1 := corev1.LocalObjectReference{Name: "test-1"}
@@ -501,8 +496,8 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				// Add an ownerReference for a fake object
 				ntnxSecret.OwnerReferences = []metav1.OwnerReference{
 					{
-						APIVersion: capiv1.GroupVersion.String(),
-						Kind:       capiv1.ClusterKind,
+						APIVersion: capiv1beta2.GroupVersion.String(),
+						Kind:       capiv1beta2.ClusterKind,
 						UID:        ntnxCluster.UID,
 						Name:       r,
 					},
@@ -1205,7 +1200,7 @@ func TestNutanixClusterReconciler_SetupWithManager(t *testing.T) {
 	scheme := runtime.NewScheme()
 	err := infrav1.AddToScheme(scheme)
 	require.NoError(t, err)
-	err = capiv1.AddToScheme(scheme)
+	err = capiv1beta2.AddToScheme(scheme)
 	require.NoError(t, err)
 
 	restScope := mockmeta.NewMockRESTScope(mockCtrl)

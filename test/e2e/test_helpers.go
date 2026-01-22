@@ -38,7 +38,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/test/framework/bootstrap"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
@@ -63,11 +64,9 @@ const (
 	defaultSystemDiskSize = "40Gi"
 	defaultBootType       = "legacy"
 
-	categoryKeyVarKey   = "NUTANIX_ADDITIONAL_CATEGORY_KEY"
-	categoryValueVarKey = "NUTANIX_ADDITIONAL_CATEGORY_VALUE"
-	imageVarKey         = "NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME"
-	clusterVarKey       = "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME"
-	subnetVarKey        = "NUTANIX_SUBNET_NAME"
+	imageVarKey   = "NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME"
+	clusterVarKey = "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME"
+	subnetVarKey  = "NUTANIX_SUBNET_NAME"
 
 	nameType = "name"
 
@@ -136,12 +135,12 @@ type testHelperInterface interface {
 	deployClusterAndWait(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult)
 	deleteSecret(params deleteSecretParams)
 	deleteAllClustersAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, namespace *corev1.Namespace, intervalsGetter func(spec, key string) []interface{})
-	deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *capiv1.Cluster, intervalsGetter func(spec, key string) []interface{})
+	deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *capiv1beta2.Cluster, intervalsGetter func(spec, key string) []interface{})
 	findGPU(ctx context.Context, gpuName string) *vmmconfig.Gpu
 	generateNMTName(clusterName string) string
 	generateNMTProviderID(clusterName string) string
 	generateTestClusterName(specName string) string
-	getMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *capiv1.MachineList
+	getMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *capiv1beta2.MachineList
 	getNutanixMachineForCluster(ctx context.Context, clusterName, namespace, machineName string, bootstrapClusterProxy framework.ClusterProxy) *infrav1.NutanixMachine
 	getNutanixMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *infrav1.NutanixMachineList
 	getNutanixClusterByName(ctx context.Context, input getNutanixClusterByNameInput) *infrav1.NutanixCluster
@@ -377,7 +376,7 @@ func (t testHelper) createDefaultNutanixCluster(clusterName, namespace, controlP
 			Namespace: namespace,
 		},
 		Spec: infrav1.NutanixClusterSpec{
-			ControlPlaneEndpoint: capiv1.APIEndpoint{
+			ControlPlaneEndpoint: capiv1beta1.APIEndpoint{
 				Host: controlPlaneEndpointIP,
 				Port: controlPlanePort,
 			},
@@ -499,7 +498,7 @@ func (t testHelper) deleteAllClustersAndWait(ctx context.Context, specName strin
 	}, intervalsGetter(specName, "wait-delete-cluster")...)
 }
 
-func (t testHelper) deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *capiv1.Cluster, intervalsGetter func(spec, key string) []interface{}) {
+func (t testHelper) deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *capiv1beta2.Cluster, intervalsGetter func(spec, key string) []interface{}) {
 	framework.DeleteClusterAndWait(ctx, framework.DeleteClusterAndWaitInput{
 		ClusterProxy:         bootstrapClusterProxy,
 		ClusterctlConfigPath: clusterctlConfigPath,
@@ -535,9 +534,9 @@ func (t testHelper) getNutanixClusterByName(ctx context.Context, input getNutani
 	return cluster
 }
 
-func (t testHelper) getMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *capiv1.MachineList {
-	machineList := &capiv1.MachineList{}
-	labels := map[string]string{capiv1.ClusterNameLabel: clusterName}
+func (t testHelper) getMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *capiv1beta2.MachineList {
+	machineList := &capiv1beta2.MachineList{}
+	labels := map[string]string{capiv1beta1.ClusterNameLabel: clusterName}
 	err := bootstrapClusterProxy.GetClient().List(ctx, machineList, client.InNamespace(namespace), client.MatchingLabels(labels))
 	Expect(err).ShouldNot(HaveOccurred())
 	return machineList
@@ -557,7 +556,7 @@ func (t testHelper) getNutanixMachineForCluster(ctx context.Context, clusterName
 
 func (t testHelper) getNutanixMachinesForCluster(ctx context.Context, clusterName, namespace string, bootstrapClusterProxy framework.ClusterProxy) *infrav1.NutanixMachineList {
 	machineList := &infrav1.NutanixMachineList{}
-	labels := map[string]string{capiv1.ClusterNameLabel: clusterName}
+	labels := map[string]string{capiv1beta1.ClusterNameLabel: clusterName}
 	err := bootstrapClusterProxy.GetClient().List(ctx, machineList, client.InNamespace(namespace), client.MatchingLabels(labels))
 	Expect(err).ShouldNot(HaveOccurred())
 	return machineList
@@ -569,7 +568,7 @@ func (t testHelper) getNutanixVMsForCluster(ctx context.Context, clusterName, na
 	for _, m := range nutanixMachines.Items {
 		machineProviderID := m.Spec.ProviderID
 		Expect(machineProviderID).NotTo(BeNil())
-		machineVmUUID := t.stripNutanixIDFromProviderID(*machineProviderID)
+		machineVmUUID := t.stripNutanixIDFromProviderID(machineProviderID)
 		vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 		Expect(err).ShouldNot(HaveOccurred())
 		vms = append(vms, vm)
@@ -639,7 +638,7 @@ func (t testHelper) verifyCategoriesNutanixMachines(ctx context.Context, cluster
 			for _, m := range nutanixMachines.Items {
 				machineProviderID := m.Spec.ProviderID
 				g.Expect(machineProviderID).NotTo(BeNil())
-				machineVmUUID := t.stripNutanixIDFromProviderID(*machineProviderID)
+				machineVmUUID := t.stripNutanixIDFromProviderID(machineProviderID)
 				vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 				g.Expect(err).ShouldNot(HaveOccurred())
 				categoriesMappingMeta := vm.Metadata.CategoriesMapping
@@ -678,7 +677,7 @@ func (t testHelper) verifyResourceConfigOnNutanixMachines(ctx context.Context, p
 			for _, m := range nutanixMachines.Items {
 				machineProviderID := m.Spec.ProviderID
 				g.Expect(machineProviderID).NotTo(BeNil())
-				machineVmUUID := t.stripNutanixIDFromProviderID(*machineProviderID)
+				machineVmUUID := t.stripNutanixIDFromProviderID(machineProviderID)
 				vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 				g.Expect(err).ShouldNot(HaveOccurred())
 				vmMemorySizeInMib := *vm.Status.Resources.MemorySizeMib
@@ -699,12 +698,12 @@ type verifyConditionParams struct {
 	bootstrapClusterProxy framework.ClusterProxy
 	clusterName           string
 	namespace             *corev1.Namespace
-	expectedCondition     capiv1.Condition
+	expectedCondition     capiv1beta1.Condition
 }
 
 func (t testHelper) verifyConditionOnNutanixCluster(params verifyConditionParams) {
 	Eventually(
-		func() []capiv1.Condition {
+		func() []capiv1beta1.Condition {
 			cluster := t.getNutanixClusterByName(ctx, getNutanixClusterByNameInput{
 				Getter:    params.bootstrapClusterProxy.GetClient(),
 				Name:      params.clusterName,
@@ -784,14 +783,14 @@ func (t testHelper) verifyLegacyFailureDomainsOnClusterMachines(ctx context.Cont
 			nutanixMachines := t.getMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
 			for _, m := range nutanixMachines.Items {
 				machineSpec := m.Spec
-				if *machineSpec.FailureDomain == fdName {
+				if machineSpec.FailureDomain == fdName {
 					// failure domain had a match
 					match = true
 					// Search for failure domain
 					fd := controllers.GetLegacyFailureDomainFromNutanixCluster(fdName, nutanixCluster)
 					Expect(fd).ToNot(BeNil())
 					// Search for VM
-					machineVmUUID := t.stripNutanixIDFromProviderID(*machineSpec.ProviderID)
+					machineVmUUID := t.stripNutanixIDFromProviderID(machineSpec.ProviderID)
 					vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(vm).ToNot(BeNil())
@@ -822,7 +821,7 @@ func (t testHelper) verifyNewFailureDomainsOnClusterMachines(ctx context.Context
 			nutanixMachines := t.getMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
 			for _, m := range nutanixMachines.Items {
 				machineSpec := m.Spec
-				if *machineSpec.FailureDomain == fdName {
+				if machineSpec.FailureDomain == fdName {
 					// failure domain had a match
 					match = true
 
@@ -834,7 +833,7 @@ func (t testHelper) verifyNewFailureDomainsOnClusterMachines(ctx context.Context
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(fdObj).ToNot(BeNil())
 					// Search for VM
-					machineVmUUID := t.stripNutanixIDFromProviderID(*machineSpec.ProviderID)
+					machineVmUUID := t.stripNutanixIDFromProviderID(machineSpec.ProviderID)
 					vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(vm).ToNot(BeNil())
@@ -855,7 +854,6 @@ func (t testHelper) verifyNewFailureDomainsOnClusterMachines(ctx context.Context
 type verifyFailureMessageOnClusterMachinesParams struct {
 	clusterName            string
 	namespace              *corev1.Namespace
-	expectedPhase          string
 	expectedFailureMessage string
 	bootstrapClusterProxy  framework.ClusterProxy
 }
@@ -865,7 +863,7 @@ func (t testHelper) verifyFailureMessageOnClusterMachines(ctx context.Context, p
 		nutanixMachines := t.getMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
 		for _, m := range nutanixMachines.Items {
 			machineStatus := m.Status
-			if machineStatus.Phase == params.expectedPhase && machineStatus.FailureMessage != nil && strings.Contains(*machineStatus.FailureMessage, params.expectedFailureMessage) { //nolint:staticcheck // deprecated field needed for compatibility
+			if machineStatus.Deprecated.V1Beta1.FailureMessage != nil && strings.Contains(*machineStatus.Deprecated.V1Beta1.FailureMessage, params.expectedFailureMessage) { //nolint:staticcheck // deprecated field needed for compatibility
 				return true
 			}
 		}
