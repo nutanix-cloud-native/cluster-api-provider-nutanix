@@ -2999,13 +2999,12 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		require.NotNil(t, vm)
 		assert.Equal(t, vmName, *vm.Name)
 		assert.Equal(t, vmUUID, *vm.ExtId)
-
-		// Verify ProviderID is set (set by getOrCreateVM line 927)
-		assert.Contains(t, ntnxMachine.Spec.ProviderID, vmUUID)
-
-		// Note: Status.VmUUID is NOT set by getOrCreateVM itself.
-		// It is set by syncVmUUID which is called from reconcileNormal after getOrCreateVM returns.
-		// When testing getOrCreateVM in isolation, Status.VmUUID will not be populated.
+		assert.Equal(t, vmUUID, ntnxMachine.Status.VmUUID)
+		// The providerID should be set with a generated UUID (not the actual VM UUID)
+		assert.NotEmpty(t, ntnxMachine.Spec.ProviderID)
+		assert.Contains(t, ntnxMachine.Spec.ProviderID, "nutanix://")
+		// The providerID should NOT be the same as the VM's actual UUID
+		assert.NotEqual(t, fmt.Sprintf("nutanix://%s", vmUUID), ntnxMachine.Spec.ProviderID)
 	})
 }
 
