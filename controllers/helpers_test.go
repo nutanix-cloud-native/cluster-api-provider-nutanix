@@ -34,7 +34,9 @@ import (
 	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
+	iamModels "github.com/nutanix/ntnx-api-golang-clients/iam-go-client/v4/models/iam/v4/authn"
 	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
+	prismNetworkingModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/prism/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	prismErrors "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/error"
 	vmmModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
@@ -51,6 +53,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
 )
 
@@ -2517,10 +2520,12 @@ type MockConvergedClientWrapper struct {
 	MockCategories           *mockconverged.MockCategories[prismModels.Category]
 	MockImages               *mockconverged.MockImages[imageModels.Image]
 	MockStorageContainers    *mockconverged.MockStorageContainers[clusterModels.StorageContainer]
-	MockSubnets              *mockconverged.MockSubnets[subnetModels.Subnet]
+	MockSubnets              *mockconverged.MockSubnets[subnetModels.Subnet, prismNetworkingModels.TaskReference]
 	MockVMs                  *mockconverged.MockVMs[vmmModels.Vm]
 	MockTasks                *mockconverged.MockTasks[prismModels.Task, prismErrors.AppMessage]
 	MockVolumeGroups         *mockconverged.MockVolumeGroups[volumesconfig.VolumeGroup, volumesconfig.VmAttachment]
+	MockDomainManager        *mockconverged.MockDomainManager[prismModels.DomainManager]
+	MockUsers                *mockconverged.MockUsers[iamModels.User]
 }
 
 // NewMockConvergedClient creates a new mock converged client
@@ -2530,11 +2535,13 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 	mockCategories := mockconverged.NewMockCategories[prismModels.Category](ctrl)
 	mockImages := mockconverged.NewMockImages[imageModels.Image](ctrl)
 	mockStorageContainers := mockconverged.NewMockStorageContainers[clusterModels.StorageContainer](ctrl)
-	mockSubnets := mockconverged.NewMockSubnets[subnetModels.Subnet](ctrl)
+	mockSubnets := mockconverged.NewMockSubnets[subnetModels.Subnet, prismNetworkingModels.TaskReference](ctrl)
 	mockTasks := mockconverged.NewMockTasks[prismModels.Task, prismErrors.AppMessage](ctrl)
 	// Create mock VMs service with the correct type
 	mockVMs := mockconverged.NewMockVMs[vmmModels.Vm](ctrl)
 	mockVolumeGroups := mockconverged.NewMockVolumeGroups[volumesconfig.VolumeGroup, volumesconfig.VmAttachment](ctrl)
+	mockDomainManager := mockconverged.NewMockDomainManager[prismModels.DomainManager](ctrl)
+	mockUsers := mockconverged.NewMockUsers[iamModels.User](ctrl)
 
 	realClient := &v4Converged.Client{
 		Client: converged.Client[
@@ -2547,11 +2554,14 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			imageModels.Image,
 			clusterModels.StorageContainer,
 			subnetModels.Subnet,
+			prismNetworkingModels.TaskReference,
 			vmmModels.Vm,
 			prismModels.Task,
 			prismErrors.AppMessage,
 			volumesconfig.VolumeGroup,
 			volumesconfig.VmAttachment,
+			prismModels.DomainManager,
+			iamModels.User,
 		]{
 			AntiAffinityPolicies: mockAntiAffinityPolicies,
 			Clusters:             mockClusters,
@@ -2562,6 +2572,8 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			VMs:                  mockVMs,
 			Tasks:                mockTasks,
 			VolumeGroups:         mockVolumeGroups,
+			DomainManager:        mockDomainManager,
+			Users:                mockUsers,
 		},
 	}
 
@@ -2576,6 +2588,8 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 		MockVMs:                  mockVMs,
 		MockTasks:                mockTasks,
 		MockVolumeGroups:         mockVolumeGroups,
+		MockDomainManager:        mockDomainManager,
+		MockUsers:                mockUsers,
 	}
 }
 
@@ -2683,6 +2697,197 @@ func TestSubnetBelongsToCluster(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := subnetBelongsToCluster(tt.subnet, tt.peUUID)
 			assert.Equal(t, tt.expectedResult, result, tt.description)
+		})
+	}
+}
+
+func TestGetVMUUID(t *testing.T) {
+	validUUID := "550e8400-e29b-41d4-a716-446655440000"
+	invalidUUID := "not-a-valid-uuid"
+	anotherValidUUID := "660e8400-e29b-41d4-a716-446655440001"
+
+	tests := []struct {
+		name           string
+		machine        *capiv1beta2.Machine
+		nutanixMachine *infrav1.NutanixMachine
+		want           string
+		wantErr        bool
+		errorMessage   string
+	}{
+		{
+			name: "should return systemUUID from Machine.Status.NodeInfo when available",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: &corev1.NodeSystemInfo{
+						SystemUUID: validUUID,
+					},
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: anotherValidUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name: "should fall back to VmUUID when Machine.Status.NodeInfo is nil",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: nil,
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name: "should fall back to VmUUID when Machine.Status.NodeInfo.SystemUUID is empty",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: &corev1.NodeSystemInfo{
+						SystemUUID: "",
+					},
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name:    "should fall back to VmUUID when machine is nil",
+			machine: nil,
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name: "should return empty string when both systemUUID and VmUUID are not available",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: nil,
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: "",
+				},
+			},
+			want:    "",
+			wantErr: false,
+		},
+		{
+			name: "should return error when systemUUID is not a valid UUID",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: &corev1.NodeSystemInfo{
+						SystemUUID: invalidUUID,
+					},
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: "",
+				},
+			},
+			want:         "",
+			wantErr:      true,
+			errorMessage: "Machine.Status.NodeInfo.SystemUUID was set but was not a valid UUID",
+		},
+		{
+			name: "should return error when VmUUID is not a valid UUID",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: nil,
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: invalidUUID,
+				},
+			},
+			want:         "",
+			wantErr:      true,
+			errorMessage: "VMUUID was set but was not a valid UUID",
+		},
+		{
+			name: "should prioritize systemUUID even when VmUUID has different UUID",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: &corev1.NodeSystemInfo{
+						SystemUUID: validUUID,
+					},
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: anotherValidUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name: "should use VmUUID when SystemUUID is empty",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: &corev1.NodeSystemInfo{
+						SystemUUID: "",
+					},
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name: "should handle Machine with empty Status",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Log("Running test case ", tt.name)
+			got, err := GetVMUUID(tt.machine, tt.nutanixMachine)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetVMUUID() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("GetVMUUID() = %v, want %v", got, tt.want)
+			}
+			if tt.errorMessage != "" && err != nil {
+				if !strings.Contains(err.Error(), tt.errorMessage) {
+					t.Errorf("GetVMUUID() error message = %v, want to contain %v", err.Error(), tt.errorMessage)
+				}
+			}
 		})
 	}
 }

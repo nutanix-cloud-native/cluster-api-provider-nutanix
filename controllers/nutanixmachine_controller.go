@@ -316,7 +316,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		Status: metav1.ConditionFalse,
 		Reason: capiv1beta1.DeletingReason,
 	})
-	vmUUID, err := GetVMUUID(rctx.NutanixMachine)
+	vmUUID, err := GetVMUUID(rctx.Machine, rctx.NutanixMachine)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get VM UUID during delete: %v", err)
 		log.Error(errorMsg, "failed to delete VM")
@@ -463,6 +463,12 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		}
 		log.Info(fmt.Sprintf("The NutanixMachine is ready, providerID: %s", rctx.NutanixMachine.Spec.ProviderID))
 
+		// Sync VmUUID with SystemUUID if they differ
+		if err := r.syncVmUUID(rctx, rctx.NutanixMachine.Status.VmUUID); err != nil {
+			log.Error(err, "Failed to sync VmUUID with SystemUUID")
+			return reconcile.Result{}, err
+		}
+
 		return reconcile.Result{}, nil
 	}
 
@@ -520,7 +526,12 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, err
 	}
 	log.V(1).Info(fmt.Sprintf("Found VM with name: %s, vmUUID: %s", rctx.Machine.Name, *vm.ExtId))
-	rctx.NutanixMachine.Status.VmUUID = *vm.ExtId
+
+	// Set and sync VmUUID with SystemUUID to ensure consistency
+	if err := r.syncVmUUID(rctx, *vm.ExtId); err != nil {
+		log.Error(err, "Failed to sync VmUUID")
+		return reconcile.Result{}, err
+	}
 
 	// Set the NutanixMachine.status.failureDomain if the Machine is created with failureDomain
 	if err = r.checkFailureDomainStatus(rctx); err != nil {
@@ -563,6 +574,35 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		rctx.Machine.Name, rctx.NutanixCluster.Name, rctx.NutanixMachine.Spec.ProviderID,
 		rctx.NutanixMachine, rctx.NutanixMachine.Status.VmUUID))
 	return reconcile.Result{}, nil
+}
+
+// syncVmUUID sets and synchronizes the NutanixMachine.Status.VmUUID with Machine.Status.NodeInfo.SystemUUID
+// if available. The SystemUUID from the CAPI Machine is the source of truth as it comes from the actual node.
+// If SystemUUID is not available, it falls back to using the provided vmExtId.
+func (r *NutanixMachineReconciler) syncVmUUID(rctx *nctx.MachineContext, vmExtId string) error {
+	log := ctrl.LoggerFrom(rctx.Context)
+
+	targetUUID := vmExtId
+	if rctx.Machine.Status.NodeInfo != nil && rctx.Machine.Status.NodeInfo.SystemUUID != "" {
+		systemUUID := rctx.Machine.Status.NodeInfo.SystemUUID
+		if _, err := uuid.Parse(systemUUID); err != nil {
+			log.Error(err, fmt.Sprintf("Machine.Status.NodeInfo.SystemUUID is not a valid UUID: %s, falling back to vmExtId", systemUUID))
+		} else {
+			targetUUID = systemUUID
+		}
+	}
+
+	// Update and patch if needed
+	if rctx.NutanixMachine.Status.VmUUID != targetUUID {
+		rctx.NutanixMachine.Status.VmUUID = targetUUID
+		log.Info("Updated NutanixMachine VmUUID status", "vmUUID", targetUUID)
+
+		if err := r.patchMachine(rctx); err != nil {
+			return fmt.Errorf("failed to patch NutanixMachine %s after setting VmUUID from %s: %v", rctx.NutanixMachine.Name, targetUUID, err)
+		}
+	}
+
+	return nil
 }
 
 // checkFailureDomainStatus checks and sets the NutanixMachine.status.failureDomain if necessary
@@ -831,7 +871,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	convergedClient := rctx.ConvergedClient
 
 	// Check if the VM already exists
-	vmFound, err := FindVM(ctx, convergedClient, rctx.NutanixMachine, vmName)
+	vmFound, err := FindVM(ctx, convergedClient, rctx.Machine, rctx.NutanixMachine, vmName)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred finding VM %s by name or uuid", vmName))
 		return nil, err
@@ -954,6 +994,12 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	// set the VM UUID on the nutanix machine as soon as it is available. VM UUID can be used for cleanup in case of failure
 	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUuid)
 	rctx.NutanixMachine.Status.VmUUID = vmUuid
+
+	err = r.patchMachine(rctx)
+	if err != nil {
+		log.Error(err, "failed to patch NutanixMachine after setting VmUUID")
+		return nil, err
+	}
 
 	// Power on VM
 	log.Info("Powering VM on after creation")

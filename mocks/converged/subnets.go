@@ -18,31 +18,31 @@ import (
 )
 
 // MockSubnets is a mock of Subnets interface.
-type MockSubnets[Subnet any] struct {
+type MockSubnets[Subnet any, TaskReference any] struct {
 	ctrl     *gomock.Controller
-	recorder *MockSubnetsMockRecorder[Subnet]
+	recorder *MockSubnetsMockRecorder[Subnet, TaskReference]
 	isgomock struct{}
 }
 
 // MockSubnetsMockRecorder is the mock recorder for MockSubnets.
-type MockSubnetsMockRecorder[Subnet any] struct {
-	mock *MockSubnets[Subnet]
+type MockSubnetsMockRecorder[Subnet any, TaskReference any] struct {
+	mock *MockSubnets[Subnet, TaskReference]
 }
 
 // NewMockSubnets creates a new mock instance.
-func NewMockSubnets[Subnet any](ctrl *gomock.Controller) *MockSubnets[Subnet] {
-	mock := &MockSubnets[Subnet]{ctrl: ctrl}
-	mock.recorder = &MockSubnetsMockRecorder[Subnet]{mock}
+func NewMockSubnets[Subnet any, TaskReference any](ctrl *gomock.Controller) *MockSubnets[Subnet, TaskReference] {
+	mock := &MockSubnets[Subnet, TaskReference]{ctrl: ctrl}
+	mock.recorder = &MockSubnetsMockRecorder[Subnet, TaskReference]{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockSubnets[Subnet]) EXPECT() *MockSubnetsMockRecorder[Subnet] {
+func (m *MockSubnets[Subnet, TaskReference]) EXPECT() *MockSubnetsMockRecorder[Subnet, TaskReference] {
 	return m.recorder
 }
 
 // Get mocks base method.
-func (m *MockSubnets[Subnet]) Get(ctx context.Context, uuid string) (*Subnet, error) {
+func (m *MockSubnets[Subnet, TaskReference]) Get(ctx context.Context, uuid string) (*Subnet, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", ctx, uuid)
 	ret0, _ := ret[0].(*Subnet)
@@ -51,13 +51,13 @@ func (m *MockSubnets[Subnet]) Get(ctx context.Context, uuid string) (*Subnet, er
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockSubnetsMockRecorder[Subnet]) Get(ctx, uuid any) *gomock.Call {
+func (mr *MockSubnetsMockRecorder[Subnet, TaskReference]) Get(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockSubnets[Subnet])(nil).Get), ctx, uuid)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockSubnets[Subnet, TaskReference])(nil).Get), ctx, uuid)
 }
 
 // List mocks base method.
-func (m *MockSubnets[Subnet]) List(ctx context.Context, opts ...converged.ODataOption) ([]Subnet, error) {
+func (m *MockSubnets[Subnet, TaskReference]) List(ctx context.Context, opts ...converged.ODataOption) ([]Subnet, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range opts {
@@ -70,14 +70,34 @@ func (m *MockSubnets[Subnet]) List(ctx context.Context, opts ...converged.ODataO
 }
 
 // List indicates an expected call of List.
-func (mr *MockSubnetsMockRecorder[Subnet]) List(ctx any, opts ...any) *gomock.Call {
+func (mr *MockSubnetsMockRecorder[Subnet, TaskReference]) List(ctx any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockSubnets[Subnet])(nil).List), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockSubnets[Subnet, TaskReference])(nil).List), varargs...)
+}
+
+// ListReservedIpsBySubnetId mocks base method.
+func (m *MockSubnets[Subnet, TaskReference]) ListReservedIpsBySubnetId(ctx context.Context, subnetExtId string, opts ...converged.ODataOption) (any, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, subnetExtId}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ListReservedIpsBySubnetId", varargs...)
+	ret0, _ := ret[0].(any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListReservedIpsBySubnetId indicates an expected call of ListReservedIpsBySubnetId.
+func (mr *MockSubnetsMockRecorder[Subnet, TaskReference]) ListReservedIpsBySubnetId(ctx, subnetExtId any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, subnetExtId}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListReservedIpsBySubnetId", reflect.TypeOf((*MockSubnets[Subnet, TaskReference])(nil).ListReservedIpsBySubnetId), varargs...)
 }
 
 // NewIterator mocks base method.
-func (m *MockSubnets[Subnet]) NewIterator(ctx context.Context, opts ...converged.ODataOption) converged.Iterator[Subnet] {
+func (m *MockSubnets[Subnet, TaskReference]) NewIterator(ctx context.Context, opts ...converged.ODataOption) converged.Iterator[Subnet] {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range opts {
@@ -89,8 +109,38 @@ func (m *MockSubnets[Subnet]) NewIterator(ctx context.Context, opts ...converged
 }
 
 // NewIterator indicates an expected call of NewIterator.
-func (mr *MockSubnetsMockRecorder[Subnet]) NewIterator(ctx any, opts ...any) *gomock.Call {
+func (mr *MockSubnetsMockRecorder[Subnet, TaskReference]) NewIterator(ctx any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewIterator", reflect.TypeOf((*MockSubnets[Subnet])(nil).NewIterator), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewIterator", reflect.TypeOf((*MockSubnets[Subnet, TaskReference])(nil).NewIterator), varargs...)
+}
+
+// ReserveIpsBySubnetId mocks base method.
+func (m *MockSubnets[Subnet, TaskReference]) ReserveIpsBySubnetId(ctx context.Context, subnetExtId string, spec any) (*TaskReference, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReserveIpsBySubnetId", ctx, subnetExtId, spec)
+	ret0, _ := ret[0].(*TaskReference)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReserveIpsBySubnetId indicates an expected call of ReserveIpsBySubnetId.
+func (mr *MockSubnetsMockRecorder[Subnet, TaskReference]) ReserveIpsBySubnetId(ctx, subnetExtId, spec any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReserveIpsBySubnetId", reflect.TypeOf((*MockSubnets[Subnet, TaskReference])(nil).ReserveIpsBySubnetId), ctx, subnetExtId, spec)
+}
+
+// UnreserveIpsBySubnetId mocks base method.
+func (m *MockSubnets[Subnet, TaskReference]) UnreserveIpsBySubnetId(ctx context.Context, subnetExtId string, spec any) (*TaskReference, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnreserveIpsBySubnetId", ctx, subnetExtId, spec)
+	ret0, _ := ret[0].(*TaskReference)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UnreserveIpsBySubnetId indicates an expected call of UnreserveIpsBySubnetId.
+func (mr *MockSubnetsMockRecorder[Subnet, TaskReference]) UnreserveIpsBySubnetId(ctx, subnetExtId, spec any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnreserveIpsBySubnetId", reflect.TypeOf((*MockSubnets[Subnet, TaskReference])(nil).UnreserveIpsBySubnetId), ctx, subnetExtId, spec)
 }

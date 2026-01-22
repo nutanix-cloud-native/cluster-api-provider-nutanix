@@ -42,7 +42,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"                                 //nolint:staticcheck // suppress complaining on Deprecated package
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"         //nolint:staticcheck // suppress complaining on Deprecated package
 	v1beta2conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions/v1beta2" //nolint:staticcheck // suppress complaining on Deprecated package
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -121,8 +122,16 @@ func GenerateProviderID(uuid string) string {
 	return fmt.Sprintf("%s%s", providerIdPrefix, uuid)
 }
 
-// GetVMUUID returns the UUID of the VM with the given name
-func GetVMUUID(nutanixMachine *infrav1.NutanixMachine) (string, error) {
+// GetVMUUID returns the UUID of the VM.
+func GetVMUUID(machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMachine) (string, error) {
+	// First, try to get the systemUUID from Machine.Status.NodeInfo
+	if machine != nil && machine.Status.NodeInfo != nil && machine.Status.NodeInfo.SystemUUID != "" {
+		systemUUID := machine.Status.NodeInfo.SystemUUID
+		if _, err := uuid.Parse(systemUUID); err != nil {
+			return "", fmt.Errorf("Machine.Status.NodeInfo.SystemUUID was set but was not a valid UUID: %s err: %v", systemUUID, err)
+		}
+		return systemUUID, nil
+	}
 	vmUUID := nutanixMachine.Status.VmUUID
 	if vmUUID != "" {
 		if _, err := uuid.Parse(vmUUID); err != nil {
@@ -130,23 +139,13 @@ func GetVMUUID(nutanixMachine *infrav1.NutanixMachine) (string, error) {
 		}
 		return vmUUID, nil
 	}
-	providerID := nutanixMachine.Spec.ProviderID
-	if providerID == "" {
-		return "", nil
-	}
-	id := strings.TrimPrefix(providerID, providerIdPrefix)
-	// Not returning error since the ProviderID initially is not a UUID. CAPX only sets the UUID after VM provisioning.
-	// If it is not a UUID, continue.
-	if _, err := uuid.Parse(id); err != nil {
-		return "", nil
-	}
-	return id, nil
+	return "", nil
 }
 
 // FindVM retrieves the VM with the given uuid or name
-func FindVM(ctx context.Context, client *v4Converged.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
+func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
-	vmUUID, err := GetVMUUID(nutanixMachine)
+	vmUUID, err := GetVMUUID(machine, nutanixMachine)
 	if err != nil {
 		return nil, err
 	}
