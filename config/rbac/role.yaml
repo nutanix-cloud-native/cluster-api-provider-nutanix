@@ -57,6 +57,7 @@ rules:
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
+  - ahvmetrozones
   - nutanixclusters
   - nutanixfailuredomains
   - nutanixmachines
@@ -71,13 +72,8 @@ rules:
 - apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
-  - nutanixclusters/finalizers
-  - nutanixmachines/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - infrastructure.cluster.x-k8s.io
-  resources:
+  - ahvmetrozones/finalizers
+  - ahvmetrozones/status
   - nutanixclusters/status
   - nutanixfailuredomains/finalizers
   - nutanixfailuredomains/status
@@ -85,4 +81,11 @@ rules:
   verbs:
   - get
   - patch
+  - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - nutanixclusters/finalizers
+  - nutanixmachines/finalizers
+  verbs:
   - update
