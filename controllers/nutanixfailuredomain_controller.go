@@ -210,11 +210,6 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 
 	if len(ntxMachines) == 0 {
 		v1beta1conditions.MarkTrue(fd, infrav1.FailureDomainSafeForDeletionCondition)
-		v1beta2conditions.Set(fd, metav1.Condition{
-			Type:   string(infrav1.FailureDomainSafeForDeletionCondition),
-			Status: metav1.ConditionTrue,
-			Reason: capiv1beta1.ReadyV1Beta2Reason,
-		})
 
 		// Remove the finalizer from the failure domain object
 		ctrlutil.RemoveFinalizer(fd, infrav1.NutanixFailureDomainFinalizer)
@@ -224,12 +219,6 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 	errMsg := fmt.Sprintf("The failure domain is used by machines: %v", ntxMachines)
 	v1beta1conditions.MarkFalse(fd, infrav1.FailureDomainSafeForDeletionCondition,
 		infrav1.FailureDomainInUseReason, capiv1beta1.ConditionSeverityError, "%s", errMsg)
-	v1beta2conditions.Set(fd, metav1.Condition{
-		Type:    string(infrav1.FailureDomainSafeForDeletionCondition),
-		Status:  metav1.ConditionFalse,
-		Reason:  infrav1.FailureDomainInUseReason,
-		Message: errMsg,
-	})
 
 	reterr := fmt.Errorf("the failure domain %q is not safe for deletion since it is in use", fd.Name)
 	log.Error(reterr, errMsg)
@@ -242,7 +231,6 @@ func (r *NutanixFailureDomainReconciler) reconcileNormal(ctx context.Context, fd
 
 	// Remove the FailureDomainSafeForDeletionCondition if there are any
 	v1beta1conditions.Delete(fd, infrav1.FailureDomainSafeForDeletionCondition)
-	v1beta2conditions.Delete(fd, string(infrav1.FailureDomainSafeForDeletionCondition))
 
 	return ctrl.Result{}, nil
 }
