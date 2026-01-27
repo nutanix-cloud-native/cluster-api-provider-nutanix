@@ -349,9 +349,6 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	}
 
 	log.V(1).Info(fmt.Sprintf("Found VM %s with UUID %s.", *vm.Name, vmUUID))
-	if len(vm.CustomAttributes) > 0 {
-		log.V(1).Info(fmt.Sprintf("VM %s has custom attributes during delete: %v", *vm.Name, vm.CustomAttributes))
-	}
 
 	taskInProgress, err := VmHasTaskInProgress(ctx, convergedClient, vmUUID)
 	if err != nil {
@@ -488,7 +485,6 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	if len(vm.CustomAttributes) > 0 {
 		log.V(1).Info(fmt.Sprintf("VM %s has custom attributes: %v", rctx.Machine.Name, vm.CustomAttributes))
 	}
-	rctx.NutanixMachine.Status.VmUUID = *vm.ExtId
 
 	// Set the NutanixMachine.status.failureDomain if the Machine is created with failureDomain
 	if err = r.checkFailureDomainStatus(rctx); err != nil {
@@ -970,7 +966,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		return nil, errorMsg
 	}
 	if len(vm.CustomAttributes) > 0 {
-		log.V(1).Info(fmt.Sprintf("Verified custom attributes on VM %s: %v", vmName, vm.CustomAttributes))
+		log.V(5).Info(fmt.Sprintf("Verified custom attributes on VM %s: %v", vmName, vm.CustomAttributes))
 	}
 
 	conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
