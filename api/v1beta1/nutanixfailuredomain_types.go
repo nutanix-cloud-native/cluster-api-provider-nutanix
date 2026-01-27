@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
@@ -45,6 +46,11 @@ type NutanixFailureDomainSpec struct {
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=32
 	Subnets []NutanixResourceIdentifier `json:"subnets"`
+
+	// prismCentralRef is the reference to the NutanixPrismCentral object
+	// which defines the Prism Central endpoint and credential.
+	// +kubebuilder:validation:Required
+	PrismCentralRef corev1.LocalObjectReference `json:"prismCentralRef"`
 }
 
 // NutanixFailureDomainStatus defines the observed state of NutanixFailureDomain resource.

@@ -214,6 +214,8 @@ spec:
                           When a cluster-wide proxy is installed, by default, this endpoint will be accessed via the proxy.
                           Should you wish for communication with this endpoint not to be proxied, please add the endpoint to the
                           proxy spec.noProxy list.
+
+                          Deprecated: This field is replaced by enforcing to use failureDomain which includes both PrismCentral and PrismElement configuration.
                         properties:
                           additionalTrustBundle:
                             description: |-

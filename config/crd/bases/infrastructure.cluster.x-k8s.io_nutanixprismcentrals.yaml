@@ -6,24 +6,22 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.18.0
   labels:
     clusterctl.cluster.x-k8s.io/move: ""
-  name: nutanixfailuredomains.infrastructure.cluster.x-k8s.io
+  name: nutanixprismcentrals.infrastructure.cluster.x-k8s.io
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
     categories:
     - cluster-api
-    kind: NutanixFailureDomain
-    listKind: NutanixFailureDomainList
-    plural: nutanixfailuredomains
-    shortNames:
-    - nfd
-    singular: nutanixfailuredomain
+    kind: NutanixPrismCentral
+    listKind: NutanixPrismCentralList
+    plural: nutanixprismcentrals
+    singular: nutanixprismcentral
   scope: Namespaced
   versions:
   - name: v1beta1
     schema:
       openAPIV3Schema:
-        description: NutanixFailureDomain is the Schema for the NutanixFailureDomain
+        description: NutanixPrismCentral is the Schema for the NutanixPrismCentrals
           API.
         properties:
           apiVersion:
@@ -44,12 +42,25 @@ spec:
           metadata:
             type: object
           spec:
-            description: NutanixFailureDomainSpec defines the desired state of NutanixFailureDomain.
+            description: |-
+              NutanixPrismCentralSpec defines the desired state of NutanixPrismCentral.
+              It includes a Nutanix API endpoint with reference to credentials.
+              Credentials are stored in Kubernetes secrets.
             properties:
-              prismCentralRef:
+              additionalTrustBundle:
                 description: |-
-                  prismCentralRef is the reference to the NutanixPrismCentral object
-                  which defines the Prism Central endpoint and credential.
+                  AdditionalTrustBundle is a PEM encoded x509 cert for the RootCA that was used to create the certificate
+                  for a Prism Central that uses certificates that were issued by a non-publicly trusted RootCA. The trust
+                  bundle is added to the cert pool used to authenticate the TLS connection to the Prism Central.
+                type: string
+              address:
+                description: address is the endpoint address (DNS name or IP address)
+                  of the Nutanix Prism Central
+                maxLength: 256
+                type: string
+              credentialSecretRef:
+                description: credentialRef is the reference to the credentials secret
+                  object that holds the credentials data for the PC
                 properties:
                   name:
                     default: ""
@@ -62,96 +73,29 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
-              prismElementCluster:
-                description: prismElementCluster is to identify the Prism Element
-                  cluster in the Prism Central for the failure domain.
-                properties:
-                  name:
-                    description: name is the resource name in the PC
-                    minLength: 1
-                    type: string
-                  type:
-                    description: Type is the identifier type to use for this resource.
-                    enum:
-                    - uuid
-                    - name
-                    type: string
-                  uuid:
-                    description: uuid is the UUID of the resource in the PC.
-                    format: uuid
-                    maxLength: 36
-                    minLength: 36
-                    type: string
-                required:
-                - type
-                type: object
-                x-kubernetes-validations:
-                - message: prismElementCluster is immutable once set
-                  rule: self == oldSelf
-                - message: '''name'' must be set when type is ''name'', and forbidden
-                    otherwise'
-                  rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                - message: '''uuid'' must be set when type is ''uuid'', and forbidden
-                    otherwise'
-                  rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                    : !has(self.uuid)'
-              subnets:
-                description: |-
-                  subnets holds a list of identifiers (one or more) of the PE cluster's network subnets
-                  for the Machine's VM to connect to.
-                items:
-                  description: NutanixResourceIdentifier holds the identity of a Nutanix
-                    PC resource (cluster, image, subnet, etc.)
-                  properties:
-                    name:
-                      description: name is the resource name in the PC
-                      minLength: 1
-                      type: string
-                    type:
-                      description: Type is the identifier type to use for this resource.
-                      enum:
-                      - uuid
-                      - name
-                      type: string
-                    uuid:
-                      description: uuid is the UUID of the resource in the PC.
-                      format: uuid
-                      maxLength: 36
-                      minLength: 36
-                      type: string
-                  required:
-                  - type
-                  type: object
-                  x-kubernetes-validations:
-                  - message: '''name'' must be set when type is ''name'', and forbidden
-                      otherwise'
-                    rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                  - message: '''uuid'' must be set when type is ''uuid'', and forbidden
-                      otherwise'
-                    rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                      : !has(self.uuid)'
-                maxItems: 32
-                minItems: 1
-                type: array
-                x-kubernetes-validations:
-                - message: subnets is immutable once set
-                  rule: self == oldSelf
+              insecure:
+                default: false
+                description: insecure indicates the connection to Prism endpoint is
+                  insecure
+                type: boolean
+              port:
+                default: 9440
+                description: port is the port number to access the Nutanix Prism Central
+                  or Element (cluster)
+                format: int32
+                maximum: 65535
+                minimum: 1
+                type: integer
             required:
-            - prismCentralRef
-            - prismElementCluster
-            - subnets
+            - address
+            - port
             type: object
-            x-kubernetes-validations:
-            - message: each subnet must be unique
-              rule: 'size(self.subnets) > 1 ? self.subnets.all(x, self.subnets.exists_one(y,
-                x == y)) : true'
           status:
-            description: NutanixFailureDomainStatus defines the observed state of
-              NutanixFailureDomain resource.
+            description: NutanixPrismCentralStatus defines the observed state of NutanixPrismCentral
+              resource.
             properties:
               conditions:
-                description: conditions represent the latest states of the failure
-                  domain.
+                description: conditions represent the latest states of the NutanixPrismCentral.
                 items:
                   description: Condition defines an observation of a Cluster API resource
                     operational state.
