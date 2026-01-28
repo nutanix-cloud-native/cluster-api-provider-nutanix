@@ -28,10 +28,15 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/google/uuid"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	"github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
+	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+	ccov1 "github.com/nutanix-engineering/hack2026-d2864/api/v1alpha1"
 	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
@@ -44,9 +49,7 @@ import (
 	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
-
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -1053,6 +1056,44 @@ func GetStorageContainerInCluster(ctx context.Context, client *v4Converged.Clien
 	}
 
 	return &storageContainers[0], nil
+}
+
+func getPCEndpointFromFailureDomain(ctx context.Context, log logr.Logger, kclient client.Client, fdName string, namespace string) (*credentialTypes.NutanixPrismEndpoint, error) {
+	fdObj := &infrav1.NutanixFailureDomain{}
+	fdKey := client.ObjectKey{Name: fdName, Namespace: namespace}
+	if err := kclient.Get(ctx, fdKey, fdObj); err != nil {
+		return nil, fmt.Errorf("failed to fetch the referent failure domain object %q: %w", fdName, err)
+	}
+
+	if fdObj.Spec.PrismCentralRef != nil && fdObj.Spec.PrismCentralRef.Name != "" {
+		// fetch the NutanixPrismCentral object
+		pcObj := &ccov1.NutanixPrismCentral{}
+		if err := kclient.Get(ctx, client.ObjectKey{Name: fdObj.Spec.PrismCentralRef.Name, Namespace: namespace}, pcObj); err != nil {
+			return nil, fmt.Errorf("failed to fetch the referent NutanixPrismCentral object %q: %w", fdObj.Spec.PrismCentralRef.Name, err)
+		}
+
+		pcEndpoint := &credentialTypes.NutanixPrismEndpoint{
+			Address:  pcObj.Spec.Address,
+			Port:     pcObj.Spec.Port,
+			Insecure: pcObj.Spec.Insecure,
+			CredentialRef: &credentialTypes.NutanixCredentialReference{
+				Kind:      "Secret",
+				Name:      pcObj.Spec.CredentialSecretRef.Name,
+				Namespace: namespace,
+			},
+		}
+		if pcObj.Spec.AdditionalTrustBundle != nil && *pcObj.Spec.AdditionalTrustBundle != "" {
+			pcEndpoint.AdditionalTrustBundle = &credentialTypes.NutanixTrustBundleReference{
+				Kind: "String",
+				Data: *pcObj.Spec.AdditionalTrustBundle,
+			}
+		}
+
+		log.Info(fmt.Sprintf("NutanixPrismEndpoint from the NutanixPrismCentral %q by failureDomain %q. pcEndpoint=%+v", pcObj.Name, fdObj.Name, *pcEndpoint))
+		return pcEndpoint, nil
+	}
+
+	return nil, nil
 }
 
 func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*prismclientv3.Client, error) {

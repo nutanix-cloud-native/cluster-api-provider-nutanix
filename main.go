@@ -24,7 +24,12 @@ import (
 	"os"
 	"time"
 
+	//+kubebuilder:scaffold:imports
+
 	"github.com/go-logr/logr"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
+	ccov1 "github.com/nutanix-engineering/hack2026-d2864/api/v1alpha1"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/time/rate"
@@ -48,10 +53,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
-	//+kubebuilder:scaffold:imports
 )
 
 var scheme = runtime.NewScheme()
@@ -64,6 +65,7 @@ func init() {
 	utilruntime.Must(capiv1.AddToScheme(scheme))
 	utilruntime.Must(bootstrapv1.AddToScheme(scheme))
 	utilruntime.Must(infrav1.AddToScheme(scheme))
+	utilruntime.Must(ccov1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

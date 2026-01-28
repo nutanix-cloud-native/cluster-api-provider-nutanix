@@ -55,6 +55,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - credential.nutanix.io
+  resources:
+  - nutanixprismcentrals
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
   - nutanixclusters

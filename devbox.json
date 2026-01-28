@@ -1,4 +1,8 @@
 {
+  "shell": {
+    "init_hook": ["export CGO_ENABLED=0"]
+  },
+
   "packages": [
     "bash@latest",
     "coreutils@latest",

@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 	vmmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
 	"github.com/pkg/errors"
@@ -50,9 +52,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
 var (
@@ -183,6 +182,7 @@ func (r *NutanixMachineReconciler) mapNutanixClusterToNutanixMachines() handler.
 //+kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=bootstrap.cluster.x-k8s.io,resources=kubeadmconfigs,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=credential.nutanix.io,resources=nutanixprismcentrals,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -254,7 +254,20 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	log.Info(fmt.Sprintf("Reconciling NutanixMachine %s in namespace %s", ntxMachine.Name, ntxMachine.Namespace))
-	// Create a Nutanix client for the NutanixCluster.
+
+	if machine.Spec.FailureDomain != nil && *machine.Spec.FailureDomain != "" {
+		pcEndpoint, err := getPCEndpointFromFailureDomain(ctx, log, r.Client, *machine.Spec.FailureDomain, machine.Namespace)
+		if err != nil {
+			// Log the error
+			log.Error(err, fmt.Sprintf("error occurred when fetching PC endpoint data from machine's spec.failureDomain %q", *machine.Spec.FailureDomain))
+		} else if pcEndpoint != nil {
+			// update the NutanixCluster's spec.prismCentral
+			ntxCluster.Spec.PrismCentral = pcEndpoint
+			log.Info(fmt.Sprintf("update the NutanixCluster %q prismCentral with that from machine failureDomain %q", ntxCluster.Name, *machine.Spec.FailureDomain))
+		}
+	}
+
+	// Create Nutanix clients from the NutanixCluster's prismCentral.
 	v3Client, err := getPrismCentralClientForCluster(ctx, ntxCluster, r.SecretInformer, r.ConfigMapInformer)
 	if err != nil {
 		log.Error(err, "error occurred while fetching prism central client")
