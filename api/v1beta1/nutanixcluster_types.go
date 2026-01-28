@@ -59,6 +59,9 @@ type NutanixClusterSpec struct {
 	// Should you wish for communication with this endpoint not to be proxied, please add the endpoint to the
 	// proxy spec.noProxy list.
 	// +optional
+	//
+	// Deprecated: This field is replaced by enforcing to use failureDomain which includes both PrismCentral and PrismElement configuration.
+	//
 	PrismCentral *credentialTypes.NutanixPrismEndpoint `json:"prismCentral"`
 
 	// failureDomains configures failure domains information for the Nutanix platform.

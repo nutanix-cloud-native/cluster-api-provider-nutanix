@@ -46,6 +46,22 @@ spec:
           spec:
             description: NutanixFailureDomainSpec defines the desired state of NutanixFailureDomain.
             properties:
+              prismCentralRef:
+                description: |-
+                  prismCentralRef is the reference to the NutanixPrismCentral object
+                  which defines the Prism Central endpoint and credential.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
               prismElementCluster:
                 description: prismElementCluster is to identify the Prism Element
                   cluster in the Prism Central for the failure domain.

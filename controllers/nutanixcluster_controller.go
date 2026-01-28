@@ -23,6 +23,9 @@ import (
 	"fmt"
 	"time"
 
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	corev1 "k8s.io/api/core/v1"
 	kapierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -45,10 +48,6 @@ import (
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
-	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
 // NutanixClusterReconciler reconciles a NutanixCluster object
@@ -146,6 +145,7 @@ func (r *NutanixClusterReconciler) mapNutanixFailureDomainToNutanixCluster() han
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters/finalizers,verbs=update
+// +kubebuilder:rbac:groups=credential.nutanix.io,resources=nutanixprismcentrals,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -195,6 +195,9 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 	log.Info(fmt.Sprintf("Fetched the owner Cluster: %s", capiCluster.Name))
 
+	// keep the original spec.PrismCentral
+	origPrismCentral := cluster.Spec.PrismCentral
+
 	// Initialize the patch helper.
 	patchHelper, err := patch.NewHelper(cluster, r.Client)
 	if err != nil {
@@ -203,6 +206,12 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	defer func() {
+		// restore the original spec.PrismCentral for NutanixCluster
+		if cluster.Spec.PrismCentral != origPrismCentral {
+			cluster.Spec.PrismCentral = origPrismCentral
+			log.Info(fmt.Sprintf("restored the original setting of spec.PrismCentral for NutanixCluster %q.", cluster.Name))
+		}
+
 		// Always attempt to Patch the NutanixCluster object and its status after each reconciliation.
 		if err := patchHelper.Patch(ctx, cluster); err != nil {
 			reterr = kutilerrors.NewAggregate([]error{reterr, err})
@@ -220,6 +229,20 @@ func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if err := r.reconcileTrustBundleRef(ctx, cluster); err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while reconciling trust bundle ref for cluster %s", capiCluster.Name))
 		return reconcile.Result{}, err
+	}
+
+	// If the NutanixCluster's Spec.PrismCentral is not set, try to get the PrismCentral from failureDomain.
+	if len(cluster.Status.FailureDomains) > 0 {
+		fdName := cluster.Status.FailureDomains.GetIDs()[0]
+		pcEndpoint, err := getPCEndpointFromFailureDomain(ctx, log, r.Client, *fdName, cluster.Namespace)
+		if err != nil {
+			// Log the error
+			log.Error(err, fmt.Sprintf("error occurred when fetching PC endpoint data from the failureDomain %q", *fdName))
+		} else if pcEndpoint != nil {
+			// update the NutanixCluster's spec.prismCentral
+			cluster.Spec.PrismCentral = pcEndpoint
+			log.Info(fmt.Sprintf("update the NutanixCluster %q prismCentral with that from failureDomain %q", cluster.Name, *fdName))
+		}
 	}
 
 	v3Client, err := getPrismCentralClientForCluster(ctx, cluster, r.SecretInformer, r.ConfigMapInformer)
