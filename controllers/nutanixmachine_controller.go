@@ -36,10 +36,10 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	capiutil "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	conditions "sigs.k8s.io/cluster-api/util/conditions/deprecated/v1beta1"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -129,7 +129,7 @@ func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctr
 		Watches(
 			&capiv1.Cluster{},
 			handler.EnqueueRequestsFromMapFunc(clusterToObjectFunc),
-			builder.WithPredicates(predicates.ClusterPausedTransitionsOrInfrastructureReady(r.Scheme, ctrl.LoggerFrom(ctx))),
+			builder.WithPredicates(predicates.ClusterPausedTransitionsOrInfrastructureProvisioned(r.Scheme, ctrl.LoggerFrom(ctx))),
 		).
 		WithOptions(copts).
 		Complete(r)
@@ -161,7 +161,7 @@ func (r *NutanixMachineReconciler) mapNutanixClusterToNutanixMachines() handler.
 		}
 		requests := make([]ctrl.Request, 0)
 		for _, m := range machineList.Items {
-			if m.Spec.InfrastructureRef.Name == "" || m.Spec.InfrastructureRef.GroupVersionKind().Kind != "NutanixMachine" {
+			if m.Spec.InfrastructureRef.Name == "" || m.Spec.InfrastructureRef.Kind != "NutanixMachine" {
 				continue
 			}
 
@@ -423,7 +423,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 
 	log.V(1).Info(fmt.Sprintf("Checking current machine status for machine %s: Status %+v Spec %+v", rctx.NutanixMachine.Name, rctx.NutanixMachine.Status, rctx.NutanixMachine.Spec))
 	if rctx.NutanixMachine.Status.Ready {
-		if !rctx.Machine.Status.InfrastructureReady || rctx.Machine.Spec.ProviderID == nil {
+		if !conditions.IsTrue(rctx.Machine, capiv1.InfrastructureReadyCondition) || rctx.Machine.Spec.ProviderID == "" {
 			log.Info("The NutanixMachine is ready, wait for the owner Machine's update.")
 			return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
 		}
@@ -438,9 +438,9 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, nil
 	}
 
-	// Make sure Cluster.Status.InfrastructureReady is true
+	// Make sure Cluster infrastructure is ready
 	log.Info("Checking if cluster infrastructure is ready")
-	if !rctx.Cluster.Status.InfrastructureReady {
+	if !conditions.IsTrue(rctx.Cluster, capiv1.ClusterInfrastructureReadyCondition) {
 		log.Info("The cluster infrastructure is not ready yet")
 		conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.ClusterInfrastructureNotReady, capiv1.ConditionSeverityInfo, "")
 		return reconcile.Result{}, nil
@@ -450,7 +450,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	if rctx.NutanixMachine.Spec.BootstrapRef == nil {
 		if rctx.Machine.Spec.Bootstrap.DataSecretName == nil {
 			if !nctx.IsControlPlaneMachine(rctx.NutanixMachine) &&
-				!conditions.IsTrue(rctx.Cluster, capiv1.ControlPlaneInitializedCondition) {
+				!conditions.IsTrue(rctx.Cluster, capiv1.ClusterControlPlaneInitializedCondition) {
 				log.Info("Waiting for the control plane to be initialized")
 				conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.ControlplaneNotInitialized, capiv1.ConditionSeverityInfo, "")
 			} else {
@@ -545,11 +545,11 @@ func (r *NutanixMachineReconciler) syncVmUUID(rctx *nctx.MachineContext, vmExtId
 
 // checkFailureDomainStatus checks and sets the NutanixMachine.status.failureDomain if necessary
 func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineContext) error {
-	if rctx.Machine.Spec.FailureDomain == nil || *rctx.Machine.Spec.FailureDomain == "" {
+	if rctx.Machine.Spec.FailureDomain == "" {
 		return nil
 	}
 
-	fd := *rctx.Machine.Spec.FailureDomain
+	fd := rctx.Machine.Spec.FailureDomain
 	// Fetch the referent failure domain object
 	fdSpec, err := r.getFailureDomainSpec(rctx, fd)
 	if err != nil {
@@ -583,7 +583,7 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 	if len(errMessages) > 0 {
 		return fmt.Errorf(
 			"the NutanixMachine is not consistent with the referenced NutanixFailureDomain %q: %s",
-			*rctx.Machine.Spec.FailureDomain,
+			rctx.Machine.Spec.FailureDomain,
 			strings.Join(errMessages, "; "),
 		)
 	}
@@ -598,7 +598,7 @@ func (r *NutanixMachineReconciler) getFailureDomainSpec(rctx *nctx.MachineContex
 	// TODO: @faiq -- to handle the legacy failure domains this function checks to see if fdName
 	// is present in the legacy embedded field. if it is, we return a "dummy" spec for the new failure domain
 	// CR with the subnets and cluster info
-	failureDomainName := *rctx.Machine.Spec.FailureDomain
+	failureDomainName := rctx.Machine.Spec.FailureDomain
 	if rctx.NutanixCluster != nil && len(rctx.NutanixCluster.Spec.FailureDomains) > 0 { //nolint:staticcheck // this handles old field
 		failureDomain := GetLegacyFailureDomainFromNutanixCluster(failureDomainName, rctx.NutanixCluster)
 		if failureDomain != nil {
@@ -641,11 +641,11 @@ func (r *NutanixMachineReconciler) validateFailureDomainSpec(rctx *nctx.MachineC
 func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineContext) error {
 	log := ctrl.LoggerFrom(rctx.Context)
 	fdName := rctx.Machine.Spec.FailureDomain
-	if fdName != nil && *fdName != "" {
-		log.WithValues("failureDomain", *fdName)
-		fdSpec, err := r.getFailureDomainSpec(rctx, *fdName)
+	if fdName != "" {
+		log.WithValues("failureDomain", fdName)
+		fdSpec, err := r.getFailureDomainSpec(rctx, fdName)
 		if err != nil {
-			log.Error(err, fmt.Sprintf("Failed to get the failure domain %s", *fdName))
+			log.Error(err, fmt.Sprintf("Failed to get the failure domain %s", fdName))
 			return err
 		}
 		if err := r.validateFailureDomainSpec(rctx, fdSpec); err != nil {
@@ -655,8 +655,8 @@ func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineConte
 		// Update the NutanixMachine machine config based on the failure domain spec
 		rctx.NutanixMachine.Spec.Cluster = fdSpec.PrismElementCluster
 		rctx.NutanixMachine.Spec.Subnets = fdSpec.Subnets
-		rctx.NutanixMachine.Status.FailureDomain = fdName
-		log.Info(fmt.Sprintf("Updated the NutanixMachine %s machine config from the failure domain %s configuration.", rctx.NutanixMachine.Name, *fdName))
+		rctx.NutanixMachine.Status.FailureDomain = ptr.To(fdName)
+		log.Info(fmt.Sprintf("Updated the NutanixMachine %s machine config from the failure domain %s configuration.", rctx.NutanixMachine.Name, fdName))
 	}
 
 	if len(rctx.NutanixMachine.Spec.Subnets) == 0 {
@@ -1052,7 +1052,7 @@ func getSystemDisk(rctx *nctx.MachineContext) (*vmmconfig.Disk, error) {
 			rctx.ConvergedClient,
 			rctx.NutanixMachine.Spec.ImageLookup.Format,
 			&rctx.NutanixMachine.Spec.ImageLookup.BaseOS,
-			rctx.Machine.Spec.Version,
+			ptr.To(rctx.Machine.Spec.Version),
 		)
 	}
 	if err != nil {

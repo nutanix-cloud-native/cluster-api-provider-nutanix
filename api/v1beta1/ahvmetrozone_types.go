@@ -18,7 +18,7 @@ package v1beta1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 )
 
 const (
@@ -121,6 +121,18 @@ func (z *AHVMetroZone) GetConditions() capiv1.Conditions {
 
 // SetConditions sets the conditions on this object.
 func (z *AHVMetroZone) SetConditions(conditions capiv1.Conditions) {
+	z.Status.Conditions = conditions
+}
+
+// GetV1Beta1Conditions returns the set of conditions for this object.
+// Required for the deprecated conditions package (util/conditions/deprecated/v1beta1).
+func (z *AHVMetroZone) GetV1Beta1Conditions() capiv1.Conditions {
+	return z.Status.Conditions
+}
+
+// SetV1Beta1Conditions sets the conditions on this object.
+// Required for the deprecated conditions package (util/conditions/deprecated/v1beta1).
+func (z *AHVMetroZone) SetV1Beta1Conditions(conditions capiv1.Conditions) {
 	z.Status.Conditions = conditions
 }
 

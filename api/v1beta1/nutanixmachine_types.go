@@ -20,7 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -307,6 +307,18 @@ func (nm *NutanixMachine) GetConditions() capiv1.Conditions {
 
 // SetConditions sets the conditions on this object.
 func (nm *NutanixMachine) SetConditions(conditions capiv1.Conditions) {
+	nm.Status.Conditions = conditions
+}
+
+// GetV1Beta1Conditions returns the set of conditions for this object.
+// Required for the deprecated conditions package (util/conditions/deprecated/v1beta1).
+func (nm *NutanixMachine) GetV1Beta1Conditions() capiv1.Conditions {
+	return nm.Status.Conditions
+}
+
+// SetV1Beta1Conditions sets the conditions on this object.
+// Required for the deprecated conditions package (util/conditions/deprecated/v1beta1).
+func (nm *NutanixMachine) SetV1Beta1Conditions(conditions capiv1.Conditions) {
 	nm.Status.Conditions = conditions
 }
 
