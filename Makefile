@@ -220,9 +220,11 @@ update-kindnet-cni: ## Updates the kindnet CNI manifests
 
 .PHONY: update-ccm
 update-ccm: ## Updates the Nutanix CCM tag in all the template manifests to CCM_VERSION
-	@echo "Updating Nutanix CCM tag"
+	@echo "Updating Nutanix CCM tag to $(CCM_VERSION)"
 	@find $(TEMPLATES_DIR) -type f -name "*.yaml" -exec sed -i '' 's|CCM_TAG=[^}]*|CCM_TAG=$(CCM_VERSION)|g' {} +
 	@find $(NUTANIX_E2E_TEMPLATES) -type f -name "*.yaml" -exec sed -i '' 's|CCM_TAG=[^}]*|CCM_TAG=$(CCM_VERSION)|g' {} +
+	@sed -i '' 's|CCM_TAG: ".*"|CCM_TAG: "$(CCM_VERSION)"|g' $(E2E_DIR)/config/nutanix.yaml
+	@echo "Updated CCM tag to $(CCM_VERSION) in templates and E2E config"
 
 .PHONY: update-cni-manifests ## Updates all the CNI manifests to latest variants from upstream
 update-cni-manifests: update-calico-cni update-cilium-cni update-flannel-cni update-kindnet-cni  ## Updates all the CNI manifests to latest variants from upstream
