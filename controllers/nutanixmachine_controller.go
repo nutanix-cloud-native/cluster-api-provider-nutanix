@@ -63,6 +63,10 @@ var (
 	minVCPUSockets           = 1
 )
 
+const (
+	vmCustomAttributePrefix4ProviderID = "providerid:"
+)
+
 func init() {
 	minMachineSystemDiskSize = resource.MustParse("20Gi")
 	minMachineDataDiskSize = resource.MustParse("1Gi")
@@ -843,9 +847,9 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		NumCoresPerSocket:     ptr.To(int(rctx.NutanixMachine.Spec.VCPUsPerSocket)),
 		NumSockets:            ptr.To(int(rctx.NutanixMachine.Spec.VCPUSockets)),
 		HardwareClockTimezone: ptr.To("UTC"),
-		CustomAttributes:      []string{"providerid:" + providerUUID},
+		CustomAttributes:      []string{vmCustomAttributePrefix4ProviderID + providerUUID},
 	}
-	log.V(1).Info(fmt.Sprintf("Setting custom attributes for VM %s: providerid:%s", vmName, providerUUID))
+	log.V(1).Info(fmt.Sprintf("Setting custom attributes for VM %s: %v", vmName, vm.CustomAttributes))
 
 	peUUID, subnetUUIDs, err := r.GetSubnetAndPEUUIDs(rctx)
 	if err != nil {
