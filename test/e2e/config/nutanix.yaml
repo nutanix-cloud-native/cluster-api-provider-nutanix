@@ -108,6 +108,8 @@ variables:
   # The following Kubernetes versions should be the latest versions with already published kindest/node images.
   # This avoids building node images in the default case which improves the test duration significantly.
   KUBERNETES_VERSION_MANAGEMENT: "v1.34.0"
+  CCM_REPO: "ghcr.io/nutanix-cloud-native/cloud-provider-nutanix/controller"
+  CCM_TAG: "0.7.0-alpha.1"
   IP_FAMILY: "IPv4"
   CLUSTERCTL_LOG_LEVEL: 10
   CLUSTER_TOPOLOGY: "true"
