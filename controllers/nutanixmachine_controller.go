@@ -67,6 +67,10 @@ var (
 	minVCPUSockets           = 1
 )
 
+const (
+	vmCustomAttributePrefix4ProviderID = "providerid:"
+)
+
 func init() {
 	minMachineSystemDiskSize = resource.MustParse("20Gi")
 	minMachineDataDiskSize = resource.MustParse("1Gi")
@@ -532,6 +536,9 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		log.Error(err, "Failed to sync VmUUID")
 		return reconcile.Result{}, err
 	}
+	if len(vm.CustomAttributes) > 0 {
+		log.V(1).Info(fmt.Sprintf("VM %s has custom attributes: %v", rctx.Machine.Name, vm.CustomAttributes))
+	}
 
 	// Set the NutanixMachine.status.failureDomain if the Machine is created with failureDomain
 	if err = r.checkFailureDomainStatus(rctx); err != nil {
@@ -567,10 +574,9 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		Reason: infrav1.Succeeded,
 	})
 
-	// Update the NutanixMachine Spec.ProviderID
-	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(rctx.NutanixMachine.Status.VmUUID)
+	// The NutanixMachine Spec.ProviderID was already set during VM creation with the generated UUID
 	rctx.NutanixMachine.Status.Ready = true
-	log.V(1).Info(fmt.Sprintf("Created VM %s for cluster %s, update NutanixMachine spec.providerID to %s, and machinespec %+v, vmUuid: %s",
+	log.V(1).Info(fmt.Sprintf("Created VM %s for cluster %s, NutanixMachine spec.providerID: %s, machinespec %+v, vmUuid: %s",
 		rctx.Machine.Name, rctx.NutanixCluster.Name, rctx.NutanixMachine.Spec.ProviderID,
 		rctx.NutanixMachine, rctx.NutanixMachine.Status.VmUUID))
 	return reconcile.Result{}, nil
@@ -896,13 +902,21 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		return nil, err
 	}
 
+	// Generate a UUID for this VM that will be used as the providerID
+	providerUUID := uuid.New().String()
+	// Set the providerID in the NutanixMachine spec before creating the VM
+	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(providerUUID)
+	log.V(1).Info(fmt.Sprintf("Generated providerID %s for VM %s", rctx.NutanixMachine.Spec.ProviderID, vmName))
+
 	vm := &vmmconfig.Vm{
 		Name:                  &vmName,
 		MemorySizeBytes:       ptr.To(rctx.NutanixMachine.Spec.MemorySize.Value()),
 		NumCoresPerSocket:     ptr.To(int(rctx.NutanixMachine.Spec.VCPUsPerSocket)),
 		NumSockets:            ptr.To(int(rctx.NutanixMachine.Spec.VCPUSockets)),
 		HardwareClockTimezone: ptr.To("UTC"),
+		CustomAttributes:      []string{vmCustomAttributePrefix4ProviderID + providerUUID},
 	}
+	log.V(1).Info(fmt.Sprintf("Setting custom attributes for VM %s: %v", vmName, vm.CustomAttributes))
 
 	peUUID, subnetUUIDs, err := r.GetSubnetAndPEUUIDs(rctx)
 	if err != nil {
@@ -961,7 +975,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	vm.Disks = disks
 	vm.CdRoms = cdRoms
 
-	if err := r.addGuestCustomizationToVM(rctx, vm); err != nil {
+	if err := r.addGuestCustomizationToVM(rctx, vm, providerUUID); err != nil {
 		errorMsg := fmt.Errorf("error occurred while adding guest customization to vm spec: %v", err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, err
@@ -991,8 +1005,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	}
 	log.V(1).Info(fmt.Sprintf("Created VM %s. Got the vm UUID: %s, power state: %s", vmName, vmUuid, powerState))
 
-	// set the VM UUID on the nutanix machine as soon as it is available. VM UUID can be used for cleanup in case of failure
-	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUuid)
+	// VM UUID can be used for cleanup in case of failure
 	rctx.NutanixMachine.Status.VmUUID = vmUuid
 
 	err = r.patchMachine(rctx)
@@ -1023,6 +1036,9 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, errorMsg
 	}
+	if len(vm.CustomAttributes) > 0 {
+		log.V(5).Info(fmt.Sprintf("Verified custom attributes on VM %s: %v", vmName, vm.CustomAttributes))
+	}
 
 	v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
 	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
@@ -1033,7 +1049,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	return vm, nil
 }
 
-func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
+func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineContext, vm *vmmconfig.Vm, providerUUID string) error {
 	// Get the bootstrapData
 	bootstrapRef := rctx.NutanixMachine.Spec.BootstrapRef
 	if bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindSecret {
@@ -1055,7 +1071,8 @@ func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineC
 		bootstrapData = bytes.ReplaceAll(bootstrapData, []byte("{{ ds.meta_data.hostname }}"), []byte(rctx.Machine.Name))
 		// Encode the bootstrapData by base64
 		bsdataEncoded := base64.StdEncoding.EncodeToString(bootstrapData)
-		metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"uuid\": \"%s\"}", rctx.Machine.Name, uuid.New())
+		// Use the same providerUUID that was generated for the providerID
+		metadata := fmt.Sprintf("{\"hostname\": \"%s\", \"uuid\": \"%s\"}", rctx.Machine.Name, providerUUID)
 		metadataEncoded := base64.StdEncoding.EncodeToString([]byte(metadata))
 
 		cloudInit := vmmconfig.NewCloudInit()
