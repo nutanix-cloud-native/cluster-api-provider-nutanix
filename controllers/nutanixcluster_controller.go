@@ -571,7 +571,7 @@ func (r *NutanixClusterReconciler) reconcileTrustBundleRef(ctx context.Context, 
 		return err
 	}
 
-	if !capiutil.IsOwnedByObject(configMap, nutanixCluster) {
+	if !capiutil.IsOwnedByObject(configMap, nutanixCluster, infrav1.GroupVersion.WithKind(nutanixCluster.Kind).GroupKind()) {
 		// Check if another nutanixCluster already has set ownerRef. Secret can only be owned by one nutanixCluster object
 		if capiutil.HasOwner(configMap.OwnerReferences, infrav1.GroupVersion.String(), []string{nutanixCluster.Kind}) {
 			return fmt.Errorf("configmap %s/%s already owned by another nutanixCluster object", configMap.Namespace, configMap.Name)
@@ -676,7 +676,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, n
 	}
 
 	// Check if ownerRef is already set on nutanixCluster object
-	if !capiutil.IsOwnedByObject(secret, nutanixCluster) {
+	if !capiutil.IsOwnedByObject(secret, nutanixCluster, infrav1.GroupVersion.WithKind(nutanixCluster.Kind).GroupKind()) {
 		// Check if another nutanixCluster already has set ownerRef. Secret can only be owned by one nutanixCluster object
 		if capiutil.HasOwner(secret.OwnerReferences, infrav1.GroupVersion.String(), []string{
 			nutanixCluster.Kind,
