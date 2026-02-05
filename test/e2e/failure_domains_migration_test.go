@@ -28,8 +28,9 @@ import (
 	"github.com/onsi/gomega/gstruct"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
+	controlplanev1beta2 "sigs.k8s.io/cluster-api/api/controlplane/kubeadm/v1beta2"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -87,7 +88,7 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 				clusterName:           clusterName,
 				namespace:             namespace,
 				bootstrapClusterProxy: bootstrapClusterProxy,
-				expectedCondition: capiv1.Condition{
+				expectedCondition: capiv1beta1.Condition{
 					Type:   infrav1.FailureDomainsValidatedCondition,
 					Status: corev1.ConditionTrue,
 				},
@@ -159,7 +160,7 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 				bootstrapClusterProxy,
 				clusterName,
 				namespace,
-				capiv1.Condition{
+				capiv1beta1.Condition{
 					Type:   infrav1.FailureDomainsValidatedCondition,
 					Status: corev1.ConditionTrue,
 				},
@@ -173,16 +174,16 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 			Expect(err).To(BeNil())
 			now := metav1.Now()
 			kcpCopy := kcp.DeepCopy()
-			kcpCopy.Spec.RolloutAfter = &now
+			kcpCopy.Spec.Rollout.After = now
 			err = bootstrapClient.Update(ctx, kcpCopy)
 			Expect(err).To(BeNil())
 
 			waitForMachineUpgrade := e2eConfig.GetIntervals("", "wait-machine-upgrade")
 			Eventually(
-				func() []capiv1.Condition {
+				func() []capiv1beta2.Condition {
 					err := bootstrapClient.Get(ctx, client.ObjectKeyFromObject(kcp), kcp)
 					Expect(err).To(BeNil())
-					return kcp.Status.Conditions
+					return kcp.Status.Deprecated.V1Beta1.Conditions //nolint:staticcheck // suppress complaining on Deprecated field
 				},
 				waitForMachineUpgrade...,
 			).Should(
@@ -190,7 +191,7 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 					gstruct.MatchFields(
 						gstruct.IgnoreExtras,
 						gstruct.Fields{
-							"Type":   Equal(controlplanev1.MachinesSpecUpToDateCondition),
+							"Type":   Equal(controlplanev1beta2.MachinesSpecUpToDateV1Beta1Condition),
 							"Status": Equal(corev1.ConditionTrue),
 						},
 					),

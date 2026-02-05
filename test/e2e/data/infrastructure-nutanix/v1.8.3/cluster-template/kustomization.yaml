@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-- https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.7.1/cluster-template.yaml
+- https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.8.3/cluster-template.yaml
 - ../base/crs.yaml
 patches:
 - path: ../base/cni-patch.yaml
