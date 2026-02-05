@@ -28,14 +28,15 @@ import (
 	kapierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	capiutil "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	conditions "sigs.k8s.io/cluster-api/util/conditions/deprecated/v1beta1"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -97,7 +98,7 @@ func (r *NutanixClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 					&infrav1.NutanixCluster{},
 				),
 			),
-			builder.WithPredicates(predicates.ClusterPausedTransitionsOrInfrastructureReady(r.Scheme, ctrl.LoggerFrom(ctx))),
+			builder.WithPredicates(predicates.ClusterPausedTransitionsOrInfrastructureProvisioned(r.Scheme, ctrl.LoggerFrom(ctx))),
 		).
 		Watches(
 			&infrav1.NutanixFailureDomain{},
@@ -342,7 +343,7 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 	log := ctrl.LoggerFrom(rctx.Context)
 	log.Info("Reconciling failure domains for cluster")
 
-	failureDomains := capiv1.FailureDomains{}
+	failureDomains := []capiv1.FailureDomain{}
 	if len(rctx.NutanixCluster.Spec.ControlPlaneFailureDomains) == 0 && len(rctx.NutanixCluster.Spec.FailureDomains) == 0 { //nolint:staticcheck // suppress complaining on Deprecated field
 		log.Info("No failure domains configured for cluster.")
 		conditions.MarkTrue(rctx.NutanixCluster, infrav1.NoFailureDomainsConfiguredCondition)
@@ -357,6 +358,7 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 	conditions.Delete(rctx.NutanixCluster, infrav1.NoFailureDomainsConfiguredCondition)
 
 	validationErrs := []error{}
+	controlPlaneTrue := true
 	for _, fdRef := range rctx.NutanixCluster.Spec.ControlPlaneFailureDomains {
 		// Fetch the referent failure domain object
 		fdObj := &infrav1.NutanixFailureDomain{}
@@ -376,13 +378,14 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 			continue
 		}
 
-		// The failure domain configuration passed validation. Add it to the result map.
-		failureDomains[fdObj.Name] = capiv1.FailureDomainSpec{ControlPlane: true}
+		// The failure domain configuration passed validation. Add it to the result slice.
+		failureDomains = append(failureDomains, capiv1.FailureDomain{Name: fdObj.Name, ControlPlane: &controlPlaneTrue})
 	}
 
 	// Remove below when the Deprecated field NutanixCluster.Spec.FailureDomains is removed
 	for _, fd := range rctx.NutanixCluster.Spec.FailureDomains { //nolint:staticcheck // suppress complaining on Deprecated field
-		failureDomains[fd.Name] = capiv1.FailureDomainSpec{ControlPlane: fd.ControlPlane}
+		cp := fd.ControlPlane
+		failureDomains = append(failureDomains, capiv1.FailureDomain{Name: fd.Name, ControlPlane: &cp})
 	}
 
 	// Set the failure domains for nutanixcluster status
@@ -511,7 +514,7 @@ func (r *NutanixClusterReconciler) reconcileTrustBundleRef(ctx context.Context, 
 		return err
 	}
 
-	if !capiutil.IsOwnedByObject(configMap, nutanixCluster) {
+	if !capiutil.IsOwnedByObject(configMap, nutanixCluster, schema.GroupKind{Group: infrav1.GroupVersion.Group, Kind: "NutanixCluster"}) {
 		// Check if another nutanixCluster already has set ownerRef. Secret can only be owned by one nutanixCluster object
 		if capiutil.HasOwner(configMap.OwnerReferences, infrav1.GroupVersion.String(), []string{nutanixCluster.Kind}) {
 			return fmt.Errorf("configmap %s/%s already owned by another nutanixCluster object", configMap.Namespace, configMap.Name)
@@ -605,7 +608,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, n
 	}
 
 	// Check if ownerRef is already set on nutanixCluster object
-	if !capiutil.IsOwnedByObject(secret, nutanixCluster) {
+	if !capiutil.IsOwnedByObject(secret, nutanixCluster, schema.GroupKind{Group: infrav1.GroupVersion.Group, Kind: "NutanixCluster"}) {
 		// Check if another nutanixCluster already has set ownerRef. Secret can only be owned by one nutanixCluster object
 		if capiutil.HasOwner(secret.OwnerReferences, infrav1.GroupVersion.String(), []string{
 			nutanixCluster.Kind,
