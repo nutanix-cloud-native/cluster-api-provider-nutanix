@@ -45,7 +45,7 @@ LOCAL_PROVIDER_VERSION ?= ${IMG_TAG}
 
 ifeq (${LOCAL_PROVIDER_VERSION},${IMG_TAG})
 # TODO(release-blocker): Change this versions after release when required here
-LOCAL_PROVIDER_VERSION := v1.8.99
+LOCAL_PROVIDER_VERSION := v1.9.99
 endif
 
 # PLATFORMS is a list of platforms to build for.
