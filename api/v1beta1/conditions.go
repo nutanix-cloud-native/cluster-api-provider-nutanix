@@ -45,6 +45,23 @@ const (
 	FailureDomainsMisconfiguredReason = "FailureDomainsMisconfigured"
 )
 
+// Conditions and Reasons releated to AHVMetroZone
+const (
+	// MetroZoneSafeForDeletionCondition indicates whether the AHVMetroZone object is safe for deletion,
+	// ie., when it is not used or referenced by other resources
+	MetroZoneSafeForDeletionCondition capiv1.ConditionType = "MetroZoneSafeForDeletion"
+
+	// MetroZoneInUseReason indicates that the AHVMetroZone is used by Machines.
+	MetroZoneInUseReason = "MetroZoneInUse"
+
+	// MetroZonesValidatedCondition indicates whether the metro zones are configured correctly or not.
+	MetroZonesValidatedCondition capiv1.ConditionType = "MetroZonesValidated"
+
+	// MetroZonesMisconfiguredReason (Severity=Warning) indicates that some of the metro zones
+	// are misconfigured.
+	MetroZonesMisconfiguredReason = "MetroZonesMisconfigured"
+)
+
 const (
 	// ClusterCategoryCreatedCondition indicates the status of the category linked to the NutanixCluster
 	ClusterCategoryCreatedCondition capiv1.ConditionType = "ClusterCategoryCreated"
