@@ -13,20 +13,20 @@ images:
     loadBehavior: mustLoad
   # ## PLEASE KEEP THESE UP TO DATE WITH THE COMPONENTS
   # Cluster API v1beta1 Preloads
-  - name: registry.k8s.io/cluster-api/cluster-api-controller:v1.10.3
+  - name: registry.k8s.io/cluster-api/cluster-api-controller:v1.11.4
     loadBehavior: tryLoad
-  - name: registry.k8s.io/cluster-api/kubeadm-bootstrap-controller:v1.10.3
+  - name: registry.k8s.io/cluster-api/kubeadm-bootstrap-controller:v1.11.4
     loadBehavior: tryLoad
-  - name: registry.k8s.io/cluster-api/kubeadm-control-plane-controller:v1.10.3
+  - name: registry.k8s.io/cluster-api/kubeadm-control-plane-controller:v1.11.4
     loadBehavior: tryLoad
 
 providers:
   - name: cluster-api
     type: CoreProvider
     versions:
-      - name: v1.10.3
+      - name: v1.11.4
         # Use manifest from source files
-        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.10.3/core-components.yaml"
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.11.4/core-components.yaml"
         type: "url"
         contract: v1beta1
         files:
@@ -37,9 +37,9 @@ providers:
   - name: kubeadm
     type: BootstrapProvider
     versions:
-      - name: v1.10.3
+      - name: v1.11.4
         # Use manifest from source files
-        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.10.3/bootstrap-components.yaml"
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.11.4/bootstrap-components.yaml"
         type: "url"
         contract: "v1beta1"
         files:
@@ -50,9 +50,9 @@ providers:
   - name: kubeadm
     type: ControlPlaneProvider
     versions:
-      - name: v1.10.3
+      - name: v1.11.4
         # Use manifest from source files
-        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.10.3/control-plane-components.yaml"
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.11.4/control-plane-components.yaml"
         type: "url"
         contract: v1beta1
         files:
@@ -63,13 +63,13 @@ providers:
   - name: nutanix
     type: InfrastructureProvider
     versions:
-      - name: v1.7.1
+      - name: v1.8.3
         type: url
-        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.7.1/infrastructure-components.yaml
+        value: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix/releases/download/v1.8.3/infrastructure-components.yaml
         contract: v1beta1
         files:
           - sourcePath: "../../../metadata.yaml"
-          - sourcePath: "../data/infrastructure-nutanix/v1.7.1/cluster-template.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1.8.3/cluster-template.yaml"
           - sourcePath: "../data/infrastructure-nutanix/ccm-update.yaml"
       - name: ${LOCAL_PROVIDER_VERSION}
         type: kustomize
@@ -124,7 +124,7 @@ variables:
   NUTANIX_INSECURE: true
   NUTANIX_ADDITIONAL_TRUST_BUNDLE: ""
   KUBERNETES_VERSION: "v1.34.0"
-  NUTANIX_SSH_AUTHORIZED_KEY: ""
+  NUTANIX_SSH_AUTHORIZED_KEY: "fake-key"
   CONTROL_PLANE_ENDPOINT_IP: ""
   CONTROL_PLANE_ENDPOINT_IP_V124: ""
   CONTROL_PLANE_MACHINE_COUNT: 1
@@ -174,7 +174,7 @@ variables:
   # NOTE: INIT_WITH_BINARY and INIT_WITH_KUBERNETES_VERSION are only used by the clusterctl upgrade test to initialize
   # the management cluster to be upgraded.
   # NOTE: We test the latest release with a previous contract.
-  INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.10.3/clusterctl-{OS}-{ARCH}"
+  INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.11.4/clusterctl-{OS}-{ARCH}"
   INIT_WITH_KUBERNETES_VERSION: "v1.34.0"
   # NOTE: Following parameters are required for GPU testing
   NUTANIX_GPU_PASSTHROUGH_VENDOR: "NVIDIA"
@@ -189,7 +189,7 @@ intervals:
   default/wait-worker-nodes: ["10m", "10s"]
   default/wait-machine-pool-nodes: ["10m", "10s"]
   default/wait-delete-cluster: ["10m", "10s"]
-  default/wait-machine-upgrade: ["20m", "10s"]
+  default/wait-machine-upgrade: ["30m", "10s"]
   default/wait-machine-pool-upgrade: ["10m", "10s"]
   default/wait-nodes-ready: ["10m", "10s"]
   default/wait-machine-remediation: ["10m", "10s"]

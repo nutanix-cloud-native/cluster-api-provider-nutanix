@@ -53,7 +53,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
 )
 
@@ -2708,7 +2708,7 @@ func TestGetVMUUID(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		machine        *capiv1.Machine
+		machine        *capiv1beta2.Machine
 		nutanixMachine *infrav1.NutanixMachine
 		want           string
 		wantErr        bool
@@ -2716,8 +2716,8 @@ func TestGetVMUUID(t *testing.T) {
 	}{
 		{
 			name: "should return systemUUID from Machine.Status.NodeInfo when available",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: &corev1.NodeSystemInfo{
 						SystemUUID: validUUID,
 					},
@@ -2733,8 +2733,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should fall back to VmUUID when Machine.Status.NodeInfo is nil",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: nil,
 				},
 			},
@@ -2748,8 +2748,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should fall back to VmUUID when Machine.Status.NodeInfo.SystemUUID is empty",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: &corev1.NodeSystemInfo{
 						SystemUUID: "",
 					},
@@ -2776,8 +2776,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should return empty string when both systemUUID and VmUUID are not available",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: nil,
 				},
 			},
@@ -2791,8 +2791,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should return error when systemUUID is not a valid UUID",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: &corev1.NodeSystemInfo{
 						SystemUUID: invalidUUID,
 					},
@@ -2809,8 +2809,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should return error when VmUUID is not a valid UUID",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: nil,
 				},
 			},
@@ -2825,8 +2825,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should prioritize systemUUID even when VmUUID has different UUID",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: &corev1.NodeSystemInfo{
 						SystemUUID: validUUID,
 					},
@@ -2842,8 +2842,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should use VmUUID when SystemUUID is empty",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: &corev1.NodeSystemInfo{
 						SystemUUID: "",
 					},
@@ -2859,8 +2859,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should handle Machine with empty Status",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{},
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{},
 			},
 			nutanixMachine: &infrav1.NutanixMachine{
 				Status: infrav1.NutanixMachineStatus{

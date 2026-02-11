@@ -26,7 +26,7 @@ import (
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,7 +43,7 @@ type ClusterContext struct {
 	NutanixClient   *prismclientv3.Client
 	ConvergedClient *v4Converged.Client
 
-	Cluster        *capiv1.Cluster
+	Cluster        *capiv1beta2.Cluster
 	NutanixCluster *infrav1.NutanixCluster
 }
 
@@ -53,8 +53,8 @@ type MachineContext struct {
 	NutanixClient   *prismclientv3.Client
 	ConvergedClient *v4Converged.Client
 
-	Cluster        *capiv1.Cluster
-	Machine        *capiv1.Machine
+	Cluster        *capiv1beta2.Cluster
+	Machine        *capiv1beta2.Machine
 	NutanixCluster *infrav1.NutanixCluster
 	NutanixMachine *infrav1.NutanixMachine
 
@@ -68,7 +68,7 @@ func IsControlPlaneMachine(nma *infrav1.NutanixMachine) bool {
 	if nma == nil {
 		return false
 	}
-	_, ok := nma.GetLabels()[capiv1.MachineControlPlaneNameLabel]
+	_, ok := nma.GetLabels()[capiv1beta2.MachineControlPlaneNameLabel]
 	return ok
 }
 
@@ -76,7 +76,7 @@ func IsControlPlaneMachine(nma *infrav1.NutanixMachine) bool {
 func (clctx *ClusterContext) GetNutanixMachinesInCluster(client ctlclient.Client) ([]*infrav1.NutanixMachine, error) {
 	clusterName := clctx.NutanixCluster.Name
 	clusterNamespace := clctx.NutanixCluster.Namespace
-	labels := map[string]string{capiv1.ClusterNameLabel: clusterName}
+	labels := map[string]string{capiv1beta2.ClusterNameLabel: clusterName}
 	machineList := &infrav1.NutanixMachineList{}
 
 	err := client.List(clctx.Context, machineList,
