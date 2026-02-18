@@ -2933,6 +2933,12 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		createdVM.ExtId = ptr.To(vmUUID)
 		mockConvergedClient.MockVMs.EXPECT().Create(ctx, gomock.Any()).Return(createdVM, nil)
 
+		// Mock AddVmCustomAttributes for setting custom attributes after providerID is assigned
+		updatedVM := vmmModels.NewVm()
+		updatedVM.Name = ptr.To(vmName)
+		updatedVM.ExtId = ptr.To(vmUUID)
+		mockConvergedClient.MockVMs.EXPECT().AddVmCustomAttributes(ctx, vmUUID, gomock.Any()).Return(updatedVM, nil)
+
 		// Mock PowerOnVM
 		mockOperation := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
 		mockConvergedClient.MockVMs.EXPECT().PowerOnVM(vmUUID).Return(mockOperation, nil)
@@ -2999,11 +3005,8 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		assert.Equal(t, vmName, *vm.Name)
 		assert.Equal(t, vmUUID, *vm.ExtId)
 		assert.Equal(t, vmUUID, ntnxMachine.Status.VmUUID)
-		// The providerID should be set with a generated UUID (not the actual VM UUID)
-		assert.NotEmpty(t, ntnxMachine.Spec.ProviderID)
-		assert.Contains(t, ntnxMachine.Spec.ProviderID, "nutanix://")
-		// The providerID should NOT be the same as the VM's actual UUID
-		assert.NotEqual(t, fmt.Sprintf("nutanix://%s", vmUUID), ntnxMachine.Spec.ProviderID)
+		// The providerID should be set using the actual VM UUID
+		assert.Equal(t, fmt.Sprintf("nutanix://%s", vmUUID), ntnxMachine.Spec.ProviderID)
 	})
 }
 
