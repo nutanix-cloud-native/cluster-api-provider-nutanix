@@ -385,7 +385,7 @@ mocks: ## Generate mocks for the project
 
 GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
 
-KUBEBUILDER_ASSETS=$(shell setup-envtest use $(ENVTEST_K8S_VERSION) --print path --arch=amd64)
+KUBEBUILDER_ASSETS=$(shell setup-envtest use $(ENVTEST_K8S_VERSION) --print path --arch=$(shell go env GOARCH))
 
 .PHONY: print-envtest
 print-envtest: ## Set up envtest (download kubebuilder assets)
