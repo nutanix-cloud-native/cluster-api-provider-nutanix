@@ -56,7 +56,7 @@ PLATFORMS_E2E ?= linux/amd64,linux/arm64,linux/arm
 KIND_CLUSTER_NAME ?= capi-test
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.29
+ENVTEST_K8S_VERSION = 1.35
 
 #
 # Directories.
@@ -385,7 +385,7 @@ mocks: ## Generate mocks for the project
 
 GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
 
-KUBEBUILDER_ASSETS=$(shell setup-envtest use --print path $(ENVTEST_K8S_VERSION) --arch=amd64)
+KUBEBUILDER_ASSETS=$(shell setup-envtest use $(ENVTEST_K8S_VERSION) --print path --arch=amd64)
 
 .PHONY: print-envtest
 print-envtest: ## Set up envtest (download kubebuilder assets)
