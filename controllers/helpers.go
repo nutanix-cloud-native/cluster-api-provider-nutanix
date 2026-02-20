@@ -29,9 +29,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/nutanix-cloud-native/prism-go-client/converged"
-	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
-	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
@@ -50,6 +47,9 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	"github.com/nutanix-cloud-native/prism-go-client/converged"
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
+	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 )
 
 const (
@@ -64,6 +64,8 @@ const (
 
 	createErrorFailureReason  = "CreateError"
 	powerOnErrorFailureReason = "PowerOnError"
+
+	metroZoneFailureDomainPrefix = "AHVMetroZone/"
 )
 
 type StorageContainerIntentResponse struct {
@@ -1209,4 +1211,18 @@ func resourceIdsEquals(nris1, nris2 []infrav1.NutanixResourceIdentifier) bool {
 	}
 
 	return true
+}
+
+func isMetroZoneFailureDomain(failureDomain *string) bool {
+	return failureDomain != nil && strings.HasPrefix(*failureDomain, metroZoneFailureDomainPrefix)
+}
+
+func getMetroZoneObjectName(failureDomain *string) *string {
+	if !isMetroZoneFailureDomain(failureDomain) {
+		return nil
+	}
+
+	fdName := *failureDomain
+	metroZoneName := fdName[len(metroZoneFailureDomainPrefix):]
+	return &metroZoneName
 }

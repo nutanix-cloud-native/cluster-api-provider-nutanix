@@ -18,7 +18,16 @@ spec:
     singular: ahvmetrozone
   scope: Namespaced
   versions:
-  - name: v1beta1
+  - additionalPrinterColumns:
+    - description: VM Placement Strategy
+      jsonPath: .spec.placement.strategy
+      name: PlacementStrategy
+      type: string
+    - description: Preferred Zone for Preferred Strategy
+      jsonPath: .spec.placement.preferredZone
+      name: PreferredZone
+      type: string
+    name: v1beta1
     schema:
       openAPIV3Schema:
         description: AHVMetroZone is the Schema for the ahvmetrozones API.

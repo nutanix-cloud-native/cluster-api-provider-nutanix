@@ -119,6 +119,8 @@ type AHVMetroZoneV1Beta2Status struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:metadata:labels=clusterctl.cluster.x-k8s.io/move=
+// +kubebuilder:printcolumn:name="PlacementStrategy",type="string",JSONPath=".spec.placement.strategy",description="VM Placement Strategy"
+// +kubebuilder:printcolumn:name="PreferredZone",type="string",JSONPath=".spec.placement.preferredZone",description="Preferred Zone for Preferred Strategy"
 
 // AHVMetroZone is the Schema for the ahvmetrozones API.
 type AHVMetroZone struct {
