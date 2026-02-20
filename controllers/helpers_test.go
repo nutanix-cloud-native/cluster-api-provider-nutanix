@@ -2518,7 +2518,7 @@ type MockConvergedClientWrapper struct {
 	MockAntiAffinityPolicies *mockconverged.MockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy]
 	MockClusters             *mockconverged.MockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile, clusterModels.Host]
 	MockCategories           *mockconverged.MockCategories[prismModels.Category]
-	MockImages               *mockconverged.MockImages[imageModels.Image]
+	MockImages               *mockconverged.MockImages[imageModels.Image, imageModels.FileDetail]
 	MockStorageContainers    *mockconverged.MockStorageContainers[clusterModels.StorageContainer]
 	MockSubnets              *mockconverged.MockSubnets[subnetModels.Subnet, prismNetworkingModels.TaskReference]
 	MockVMs                  *mockconverged.MockVMs[vmmModels.Vm]
@@ -2526,6 +2526,8 @@ type MockConvergedClientWrapper struct {
 	MockVolumeGroups         *mockconverged.MockVolumeGroups[volumesconfig.VolumeGroup, volumesconfig.VmAttachment]
 	MockDomainManager        *mockconverged.MockDomainManager[prismModels.DomainManager]
 	MockUsers                *mockconverged.MockUsers[iamModels.User]
+	MockTemplates            *mockconverged.MockTemplates[imageModels.Template]
+	MockOvas                 *mockconverged.MockOvas[imageModels.Ova, imageModels.FileDetail]
 }
 
 // NewMockConvergedClient creates a new mock converged client
@@ -2533,15 +2535,16 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 	mockAntiAffinityPolicies := mockconverged.NewMockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy](ctrl)
 	mockClusters := mockconverged.NewMockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile, clusterModels.Host](ctrl)
 	mockCategories := mockconverged.NewMockCategories[prismModels.Category](ctrl)
-	mockImages := mockconverged.NewMockImages[imageModels.Image](ctrl)
+	mockImages := mockconverged.NewMockImages[imageModels.Image, imageModels.FileDetail](ctrl)
 	mockStorageContainers := mockconverged.NewMockStorageContainers[clusterModels.StorageContainer](ctrl)
 	mockSubnets := mockconverged.NewMockSubnets[subnetModels.Subnet, prismNetworkingModels.TaskReference](ctrl)
 	mockTasks := mockconverged.NewMockTasks[prismModels.Task, prismErrors.AppMessage](ctrl)
-	// Create mock VMs service with the correct type
 	mockVMs := mockconverged.NewMockVMs[vmmModels.Vm](ctrl)
 	mockVolumeGroups := mockconverged.NewMockVolumeGroups[volumesconfig.VolumeGroup, volumesconfig.VmAttachment](ctrl)
 	mockDomainManager := mockconverged.NewMockDomainManager[prismModels.DomainManager](ctrl)
 	mockUsers := mockconverged.NewMockUsers[iamModels.User](ctrl)
+	mockTemplates := mockconverged.NewMockTemplates[imageModels.Template](ctrl)
+	mockOvas := mockconverged.NewMockOvas[imageModels.Ova, imageModels.FileDetail](ctrl)
 
 	realClient := &v4Converged.Client{
 		Client: converged.Client[
@@ -2552,6 +2555,7 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			clusterModels.Host,
 			prismModels.Category,
 			imageModels.Image,
+			imageModels.FileDetail,
 			clusterModels.StorageContainer,
 			subnetModels.Subnet,
 			prismNetworkingModels.TaskReference,
@@ -2562,6 +2566,9 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			volumesconfig.VmAttachment,
 			prismModels.DomainManager,
 			iamModels.User,
+			imageModels.Template,
+			imageModels.Ova,
+			imageModels.FileDetail,
 		]{
 			AntiAffinityPolicies: mockAntiAffinityPolicies,
 			Clusters:             mockClusters,
@@ -2574,6 +2581,8 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			VolumeGroups:         mockVolumeGroups,
 			DomainManager:        mockDomainManager,
 			Users:                mockUsers,
+			Templates:            mockTemplates,
+			Ovas:                 mockOvas,
 		},
 	}
 
@@ -2590,6 +2599,8 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 		MockVolumeGroups:         mockVolumeGroups,
 		MockDomainManager:        mockDomainManager,
 		MockUsers:                mockUsers,
+		MockTemplates:            mockTemplates,
+		MockOvas:                 mockOvas,
 	}
 }
 
