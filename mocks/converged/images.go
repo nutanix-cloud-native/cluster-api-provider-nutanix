@@ -18,31 +18,60 @@ import (
 )
 
 // MockImages is a mock of Images interface.
-type MockImages[Image any] struct {
+type MockImages[Image any, FileDetail any] struct {
 	ctrl     *gomock.Controller
-	recorder *MockImagesMockRecorder[Image]
+	recorder *MockImagesMockRecorder[Image, FileDetail]
 	isgomock struct{}
 }
 
 // MockImagesMockRecorder is the mock recorder for MockImages.
-type MockImagesMockRecorder[Image any] struct {
-	mock *MockImages[Image]
+type MockImagesMockRecorder[Image any, FileDetail any] struct {
+	mock *MockImages[Image, FileDetail]
 }
 
 // NewMockImages creates a new mock instance.
-func NewMockImages[Image any](ctrl *gomock.Controller) *MockImages[Image] {
-	mock := &MockImages[Image]{ctrl: ctrl}
-	mock.recorder = &MockImagesMockRecorder[Image]{mock}
+func NewMockImages[Image any, FileDetail any](ctrl *gomock.Controller) *MockImages[Image, FileDetail] {
+	mock := &MockImages[Image, FileDetail]{ctrl: ctrl}
+	mock.recorder = &MockImagesMockRecorder[Image, FileDetail]{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockImages[Image]) EXPECT() *MockImagesMockRecorder[Image] {
+func (m *MockImages[Image, FileDetail]) EXPECT() *MockImagesMockRecorder[Image, FileDetail] {
 	return m.recorder
 }
 
+// Create mocks base method.
+func (m *MockImages[Image, FileDetail]) Create(ctx context.Context, entity *Image) (*Image, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Create", ctx, entity)
+	ret0, _ := ret[0].(*Image)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Create indicates an expected call of Create.
+func (mr *MockImagesMockRecorder[Image, FileDetail]) Create(ctx, entity any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockImages[Image, FileDetail])(nil).Create), ctx, entity)
+}
+
+// Delete mocks base method.
+func (m *MockImages[Image, FileDetail]) Delete(ctx context.Context, uuid string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", ctx, uuid)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *MockImagesMockRecorder[Image, FileDetail]) Delete(ctx, uuid any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockImages[Image, FileDetail])(nil).Delete), ctx, uuid)
+}
+
 // Get mocks base method.
-func (m *MockImages[Image]) Get(ctx context.Context, uuid string) (*Image, error) {
+func (m *MockImages[Image, FileDetail]) Get(ctx context.Context, uuid string) (*Image, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", ctx, uuid)
 	ret0, _ := ret[0].(*Image)
@@ -51,13 +80,28 @@ func (m *MockImages[Image]) Get(ctx context.Context, uuid string) (*Image, error
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockImagesMockRecorder[Image]) Get(ctx, uuid any) *gomock.Call {
+func (mr *MockImagesMockRecorder[Image, FileDetail]) Get(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockImages[Image])(nil).Get), ctx, uuid)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockImages[Image, FileDetail])(nil).Get), ctx, uuid)
+}
+
+// GetFile mocks base method.
+func (m *MockImages[Image, FileDetail]) GetFile(ctx context.Context, uuid string) (*FileDetail, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFile", ctx, uuid)
+	ret0, _ := ret[0].(*FileDetail)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFile indicates an expected call of GetFile.
+func (mr *MockImagesMockRecorder[Image, FileDetail]) GetFile(ctx, uuid any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFile", reflect.TypeOf((*MockImages[Image, FileDetail])(nil).GetFile), ctx, uuid)
 }
 
 // List mocks base method.
-func (m *MockImages[Image]) List(ctx context.Context, opts ...converged.ODataOption) ([]Image, error) {
+func (m *MockImages[Image, FileDetail]) List(ctx context.Context, opts ...converged.ODataOption) ([]Image, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range opts {
@@ -70,14 +114,14 @@ func (m *MockImages[Image]) List(ctx context.Context, opts ...converged.ODataOpt
 }
 
 // List indicates an expected call of List.
-func (mr *MockImagesMockRecorder[Image]) List(ctx any, opts ...any) *gomock.Call {
+func (mr *MockImagesMockRecorder[Image, FileDetail]) List(ctx any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockImages[Image])(nil).List), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockImages[Image, FileDetail])(nil).List), varargs...)
 }
 
 // NewIterator mocks base method.
-func (m *MockImages[Image]) NewIterator(ctx context.Context, opts ...converged.ODataOption) converged.Iterator[Image] {
+func (m *MockImages[Image, FileDetail]) NewIterator(ctx context.Context, opts ...converged.ODataOption) converged.Iterator[Image] {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range opts {
@@ -89,8 +133,22 @@ func (m *MockImages[Image]) NewIterator(ctx context.Context, opts ...converged.O
 }
 
 // NewIterator indicates an expected call of NewIterator.
-func (mr *MockImagesMockRecorder[Image]) NewIterator(ctx any, opts ...any) *gomock.Call {
+func (mr *MockImagesMockRecorder[Image, FileDetail]) NewIterator(ctx any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewIterator", reflect.TypeOf((*MockImages[Image])(nil).NewIterator), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewIterator", reflect.TypeOf((*MockImages[Image, FileDetail])(nil).NewIterator), varargs...)
+}
+
+// Upload mocks base method.
+func (m *MockImages[Image, FileDetail]) Upload(ctx context.Context, uuid, filepath string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Upload", ctx, uuid, filepath)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Upload indicates an expected call of Upload.
+func (mr *MockImagesMockRecorder[Image, FileDetail]) Upload(ctx, uuid, filepath any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Upload", reflect.TypeOf((*MockImages[Image, FileDetail])(nil).Upload), ctx, uuid, filepath)
 }

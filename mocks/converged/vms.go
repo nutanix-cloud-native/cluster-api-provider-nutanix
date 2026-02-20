@@ -41,6 +41,36 @@ func (m *MockVMs[VM]) EXPECT() *MockVMsMockRecorder[VM] {
 	return m.recorder
 }
 
+// AddVmCustomAttributes mocks base method.
+func (m *MockVMs[VM]) AddVmCustomAttributes(ctx context.Context, uuid string, customAttributes []string) (*VM, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddVmCustomAttributes", ctx, uuid, customAttributes)
+	ret0, _ := ret[0].(*VM)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddVmCustomAttributes indicates an expected call of AddVmCustomAttributes.
+func (mr *MockVMsMockRecorder[VM]) AddVmCustomAttributes(ctx, uuid, customAttributes any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddVmCustomAttributes", reflect.TypeOf((*MockVMs[VM])(nil).AddVmCustomAttributes), ctx, uuid, customAttributes)
+}
+
+// AddVmCustomAttributesAsync mocks base method.
+func (m *MockVMs[VM]) AddVmCustomAttributesAsync(uuid string, customAttributes []string) (converged.Operation[VM], error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddVmCustomAttributesAsync", uuid, customAttributes)
+	ret0, _ := ret[0].(converged.Operation[VM])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddVmCustomAttributesAsync indicates an expected call of AddVmCustomAttributesAsync.
+func (mr *MockVMsMockRecorder[VM]) AddVmCustomAttributesAsync(uuid, customAttributes any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddVmCustomAttributesAsync", reflect.TypeOf((*MockVMs[VM])(nil).AddVmCustomAttributesAsync), uuid, customAttributes)
+}
+
 // Create mocks base method.
 func (m *MockVMs[VM]) Create(ctx context.Context, entity *VM) (*VM, error) {
 	m.ctrl.T.Helper()
@@ -182,6 +212,36 @@ func (m *MockVMs[VM]) PowerOnVM(uuid string) (converged.Operation[VM], error) {
 func (mr *MockVMsMockRecorder[VM]) PowerOnVM(uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PowerOnVM", reflect.TypeOf((*MockVMs[VM])(nil).PowerOnVM), uuid)
+}
+
+// RemoveVmCustomAttributes mocks base method.
+func (m *MockVMs[VM]) RemoveVmCustomAttributes(ctx context.Context, uuid string, customAttributes []string) (*VM, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveVmCustomAttributes", ctx, uuid, customAttributes)
+	ret0, _ := ret[0].(*VM)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemoveVmCustomAttributes indicates an expected call of RemoveVmCustomAttributes.
+func (mr *MockVMsMockRecorder[VM]) RemoveVmCustomAttributes(ctx, uuid, customAttributes any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveVmCustomAttributes", reflect.TypeOf((*MockVMs[VM])(nil).RemoveVmCustomAttributes), ctx, uuid, customAttributes)
+}
+
+// RemoveVmCustomAttributesAsync mocks base method.
+func (m *MockVMs[VM]) RemoveVmCustomAttributesAsync(uuid string, customAttributes []string) (converged.Operation[VM], error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveVmCustomAttributesAsync", uuid, customAttributes)
+	ret0, _ := ret[0].(converged.Operation[VM])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemoveVmCustomAttributesAsync indicates an expected call of RemoveVmCustomAttributesAsync.
+func (mr *MockVMsMockRecorder[VM]) RemoveVmCustomAttributesAsync(uuid, customAttributes any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveVmCustomAttributesAsync", reflect.TypeOf((*MockVMs[VM])(nil).RemoveVmCustomAttributesAsync), uuid, customAttributes)
 }
 
 // Update mocks base method.
