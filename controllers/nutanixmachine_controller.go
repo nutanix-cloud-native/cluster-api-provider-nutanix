@@ -1004,7 +1004,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	}
 
 	// Set custom attributes on the VM with providerID
-	customAttributes := []string{vmCustomAttributePrefix4ProviderID + rctx.NutanixMachine.Spec.ProviderID}
+	customAttributes := []string{vmCustomAttributePrefix4ProviderID + vmUuid}
 	log.V(1).Info(fmt.Sprintf("Updating custom attributes on VM %s: %v", vmName, customAttributes))
 	_, err = convergedClient.VMs.AddVmCustomAttributes(ctx, vmUuid, customAttributes)
 	if err != nil {
