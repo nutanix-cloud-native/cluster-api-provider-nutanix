@@ -12,7 +12,7 @@ on:
 jobs:
   e2e-test:
     runs-on:
-      - self-hosted-ncn-dind
+      - self-hosted-nutanix-docker-medium
     steps:
       - name: Checkout
         uses: actions/checkout@v4
