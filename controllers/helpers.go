@@ -30,8 +30,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/nutanix-cloud-native/prism-go-client/converged"
-	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
-	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+        v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
+        prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
@@ -64,6 +64,8 @@ const (
 
 	createErrorFailureReason  = "CreateError"
 	powerOnErrorFailureReason = "PowerOnError"
+
+	nutanixMetroFailureDomainPrefix = "NutanixMetro/"
 )
 
 type StorageContainerIntentResponse struct {
@@ -1209,4 +1211,18 @@ func resourceIdsEquals(nris1, nris2 []infrav1.NutanixResourceIdentifier) bool {
 	}
 
 	return true
+}
+
+func isMetroVMPlacementFailureDomain(failureDomain *string) bool {
+	return failureDomain != nil && strings.HasPrefix(*failureDomain, nutanixMetroFailureDomainPrefix)
+}
+
+func getMetroVMPlacementObjectName(failureDomain *string) *string {
+	if !isMetroVMPlacementFailureDomain(failureDomain) {
+		return nil
+	}
+
+	fdName := *failureDomain
+	metroVMPlacementName := fdName[len(nutanixMetroFailureDomainPrefix):]
+	return &metroVMPlacementName
 }

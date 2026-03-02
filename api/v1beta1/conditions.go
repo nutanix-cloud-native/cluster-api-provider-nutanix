@@ -50,6 +50,22 @@ const (
 	FailureDomainsValidationInProgressReason = "FailureDomainsValidationInProgress"
 )
 
+// Conditions and Reasons releated to NutanixMetroVMPlacement
+const (
+	// MetroVMPlacementSafeForDeletionCondition indicates whether the NutanixMetroVMPlacement object is safe for deletion,
+	// ie., when it is not used or referenced by other resources
+	MetroVMPlacementSafeForDeletionCondition capiv1beta1.ConditionType = "MetroVMPlacementSafeForDeletion"
+
+	// MetroVMPlacementInUseReason indicates that the NutanixMetroVMPlacement is used by Machines.
+	MetroVMPlacementInUseReason = "MetroVMPlacementInUse"
+
+	// MetroVMPlacementValidatedCondition indicates whether the NutanixMetroVMPlacement spec is configured correctly or not.
+	MetroVMPlacementValidatedCondition capiv1beta1.ConditionType = "MetroVMPlacementValidated"
+
+	// MetroVMPlacementMisconfiguredReason (Severity=Warning) indicates that the NutanixMetroVMPlacement spec is misconfigured.
+	MetroVMPlacementMisconfiguredReason = "MetroVMPlacementMisconfigured"
+)
+
 const (
 	// ClusterCategoryCreatedCondition indicates the status of the category linked to the NutanixCluster
 	ClusterCategoryCreatedCondition capiv1beta1.ConditionType = "ClusterCategoryCreated"
