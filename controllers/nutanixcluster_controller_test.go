@@ -443,7 +443,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				}, ntnxSecret)).To(Succeed())
 
 				// Check if secret is owned by the NutanixCluster
-				g.Expect(util.IsOwnedByObject(ntnxSecret, ntnxCluster)).To(BeTrue())
+				g.Expect(util.IsOwnedByObject(ntnxSecret, ntnxCluster, infrav1.GroupVersion.WithKind(infrav1.NutanixClusterKind).GroupKind())).To(BeTrue())
 
 				// check finalizer
 				g.Expect(ctrlutil.ContainsFinalizer(ntnxSecret, infrav1.NutanixClusterCredentialFinalizer))
@@ -479,7 +479,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				}, ntnxSecret)).To(Succeed())
 
 				// Check if secret is owned by the NutanixCluster
-				g.Expect(util.IsOwnedByObject(ntnxSecret, ntnxCluster)).To(BeTrue())
+				g.Expect(util.IsOwnedByObject(ntnxSecret, ntnxCluster, infrav1.GroupVersion.WithKind(infrav1.NutanixClusterKind).GroupKind())).To(BeTrue())
 
 				// check if only one ownerReference has been added
 				g.Expect(len(ntnxSecret.OwnerReferences)).To(Equal(1))
@@ -516,7 +516,7 @@ func TestNutanixClusterReconciler(t *testing.T) {
 				}, ntnxSecret)).To(Succeed())
 
 				// Check if secret is owned by the NutanixCluster
-				g.Expect(util.IsOwnedByObject(ntnxSecret, ntnxCluster)).To(BeTrue())
+				g.Expect(util.IsOwnedByObject(ntnxSecret, ntnxCluster, infrav1.GroupVersion.WithKind(infrav1.NutanixClusterKind).GroupKind())).To(BeTrue())
 
 				g.Expect(len(ntnxSecret.OwnerReferences)).To(Equal(2))
 			})
