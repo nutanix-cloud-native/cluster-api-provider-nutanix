@@ -140,9 +140,13 @@ type NutanixCategoryIdentifier struct {
 	// +optional
 	Key string `json:"key,omitempty"`
 
-	// value is the category value linked to the category key in PC
+	// value is the category value linked to the category key in PC.
 	// +optional
 	Value string `json:"value,omitempty"`
+
+	// uuid is the UUID of the Category resource in PC.
+	// +optional
+	UUID *string `json:"uuid,omitempty"`
 }
 
 type NutanixGPU struct {

@@ -78,6 +78,11 @@ type NutanixClusterSpec struct {
 	// +listMapKey=name
 	// +optional
 	ControlPlaneFailureDomains []corev1.LocalObjectReference `json:"controlPlaneFailureDomains,omitempty"`
+
+	// metroDomains reference to the NutanixMetroDomain objects
+	// with which the cluster machine VMs should be provisioned.
+	// +optional
+	MetroDomains []corev1.LocalObjectReference `json:"metroDomains,omitempty"`
 }
 
 // NutanixClusterStatus defines the observed state of NutanixCluster
