@@ -84,9 +84,13 @@ spec:
                             key:
                               description: key is the Key of category in PC.
                               type: string
+                            uuid:
+                              description: uuid is the UUID of the Category resource
+                                in PC.
+                              type: string
                             value:
                               description: value is the category value linked to the
-                                category key in PC
+                                category key in PC.
                               type: string
                           type: object
                         type: array
