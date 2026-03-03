@@ -66,6 +66,26 @@ const (
 	MetroVMPlacementMisconfiguredReason = "MetroVMPlacementMisconfigured"
 )
 
+// Conditions and Reasons releated to NutanixMetroDomain
+const (
+	// MetroDomainSafeForDeletionCondition indicates whether the NutanixMetroDomain object is safe for deletion,
+	// ie., when it is not used or referenced by other resources
+	MetroDomainSafeForDeletionCondition capiv1beta1.ConditionType = "MetroDomainSafeForDeletion"
+
+	// MetroDomainInUseReason indicates that the NutanixMetroDomain is used by NutanixCluster.
+	MetroDomainInUseReason = "MetroDomainInUse"
+
+	// MetroDomainPCEntitiesCreatedCondition indicates the MetroDomain's PC entities are succussfully created.
+	MetroDomainPCEntitiesCreatedCondition capiv1beta1.ConditionType = "MetroDomainPCEntitiesCreateded"
+
+	// MetroDomainValidatedCondition indicates whether the MetroDomain's PC entities are succussfully validated.
+	MetroDomainValidatedCondition capiv1beta1.ConditionType = "MetroDomainPCEntitiesValidated"
+
+	// MetroDomainMisconfiguredReason (Severity=Error) indicates that some of the metro domain
+	// configuration is misconfigured.
+	MetroDomainMisconfiguredReason = "MetroDomainMisconfigured"
+)
+
 const (
 	// ClusterCategoryCreatedCondition indicates the status of the category linked to the NutanixCluster
 	ClusterCategoryCreatedCondition capiv1beta1.ConditionType = "ClusterCategoryCreated"

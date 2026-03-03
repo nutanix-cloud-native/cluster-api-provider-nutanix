@@ -60,6 +60,7 @@ rules:
   - nutanixclusters
   - nutanixfailuredomains
   - nutanixmachines
+  - nutanixmetrodomains
   - nutanixmetrovmplacements
   verbs:
   - create
@@ -80,9 +81,20 @@ rules:
   - infrastructure.cluster.x-k8s.io
   resources:
   - nutanixclusters/status
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
   - nutanixfailuredomains/finalizers
   - nutanixfailuredomains/status
   - nutanixmachines/status
+  - nutanixmetrodomains/finalizers
+  - nutanixmetrodomains/status
   - nutanixmetrovmplacements/finalizers
   - nutanixmetrovmplacements/status
   verbs:
