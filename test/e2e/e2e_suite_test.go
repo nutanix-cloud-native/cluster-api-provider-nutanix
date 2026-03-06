@@ -75,6 +75,11 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 	Byf("Loading the e2e test configuration from %q", configPath)
 	e2eConfig = loadE2EConfig(configPath)
 
+	By("Setting EXP_MACHINE_TAINT_PROPAGATION for clusterctl")
+	if v, exists := e2eConfig.Variables["EXP_MACHINE_TAINT_PROPAGATION"]; exists {
+		os.Setenv("EXP_MACHINE_TAINT_PROPAGATION", v)
+	}
+
 	if clusterctlConfig == "" {
 		Byf("Creating a clusterctl local repository into %q", artifactFolder)
 		clusterctlConfigPath = createClusterctlLocalRepository(e2eConfig, filepath.Join(artifactFolder, "repository"))
@@ -109,6 +114,13 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 	kubeconfigPath := parts[3]
 
 	e2eConfig = loadE2EConfig(configPath)
+	
+	// Set experimental feature env var for each parallel node
+	By("Setting EXP_MACHINE_TAINT_PROPAGATION for clusterctl in parallel node")
+	if v, exists := e2eConfig.Variables["EXP_MACHINE_TAINT_PROPAGATION"]; exists {
+		os.Setenv("EXP_MACHINE_TAINT_PROPAGATION", v)
+	}
+	
 	bootstrapClusterProxy = framework.NewClusterProxy("bootstrap", kubeconfigPath, initScheme(), framework.WithMachineLogCollector(framework.DockerLogCollector{}))
 })
 
