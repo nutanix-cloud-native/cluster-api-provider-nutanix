@@ -1,0 +1,39 @@
+# MachineDeployment with taints for CAPI md_rollout e2e test (MachineTaintPropagation).
+# Must use v1beta2 - v1beta1 does not support spec.template.spec.taints.
+# See: sigs.k8s.io/cluster-api/test/e2e/md_rollout.go
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: MachineDeployment
+metadata:
+  labels:
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+  name: "${CLUSTER_NAME}-wmd"
+spec:
+  clusterName: "${CLUSTER_NAME}"
+  replicas: ${WORKER_MACHINE_COUNT}
+  selector:
+    matchLabels: {}
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: "${CLUSTER_NAME}"
+    spec:
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: KubeadmConfigTemplate
+          name: "${CLUSTER_NAME}-kcfg-0"
+      clusterName: "${CLUSTER_NAME}"
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        name: "${CLUSTER_NAME}-mt-0"
+      version: "${KUBERNETES_VERSION}"
+      taints:
+        - key: "pre-existing-always-taint"
+          value: "always-value"
+          effect: PreferNoSchedule
+          propagation: Always
+        - key: "pre-existing-on-initialization-taint"
+          value: "on-initialization-value"
+          effect: PreferNoSchedule
+          propagation: OnInitialization
