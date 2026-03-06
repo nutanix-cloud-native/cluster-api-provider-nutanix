@@ -32,6 +32,7 @@ var _ = Describe("When testing MachineDeployment rolling upgrades", Label("scali
 			BootstrapClusterProxy: bootstrapClusterProxy,
 			ArtifactFolder:        artifactFolder,
 			SkipCleanup:           skipCleanup,
+			Flavor:                "md-taints",
 		}
 	})
 })
