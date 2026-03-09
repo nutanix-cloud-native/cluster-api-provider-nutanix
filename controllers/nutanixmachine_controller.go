@@ -1272,23 +1272,37 @@ func getIpsFromIpv4Info(config *vmmconfig.Ipv4Info) []capiv1beta1.MachineAddress
 	return addresses
 }
 
-func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
-	addresses := []capiv1beta1.MachineAddress{}
-	for _, nic := range vm.Nics {
-		if nic.NetworkInfo == nil {
-			continue
-		}
+// getAddressesFromNic extracts IP addresses from a NIC. It prefers the new
+// NicNetworkInfo field over the deprecated NetworkInfo field, matching the SDK
+// guidance that VirtualEthernetNicNetworkInfo takes precedence when both are present.
+func getAddressesFromNic(nic vmmconfig.Nic) []capiv1beta1.MachineAddress {
+	var ipv4Config *vmmconfig.Ipv4Config
+	var ipv4Info *vmmconfig.Ipv4Info
 
-		ipv4Config := nic.NetworkInfo.Ipv4Config
-		ipv4Info := nic.NetworkInfo.Ipv4Info
-		if ipv4Config != nil && ipv4Config.IpAddress != nil && ipv4Config.IpAddress.Value != nil {
-			addresses = append(addresses, capiv1beta1.MachineAddress{
-				Type:    capiv1beta1.MachineInternalIP,
-				Address: *ipv4Config.IpAddress.Value,
-			})
-		} else {
-			addresses = append(addresses, getIpsFromIpv4Info(ipv4Info)...)
+	if nicInfo := nic.GetNicNetworkInfo(); nicInfo != nil {
+		if info, ok := nicInfo.(vmmconfig.VirtualEthernetNicNetworkInfo); ok {
+			ipv4Config = info.Ipv4Config
+			ipv4Info = info.Ipv4Info
 		}
+	} else if nic.NetworkInfo != nil {
+		ipv4Config = nic.NetworkInfo.Ipv4Config
+		ipv4Info = nic.NetworkInfo.Ipv4Info
+	}
+
+	if ipv4Config != nil && ipv4Config.IpAddress != nil && ipv4Config.IpAddress.Value != nil {
+		return []capiv1beta1.MachineAddress{{
+			Type:    capiv1beta1.MachineInternalIP,
+			Address: *ipv4Config.IpAddress.Value,
+		}}
+	}
+
+	return getIpsFromIpv4Info(ipv4Info)
+}
+
+func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
+	var addresses []capiv1beta1.MachineAddress
+	for _, nic := range vm.Nics {
+		addresses = append(addresses, getAddressesFromNic(nic)...)
 	}
 
 	if len(addresses) == 0 {
