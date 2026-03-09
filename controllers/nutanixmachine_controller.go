@@ -1272,17 +1272,27 @@ func getIpsFromIpv4Info(config *vmmconfig.Ipv4Info) []capiv1beta1.MachineAddress
 	return addresses
 }
 
-// getAddressesFromNic extracts IP addresses from a NIC. It prefers the new
-// NicNetworkInfo field over the deprecated NetworkInfo field, matching the SDK
-// guidance that VirtualEthernetNicNetworkInfo takes precedence when both are present.
+// getAddressesFromNic extracts IP addresses from a NIC, preferring the new
+// NicNetworkInfo over the deprecated NetworkInfo. SR-IOV NICs lack IP fields
+// and fall back to the deprecated NetworkInfo.
 func getAddressesFromNic(nic vmmconfig.Nic) []capiv1beta1.MachineAddress {
 	var ipv4Config *vmmconfig.Ipv4Config
 	var ipv4Info *vmmconfig.Ipv4Info
 
 	if nicInfo := nic.GetNicNetworkInfo(); nicInfo != nil {
-		if info, ok := nicInfo.(vmmconfig.VirtualEthernetNicNetworkInfo); ok {
+		switch info := nicInfo.(type) {
+		case vmmconfig.VirtualEthernetNicNetworkInfo:
 			ipv4Config = info.Ipv4Config
 			ipv4Info = info.Ipv4Info
+		case vmmconfig.DpOffloadNicNetworkInfo:
+			ipv4Config = info.Ipv4Config
+			ipv4Info = info.Ipv4Info
+		case vmmconfig.SriovNicNetworkInfo:
+			// SR-IOV NICs only carry VlanId; fall through to deprecated NetworkInfo.
+			if nic.NetworkInfo != nil {
+				ipv4Config = nic.NetworkInfo.Ipv4Config
+				ipv4Info = nic.NetworkInfo.Ipv4Info
+			}
 		}
 	} else if nic.NetworkInfo != nil {
 		ipv4Config = nic.NetworkInfo.Ipv4Config

@@ -3034,6 +3034,23 @@ func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
 		return nic
 	}
 
+	newNicWithDpOffloadInfo := func(ip string) *vmmModels.Nic {
+		nic := vmmModels.NewNic()
+		info := vmmModels.NewDpOffloadNicNetworkInfo()
+		info.Ipv4Config = vmmModels.NewIpv4Config()
+		info.Ipv4Config.IpAddress = newIPv4Address(ip)
+		require.NoError(t, nic.SetNicNetworkInfo(*info))
+		return nic
+	}
+
+	newNicWithSriovInfo := func() *vmmModels.Nic {
+		nic := vmmModels.NewNic()
+		info := vmmModels.NewSriovNicNetworkInfo()
+		info.VlanId = ptr.To(100)
+		require.NoError(t, nic.SetNicNetworkInfo(*info))
+		return nic
+	}
+
 	newNicWithLearnedIPs := func(ips ...string) *vmmModels.Nic {
 		nic := vmmModels.NewNic()
 		info := vmmModels.NewVirtualEthernetNicNetworkInfo()
@@ -3083,6 +3100,45 @@ func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
 		assert.Equal(t, "10.10.10.13", rctx.NutanixMachine.Status.Addresses[0].Address)
+	})
+
+	t.Run("DpOffloadNicNetworkInfo with static IP", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(newNicWithDpOffloadInfo("10.10.10.20")))
+
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.20", rctx.NutanixMachine.Status.Addresses[0].Address)
+	})
+
+	t.Run("SriovNicNetworkInfo falls back to deprecated NetworkInfo", func(t *testing.T) {
+		nic := newNicWithSriovInfo()
+		nic.NetworkInfo = vmmModels.NewNicNetworkInfo()
+		nic.NetworkInfo.Ipv4Config = vmmModels.NewIpv4Config()
+		nic.NetworkInfo.Ipv4Config.IpAddress = newIPv4Address("10.10.10.30")
+
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(nic))
+
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.30", rctx.NutanixMachine.Status.Addresses[0].Address)
+	})
+
+	t.Run("SriovNicNetworkInfo without deprecated NetworkInfo yields no addresses", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(
+			newNicWithVirtualEthernetInfo("10.10.10.10"),
+			newNicWithSriovInfo(),
+		))
+
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.10", rctx.NutanixMachine.Status.Addresses[0].Address)
+		assert.Equal(t, "vm-name", rctx.NutanixMachine.Status.Addresses[1].Address)
 	})
 
 	t.Run("prefers new NicNetworkInfo over deprecated NetworkInfo", func(t *testing.T) {
