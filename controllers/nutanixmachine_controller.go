@@ -1272,23 +1272,47 @@ func getIpsFromIpv4Info(config *vmmconfig.Ipv4Info) []capiv1beta1.MachineAddress
 	return addresses
 }
 
-func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
-	addresses := []capiv1beta1.MachineAddress{}
-	for _, nic := range vm.Nics {
-		if nic.NetworkInfo == nil {
-			continue
-		}
+// getAddressesFromNic extracts IP addresses from a NIC, preferring the new
+// NicNetworkInfo over the deprecated NetworkInfo. SR-IOV NICs lack IP fields
+// and fall back to the deprecated NetworkInfo.
+func getAddressesFromNic(nic vmmconfig.Nic) []capiv1beta1.MachineAddress {
+	var ipv4Config *vmmconfig.Ipv4Config
+	var ipv4Info *vmmconfig.Ipv4Info
 
-		ipv4Config := nic.NetworkInfo.Ipv4Config
-		ipv4Info := nic.NetworkInfo.Ipv4Info
-		if ipv4Config != nil && ipv4Config.IpAddress != nil && ipv4Config.IpAddress.Value != nil {
-			addresses = append(addresses, capiv1beta1.MachineAddress{
-				Type:    capiv1beta1.MachineInternalIP,
-				Address: *ipv4Config.IpAddress.Value,
-			})
-		} else {
-			addresses = append(addresses, getIpsFromIpv4Info(ipv4Info)...)
+	if nicInfo := nic.GetNicNetworkInfo(); nicInfo != nil {
+		switch info := nicInfo.(type) {
+		case vmmconfig.VirtualEthernetNicNetworkInfo:
+			ipv4Config = info.Ipv4Config
+			ipv4Info = info.Ipv4Info
+		case vmmconfig.DpOffloadNicNetworkInfo:
+			ipv4Config = info.Ipv4Config
+			ipv4Info = info.Ipv4Info
+		case vmmconfig.SriovNicNetworkInfo:
+			// SR-IOV NICs only carry VlanId; fall through to deprecated NetworkInfo.
+			if nic.NetworkInfo != nil {
+				ipv4Config = nic.NetworkInfo.Ipv4Config
+				ipv4Info = nic.NetworkInfo.Ipv4Info
+			}
 		}
+	} else if nic.NetworkInfo != nil {
+		ipv4Config = nic.NetworkInfo.Ipv4Config
+		ipv4Info = nic.NetworkInfo.Ipv4Info
+	}
+
+	if ipv4Config != nil && ipv4Config.IpAddress != nil && ipv4Config.IpAddress.Value != nil {
+		return []capiv1beta1.MachineAddress{{
+			Type:    capiv1beta1.MachineInternalIP,
+			Address: *ipv4Config.IpAddress.Value,
+		}}
+	}
+
+	return getIpsFromIpv4Info(ipv4Info)
+}
+
+func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
+	var addresses []capiv1beta1.MachineAddress
+	for _, nic := range vm.Nics {
+		addresses = append(addresses, getAddressesFromNic(nic)...)
 	}
 
 	if len(addresses) == 0 {
