@@ -1,5 +1,6 @@
 # Build the manager binary
-FROM golang:1.24 as builder
+# 1.24.12+ for CVE-2025-61726 (net/http ParseForm DoS)
+FROM golang:1.24.12 as builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
