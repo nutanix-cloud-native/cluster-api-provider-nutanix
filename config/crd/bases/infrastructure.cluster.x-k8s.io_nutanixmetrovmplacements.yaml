@@ -6,22 +6,32 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.19.0
   labels:
     clusterctl.cluster.x-k8s.io/move: ""
-  name: ahvmetrozones.infrastructure.cluster.x-k8s.io
+  name: nutanixmetrovmplacements.infrastructure.cluster.x-k8s.io
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
     categories:
     - cluster-api
-    kind: AHVMetroZone
-    listKind: AHVMetroZoneList
-    plural: ahvmetrozones
-    singular: ahvmetrozone
+    kind: NutanixMetroVMPlacement
+    listKind: NutanixMetroVMPlacementList
+    plural: nutanixmetrovmplacements
+    singular: nutanixmetrovmplacement
   scope: Namespaced
   versions:
-  - name: v1beta1
+  - additionalPrinterColumns:
+    - description: VM Placement Strategy
+      jsonPath: .spec.placementStrategy
+      name: PlacementStrategy
+      type: string
+    - description: Preferred failureDomain for Preferred Strategy
+      jsonPath: .spec.preferredFailureDomain
+      name: PreferredFailureDomain
+      type: string
+    name: v1beta1
     schema:
       openAPIV3Schema:
-        description: AHVMetroZone is the Schema for the ahvmetrozones API.
+        description: NutanixMetroVMPlacement is the Schema for the NutanixMetroVMPlacement
+          API.
         properties:
           apiVersion:
             description: |-
@@ -41,138 +51,64 @@ spec:
           metadata:
             type: object
           spec:
-            description: AHVMetroZoneSpec defines the desired state of AHVMetroZone
+            description: NutanixMetroVMPlacementSpec defines the desired state of
+              NutanixMetroVMPlacement
             properties:
-              placement:
-                description: placement defines the VM provisioning placement strategy
-                properties:
-                  preferredZone:
-                    description: |-
-                      preferredZone specifies the VM should be provisioned to the specified
-                      preferred zone. When the preferred zone is not available, or being
-                      evacuated (e.g. in maintainence), the VM will be provisioned to the
-                      remaining zone. This field is required to set when the VM placement
-                      strategy is set to Preferred.
-                    type: string
-                  strategy:
-                    default: Preferred
-                    description: |-
-                      strategy defines the VM placement strategy of Preferred or Random,
-                      with Preferred as the default. When the strategy is Preferred, the
-                      preferredZone must be specified.
-                    enum:
-                    - Preferred
-                    - Random
-                    type: string
-                required:
-                - strategy
-                type: object
-                x-kubernetes-validations:
-                - message: preferredZone is required for Preferred strategy.
-                  rule: self.strategy != "Preferred" || (has(self.preferredZone) &&
-                    self.preferredZone != "")
-              zones:
-                description: zones defines the Prism Element zones of the AHV Metro
-                  Domain.
+              failureDomains:
+                description: failureDomains are the references to the two failure
+                  domains of the Nutanix Metro Domain.
                 items:
-                  description: MetroZone defines a Prism Element zone of the AHV Metro
-                    Domain.
+                  description: |-
+                    LocalObjectReference contains enough information to let you locate the
+                    referenced object inside the same namespace.
                   properties:
                     name:
-                      description: name is the unique name of the metro zone.
-                      maxLength: 64
-                      minLength: 1
-                      type: string
-                    prismElement:
-                      description: prismElement is the identifier of the Prism Element.
-                      properties:
-                        name:
-                          description: name is the resource name in the PC
-                          minLength: 1
-                          type: string
-                        type:
-                          description: Type is the identifier type to use for this
-                            resource.
-                          enum:
-                          - uuid
-                          - name
-                          type: string
-                        uuid:
-                          description: uuid is the UUID of the resource in the PC.
-                          format: uuid
-                          maxLength: 36
-                          minLength: 36
-                          type: string
-                      required:
-                      - type
-                      type: object
-                      x-kubernetes-validations:
-                      - message: '''name'' must be set when type is ''name'', and
-                          forbidden otherwise'
-                        rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                      - message: '''uuid'' must be set when type is ''uuid'', and
-                          forbidden otherwise'
-                        rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                          : !has(self.uuid)'
-                    subnets:
+                      default: ""
                       description: |-
-                        subnets holds a list of identifiers (one or more) of the subnets.
-                        The subnets should already exist in PC and there is no duplicate items configured.
-                      items:
-                        description: NutanixResourceIdentifier holds the identity
-                          of a Nutanix PC resource (cluster, image, subnet, etc.)
-                        properties:
-                          name:
-                            description: name is the resource name in the PC
-                            minLength: 1
-                            type: string
-                          type:
-                            description: Type is the identifier type to use for this
-                              resource.
-                            enum:
-                            - uuid
-                            - name
-                            type: string
-                          uuid:
-                            description: uuid is the UUID of the resource in the PC.
-                            format: uuid
-                            maxLength: 36
-                            minLength: 36
-                            type: string
-                        required:
-                        - type
-                        type: object
-                        x-kubernetes-validations:
-                        - message: '''name'' must be set when type is ''name'', and
-                            forbidden otherwise'
-                          rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                        - message: '''uuid'' must be set when type is ''uuid'', and
-                            forbidden otherwise'
-                          rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                            : !has(self.uuid)'
-                      maxItems: 32
-                      minItems: 1
-                      type: array
-                  required:
-                  - name
-                  - prismElement
-                  - subnets
+                        Name of the referent.
+                        This field is effectively required, but due to backwards compatibility is
+                        allowed to be empty. Instances of this type with an empty value here are
+                        almost certainly wrong.
+                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      type: string
                   type: object
+                  x-kubernetes-map-type: atomic
+                maxItems: 2
                 minItems: 2
                 type: array
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
+              placementStrategy:
+                default: Preferred
+                description: placementStrategy defines the VM placement strategy of
+                  Preferred or Random, with Preferred as the default.
+                enum:
+                - Preferred
+                - Random
+                type: string
+              preferredFailureDomain:
+                description: |-
+                  preferredFailureDomain is the preferred failureDomain name, specifying the failure domain the VM should be provisioned.
+                  When the preferred failure domain is not available, or being evacuated (e.g. in maintainence), the VM
+                  will be provisioned to the remaining failure domain.
+                  This field is required when the VM placement strategy is Preferred.
+                type: string
             required:
-            - placement
-            - zones
+            - failureDomains
+            - placementStrategy
             type: object
+            x-kubernetes-validations:
+            - message: preferredFailureDomain is required for Preferred placementStrategy,
+                and it must be referenced in spec.failureDomains.
+              rule: self.placementStrategy != "Preferred" || (has(self.preferredFailureDomain)
+                && self.failureDomains.exists(fd, fd.name == self.preferredFailureDomain))
           status:
-            description: AHVMetroZoneStatus defines the observed state of AHVMetroZone
-              resource.
+            description: NutanixMetroVMPlacementStatus defines the observed state
+              of NutanixMetroVMPlacement resource.
             properties:
               conditions:
-                description: conditions represent the latest states of the AHVMetroZone.
+                description: conditions represent the latest states of the NutanixMetroVMPlacement.
                 items:
                   description: Condition defines an observation of a Cluster API resource
                     operational state.
@@ -225,10 +161,10 @@ spec:
                 type: array
               v1beta2:
                 description: v1beta2 groups all the fields that will be added or modified
-                  in AHVMetroZone's status with the v1beta2 version.
+                  in NutanixMetroVMPlacement's status with the v1beta2 version.
                 properties:
                   conditions:
-                    description: conditions represents the observations of a AHVMetroZone's
+                    description: conditions represents the observations of a NutanixMetroVMPlacement's
                       current state.
                     items:
                       description: Condition contains details for one aspect of the

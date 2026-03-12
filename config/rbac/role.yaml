@@ -60,6 +60,7 @@ rules:
   - nutanixclusters
   - nutanixfailuredomains
   - nutanixmachines
+  - nutanixmetrovmplacements
   verbs:
   - create
   - delete
@@ -82,6 +83,8 @@ rules:
   - nutanixfailuredomains/finalizers
   - nutanixfailuredomains/status
   - nutanixmachines/status
+  - nutanixmetrovmplacements/finalizers
+  - nutanixmetrovmplacements/status
   verbs:
   - get
   - patch
