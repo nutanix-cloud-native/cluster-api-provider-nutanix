@@ -24,7 +24,11 @@ import (
 	"os"
 	"time"
 
+	//+kubebuilder:scaffold:imports
+
 	"github.com/go-logr/logr"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/time/rate"
@@ -48,10 +52,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
-	//+kubebuilder:scaffold:imports
 )
 
 var scheme = runtime.NewScheme()
@@ -323,6 +323,48 @@ func setupNutanixFailureDomainController(ctx context.Context, mgr manager.Manage
 	return nil
 }
 
+func setupNutanixMetroController(ctx context.Context, mgr manager.Manager, secretInformer coreinformers.SecretInformer,
+	configMapInformer coreinformers.ConfigMapInformer, opts ...controllers.ControllerConfigOpts,
+) error {
+	machineCtrl, err := controllers.NewNutanixMetroReconciler(
+		mgr.GetClient(),
+		secretInformer,
+		configMapInformer,
+		mgr.GetScheme(),
+		opts...,
+	)
+	if err != nil {
+		return fmt.Errorf("unable to create NutanixMetro controller: %w", err)
+	}
+
+	if err := machineCtrl.SetupWithManager(ctx, mgr); err != nil {
+		return fmt.Errorf("unable to setup NutanixMetro controller with manager: %w", err)
+	}
+
+	return nil
+}
+
+func setupNutanixMetroSiteController(ctx context.Context, mgr manager.Manager, secretInformer coreinformers.SecretInformer,
+	configMapInformer coreinformers.ConfigMapInformer, opts ...controllers.ControllerConfigOpts,
+) error {
+	machineCtrl, err := controllers.NewNutanixMetroReconciler(
+		mgr.GetClient(),
+		secretInformer,
+		configMapInformer,
+		mgr.GetScheme(),
+		opts...,
+	)
+	if err != nil {
+		return fmt.Errorf("unable to create NutanixMetroSite controller: %w", err)
+	}
+
+	if err := machineCtrl.SetupWithManager(ctx, mgr); err != nil {
+		return fmt.Errorf("unable to setup NutanixMetroSite controller with manager: %w", err)
+	}
+
+	return nil
+}
+
 func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig) error {
 	secretInformer, configMapInformer, err := createInformers(ctx, mgr)
 	if err != nil {
@@ -359,6 +401,14 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 
 	// Use the same opts for failure domain controller as machine controller
 	if err := setupNutanixFailureDomainController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
+		return fmt.Errorf("unable to setup controllers: %w", err)
+	}
+
+	if err := setupNutanixMetroController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
+		return fmt.Errorf("unable to setup controllers: %w", err)
+	}
+
+	if err := setupNutanixMetroSiteController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
 		return fmt.Errorf("unable to setup controllers: %w", err)
 	}
 

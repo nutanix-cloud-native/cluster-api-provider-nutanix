@@ -50,6 +50,35 @@ const (
 	FailureDomainsValidationInProgressReason = "FailureDomainsValidationInProgress"
 )
 
+// Conditions and Reasons releated to NutanixMetro and NuanixMetroSite
+const (
+	// MetroSafeForDeletionCondition indicates whether the NutanixMetro object is safe for deletion,
+	// ie., when it is not used or referenced by other resources
+	MetroSafeForDeletionCondition capiv1beta1.ConditionType = "MetroSafeForDeletion"
+
+	// MetroInUseReason indicates that the NutanixMetro is used by Machines.
+	MetroInUseReason = "MetroInUse"
+
+	// MetroValidatedCondition indicates whether the NutanixMetro spec is configured correctly or not.
+	MetroValidatedCondition capiv1beta1.ConditionType = "MetroValidated"
+
+	// MetroMisconfiguredReason (Severity=Warning) indicates that the NutanixMetro spec is misconfigured.
+	MetroMisconfiguredReason = "MetroMisconfigured"
+
+	// MetroSiteSafeForDeletionCondition indicates whether the NutanixMetroSite object is safe for deletion,
+	// ie., when it is not used or referenced by other resources
+	MetroSiteSafeForDeletionCondition capiv1beta1.ConditionType = "MetroSiteSafeForDeletion"
+
+	// MetroSiteInUseReason indicates that the NutanixMetroSite is used by Machines.
+	MetroSiteInUseReason = "MetroSiteInUse"
+
+	// MetroSiteValidatedCondition indicates whether the NutanixMetro spec is configured correctly or not.
+	MetroSiteValidatedCondition capiv1beta1.ConditionType = "MetroSiteValidated"
+
+	// MetroSiteMisconfiguredReason (Severity=Warning) indicates that the NutanixMetro spec is misconfigured.
+	MetroSiteMisconfiguredReason = "MetroSiteMisconfigured"
+)
+
 const (
 	// ClusterCategoryCreatedCondition indicates the status of the category linked to the NutanixCluster
 	ClusterCategoryCreatedCondition capiv1beta1.ConditionType = "ClusterCategoryCreated"
