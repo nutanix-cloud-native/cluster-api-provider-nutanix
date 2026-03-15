@@ -20,13 +20,15 @@ import (
 	"context"
 	"fmt"
 
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"                                 //nolint:staticcheck // suppress complaining on Deprecated package
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"         //nolint:staticcheck // suppress complaining on Deprecated package
 	v1beta2conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions/v1beta2" //nolint:staticcheck // suppress complaining on Deprecated package
 	v1beta1patch "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"                   //nolint:staticcheck // suppress complaining on Deprecated package
@@ -36,8 +38,6 @@ import (
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
 // NutanixFailureDomainReconciler reconciles a NutanixFailureDomain object
@@ -78,48 +78,89 @@ func (r *NutanixFailureDomainReconciler) SetupWithManager(ctx context.Context, m
 		Named("nutanixfailuredomain-controller").
 		For(&infrav1.NutanixFailureDomain{}).
 		Watches(
-			&infrav1.NutanixMachine{},
+			&capiv1beta2.Machine{},
 			handler.EnqueueRequestsFromMapFunc(
-				r.mapNutanixMachineToNutanixFailureDomain(),
+				r.mapMachineToNutanixFailureDomain(),
+			),
+		).
+		Watches(
+			&infrav1.NutanixMetro{},
+			handler.EnqueueRequestsFromMapFunc(
+				r.mapNutanixMetroToNutanixFailureDomain(),
+			),
+		).
+		Watches(
+			&infrav1.NutanixMetroSite{},
+			handler.EnqueueRequestsFromMapFunc(
+				r.mapNutanixMetroSiteToNutanixFailureDomain(),
 			),
 		).
 		WithOptions(copts).
 		Complete(r)
 }
 
-func (r *NutanixFailureDomainReconciler) mapNutanixMachineToNutanixFailureDomain() handler.MapFunc {
+func (r *NutanixFailureDomainReconciler) mapMachineToNutanixFailureDomain() handler.MapFunc {
 	return func(ctx context.Context, o client.Object) []ctrl.Request {
 		log := ctrl.LoggerFrom(ctx)
-		nm, ok := o.(*infrav1.NutanixMachine)
+		machine, ok := o.(*capiv1beta2.Machine)
 		if !ok {
-			log.Error(fmt.Errorf("expected a NutanixMachine object but was %T", o), "unexpected type")
+			log.Error(fmt.Errorf("expected a Machine object but was %T", o), "unexpected type")
 			return nil
 		}
 
 		reqs := make([]ctrl.Request, 0)
-		if nm.Status.FailureDomain == nil {
+		fdName := machine.Spec.FailureDomain
+		if fdName == "" {
 			return reqs
 		}
 
-		// Fetch the NutanixFailureDomain object in the local namespace
-		fdName := *nm.Status.FailureDomain
-		nfd := &infrav1.NutanixFailureDomain{}
-		nfdKey := client.ObjectKey{Name: fdName, Namespace: nm.Namespace}
-		if err := r.Get(ctx, nfdKey, nfd); err != nil {
-			log.Error(err, "Failed to fetch the nutanix failure domain object for nutanix machine")
+		objKey := client.ObjectKey{Name: fdName, Namespace: machine.Namespace}
+		reqs = append(reqs, ctrl.Request{NamespacedName: objKey})
+		return reqs
+	}
+}
+
+func (r *NutanixFailureDomainReconciler) mapNutanixMetroToNutanixFailureDomain() handler.MapFunc {
+	return func(ctx context.Context, o client.Object) []ctrl.Request {
+		log := ctrl.LoggerFrom(ctx)
+		metro, ok := o.(*infrav1.NutanixMetro)
+		if !ok {
+			log.Error(fmt.Errorf("expected a NutanixMetro object but was %T", o), "unexpected type")
 			return nil
 		}
 
-		objKey := client.ObjectKey{Name: nfd.Name, Namespace: nfd.Namespace}
+		reqs := make([]ctrl.Request, 0)
+		for _, fdRef := range metro.Spec.FailureDomains {
+			objKey := client.ObjectKey{Name: fdRef.Name, Namespace: metro.Namespace}
+			reqs = append(reqs, ctrl.Request{NamespacedName: objKey})
+		}
+
+		return reqs
+	}
+}
+
+func (r *NutanixFailureDomainReconciler) mapNutanixMetroSiteToNutanixFailureDomain() handler.MapFunc {
+	return func(ctx context.Context, o client.Object) []ctrl.Request {
+		log := ctrl.LoggerFrom(ctx)
+		metroSite, ok := o.(*infrav1.NutanixMetroSite)
+		if !ok {
+			log.Error(fmt.Errorf("expected a NutanixMetroSite object but was %T", o), "unexpected type")
+			return nil
+		}
+
+		reqs := make([]ctrl.Request, 0)
+		objKey := client.ObjectKey{Name: metroSite.Spec.FailureDomainRef.Name, Namespace: metroSite.Namespace}
 		reqs = append(reqs, ctrl.Request{NamespacedName: objKey})
+
 		return reqs
 	}
 }
 
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
-// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters,verbs=get;list
-// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixmachines,verbs=get;list
+// +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machines;machines/status,verbs=get;list;watch
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixmetroes,verbs=get;list
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixmatrosites,verbs=get;list
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixfailuredomains,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixfailuredomains/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixfailuredomains/finalizers,verbs=get;update;patch
@@ -179,36 +220,71 @@ func (r *NutanixFailureDomainReconciler) Reconcile(ctx context.Context, req ctrl
 
 	// Handle deletion
 	if !fd.DeletionTimestamp.IsZero() {
-		return r.reconcileDelete(ctx, fd)
-	}
+		// List the Machines in the same namespace.
+		machineList := &capiv1beta2.MachineList{}
+		if err := r.List(ctx, machineList, client.InNamespace(fd.Namespace)); err != nil {
+			return ctrl.Result{}, err
+		}
 
-	return r.reconcileNormal(ctx, fd)
-}
+		// List the NutanixMetroes in the same namespace.
+		metroList := &infrav1.NutanixMetroList{}
+		if err := r.List(ctx, metroList, client.InNamespace(fd.Namespace)); err != nil {
+			return ctrl.Result{}, err
+		}
 
-func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd *infrav1.NutanixFailureDomain) (ctrl.Result, error) {
-	log := ctrl.LoggerFrom(ctx)
-	log.Info("Handling NutanixFailureDomain deletion")
+		// List the NutanixMetroSites in the same namespace.
+		metrositeList := &infrav1.NutanixMetroSiteList{}
+		if err := r.List(ctx, metrositeList, client.InNamespace(fd.Namespace)); err != nil {
+			return ctrl.Result{}, err
+		}
 
-	// Check if there are NutanixMachines using this failure domain
-	// A map with nutanixmachine name as key and the cluster name as value
-	ntxMachines := map[string]string{}
-	ntxMachineList := &infrav1.NutanixMachineList{}
-
-	if err := r.List(ctx, ntxMachineList, client.InNamespace(fd.Namespace)); err != nil {
+		err = r.reconcileDelete(ctx, fd, machineList.Items, metroList.Items, metrositeList.Items)
 		return ctrl.Result{}, err
 	}
 
-	for _, nm := range ntxMachineList.Items {
-		if !nm.DeletionTimestamp.IsZero() {
+	err = r.reconcileNormal(ctx, fd)
+	return ctrl.Result{}, err
+}
+
+func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd *infrav1.NutanixFailureDomain, machines []capiv1beta2.Machine, metroes []infrav1.NutanixMetro, metroSites []infrav1.NutanixMetroSite) error {
+	log := ctrl.LoggerFrom(ctx)
+	log.Info("Handling NutanixFailureDomain deletion")
+
+	// Check if there are other objects reference this object in the same namespace.
+	// usedItems is to hold the names of these machine objects using this Metro.
+	usedItems := []string{}
+
+	for _, m := range machines {
+		if !m.DeletionTimestamp.IsZero() {
 			continue
 		}
-
-		if nm.Status.FailureDomain != nil && *nm.Status.FailureDomain == fd.Name {
-			ntxMachines[nm.Name] = nm.GetLabels()[capiv1beta1.ClusterNameLabel]
+		if m.Spec.FailureDomain == fd.Name {
+			usedItems = append(usedItems, fmt.Sprintf("machine:%s,cluster:%s", m.Name, m.Spec.ClusterName))
 		}
 	}
 
-	if len(ntxMachines) == 0 {
+	for _, metro := range metroes {
+		if !metro.DeletionTimestamp.IsZero() {
+			continue
+		}
+		for _, fdRef := range metro.Spec.FailureDomains {
+			if fdRef.Name == fd.Name {
+				usedItems = append(usedItems, fmt.Sprintf("nutanixMetro:%s", metro.Name))
+				break
+			}
+		}
+	}
+
+	for _, metroSite := range metroSites {
+		if !metroSite.DeletionTimestamp.IsZero() {
+			continue
+		}
+		if metroSite.Spec.FailureDomainRef.Name == fd.Name {
+			usedItems = append(usedItems, fmt.Sprintf("nutanixMetroSite:%s", metroSite.Name))
+		}
+	}
+
+	if len(usedItems) == 0 {
 		v1beta1conditions.MarkTrue(fd, infrav1.FailureDomainSafeForDeletionCondition)
 		v1beta2conditions.Set(fd, metav1.Condition{
 			Type:   string(infrav1.FailureDomainSafeForDeletionCondition),
@@ -218,10 +294,10 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 
 		// Remove the finalizer from the failure domain object
 		ctrlutil.RemoveFinalizer(fd, infrav1.NutanixFailureDomainFinalizer)
-		return ctrl.Result{}, nil
+		return nil
 	}
 
-	errMsg := fmt.Sprintf("The failure domain is used by machines: %v", ntxMachines)
+	errMsg := fmt.Sprintf("The failure domain is used by other resources in the same namespace: %v", usedItems)
 	v1beta1conditions.MarkFalse(fd, infrav1.FailureDomainSafeForDeletionCondition,
 		infrav1.FailureDomainInUseReason, capiv1beta1.ConditionSeverityError, "%s", errMsg)
 	v1beta2conditions.Set(fd, metav1.Condition{
@@ -231,12 +307,12 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 		Message: errMsg,
 	})
 
-	reterr := fmt.Errorf("the failure domain %q is not safe for deletion since it is in use", fd.Name)
-	log.Error(reterr, errMsg)
-	return ctrl.Result{}, reterr
+	err := fmt.Errorf("the failure domain %q is not safe for deletion since it is in use", fd.Name)
+	log.Error(err, errMsg)
+	return err
 }
 
-func (r *NutanixFailureDomainReconciler) reconcileNormal(ctx context.Context, fd *infrav1.NutanixFailureDomain) (ctrl.Result, error) {
+func (r *NutanixFailureDomainReconciler) reconcileNormal(ctx context.Context, fd *infrav1.NutanixFailureDomain) error {
 	log := ctrl.LoggerFrom(ctx)
 	log.Info("Handling NutanixFailureDomain reconciling")
 
@@ -244,5 +320,5 @@ func (r *NutanixFailureDomainReconciler) reconcileNormal(ctx context.Context, fd
 	v1beta1conditions.Delete(fd, infrav1.FailureDomainSafeForDeletionCondition)
 	v1beta2conditions.Delete(fd, string(infrav1.FailureDomainSafeForDeletionCondition))
 
-	return ctrl.Result{}, nil
+	return nil
 }
