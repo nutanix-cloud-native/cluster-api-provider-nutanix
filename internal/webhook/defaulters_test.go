@@ -44,6 +44,7 @@ func minimalMachineSpec() infrav1.NutanixMachineSpec {
 	}
 }
 
+//nolint:gocognit // table-driven test with many cases
 func TestNutanixMachineDefaulter_Default(t *testing.T) {
 	ctx := context.Background()
 	defaulter := NutanixMachineDefaulter{}
@@ -161,7 +162,7 @@ func TestNutanixMachineDefaulter_Default(t *testing.T) {
 				DiskSize:   resource.MustParse("10Gi"),
 				DataSource: &infrav1.NutanixResourceIdentifier{Type: infrav1.NutanixIdentifierName},
 				StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
-					DiskMode:        infrav1.NutanixMachineDiskModeStandard,
+					DiskMode:         infrav1.NutanixMachineDiskModeStandard,
 					StorageContainer: &infrav1.NutanixResourceIdentifier{Type: infrav1.NutanixIdentifierName},
 				},
 			},
