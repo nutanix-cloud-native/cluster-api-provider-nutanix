@@ -14,6 +14,7 @@ webhooks:
       namespace: {{ .Release.Namespace }}
       name: {{ template "chart.name" . }}-admission
       path: /mutate-infrastructure-cluster-x-k8s-io-v1beta1-nutanixmachine
+      port: {{ .Values.service.port }}
   rules:
   - operations: ["CREATE", "UPDATE"]
     apiGroups: ["infrastructure.cluster.x-k8s.io"]
@@ -29,6 +30,7 @@ webhooks:
       namespace: {{ .Release.Namespace }}
       name: {{ template "chart.name" . }}-admission
       path: /mutate-infrastructure-cluster-x-k8s-io-v1beta1-nutanixmachinetemplate
+      port: {{ .Values.service.port }}
   rules:
   - operations: ["CREATE", "UPDATE"]
     apiGroups: ["infrastructure.cluster.x-k8s.io"]
