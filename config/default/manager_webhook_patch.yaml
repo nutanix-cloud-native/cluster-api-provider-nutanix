@@ -1,0 +1,17 @@
+# This patch adds the webhook port to the controller-manager deployment.
+# [WEBHOOK] To enable webhook, uncomment the corresponding line in config/default/kustomization.yaml
+# Note: name and namespace must match the deployment after default overlay (namePrefix + namespace).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capx-controller-manager
+  namespace: capx-system
+spec:
+  template:
+    spec:
+      containers:
+      - name: manager
+        ports:
+        - containerPort: 9443
+          name: webhook
+          protocol: TCP

@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
@@ -306,6 +307,7 @@ func testRunManagerCommon(t *testing.T, ctrl *gomock.Controller) (*mockctlclient
 	}).AnyTimes()
 	mgr.EXPECT().Add(gomock.Any()).Return(nil).AnyTimes()
 	mgr.EXPECT().GetCache().Return(cache).AnyTimes()
+	mgr.EXPECT().GetWebhookServer().Return(webhook.NewServer(webhook.Options{})).AnyTimes()
 
 	return mgr, config, testEnv
 }

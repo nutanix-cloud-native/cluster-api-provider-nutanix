@@ -1,0 +1,37 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: mutating-webhook-configuration
+  labels:
+    cluster.x-k8s.io/provider: infrastructure-nutanix
+webhooks:
+- name: mutate-nutanixmachine.infrastructure.cluster.x-k8s.io
+  admissionReviewVersions: ["v1", "v1beta1"]
+  clientConfig:
+    service:
+      namespace: capx-system
+      name: capx-webhook-service
+      path: /mutate-infrastructure-cluster-x-k8s-io-v1beta1-nutanixmachine
+  rules:
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    apiVersions: ["v1beta1"]
+    resources: ["nutanixmachines"]
+  failurePolicy: Fail
+  sideEffects: None
+  timeoutSeconds: 10
+- name: mutate-nutanixmachinetemplate.infrastructure.cluster.x-k8s.io
+  admissionReviewVersions: ["v1", "v1beta1"]
+  clientConfig:
+    service:
+      namespace: capx-system
+      name: capx-webhook-service
+      path: /mutate-infrastructure-cluster-x-k8s-io-v1beta1-nutanixmachinetemplate
+  rules:
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    apiVersions: ["v1beta1"]
+    resources: ["nutanixmachinetemplates"]
+  failurePolicy: Fail
+  sideEffects: None
+  timeoutSeconds: 10

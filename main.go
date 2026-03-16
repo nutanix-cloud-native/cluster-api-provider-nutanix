@@ -51,6 +51,7 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/internal/webhook"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -239,6 +240,22 @@ func addHealthChecks(mgr manager.Manager) error {
 	return nil
 }
 
+func setupWebhooks(mgr manager.Manager) error {
+	if err := ctrl.NewWebhookManagedBy(mgr).
+		For(&infrav1.NutanixMachine{}).
+		WithDefaulter(&webhook.NutanixMachineDefaulter{}).
+		Complete(); err != nil {
+		return fmt.Errorf("unable to register NutanixMachine mutating webhook: %w", err)
+	}
+	if err := ctrl.NewWebhookManagedBy(mgr).
+		For(&infrav1.NutanixMachineTemplate{}).
+		WithDefaulter(&webhook.NutanixMachineTemplateDefaulter{}).
+		Complete(); err != nil {
+		return fmt.Errorf("unable to register NutanixMachineTemplate mutating webhook: %w", err)
+	}
+	return nil
+}
+
 func createInformers(ctx context.Context, mgr manager.Manager) (coreinformers.SecretInformer, coreinformers.ConfigMapInformer, error) {
 	// Create a secret informer for the Nutanix client
 	clientset, err := kubernetes.NewForConfig(mgr.GetConfig())
@@ -360,6 +377,10 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 	// Use the same opts for failure domain controller as machine controller
 	if err := setupNutanixFailureDomainController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
 		return fmt.Errorf("unable to setup controllers: %w", err)
+	}
+
+	if err := setupWebhooks(mgr); err != nil {
+		return fmt.Errorf("unable to setup webhooks: %w", err)
 	}
 
 	config.logger.Info("starting CAPX Controller Manager")
