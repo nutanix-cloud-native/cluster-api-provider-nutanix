@@ -1,0 +1,16 @@
+apiVersion: v2
+
+name: cluster-api-provider-nutanix
+type: application
+description: A Helm chart for the Cluster API infrastructure provider for Nutanix (CAPX)
+
+home: https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix
+maintainers:
+- name: nutanix-cloud-native
+  url: https://github.com/nutanix-cloud-native
+sources:
+- https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix
+
+# appVersion is overridden at build/release time (e.g. with --app-version or by the CI pipeline).
+appVersion: v0.0.0-dev
+version: v0.0.0-dev

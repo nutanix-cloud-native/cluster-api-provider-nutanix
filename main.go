@@ -46,8 +46,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
+	crwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
@@ -78,6 +80,7 @@ type options struct {
 	healthProbeAddr         string
 	maxConcurrentReconciles int
 
+	webhookOptions        crwebhook.Options // same struct for flags and WebhookServer (CAREN-style)
 	rateLimiterBaseDelay  time.Duration
 	rateLimiterMaxDelay   time.Duration
 	rateLimiterBucketSize int
@@ -94,6 +97,7 @@ type managerConfig struct {
 	concurrentReconcilesNutanixMachine int
 	metricsServerOpts                  server.Options
 	skipNameValidation                 bool
+	webhookOptions                     crwebhook.Options
 
 	logger      logr.Logger
 	restConfig  *rest.Config
@@ -165,6 +169,11 @@ func initializeFlags() *options {
 	pflag.IntVar(&opts.maxConcurrentReconciles, "max-concurrent-reconciles", defaultMaxConcurrentReconciles,
 		"The maximum number of allowed, concurrent reconciles.")
 
+	// CAREN-style: bind webhook options (only CertDir flag; Port fixed at 9444 like CAREN).
+	opts.webhookOptions = crwebhook.Options{Port: 9444, CertDir: "/admission-certs"}
+	pflag.StringVar(&opts.webhookOptions.CertDir, "admission-webhook-cert-dir", opts.webhookOptions.CertDir,
+		"Admission webhook server cert dir.")
+
 	pflag.DurationVar(&opts.rateLimiterBaseDelay, "rate-limiter-base-delay", 500*time.Millisecond, "The base delay for the rate limiter.")
 	pflag.DurationVar(&opts.rateLimiterMaxDelay, "rate-limiter-max-delay", 15*time.Minute, "The maximum delay for the rate limiter.")
 	pflag.IntVar(&opts.rateLimiterBucketSize, "rate-limiter-bucket-size", 100, "The bucket size for the rate limiter.")
@@ -199,6 +208,7 @@ func initializeConfig(opts *options) (*managerConfig, error) {
 
 	config.concurrentReconcilesNutanixCluster = opts.maxConcurrentReconciles
 	config.concurrentReconcilesNutanixMachine = opts.maxConcurrentReconciles
+	config.webhookOptions = opts.webhookOptions
 
 	rateLimiter, err := compositeRateLimiter(opts.rateLimiterBaseDelay, opts.rateLimiterMaxDelay, opts.rateLimiterBucketSize, opts.rateLimiterQPS)
 	if err != nil {
@@ -241,18 +251,14 @@ func addHealthChecks(mgr manager.Manager) error {
 }
 
 func setupWebhooks(mgr manager.Manager) error {
-	if err := ctrl.NewWebhookManagedBy(mgr).
-		For(&infrav1.NutanixMachine{}).
-		WithDefaulter(&webhook.NutanixMachineDefaulter{}).
-		Complete(); err != nil {
-		return fmt.Errorf("unable to register NutanixMachine mutating webhook: %w", err)
-	}
-	if err := ctrl.NewWebhookManagedBy(mgr).
-		For(&infrav1.NutanixMachineTemplate{}).
-		WithDefaulter(&webhook.NutanixMachineTemplateDefaulter{}).
-		Complete(); err != nil {
-		return fmt.Errorf("unable to register NutanixMachineTemplate mutating webhook: %w", err)
-	}
+	// CAREN-style: explicit Register with decoder-based handlers (same as cluster-api-runtime-extensions).
+	decoder := admission.NewDecoder(mgr.GetScheme())
+	mgr.GetWebhookServer().Register(webhook.PathMutateNutanixMachine, &crwebhook.Admission{
+		Handler: webhook.NewNutanixMachineDefaulterHandler(decoder),
+	})
+	mgr.GetWebhookServer().Register(webhook.PathMutateNutanixMachineTemplate, &crwebhook.Admission{
+		Handler: webhook.NewNutanixMachineTemplateDefaulterHandler(decoder),
+	})
 	return nil
 }
 
@@ -392,12 +398,14 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 }
 
 func initializeManager(config *managerConfig) (manager.Manager, error) {
+	// CAREN-style: webhook server always on, same options struct used for flags.
 	mgr, err := ctrl.NewManager(config.restConfig, ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                config.metricsServerOpts,
 		HealthProbeBindAddress: config.healthProbeAddr,
 		LeaderElection:         config.enableLeaderElection,
 		LeaderElectionID:       "f265110d.cluster.x-k8s.io",
+		WebhookServer:          crwebhook.NewServer(config.webhookOptions),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create manager: %w", err)

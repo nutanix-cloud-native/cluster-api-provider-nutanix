@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  name: {{ template "chart.name" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.deployment.replicas }}
+  selector:
+    matchLabels:
+      {{- include "chart.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        {{- include "chart.selectorLabels" . | nindent 8 }}
+    spec:
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      serviceAccountName: {{ template "chart.name" . }}
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      containers:
+      - name: manager
+        image: {{ include "chart.image" . | quote }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+        - --health-probe-bind-address={{ .Values.manager.healthProbeBindAddress }}
+        - --diagnostics-address={{ .Values.manager.diagnosticsAddress }}
+        - --leader-elect={{ .Values.manager.leaderElect }}
+        - --zap-log-level={{ .Values.manager.zapLogLevel }}
+        - --zap-devel={{ .Values.manager.zapDevel }}
+        - --zap-stacktrace-level={{ .Values.manager.zapStacktraceLevel }}
+        - --admission-webhook-cert-dir={{ .Values.manager.admissionWebhookCertDir }}
+        ports:
+        - containerPort: 9444
+          name: admission
+          protocol: TCP
+        - containerPort: 8443
+          name: https
+          protocol: TCP
+        - containerPort: 8081
+          name: probes
+          protocol: TCP
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        securityContext:
+          {{- toYaml .Values.containerSecurityContext | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: probes
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: probes
+          initialDelaySeconds: 5
+          periodSeconds: 1
+        volumeMounts:
+        - name: nutanix-endpoint
+          mountPath: /etc/nutanix/config
+        - name: admission-certs
+          mountPath: {{ .Values.manager.admissionWebhookCertDir }}
+          readOnly: true
+      volumes:
+      - name: nutanix-endpoint
+        configMap:
+          {{- if .Values.nutanix.endpoint }}
+          name: {{ template "chart.name" . }}-nutanix-endpoint
+          {{- else }}
+          # When nutanix.endpoint is not set the chart assumes the ConfigMap already exists
+          # (e.g. created by clusterctl). The conventional clusterctl name is capx-nutanix-endpoint.
+          name: capx-nutanix-endpoint
+          {{- end }}
+      - name: admission-certs
+        secret:
+          secretName: {{ include "chart.admissionTLSSecretName" . }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}

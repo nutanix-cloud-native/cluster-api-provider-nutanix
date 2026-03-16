@@ -1,0 +1,58 @@
+{{- if .Values.nutanix.endpoint }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  name: {{ template "chart.name" . }}-nutanix-endpoint
+  namespace: {{ .Release.Namespace }}
+data:
+  prismCentral: |-
+    {
+      "address": {{ .Values.nutanix.endpoint | quote }},
+      "port": {{ .Values.nutanix.port }},
+      "insecure": {{ .Values.nutanix.insecure }},
+      "credentialRef": {
+        "kind": "secret",
+        "name": {{ printf "%s-nutanix-creds" (include "chart.name" .) | quote }}
+      },
+      "additionalTrustBundle": {
+        "kind": "ConfigMap",
+        "name": {{ printf "%s-pc-trusted-ca-bundle" (include "chart.name" .) | quote }}
+      }
+    }
+---
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  name: {{ template "chart.name" . }}-nutanix-creds
+  namespace: {{ .Release.Namespace }}
+stringData:
+  credentials: |
+    [
+      {
+        "type": "basic_auth",
+        "data": {
+          "prismCentral": {
+            "username": {{ .Values.nutanix.credentials.username | quote }},
+            "password": {{ .Values.nutanix.credentials.password | quote }}
+          },
+          "prismElements": null
+        }
+      }
+    ]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  name: {{ template "chart.name" . }}-pc-trusted-ca-bundle
+  namespace: {{ .Release.Namespace }}
+binaryData:
+  ca.crt: {{ .Values.nutanix.additionalTrustBundle | default "" | b64enc | quote }}
+{{- end }}

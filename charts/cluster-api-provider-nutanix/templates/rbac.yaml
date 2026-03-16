@@ -1,0 +1,123 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  name: {{ template "chart.name" . }}-manager-role
+rules:
+- apiGroups: [""]
+  resources: [configmaps, secrets]
+  verbs: [delete, get, list, update, watch]
+- apiGroups: [""]
+  resources: [nodes]
+  verbs: [get, list, patch, watch]
+- apiGroups: [bootstrap.cluster.x-k8s.io]
+  resources: [kubeadmconfigs]
+  verbs: [get, list, patch, update, watch]
+- apiGroups: [cluster.x-k8s.io]
+  resources: [clusters]
+  verbs: [get, list, patch, update, watch]
+- apiGroups: [cluster.x-k8s.io]
+  resources: [clusters/status, machines, machines/status]
+  verbs: [get, list, watch]
+- apiGroups: [infrastructure.cluster.x-k8s.io]
+  resources: [nutanixclusters, nutanixfailuredomains, nutanixmachines]
+  verbs: [create, delete, get, list, patch, update, watch]
+- apiGroups: [infrastructure.cluster.x-k8s.io]
+  resources: [nutanixclusters/finalizers, nutanixmachines/finalizers]
+  verbs: [update]
+- apiGroups: [infrastructure.cluster.x-k8s.io]
+  resources: [nutanixclusters/status, nutanixfailuredomains/finalizers, nutanixfailuredomains/status, nutanixmachines/status]
+  verbs: [get, patch, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  name: {{ template "chart.name" . }}-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "chart.name" . }}-manager-role
+subjects:
+- kind: ServiceAccount
+  name: {{ template "chart.name" . }}
+  namespace: {{ .Release.Namespace }}
+---
+# Metrics reader role (used by kube-rbac-proxy clients)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  name: {{ template "chart.name" . }}-metrics-reader
+rules:
+- nonResourceURLs: ["/metrics"]
+  verbs: [get]
+---
+# Proxy role (allows the manager to delegate TokenReview / SubjectAccessReview)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  name: {{ template "chart.name" . }}-proxy-role
+rules:
+- apiGroups: [authentication.k8s.io]
+  resources: [tokenreviews]
+  verbs: [create]
+- apiGroups: [authorization.k8s.io]
+  resources: [subjectaccessreviews]
+  verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  name: {{ template "chart.name" . }}-proxy-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "chart.name" . }}-proxy-role
+subjects:
+- kind: ServiceAccount
+  name: {{ template "chart.name" . }}
+  namespace: {{ .Release.Namespace }}
+---
+# Leader election Role (namespace-scoped)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  name: {{ template "chart.name" . }}-leader-election-role
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups: [""]
+  resources: [configmaps]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [coordination.k8s.io]
+  resources: [leases]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [""]
+  resources: [events]
+  verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  name: {{ template "chart.name" . }}-leader-election-rolebinding
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ template "chart.name" . }}-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: {{ template "chart.name" . }}
+  namespace: {{ .Release.Namespace }}

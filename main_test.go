@@ -57,6 +57,7 @@ func TestInitializeFlags(t *testing.T) {
 				enableLeaderElection:    true,
 				maxConcurrentReconciles: 5,
 				healthProbeAddr:         ":8081",
+				webhookOptions:          webhook.Options{Port: 9444, CertDir: "/admission-certs"},
 				rateLimiterBaseDelay:    500 * time.Millisecond,
 				rateLimiterMaxDelay:     10 * time.Second,
 				rateLimiterBucketSize:   1000,
@@ -75,6 +76,7 @@ func TestInitializeFlags(t *testing.T) {
 				"--insecure-diagnostics=true",
 			},
 			want: &options{
+				webhookOptions: webhook.Options{Port: 9444, CertDir: "/admission-certs"},
 				managerOptions: flags.ManagerOptions{
 					DiagnosticsAddress:  ":9999",
 					InsecureDiagnostics: true,
@@ -216,6 +218,7 @@ func TestInitializeManager(t *testing.T) {
 		concurrentReconcilesNutanixMachine: 1,
 		logger:                             setupLogger(),
 		restConfig:                         cfg,
+		webhookOptions:                     webhook.Options{Port: 9444, CertDir: "/admission-certs"},
 	}
 
 	mgr, err := initializeManager(config)
@@ -283,6 +286,7 @@ func testRunManagerCommon(t *testing.T, ctrl *gomock.Controller) (*mockctlclient
 		restConfig:                         cfg,
 		rateLimiter:                        rateLimiter,
 		skipNameValidation:                 true, // Enable for tests to allow duplicate controller names
+		webhookOptions:                     webhook.Options{Port: 9444, CertDir: "/admission-certs"},
 	}
 
 	restScope := mockmeta.NewMockRESTScope(ctrl)

@@ -1,0 +1,72 @@
+# Default values for cluster-api-provider-nutanix (CAPX).
+
+image:
+  repository: ghcr.io/nutanix-cloud-native/cluster-api-provider-nutanix/controller
+  tag: ""  # defaults to Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+deployment:
+  replicas: 1
+
+# Manager args (passed as CLI flags to the manager binary).
+manager:
+  leaderElect: true
+  healthProbeBindAddress: ":8081"
+  diagnosticsAddress: ":8443"
+  zapLogLevel: "info"
+  zapDevel: "true"
+  zapStacktraceLevel: "panic"
+  # Path where the admission webhook TLS cert is mounted.
+  # Must match certificates.admission.secretName mount path in the deployment.
+  admissionWebhookCertDir: "/admission-certs"
+
+service:
+  type: ClusterIP
+  port: 9444
+  annotations: {}
+
+nodeSelector: {}
+tolerations:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/master
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/control-plane
+
+priorityClassName: ""
+
+securityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  privileged: false
+  capabilities:
+    drop:
+      - ALL
+
+# cert-manager certificate configuration.
+certificates:
+  issuer:
+    # selfSigned: if true a self-signed Issuer is created automatically.
+    selfSigned: true
+    kind: Issuer
+    # name: override the issuer name. If empty and selfSigned is true, defaults to "<chart-name>-issuer".
+    name: ""
+  admission:
+    # secretName: the cert-manager Certificate will write the TLS keypair into this Secret.
+    # The Deployment mounts this Secret at manager.admissionWebhookCertDir.
+    secretName: ""  # defaults to "<chart-name>-admission-tls"
+
+# Nutanix Prism Central connection settings.
+# Set these to have the chart create the nutanix-endpoint ConfigMap and credentials Secret.
+# Leave nutanix.endpoint empty to skip creating those resources (e.g. when using clusterctl to manage them).
+nutanix:
+  endpoint: ""
+  port: 9440
+  insecure: false
+  additionalTrustBundle: ""
+  credentials:
+    username: ""
+    password: ""

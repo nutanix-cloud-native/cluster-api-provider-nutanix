@@ -1,0 +1,15 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  name: {{ template "chart.name" . }}-admission-tls
+  namespace: {{ .Release.Namespace }}
+spec:
+  dnsNames:
+  - {{ template "chart.name" . }}-admission.{{ .Release.Namespace }}.svc
+  - {{ template "chart.name" . }}-admission.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    kind: {{ .Values.certificates.issuer.kind }}
+    name: {{ template "chart.issuerName" . }}
+  secretName: {{ include "chart.admissionTLSSecretName" . }}
