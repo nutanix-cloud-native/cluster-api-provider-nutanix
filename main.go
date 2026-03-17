@@ -323,10 +323,24 @@ func setupNutanixFailureDomainController(ctx context.Context, mgr manager.Manage
 	return nil
 }
 
+func setupNutanixMachineTemplateWebhook(mgr manager.Manager) error {
+	defaulter := &infrav1.NutanixMachineTemplateDefaulter{}
+	if err := defaulter.SetupWebhookWithManager(mgr); err != nil {
+		return fmt.Errorf("unable to setup NutanixMachineTemplate webhook: %w", err)
+	}
+	return nil
+}
+
 func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig) error {
 	secretInformer, configMapInformer, err := createInformers(ctx, mgr)
 	if err != nil {
 		return fmt.Errorf("unable to create informers: %w", err)
+	}
+
+	// Set up webhooks before controllers so that defaulting runs
+	// at admission time, before CEL validation.
+	if err := setupNutanixMachineTemplateWebhook(mgr); err != nil {
+		return fmt.Errorf("unable to setup webhooks: %w", err)
 	}
 
 	clusterControllerOpts := []controllers.ControllerConfigOpts{
