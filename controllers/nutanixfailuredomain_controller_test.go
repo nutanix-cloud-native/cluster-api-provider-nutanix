@@ -120,6 +120,37 @@ var _ = Describe("NutanixFailureDomainReconciler", func() {
 			err := k8sClient.Update(ctx, fd2)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("prismElementCluster is immutable once set"))
+			ntnxMachine = &infrav1.NutanixMachine{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       infrav1.NutanixMachineKind,
+					APIVersion: infrav1.GroupVersion.String(),
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "m-test",
+					Namespace: corev1.NamespaceDefault,
+					UID:       utilruntime.NewUUID(),
+				},
+				Spec: infrav1.NutanixMachineSpec{
+					VCPUsPerSocket: 1,
+					VCPUSockets:    2,
+					MemorySize:     resource.MustParse("2Gi"),
+					SystemDiskSize: resource.MustParse("20Gi"),
+					Image: &infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierName,
+						Name: &rstr,
+					},
+					Cluster: infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierName,
+						Name: &rstr,
+					},
+					Subnets: []infrav1.NutanixResourceIdentifier{
+						{Type: infrav1.NutanixIdentifierUUID, UUID: &rstr},
+					},
+				},
+				Status: infrav1.NutanixMachineStatus{
+					FailureDomain: &fdObj.Name,
+				},
+			}
 		})
 
 		It("should not allow to update failure domain subnets configuration", func() {

@@ -88,7 +88,6 @@ spec:
                       properties:
                         name:
                           description: name is the resource name in the PC
-                          minLength: 1
                           type: string
                         type:
                           description: Type is the identifier type to use for this
@@ -99,21 +98,10 @@ spec:
                           type: string
                         uuid:
                           description: uuid is the UUID of the resource in the PC.
-                          format: uuid
-                          maxLength: 36
-                          minLength: 36
                           type: string
                       required:
                       - type
                       type: object
-                      x-kubernetes-validations:
-                      - message: '''name'' must be set when type is ''name'', and
-                          forbidden otherwise'
-                        rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                      - message: '''uuid'' must be set when type is ''uuid'', and
-                          forbidden otherwise'
-                        rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                          : !has(self.uuid)'
                     subnets:
                       description: |-
                         subnets holds a list of identifiers (one or more) of the subnets.
@@ -124,7 +112,6 @@ spec:
                         properties:
                           name:
                             description: name is the resource name in the PC
-                            minLength: 1
                             type: string
                           type:
                             description: Type is the identifier type to use for this
@@ -135,21 +122,10 @@ spec:
                             type: string
                           uuid:
                             description: uuid is the UUID of the resource in the PC.
-                            format: uuid
-                            maxLength: 36
-                            minLength: 36
                             type: string
                         required:
                         - type
                         type: object
-                        x-kubernetes-validations:
-                        - message: '''name'' must be set when type is ''name'', and
-                            forbidden otherwise'
-                          rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                        - message: '''uuid'' must be set when type is ''uuid'', and
-                            forbidden otherwise'
-                          rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                            : !has(self.uuid)'
                       maxItems: 32
                       minItems: 1
                       type: array
