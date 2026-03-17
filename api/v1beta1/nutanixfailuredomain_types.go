@@ -74,6 +74,7 @@ type NutanixFailureDomainV1Beta2Status struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:metadata:labels=clusterctl.cluster.x-k8s.io/move=
+// +kubebuilder:webhook:path=/mutate-infrastructure-cluster-x-k8s-io-v1beta1-nutanixfailuredomain,mutating=true,failurePolicy=fail,sideEffects=None,groups=infrastructure.cluster.x-k8s.io,resources=nutanixfailuredomains,verbs=create;update,versions=v1beta1,name=mnutanixfailuredomain.kb.io,admissionReviewVersions=v1
 
 // NutanixFailureDomain is the Schema for the NutanixFailureDomain API.
 type NutanixFailureDomain struct {
@@ -82,6 +83,14 @@ type NutanixFailureDomain struct {
 
 	Spec   NutanixFailureDomainSpec   `json:"spec,omitempty"`
 	Status NutanixFailureDomainStatus `json:"status,omitempty"`
+}
+
+// Default sets default values for NutanixResourceIdentifier name fields in the spec.
+func (n *NutanixFailureDomain) Default() {
+	DefaultNutanixResourceIdentifier(&n.Spec.PrismElementCluster)
+	for i := range n.Spec.Subnets {
+		DefaultNutanixResourceIdentifier(&n.Spec.Subnets[i])
+	}
 }
 
 // GetConditions returns the set of conditions for this object.

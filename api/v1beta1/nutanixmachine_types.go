@@ -306,6 +306,7 @@ type NutanixMachineV1Beta2Status struct {
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.ready",description="NutanixMachine ready status"
 // +kubebuilder:printcolumn:name="ProviderID",type="string",JSONPath=".spec.providerID",description="NutanixMachine instance ID"
 // +kubebuilder:printcolumn:name="FailureDomain",type="string",JSONPath=".status.failureDomain",description="NutanixMachine FailureDomain"
+// +kubebuilder:webhook:path=/mutate-infrastructure-cluster-x-k8s-io-v1beta1-nutanixmachine,mutating=true,failurePolicy=fail,sideEffects=None,groups=infrastructure.cluster.x-k8s.io,resources=nutanixmachines,verbs=create;update,versions=v1beta1,name=mnutanixmachine.kb.io,admissionReviewVersions=v1
 // NutanixMachine is the Schema for the nutanixmachines API
 type NutanixMachine struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -313,6 +314,26 @@ type NutanixMachine struct {
 
 	Spec   NutanixMachineSpec   `json:"spec,omitempty"`
 	Status NutanixMachineStatus `json:"status,omitempty"`
+}
+
+// Default sets default values for NutanixResourceIdentifier name fields when type is "name" and name is empty.
+func (nm *NutanixMachine) Default() {
+	defaultNutanixMachineSpec(&nm.Spec)
+}
+
+func defaultNutanixMachineSpec(spec *NutanixMachineSpec) {
+	DefaultNutanixResourceIdentifier(spec.Image)
+	DefaultNutanixResourceIdentifier(&spec.Cluster)
+	for i := range spec.Subnets {
+		DefaultNutanixResourceIdentifier(&spec.Subnets[i])
+	}
+	DefaultNutanixResourceIdentifier(spec.Project)
+	for i := range spec.DataDisks {
+		DefaultNutanixResourceIdentifier(spec.DataDisks[i].DataSource)
+		if spec.DataDisks[i].StorageConfig != nil {
+			DefaultNutanixResourceIdentifier(spec.DataDisks[i].StorageConfig.StorageContainer)
+		}
+	}
 }
 
 // GetConditions returns the set of conditions for this object.

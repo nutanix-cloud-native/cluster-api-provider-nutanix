@@ -1,0 +1,6 @@
+# MutatingWebhookConfiguration for CAPX admission webhooks (e.g. NutanixResourceIdentifier name defaulting).
+# Enable by uncommenting [WEBHOOK] sections in config/default/kustomization.yaml.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- manifests.yaml

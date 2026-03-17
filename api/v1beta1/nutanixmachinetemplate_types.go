@@ -36,6 +36,7 @@ type NutanixMachineTemplateSpec struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:resource:path=nutanixmachinetemplates,shortName=nmtmpl,scope=Namespaced,categories=cluster-api
 //+kubebuilder:storageversion
+//+kubebuilder:webhook:path=/mutate-infrastructure-cluster-x-k8s-io-v1beta1-nutanixmachinetemplate,mutating=true,failurePolicy=fail,sideEffects=None,groups=infrastructure.cluster.x-k8s.io,resources=nutanixmachinetemplates,verbs=create;update,versions=v1beta1,name=mnutanixmachinetemplate.kb.io,admissionReviewVersions=v1
 
 // NutanixMachineTemplate is the Schema for the nutanixmachinetemplates API
 type NutanixMachineTemplate struct {
@@ -43,6 +44,11 @@ type NutanixMachineTemplate struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec NutanixMachineTemplateSpec `json:"spec,omitempty"`
+}
+
+// Default sets default values for NutanixResourceIdentifier name fields in the template spec.
+func (n *NutanixMachineTemplate) Default() {
+	defaultNutanixMachineSpec(&n.Spec.Template.Spec)
 }
 
 //+kubebuilder:object:root=true

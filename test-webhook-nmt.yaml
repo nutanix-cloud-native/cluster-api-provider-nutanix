@@ -1,0 +1,22 @@
+# Test: NutanixMachineTemplate with type=name and name="" - webhook should set name to "(default)"
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixMachineTemplate
+metadata:
+  name: webhook-test-nmt
+  namespace: default
+spec:
+  template:
+    spec:
+      vcpusPerSocket: 2
+      vcpuSockets: 1
+      memorySize: "4Gi"
+      systemDiskSize: "40Gi"
+      cluster:
+        type: name
+        name: ""
+      subnet:
+        - type: name
+          name: ""
+      image:
+        type: name
+        name: ""

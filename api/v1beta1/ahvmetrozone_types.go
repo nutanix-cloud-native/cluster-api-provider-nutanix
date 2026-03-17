@@ -119,6 +119,7 @@ type AHVMetroZoneV1Beta2Status struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:metadata:labels=clusterctl.cluster.x-k8s.io/move=
+// +kubebuilder:webhook:path=/mutate-infrastructure-cluster-x-k8s-io-v1beta1-ahvmetrozone,mutating=true,failurePolicy=fail,sideEffects=None,groups=infrastructure.cluster.x-k8s.io,resources=ahvmetrozones,verbs=create;update,versions=v1beta1,name=mahvmetrozone.kb.io,admissionReviewVersions=v1
 
 // AHVMetroZone is the Schema for the ahvmetrozones API.
 type AHVMetroZone struct {
@@ -127,6 +128,17 @@ type AHVMetroZone struct {
 
 	Spec   AHVMetroZoneSpec   `json:"spec,omitempty"`
 	Status AHVMetroZoneStatus `json:"status,omitempty"`
+}
+
+// Default sets default values for NutanixResourceIdentifier name fields in zones.
+func (z *AHVMetroZone) Default() {
+	for i := range z.Spec.Zones {
+		zone := &z.Spec.Zones[i]
+		DefaultNutanixResourceIdentifier(&zone.PrismElement)
+		for j := range zone.Subnets {
+			DefaultNutanixResourceIdentifier(&zone.Subnets[j])
+		}
+	}
 }
 
 // GetConditions returns the set of conditions for this object.

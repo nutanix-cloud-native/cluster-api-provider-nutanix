@@ -1,0 +1,16 @@
+# [WEBHOOK] Adds webhook port 9444 to the controller-manager deployment so the
+# MutatingWebhookConfiguration can reach the admission webhook server.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+spec:
+  template:
+    spec:
+      containers:
+        - name: manager
+          ports:
+            - containerPort: 9444
+              name: webhook
+              protocol: TCP

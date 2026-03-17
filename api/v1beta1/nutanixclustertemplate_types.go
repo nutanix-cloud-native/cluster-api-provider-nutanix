@@ -27,6 +27,7 @@ type NutanixClusterTemplateSpec struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:resource:categories=cluster-api
+//+kubebuilder:webhook:path=/mutate-infrastructure-cluster-x-k8s-io-v1beta1-nutanixclustertemplate,mutating=true,failurePolicy=fail,sideEffects=None,groups=infrastructure.cluster.x-k8s.io,resources=nutanixclustertemplates,verbs=create;update,versions=v1beta1,name=mnutanixclustertemplate.kb.io,admissionReviewVersions=v1
 
 // NutanixClusterTemplate is the Schema for the nutanixclustertemplates API
 type NutanixClusterTemplate struct {
@@ -34,6 +35,17 @@ type NutanixClusterTemplate struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec NutanixClusterTemplateSpec `json:"spec,omitempty"`
+}
+
+// Default sets default values for NutanixResourceIdentifier name fields in the template spec's FailureDomains.
+func (n *NutanixClusterTemplate) Default() {
+	for i := range n.Spec.Template.Spec.FailureDomains {
+		fd := &n.Spec.Template.Spec.FailureDomains[i]
+		DefaultNutanixResourceIdentifier(&fd.Cluster)
+		for j := range fd.Subnets {
+			DefaultNutanixResourceIdentifier(&fd.Subnets[j])
+		}
+	}
 }
 
 //+kubebuilder:object:root=true

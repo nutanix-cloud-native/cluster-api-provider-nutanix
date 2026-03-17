@@ -16,7 +16,11 @@ limitations under the License.
 
 package v1beta1
 
-import "fmt"
+import (
+	"fmt"
+
+	"k8s.io/utils/ptr"
+)
 
 // NutanixIdentifierType is an enumeration of different resource identifier types.
 type NutanixIdentifierType string
@@ -57,6 +61,10 @@ const (
 
 	// ObsoleteDefaultCAPICategoryOwnedValue is the obsolete default category value used for CAPI clusters.
 	ObsoleteDefaultCAPICategoryOwnedValue = "owned"
+
+	// NutanixResourceIdentifierDefaultName is the placeholder value set by the mutating webhook
+	// when a NutanixResourceIdentifier has type "name" but name is empty or unset.
+	NutanixResourceIdentifierDefaultName = "(default)"
 )
 
 // NutanixResourceIdentifier holds the identity of a Nutanix PC resource (cluster, image, subnet, etc.)
@@ -80,6 +88,21 @@ type NutanixResourceIdentifier struct {
 	// +optional
 	// +kubebuilder:validation:MinLength=1
 	Name *string `json:"name,omitempty"`
+}
+
+// DefaultNutanixResourceIdentifier sets Name to NutanixResourceIdentifierDefaultName when Type is
+// NutanixIdentifierName and Name is nil or empty. This is used by mutating webhooks so that CEL
+// validation (which requires name to be set when type is "name") passes.
+func DefaultNutanixResourceIdentifier(nri *NutanixResourceIdentifier) {
+	if nri == nil {
+		return
+	}
+	if nri.Type != NutanixIdentifierName {
+		return
+	}
+	if nri.Name == nil || *nri.Name == "" {
+		nri.Name = ptr.To(NutanixResourceIdentifierDefaultName)
+	}
 }
 
 func (nri NutanixResourceIdentifier) String() string {

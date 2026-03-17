@@ -45,6 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -371,12 +372,15 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 }
 
 func initializeManager(config *managerConfig) (manager.Manager, error) {
+	// Webhook server must listen on 9444 to match MutatingWebhookConfiguration (controller-runtime default is 9443).
+	webhookServer := webhook.NewServer(webhook.Options{Port: 9444})
 	mgr, err := ctrl.NewManager(config.restConfig, ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                config.metricsServerOpts,
-		HealthProbeBindAddress: config.healthProbeAddr,
-		LeaderElection:         config.enableLeaderElection,
-		LeaderElectionID:       "f265110d.cluster.x-k8s.io",
+		HealthProbeBindAddress:  config.healthProbeAddr,
+		LeaderElection:          config.enableLeaderElection,
+		LeaderElectionID:        "f265110d.cluster.x-k8s.io",
+		WebhookServer:           webhookServer,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create manager: %w", err)
@@ -386,7 +390,33 @@ func initializeManager(config *managerConfig) (manager.Manager, error) {
 		return nil, fmt.Errorf("unable to add health checks to manager: %w", err)
 	}
 
+	if err := setupWebhooks(mgr); err != nil {
+		return nil, fmt.Errorf("unable to setup webhooks: %w", err)
+	}
+
 	return mgr, nil
+}
+
+func setupWebhooks(mgr manager.Manager) error {
+	if err := ctrl.NewWebhookManagedBy(mgr).For(&infrav1.NutanixCluster{}).Complete(); err != nil {
+		return fmt.Errorf("unable to create webhook for NutanixCluster: %w", err)
+	}
+	if err := ctrl.NewWebhookManagedBy(mgr).For(&infrav1.NutanixMachine{}).Complete(); err != nil {
+		return fmt.Errorf("unable to create webhook for NutanixMachine: %w", err)
+	}
+	if err := ctrl.NewWebhookManagedBy(mgr).For(&infrav1.NutanixMachineTemplate{}).Complete(); err != nil {
+		return fmt.Errorf("unable to create webhook for NutanixMachineTemplate: %w", err)
+	}
+	if err := ctrl.NewWebhookManagedBy(mgr).For(&infrav1.NutanixClusterTemplate{}).Complete(); err != nil {
+		return fmt.Errorf("unable to create webhook for NutanixClusterTemplate: %w", err)
+	}
+	if err := ctrl.NewWebhookManagedBy(mgr).For(&infrav1.NutanixFailureDomain{}).Complete(); err != nil {
+		return fmt.Errorf("unable to create webhook for NutanixFailureDomain: %w", err)
+	}
+	if err := ctrl.NewWebhookManagedBy(mgr).For(&infrav1.AHVMetroZone{}).Complete(); err != nil {
+		return fmt.Errorf("unable to create webhook for AHVMetroZone: %w", err)
+	}
+	return nil
 }
 
 func main() {

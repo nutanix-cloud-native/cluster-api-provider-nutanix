@@ -127,6 +127,7 @@ type NutanixClusterV1Beta2Status struct {
 // +kubebuilder:printcolumn:name="ControlplaneEndpoint",type="string",JSONPath=".spec.controlPlaneEndpoint.host",description="ControlplaneEndpoint"
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.ready",description="in ready status"
 // +kubebuilder:printcolumn:name="FailureDomains",type="string",JSONPath=".status.failureDomains",description="NutanixCluster FailureDomains"
+// +kubebuilder:webhook:path=/mutate-infrastructure-cluster-x-k8s-io-v1beta1-nutanixcluster,mutating=true,failurePolicy=fail,sideEffects=None,groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters,verbs=create;update,versions=v1beta1,name=mnutanixcluster.kb.io,admissionReviewVersions=v1
 
 // NutanixCluster is the Schema for the nutanixclusters API
 type NutanixCluster struct {
@@ -135,6 +136,17 @@ type NutanixCluster struct {
 
 	Spec   NutanixClusterSpec   `json:"spec,omitempty"`
 	Status NutanixClusterStatus `json:"status,omitempty"`
+}
+
+// Default sets default values for NutanixResourceIdentifier name fields in FailureDomains.
+func (n *NutanixCluster) Default() {
+	for i := range n.Spec.FailureDomains {
+		fd := &n.Spec.FailureDomains[i]
+		DefaultNutanixResourceIdentifier(&fd.Cluster)
+		for j := range fd.Subnets {
+			DefaultNutanixResourceIdentifier(&fd.Subnets[j])
+		}
+	}
 }
 
 // NutanixFailureDomainConfig configures failure domain information for Nutanix.
