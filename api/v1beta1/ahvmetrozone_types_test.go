@@ -17,12 +17,21 @@ limitations under the License.
 package v1beta1_test
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+var (
+	k8sClient client.Client
+	ctx       = context.Background()
 )
 
 var _ = Describe("AHVMetroZone CEL Validation", func() {
