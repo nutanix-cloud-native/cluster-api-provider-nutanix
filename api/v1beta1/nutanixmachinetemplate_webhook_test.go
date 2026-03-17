@@ -58,7 +58,10 @@ func newTestNutanixMachineTemplate(name string, image *NutanixResourceIdentifier
 }
 
 func TestNutanixMachineTemplateDefaulter_Default(t *testing.T) {
-	defaulter := &NutanixMachineTemplateDefaulter{}
+	defaulter := &NutanixMachineTemplateDefaulter{
+		DefaultToPlaceholderImageName: true,
+		DefaultToPlaceholderImageUUID: true,
+	}
 
 	tests := []struct {
 		name         string
@@ -151,7 +154,10 @@ func TestNutanixMachineTemplateDefaulter_Default(t *testing.T) {
 }
 
 func TestNutanixMachineTemplateDefaulter_Idempotent(t *testing.T) {
-	defaulter := &NutanixMachineTemplateDefaulter{}
+	defaulter := &NutanixMachineTemplateDefaulter{
+		DefaultToPlaceholderImageName: true,
+		DefaultToPlaceholderImageUUID: true,
+	}
 
 	// Start with brownfield object (type=name, name=nil)
 	nmt := newTestNutanixMachineTemplate("idempotent-test", &NutanixResourceIdentifier{
@@ -172,7 +178,10 @@ func TestNutanixMachineTemplateDefaulter_Idempotent(t *testing.T) {
 }
 
 func TestNutanixMachineTemplateDefaulter_UnrelatedFieldsUntouched(t *testing.T) {
-	defaulter := &NutanixMachineTemplateDefaulter{}
+	defaulter := &NutanixMachineTemplateDefaulter{
+		DefaultToPlaceholderImageName: true,
+		DefaultToPlaceholderImageUUID: true,
+	}
 
 	nmt := newTestNutanixMachineTemplate("unrelated-fields", &NutanixResourceIdentifier{
 		Type: NutanixIdentifierName,
@@ -199,10 +208,93 @@ func TestNutanixMachineTemplateDefaulter_UnrelatedFieldsUntouched(t *testing.T) 
 }
 
 func TestNutanixMachineTemplateDefaulter_WrongType(t *testing.T) {
-	defaulter := &NutanixMachineTemplateDefaulter{}
+	defaulter := &NutanixMachineTemplateDefaulter{
+		DefaultToPlaceholderImageName: true,
+		DefaultToPlaceholderImageUUID: true,
+	}
 
 	// Passing a non-NutanixMachineTemplate should return an error
 	err := defaulter.Default(context.Background(), &NutanixMachine{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "expected *NutanixMachineTemplate")
+}
+
+func TestNutanixMachineTemplateDefaulter_FeatureGateDisabled(t *testing.T) {
+	tests := []struct {
+		name        string
+		defaulter   *NutanixMachineTemplateDefaulter
+		image       *NutanixResourceIdentifier
+		description string
+	}{
+		{
+			name: "name defaulting disabled - name stays nil",
+			defaulter: &NutanixMachineTemplateDefaulter{
+				DefaultToPlaceholderImageName: false,
+				DefaultToPlaceholderImageUUID: true,
+			},
+			image: &NutanixResourceIdentifier{
+				Type: NutanixIdentifierName,
+			},
+			description: "with name feature gate disabled, name should remain nil",
+		},
+		{
+			name: "uuid defaulting disabled - uuid stays nil",
+			defaulter: &NutanixMachineTemplateDefaulter{
+				DefaultToPlaceholderImageName: true,
+				DefaultToPlaceholderImageUUID: false,
+			},
+			image: &NutanixResourceIdentifier{
+				Type: NutanixIdentifierUUID,
+			},
+			description: "with uuid feature gate disabled, uuid should remain nil",
+		},
+		{
+			name: "both disabled - nothing changes",
+			defaulter: &NutanixMachineTemplateDefaulter{
+				DefaultToPlaceholderImageName: false,
+				DefaultToPlaceholderImageUUID: false,
+			},
+			image: &NutanixResourceIdentifier{
+				Type: NutanixIdentifierName,
+			},
+			description: "with both feature gates disabled, no defaulting should occur",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nmt := newTestNutanixMachineTemplate(tt.name, tt.image)
+			err := tt.defaulter.Default(context.Background(), nmt)
+			require.NoError(t, err)
+			require.NotNil(t, nmt.Spec.Template.Spec.Image, tt.description)
+
+			assert.Nil(t, nmt.Spec.Template.Spec.Image.Name, tt.description)
+			assert.Nil(t, nmt.Spec.Template.Spec.Image.UUID, tt.description)
+		})
+	}
+}
+
+func TestNutanixMachineTemplateDefaulter_FeatureGateIndependent(t *testing.T) {
+	// Enable only name defaulting - uuid type should not get defaulted
+	defaulter := &NutanixMachineTemplateDefaulter{
+		DefaultToPlaceholderImageName: true,
+		DefaultToPlaceholderImageUUID: false,
+	}
+
+	// Name type should get defaulted
+	nmt := newTestNutanixMachineTemplate("name-enabled", &NutanixResourceIdentifier{
+		Type: NutanixIdentifierName,
+	})
+	err := defaulter.Default(context.Background(), nmt)
+	require.NoError(t, err)
+	require.NotNil(t, nmt.Spec.Template.Spec.Image.Name)
+	assert.Equal(t, ImageNamePlaceholder, *nmt.Spec.Template.Spec.Image.Name)
+
+	// UUID type should NOT get defaulted
+	nmt = newTestNutanixMachineTemplate("uuid-disabled", &NutanixResourceIdentifier{
+		Type: NutanixIdentifierUUID,
+	})
+	err = defaulter.Default(context.Background(), nmt)
+	require.NoError(t, err)
+	assert.Nil(t, nmt.Spec.Template.Spec.Image.UUID)
 }

@@ -52,7 +52,19 @@ const (
 // API contract globally.
 //
 // The defaulter is idempotent and will not overwrite valid user-provided values.
-type NutanixMachineTemplateDefaulter struct{}
+//
+// Each defaulting behavior is individually feature-gated:
+//   - DefaultToPlaceholderImageName controls defaulting for type "name"
+//   - DefaultToPlaceholderImageUUID controls defaulting for type "uuid"
+type NutanixMachineTemplateDefaulter struct {
+	// DefaultToPlaceholderImageName enables defaulting image.name to a placeholder
+	// when type is "name" but name is unset.
+	DefaultToPlaceholderImageName bool
+
+	// DefaultToPlaceholderImageUUID enables defaulting image.uuid to a placeholder
+	// when type is "uuid" but uuid is unset.
+	DefaultToPlaceholderImageUUID bool
+}
 
 var _ webhook.CustomDefaulter = &NutanixMachineTemplateDefaulter{}
 
@@ -69,20 +81,22 @@ func (d *NutanixMachineTemplateDefaulter) SetupWebhookWithManager(mgr ctrl.Manag
 // Default implements webhook.CustomDefaulter.
 // It normalizes spec.template.spec.image for brownfield NutanixMachineTemplate objects
 // that have the image type set but the corresponding identifier value missing.
+// Each defaulting behavior is gated by its respective feature flag.
 func (d *NutanixMachineTemplateDefaulter) Default(_ context.Context, obj runtime.Object) error {
 	nmt, ok := obj.(*NutanixMachineTemplate)
 	if !ok {
 		return fmt.Errorf("expected *NutanixMachineTemplate, got %T", obj)
 	}
 
-	defaultNutanixMachineTemplateImage(nmt)
+	defaultNutanixMachineTemplateImage(nmt, d.DefaultToPlaceholderImageName, d.DefaultToPlaceholderImageUUID)
 	return nil
 }
 
 // defaultNutanixMachineTemplateImage applies placeholder defaults to
 // spec.template.spec.image when the identifier value is missing.
 // This function is scoped narrowly to the image field only.
-func defaultNutanixMachineTemplateImage(nmt *NutanixMachineTemplate) {
+// Each defaulting behavior is individually gated by the corresponding feature flag.
+func defaultNutanixMachineTemplateImage(nmt *NutanixMachineTemplate, defaultName, defaultUUID bool) {
 	image := nmt.Spec.Template.Spec.Image
 	if image == nil {
 		return
@@ -90,12 +104,12 @@ func defaultNutanixMachineTemplateImage(nmt *NutanixMachineTemplate) {
 
 	switch image.Type {
 	case NutanixIdentifierName:
-		if image.Name == nil {
+		if defaultName && image.Name == nil {
 			placeholder := ImageNamePlaceholder
 			image.Name = &placeholder
 		}
 	case NutanixIdentifierUUID:
-		if image.UUID == nil {
+		if defaultUUID && image.UUID == nil {
 			placeholder := ImageUUIDPlaceholder
 			image.UUID = &placeholder
 		}

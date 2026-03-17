@@ -82,6 +82,9 @@ type options struct {
 	rateLimiterBucketSize int
 	rateLimiterQPS        int
 
+	defaultToPlaceholderImageName bool
+	defaultToPlaceholderImageUUID bool
+
 	managerOptions capiflags.ManagerOptions
 	zapOptions     zap.Options
 }
@@ -93,6 +96,9 @@ type managerConfig struct {
 	concurrentReconcilesNutanixMachine int
 	metricsServerOpts                  server.Options
 	skipNameValidation                 bool
+
+	defaultToPlaceholderImageName bool
+	defaultToPlaceholderImageUUID bool
 
 	logger      logr.Logger
 	restConfig  *rest.Config
@@ -169,6 +175,11 @@ func initializeFlags() *options {
 	pflag.IntVar(&opts.rateLimiterBucketSize, "rate-limiter-bucket-size", 100, "The bucket size for the rate limiter.")
 	pflag.IntVar(&opts.rateLimiterQPS, "rate-limiter-qps", 10, "The QPS for the rate limiter.")
 
+	pflag.BoolVar(&opts.defaultToPlaceholderImageName, "default-to-placeholder-image-name", false,
+		"Enable defaulting image.name to a placeholder for brownfield NutanixMachineTemplate objects where type is 'name' but name is unset.")
+	pflag.BoolVar(&opts.defaultToPlaceholderImageUUID, "default-to-placeholder-image-uuid", false,
+		"Enable defaulting image.uuid to a placeholder for brownfield NutanixMachineTemplate objects where type is 'uuid' but uuid is unset.")
+
 	// At this point, we should be done adding flags to the standard library FlagSet, flag.CommandLine.
 	// So we can include the flags that third-party libraries, e.g. controller-runtime, and zap,
 	// have added to the standard library FlagSet, we merge it into the pflag FlagSet.
@@ -198,6 +209,8 @@ func initializeConfig(opts *options) (*managerConfig, error) {
 
 	config.concurrentReconcilesNutanixCluster = opts.maxConcurrentReconciles
 	config.concurrentReconcilesNutanixMachine = opts.maxConcurrentReconciles
+	config.defaultToPlaceholderImageName = opts.defaultToPlaceholderImageName
+	config.defaultToPlaceholderImageUUID = opts.defaultToPlaceholderImageUUID
 
 	rateLimiter, err := compositeRateLimiter(opts.rateLimiterBaseDelay, opts.rateLimiterMaxDelay, opts.rateLimiterBucketSize, opts.rateLimiterQPS)
 	if err != nil {
@@ -323,8 +336,11 @@ func setupNutanixFailureDomainController(ctx context.Context, mgr manager.Manage
 	return nil
 }
 
-func setupNutanixMachineTemplateWebhook(mgr manager.Manager) error {
-	defaulter := &infrav1.NutanixMachineTemplateDefaulter{}
+func setupNutanixMachineTemplateWebhook(mgr manager.Manager, config *managerConfig) error {
+	defaulter := &infrav1.NutanixMachineTemplateDefaulter{
+		DefaultToPlaceholderImageName: config.defaultToPlaceholderImageName,
+		DefaultToPlaceholderImageUUID: config.defaultToPlaceholderImageUUID,
+	}
 	if err := defaulter.SetupWebhookWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to setup NutanixMachineTemplate webhook: %w", err)
 	}
@@ -339,7 +355,7 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 
 	// Set up webhooks before controllers so that defaulting runs
 	// at admission time, before CEL validation.
-	if err := setupNutanixMachineTemplateWebhook(mgr); err != nil {
+	if err := setupNutanixMachineTemplateWebhook(mgr, config); err != nil {
 		return fmt.Errorf("unable to setup webhooks: %w", err)
 	}
 
