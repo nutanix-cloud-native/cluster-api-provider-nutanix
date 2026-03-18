@@ -1,8 +1,7 @@
 module github.com/nutanix-cloud-native/cluster-api-provider-nutanix
 
-go 1.24.0
-
-toolchain go1.24.4
+// CVE-2025-61726: memory exhaustion in net/http.Request.ParseForm / net/url; fixed in Go 1.24.12+
+go 1.24.12
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
