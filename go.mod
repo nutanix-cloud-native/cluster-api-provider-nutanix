@@ -1,8 +1,6 @@
 module github.com/nutanix-cloud-native/cluster-api-provider-nutanix
 
-go 1.24.0
-
-toolchain go1.24.4
+go 1.25.0
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
@@ -20,7 +18,7 @@ require (
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.27.1
 	golang.org/x/crypto v0.45.0 // indirect; CVE fixes for https://avd.aquasec.com/nvd/cve-2025-22869
-	golang.org/x/time v0.9.0
+	golang.org/x/time v0.15.0
 	k8s.io/api v0.34.3
 	k8s.io/apiextensions-apiserver v0.34.3
 	k8s.io/apimachinery v0.34.3
