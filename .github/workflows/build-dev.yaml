@@ -48,7 +48,7 @@ jobs:
           ref: "${{ github.event.pull_request.head.sha }}"
 
       - name: Install devbox
-        uses: jetify-com/devbox-install-action@v0.11.0
+        uses: jetify-com/devbox-install-action@v0.14.0
         with:
           enable-cache: "true"
 
@@ -61,6 +61,9 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
+
+      - name: Print envtest path
+        run: devbox run -- make print-envtest
 
       - name: Verify that generated manifests committed to the repository are up to date
         run: devbox run -- make verify-manifests

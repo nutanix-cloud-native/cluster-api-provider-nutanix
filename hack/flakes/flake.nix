@@ -10,20 +10,20 @@
     flake-utils.lib.eachDefaultSystem (system:
       with nixpkgs.legacyPackages.${system}; rec {
         packages = rec {
-          go-apidiff = buildGo121Module {
+          go-apidiff = buildGoModule {
             name = "go-apidiff";
             src = fetchFromGitHub {
               owner = "joelanford";
               repo = "go-apidiff";
-              rev = "v0.8.2";
-              hash = "sha256-YxxOemAvseRJSeCDdwuBnzjpmK3tUXt6BJGjJx5t4zQ";
+              rev = "v0.8.3";
+              hash = "sha256-qDx+vGmXFdFTMXHT6/5mbsGagvBixsxUkXmNg6dI/SE=";
             };
             doCheck = false;
             subPackages = [ "." ];
-            vendorHash = "sha256-AOIOjfQldAsINbcGkpM/fnyTVEZzzOXM0JnqAVwwdm8=";
+            vendorHash = "sha256-TEesxbzvlT9VeVujbPzfd6fSQZJMzf/9KoiWECrY7wk=";
           };
 
-          go-mod-upgrade = buildGo121Module {
+          go-mod-upgrade = buildGoModule {
             name = "go-mod-upgrade";
             src = fetchFromGitHub {
               owner = "oligot";
@@ -36,7 +36,7 @@
             vendorHash = "sha256-8rbRxtOiKmnf68kjsUCXaZf+MHI1n5aXa91Aneq9SKo=";
           };
 
-          yamllint-checkstyle = buildGo121Module {
+          yamllint-checkstyle = buildGoModule {
             pname = "yamllint-checkstyle";
             name = "yamllint-checkstyle";
             src = fetchFromGitHub {
@@ -48,17 +48,17 @@
             vendorHash = "sha256-LHRd8Q/v3ceFOqULsTtphfd4xBsz3XBG4Rkmn3Ty6CE=";
           };
 
-          setup-envtest = buildGo121Module {
+          setup-envtest = buildGoModule {
             name = "setup-envtest";
             src = fetchFromGitHub {
               owner = "kubernetes-sigs";
               repo = "controller-runtime";
-              rev = "v0.16.3";
-              hash = "sha256-X4YM4A63UxD650S3lxbxRtZaHOyF7LY6d5eVJe91+5c=";
+              rev = "v0.21.0";
+              hash = "sha256-c4h1TwTZ5UVfWFtq/u8u6Y+0XWR78rzp1COpNwfKRm0=";
             } + "/tools/setup-envtest";
             doCheck = false;
             subPackages = [ "." ];
-            vendorHash = "sha256-ISVGxhFQh4e0eag9Sw0Zj4u1cG0tudZLhJcGdH5tDo4=";
+            vendorHash = "sha256-GaxfGZY998M63o3fCmWp8p5SbugHNVYUh4jHiaNFO9o=";
           };
         };
 
