@@ -392,7 +392,7 @@ func newBrownfieldNMT(name string, imageType v1beta1.NutanixIdentifierType) *v1b
 
 // Tests below exercise the NutanixMachineTemplate mutating webhook through the
 // real API server deployed in the KIND cluster. The deployment enables the
-// brownfield placeholder flags, so the webhook actively defaults missing
+// brownfield placeholder feature gates, so the webhook actively defaults missing
 // image identifiers before CEL validation runs.
 //
 // What we verify:

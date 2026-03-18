@@ -21,9 +21,12 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/feature"
 )
 
 // Placeholder values for brownfield compatibility.
@@ -54,17 +57,15 @@ const (
 //
 // The defaulter is idempotent and will not overwrite valid user-provided values.
 //
-// Each defaulting behavior is individually feature-gated:
-//   - DefaultToPlaceholderImageName controls defaulting for type "name"
-//   - DefaultToPlaceholderImageUUID controls defaulting for type "uuid"
+// Each defaulting behavior is individually controlled via a Kubernetes feature gate:
+//   - feature.DefaultToPlaceholderImageName controls defaulting for type "name"
+//   - feature.DefaultToPlaceholderImageUUID controls defaulting for type "uuid"
+//
+// Enable via: --feature-gates=DefaultToPlaceholderImageName=true,DefaultToPlaceholderImageUUID=true
 type NutanixMachineTemplateDefaulter struct {
-	// DefaultToPlaceholderImageName enables defaulting image.name to a placeholder
-	// when type is "name" but name is unset.
-	DefaultToPlaceholderImageName bool
-
-	// DefaultToPlaceholderImageUUID enables defaulting image.uuid to a placeholder
-	// when type is "uuid" but uuid is unset.
-	DefaultToPlaceholderImageUUID bool
+	// Gates is the feature gate set used to check whether each placeholder
+	// defaulting behavior is enabled. Typically feature.Gates.
+	Gates featuregate.FeatureGate
 }
 
 var _ webhook.CustomDefaulter = &NutanixMachineTemplateDefaulter{}
@@ -82,14 +83,17 @@ func (d *NutanixMachineTemplateDefaulter) SetupWebhookWithManager(mgr ctrl.Manag
 // Default implements webhook.CustomDefaulter.
 // It normalizes spec.template.spec.image for brownfield NutanixMachineTemplate objects
 // that have the image type set but the corresponding identifier value missing.
-// Each defaulting behavior is gated by its respective feature flag.
+// Each defaulting behavior is controlled by its respective feature gate.
 func (d *NutanixMachineTemplateDefaulter) Default(_ context.Context, obj runtime.Object) error {
 	nmt, ok := obj.(*NutanixMachineTemplate)
 	if !ok {
 		return fmt.Errorf("expected *NutanixMachineTemplate, got %T", obj)
 	}
 
-	defaultNutanixMachineTemplateImage(nmt, d.DefaultToPlaceholderImageName, d.DefaultToPlaceholderImageUUID)
+	defaultNutanixMachineTemplateImage(nmt,
+		d.Gates.Enabled(feature.DefaultToPlaceholderImageName),
+		d.Gates.Enabled(feature.DefaultToPlaceholderImageUUID),
+	)
 	return nil
 }
 

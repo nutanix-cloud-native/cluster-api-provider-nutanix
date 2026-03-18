@@ -52,19 +52,16 @@ func TestInitializeFlags(t *testing.T) {
 				"--rate-limiter-max-delay=10s",
 				"--rate-limiter-bucket-size=1000",
 				"--rate-limiter-qps=50",
-				"--default-to-placeholder-image-name=true",
-				"--default-to-placeholder-image-uuid=true",
+				"--feature-gates=DefaultToPlaceholderImageName=true,DefaultToPlaceholderImageUUID=true",
 			},
 			want: &options{
-				enableLeaderElection:          true,
-				maxConcurrentReconciles:       5,
-				healthProbeAddr:               ":8081",
-				rateLimiterBaseDelay:          500 * time.Millisecond,
-				rateLimiterMaxDelay:           10 * time.Second,
-				rateLimiterBucketSize:         1000,
-				rateLimiterQPS:                50,
-				defaultToPlaceholderImageName: true,
-				defaultToPlaceholderImageUUID: true,
+				enableLeaderElection:    true,
+				maxConcurrentReconciles: 5,
+				healthProbeAddr:         ":8081",
+				rateLimiterBaseDelay:    500 * time.Millisecond,
+				rateLimiterMaxDelay:     10 * time.Second,
+				rateLimiterBucketSize:   1000,
+				rateLimiterQPS:          50,
 			},
 			cmpOpt: cmpopts.IgnoreFields(options{},
 				"managerOptions",
@@ -139,8 +136,7 @@ func TestInitializeConfig(t *testing.T) {
 				"--rate-limiter-max-delay=10s",
 				"--rate-limiter-bucket-size=1000",
 				"--rate-limiter-qps=50",
-				"--default-to-placeholder-image-name=true",
-				"--default-to-placeholder-image-uuid=true",
+				"--feature-gates=DefaultToPlaceholderImageName=true,DefaultToPlaceholderImageUUID=true",
 				// Cluster API options.
 				"--insecure-diagnostics=true",
 				"--diagnostics-address=:9999",
@@ -184,8 +180,6 @@ func TestInitializeConfig(t *testing.T) {
 			assert.Equal(t, got.concurrentReconcilesNutanixCluster, opts.maxConcurrentReconciles)
 			assert.Equal(t, got.concurrentReconcilesNutanixMachine, opts.maxConcurrentReconciles)
 			assert.Equal(t, got.metricsServerOpts.BindAddress, opts.managerOptions.DiagnosticsAddress)
-			assert.Equal(t, got.defaultToPlaceholderImageName, opts.defaultToPlaceholderImageName)
-			assert.Equal(t, got.defaultToPlaceholderImageUUID, opts.defaultToPlaceholderImageUUID)
 
 			assert.NotNil(t, got.rateLimiter)
 			assert.True(t, got.logger.Enabled())

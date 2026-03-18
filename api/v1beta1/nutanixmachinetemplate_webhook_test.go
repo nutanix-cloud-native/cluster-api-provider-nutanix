@@ -24,8 +24,27 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/component-base/featuregate"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/utils/ptr"
+
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/feature"
 )
+
+// makeTestGates returns a fresh FeatureGate with the two placeholder gates set
+// to the provided values. Using a fresh gate per test avoids shared state between
+// test cases while still exercising the real featuregate machinery.
+func makeTestGates(t *testing.T, name, uuid bool) featuregate.FeatureGate {
+	t.Helper()
+	gate := featuregate.NewFeatureGate()
+	require.NoError(t, gate.Add(map[featuregate.Feature]featuregate.FeatureSpec{
+		feature.DefaultToPlaceholderImageName: {Default: false, PreRelease: featuregate.Alpha},
+		feature.DefaultToPlaceholderImageUUID: {Default: false, PreRelease: featuregate.Alpha},
+	}))
+	featuregatetesting.SetFeatureGateDuringTest(t, gate, feature.DefaultToPlaceholderImageName, name)
+	featuregatetesting.SetFeatureGateDuringTest(t, gate, feature.DefaultToPlaceholderImageUUID, uuid)
+	return gate
+}
 
 func newTestNutanixMachineTemplate(name string, image *NutanixResourceIdentifier) *NutanixMachineTemplate {
 	return &NutanixMachineTemplate{
@@ -58,10 +77,8 @@ func newTestNutanixMachineTemplate(name string, image *NutanixResourceIdentifier
 }
 
 func TestNutanixMachineTemplateDefaulter_Default(t *testing.T) {
-	defaulter := &NutanixMachineTemplateDefaulter{
-		DefaultToPlaceholderImageName: true,
-		DefaultToPlaceholderImageUUID: true,
-	}
+	gates := makeTestGates(t, true, true)
+	defaulter := &NutanixMachineTemplateDefaulter{Gates: gates}
 
 	tests := []struct {
 		name         string
@@ -176,10 +193,7 @@ func TestNutanixMachineTemplateDefaulter_Default(t *testing.T) {
 }
 
 func TestNutanixMachineTemplateDefaulter_Idempotent(t *testing.T) {
-	defaulter := &NutanixMachineTemplateDefaulter{
-		DefaultToPlaceholderImageName: true,
-		DefaultToPlaceholderImageUUID: true,
-	}
+	defaulter := &NutanixMachineTemplateDefaulter{Gates: makeTestGates(t, true, true)}
 
 	// Start with brownfield object (type=name, name=nil)
 	nmt := newTestNutanixMachineTemplate("idempotent-test", &NutanixResourceIdentifier{
@@ -200,10 +214,7 @@ func TestNutanixMachineTemplateDefaulter_Idempotent(t *testing.T) {
 }
 
 func TestNutanixMachineTemplateDefaulter_UnrelatedFieldsUntouched(t *testing.T) {
-	defaulter := &NutanixMachineTemplateDefaulter{
-		DefaultToPlaceholderImageName: true,
-		DefaultToPlaceholderImageUUID: true,
-	}
+	defaulter := &NutanixMachineTemplateDefaulter{Gates: makeTestGates(t, true, true)}
 
 	nmt := newTestNutanixMachineTemplate("unrelated-fields", &NutanixResourceIdentifier{
 		Type: NutanixIdentifierName,
@@ -230,10 +241,7 @@ func TestNutanixMachineTemplateDefaulter_UnrelatedFieldsUntouched(t *testing.T) 
 }
 
 func TestNutanixMachineTemplateDefaulter_WrongType(t *testing.T) {
-	defaulter := &NutanixMachineTemplateDefaulter{
-		DefaultToPlaceholderImageName: true,
-		DefaultToPlaceholderImageUUID: true,
-	}
+	defaulter := &NutanixMachineTemplateDefaulter{Gates: makeTestGates(t, true, true)}
 
 	// Passing a non-NutanixMachineTemplate should return an error
 	err := defaulter.Default(context.Background(), &NutanixMachine{})
@@ -244,38 +252,33 @@ func TestNutanixMachineTemplateDefaulter_WrongType(t *testing.T) {
 func TestNutanixMachineTemplateDefaulter_FeatureGateDisabled(t *testing.T) {
 	tests := []struct {
 		name        string
-		defaulter   *NutanixMachineTemplateDefaulter
+		nameGate    bool
+		uuidGate    bool
 		image       *NutanixResourceIdentifier
 		description string
 	}{
 		{
-			name: "name defaulting disabled - name stays nil",
-			defaulter: &NutanixMachineTemplateDefaulter{
-				DefaultToPlaceholderImageName: false,
-				DefaultToPlaceholderImageUUID: true,
-			},
+			name:     "name feature gate disabled - name stays nil",
+			nameGate: false,
+			uuidGate: true,
 			image: &NutanixResourceIdentifier{
 				Type: NutanixIdentifierName,
 			},
 			description: "with name feature gate disabled, name should remain nil",
 		},
 		{
-			name: "uuid defaulting disabled - uuid stays nil",
-			defaulter: &NutanixMachineTemplateDefaulter{
-				DefaultToPlaceholderImageName: true,
-				DefaultToPlaceholderImageUUID: false,
-			},
+			name:     "uuid feature gate disabled - uuid stays nil",
+			nameGate: true,
+			uuidGate: false,
 			image: &NutanixResourceIdentifier{
 				Type: NutanixIdentifierUUID,
 			},
 			description: "with uuid feature gate disabled, uuid should remain nil",
 		},
 		{
-			name: "both disabled - nothing changes",
-			defaulter: &NutanixMachineTemplateDefaulter{
-				DefaultToPlaceholderImageName: false,
-				DefaultToPlaceholderImageUUID: false,
-			},
+			name:     "both feature gates disabled - nothing changes",
+			nameGate: false,
+			uuidGate: false,
 			image: &NutanixResourceIdentifier{
 				Type: NutanixIdentifierName,
 			},
@@ -285,8 +288,11 @@ func TestNutanixMachineTemplateDefaulter_FeatureGateDisabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			defaulter := &NutanixMachineTemplateDefaulter{
+				Gates: makeTestGates(t, tt.nameGate, tt.uuidGate),
+			}
 			nmt := newTestNutanixMachineTemplate(tt.name, tt.image)
-			err := tt.defaulter.Default(context.Background(), nmt)
+			err := defaulter.Default(context.Background(), nmt)
 			require.NoError(t, err)
 			require.NotNil(t, nmt.Spec.Template.Spec.Image, tt.description)
 
@@ -298,10 +304,7 @@ func TestNutanixMachineTemplateDefaulter_FeatureGateDisabled(t *testing.T) {
 
 func TestNutanixMachineTemplateDefaulter_FeatureGateIndependent(t *testing.T) {
 	// Enable only name defaulting - uuid type should not get defaulted
-	defaulter := &NutanixMachineTemplateDefaulter{
-		DefaultToPlaceholderImageName: true,
-		DefaultToPlaceholderImageUUID: false,
-	}
+	defaulter := &NutanixMachineTemplateDefaulter{Gates: makeTestGates(t, true, false)}
 
 	// Name type should get defaulted
 	nmt := newTestNutanixMachineTemplate("name-enabled", &NutanixResourceIdentifier{
