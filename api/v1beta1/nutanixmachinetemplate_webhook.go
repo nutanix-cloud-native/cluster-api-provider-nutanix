@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
@@ -93,9 +94,15 @@ func (d *NutanixMachineTemplateDefaulter) Default(_ context.Context, obj runtime
 }
 
 // defaultNutanixMachineTemplateImage applies placeholder defaults to
-// spec.template.spec.image when the identifier value is missing.
+// spec.template.spec.image when the identifier value is missing or empty.
 // This function is scoped narrowly to the image field only.
 // Each defaulting behavior is individually gated by the corresponding feature flag.
+//
+// For brownfield upgrade: older CRDs allowed image.name or image.uuid to be empty
+// (or omitted). After upgrading to a CAPX version with CEL + MinLength=1, existing
+// objects with name="" or uuid="" remain in etcd but any update would fail validation.
+// Treating empty string as "missing" here ensures the first update after upgrade
+// gets defaulted to the placeholder and passes validation.
 func defaultNutanixMachineTemplateImage(nmt *NutanixMachineTemplate, defaultName, defaultUUID bool) {
 	image := nmt.Spec.Template.Spec.Image
 	if image == nil {
@@ -104,12 +111,14 @@ func defaultNutanixMachineTemplateImage(nmt *NutanixMachineTemplate, defaultName
 
 	switch image.Type {
 	case NutanixIdentifierName:
-		if defaultName && image.Name == nil {
+		nameMissingOrEmpty := image.Name == nil || (image.Name != nil && ptr.Deref(image.Name, "") == "")
+		if defaultName && nameMissingOrEmpty {
 			placeholder := ImageNamePlaceholder
 			image.Name = &placeholder
 		}
 	case NutanixIdentifierUUID:
-		if defaultUUID && image.UUID == nil {
+		uuidMissingOrEmpty := image.UUID == nil || (image.UUID != nil && ptr.Deref(image.UUID, "") == "")
+		if defaultUUID && uuidMissingOrEmpty {
 			placeholder := ImageUUIDPlaceholder
 			image.UUID = &placeholder
 		}

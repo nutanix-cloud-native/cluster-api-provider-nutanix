@@ -82,6 +82,17 @@ func TestNutanixMachineTemplateDefaulter_Default(t *testing.T) {
 			description:  "brownfield: type=name but name unset should get placeholder",
 		},
 		{
+			name: "type name with empty name gets placeholder",
+			image: &NutanixResourceIdentifier{
+				Type: NutanixIdentifierName,
+				Name: ptr.To(""),
+			},
+			expectedName: ptr.To(ImageNamePlaceholder),
+			expectedUUID: nil,
+			expectedType: NutanixIdentifierName,
+			description:  "brownfield upgrade: type=name with name=\"\" (old CRD) should get placeholder on first update",
+		},
+		{
 			name: "type uuid with missing uuid gets placeholder",
 			image: &NutanixResourceIdentifier{
 				Type: NutanixIdentifierUUID,
@@ -90,6 +101,17 @@ func TestNutanixMachineTemplateDefaulter_Default(t *testing.T) {
 			expectedUUID: ptr.To(ImageUUIDPlaceholder),
 			expectedType: NutanixIdentifierUUID,
 			description:  "brownfield: type=uuid but uuid unset should get placeholder",
+		},
+		{
+			name: "type uuid with empty uuid gets placeholder",
+			image: &NutanixResourceIdentifier{
+				Type: NutanixIdentifierUUID,
+				UUID: ptr.To(""),
+			},
+			expectedName: nil,
+			expectedUUID: ptr.To(ImageUUIDPlaceholder),
+			expectedType: NutanixIdentifierUUID,
+			description:  "brownfield upgrade: type=uuid with uuid=\"\" (old CRD) should get placeholder on first update",
 		},
 		{
 			name: "type name with valid name is preserved",

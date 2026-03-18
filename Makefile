@@ -4,7 +4,6 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOTOOL=$(GOCMD) tool
 EXPORT_RESULT?=false # for CI please set EXPORT_RESULT to true
-export CGO_ENABLED=0
 
 GIT_COMMIT_HASH=$(shell git rev-parse HEAD)
 LOCAL_IMAGE_REGISTRY ?= ko.local
