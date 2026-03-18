@@ -62,6 +62,8 @@ const (
 //   - feature.DefaultToPlaceholderImageUUID controls defaulting for type "uuid"
 //
 // Enable via: --feature-gates=DefaultToPlaceholderImageName=true,DefaultToPlaceholderImageUUID=true
+//
+// +kubebuilder:object:generate=false
 type NutanixMachineTemplateDefaulter struct {
 	// Gates is the feature gate set used to check whether each placeholder
 	// defaulting behavior is enabled. Typically feature.Gates.
