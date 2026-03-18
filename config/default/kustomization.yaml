@@ -23,13 +23,51 @@ namePrefix: capx-
 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+configurations:
+- kustomizeconfig.yaml
 resources:
 - ../crd
 - ../rbac
 - ../manager
+- ../webhook
+- ../certmanager
 labels:
 - includeSelectors: true
   pairs:
     cluster.x-k8s.io/provider: infrastructure-nutanix
 patches:
 - path: manager_auth_proxy_patch.yaml
+- path: manager_webhook_patch.yaml
+  target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: controller-manager
+- path: webhookcainjection_patch.yaml
+vars:
+- name: CERTIFICATE_NAMESPACE
+  objref:
+    kind: Certificate
+    group: cert-manager.io
+    version: v1
+    name: serving-cert
+  fieldref:
+    fieldpath: metadata.namespace
+- name: CERTIFICATE_NAME
+  objref:
+    kind: Certificate
+    group: cert-manager.io
+    version: v1
+    name: serving-cert
+- name: SERVICE_NAMESPACE
+  objref:
+    kind: Service
+    version: v1
+    name: webhook-service
+  fieldref:
+    fieldpath: metadata.namespace
+- name: SERVICE_NAME
+  objref:
+    kind: Service
+    version: v1
+    name: webhook-service

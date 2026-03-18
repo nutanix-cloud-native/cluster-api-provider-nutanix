@@ -15,6 +15,8 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -337,6 +339,112 @@ func TestClusterClassTemplateSuite(t *testing.T) {
 
 	RunSpecs(t, "Template Tests Suite")
 }
+
+// newValidNMT creates a fully-valid NutanixMachineTemplate that satisfies all
+// CRD required-field and CEL validation rules. Use it as a baseline for e2e
+// tests that exercise the admission chain through the real API server.
+func newValidNMT(name string) *v1beta1.NutanixMachineTemplate {
+	return &v1beta1.NutanixMachineTemplate{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: defaultNamespace,
+		},
+		Spec: v1beta1.NutanixMachineTemplateSpec{
+			Template: v1beta1.NutanixMachineTemplateResource{
+				Spec: v1beta1.NutanixMachineSpec{
+					VCPUsPerSocket: 2,
+					VCPUSockets:    1,
+					MemorySize:     resource.MustParse("4Gi"),
+					SystemDiskSize: resource.MustParse("40Gi"),
+					Image: &v1beta1.NutanixResourceIdentifier{
+						Type: v1beta1.NutanixIdentifierName,
+						Name: ptr.To("test-image"),
+					},
+					Cluster: v1beta1.NutanixResourceIdentifier{
+						Type: v1beta1.NutanixIdentifierName,
+						Name: ptr.To("test-cluster"),
+					},
+					Subnets: []v1beta1.NutanixResourceIdentifier{
+						{
+							Type: v1beta1.NutanixIdentifierName,
+							Name: ptr.To("test-subnet"),
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// newBrownfieldNMT returns a NutanixMachineTemplate whose image has the type
+// set but the corresponding identifier value (name or uuid) unset, simulating
+// a brownfield object that existed before CEL validation rules were added.
+// All other required fields are populated so the only validation failure is on
+// the image identifier.
+func newBrownfieldNMT(name string, imageType v1beta1.NutanixIdentifierType) *v1beta1.NutanixMachineTemplate {
+	nmt := newValidNMT(name)
+	nmt.Spec.Template.Spec.Image = &v1beta1.NutanixResourceIdentifier{
+		Type: imageType,
+		// Name / UUID intentionally left nil — brownfield pattern.
+	}
+	return nmt
+}
+
+// Tests below exercise the NutanixMachineTemplate mutating webhook through the
+// real API server deployed in the KIND cluster. The deployment enables the
+// brownfield placeholder flags, so the webhook actively defaults missing
+// image identifiers before CEL validation runs.
+//
+// What we verify:
+//   - Valid NMTs pass through the admission chain with values preserved.
+//   - Brownfield NMTs (type set, identifier missing) are accepted because the
+//     webhook injects a placeholder before CEL runs.
+//   - The persisted object contains the expected placeholder value.
+var _ = Describe("NutanixMachineTemplate Defaulting Webhook", Ordered, func() {
+	It("should preserve values on a valid NutanixMachineTemplate", func() {
+		nmt := newValidNMT("webhook-e2e-valid")
+
+		DeferCleanup(func() {
+			_ = clnt.Delete(context.Background(), nmt)
+		})
+
+		Expect(clnt.Create(context.Background(), nmt)).To(Succeed())
+
+		var fetched v1beta1.NutanixMachineTemplate
+		Expect(clnt.Get(context.Background(), client.ObjectKeyFromObject(nmt), &fetched)).To(Succeed())
+		Expect(fetched.Spec.Template.Spec.Image.Name).To(HaveValue(Equal("test-image")))
+	})
+
+	It("should default image name to placeholder for brownfield NMT (type=name, name unset)", func() {
+		nmt := newBrownfieldNMT("webhook-e2e-brownfield-name", v1beta1.NutanixIdentifierName)
+
+		DeferCleanup(func() {
+			_ = clnt.Delete(context.Background(), nmt)
+		})
+
+		// Brownfield object is accepted because the webhook sets placeholder
+		// before CEL validation.
+		Expect(clnt.Create(context.Background(), nmt)).To(Succeed())
+
+		var fetched v1beta1.NutanixMachineTemplate
+		Expect(clnt.Get(context.Background(), client.ObjectKeyFromObject(nmt), &fetched)).To(Succeed())
+		Expect(fetched.Spec.Template.Spec.Image.Name).To(HaveValue(Equal(v1beta1.ImageNamePlaceholder)))
+	})
+
+	It("should default image uuid to placeholder for brownfield NMT (type=uuid, uuid unset)", func() {
+		nmt := newBrownfieldNMT("webhook-e2e-brownfield-uuid", v1beta1.NutanixIdentifierUUID)
+
+		DeferCleanup(func() {
+			_ = clnt.Delete(context.Background(), nmt)
+		})
+
+		Expect(clnt.Create(context.Background(), nmt)).To(Succeed())
+
+		var fetched v1beta1.NutanixMachineTemplate
+		Expect(clnt.Get(context.Background(), client.ObjectKeyFromObject(nmt), &fetched)).To(Succeed())
+		Expect(fetched.Spec.Template.Spec.Image.UUID).To(HaveValue(Equal(v1beta1.ImageUUIDPlaceholder)))
+	})
+})
 
 var _ = Describe("Cluster Class Template Patches Test Suite", Ordered, func() {
 	Describe("patches for failure domains", Ordered, func() {

@@ -81,6 +81,8 @@ spec:
       containers:
         - args:
             - --leader-elect
+            - --default-to-placeholder-image-name=true
+            - --default-to-placeholder-image-uuid=true
           image: controller
           imagePullPolicy: IfNotPresent
           name: manager
