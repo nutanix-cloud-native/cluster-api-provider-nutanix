@@ -60,8 +60,13 @@ func teardownTestEnvironment() error {
 	return provider.Delete(kindClusterName, "")
 }
 
-// getGitCommitHash retrieves the current git commit hash.
+// getGitCommitHash returns the commit used for the local provider image tag.
+// Prefer GIT_COMMIT_HASH (set by make template-test); fallback to git; last resort "unknown"
+// (must match Makefile GIT_COMMIT_HASH fallback for kind load).
 func getGitCommitHash() (string, error) {
+	if h := strings.TrimSpace(os.Getenv("GIT_COMMIT_HASH")); h != "" {
+		return h, nil
+	}
 	cmd := exec.Command("git", "rev-parse", "HEAD")
 	output, err := cmd.CombinedOutput()
 	if err != nil {

@@ -327,9 +327,7 @@ func setupNutanixFailureDomainController(ctx context.Context, mgr manager.Manage
 }
 
 func setupNutanixMachineTemplateWebhook(mgr manager.Manager) error {
-	defaulter := &infrav1.NutanixMachineTemplateDefaulter{
-		Gates: feature.Gates,
-	}
+	defaulter := &infrav1.NutanixMachineTemplateDefaulter{}
 	if err := defaulter.SetupWebhookWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to setup NutanixMachineTemplate webhook: %w", err)
 	}

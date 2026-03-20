@@ -24,27 +24,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/component-base/featuregate"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/utils/ptr"
 
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/feature"
 )
-
-// makeTestGates returns a fresh FeatureGate with the two placeholder gates set
-// to the provided values. Using a fresh gate per test avoids shared state between
-// test cases while still exercising the real featuregate machinery.
-func makeTestGates(t *testing.T, name, uuid bool) featuregate.FeatureGate {
-	t.Helper()
-	gate := featuregate.NewFeatureGate()
-	require.NoError(t, gate.Add(map[featuregate.Feature]featuregate.FeatureSpec{
-		feature.DefaultToPlaceholderImageName: {Default: false, PreRelease: featuregate.Alpha},
-		feature.DefaultToPlaceholderImageUUID: {Default: false, PreRelease: featuregate.Alpha},
-	}))
-	featuregatetesting.SetFeatureGateDuringTest(t, gate, feature.DefaultToPlaceholderImageName, name)
-	featuregatetesting.SetFeatureGateDuringTest(t, gate, feature.DefaultToPlaceholderImageUUID, uuid)
-	return gate
-}
 
 func newTestNutanixMachineTemplate(name string, image *NutanixResourceIdentifier) *NutanixMachineTemplate {
 	return &NutanixMachineTemplate{
@@ -77,8 +61,10 @@ func newTestNutanixMachineTemplate(name string, image *NutanixResourceIdentifier
 }
 
 func TestNutanixMachineTemplateDefaulter_Default(t *testing.T) {
-	gates := makeTestGates(t, true, true)
-	defaulter := &NutanixMachineTemplateDefaulter{Gates: gates}
+	featuregatetesting.SetFeatureGateDuringTest(t, feature.Gates, feature.DefaultToPlaceholderImageName, true)
+	featuregatetesting.SetFeatureGateDuringTest(t, feature.Gates, feature.DefaultToPlaceholderImageUUID, true)
+
+	defaulter := &NutanixMachineTemplateDefaulter{}
 
 	tests := []struct {
 		name         string
@@ -193,7 +179,10 @@ func TestNutanixMachineTemplateDefaulter_Default(t *testing.T) {
 }
 
 func TestNutanixMachineTemplateDefaulter_Idempotent(t *testing.T) {
-	defaulter := &NutanixMachineTemplateDefaulter{Gates: makeTestGates(t, true, true)}
+	featuregatetesting.SetFeatureGateDuringTest(t, feature.Gates, feature.DefaultToPlaceholderImageName, true)
+	featuregatetesting.SetFeatureGateDuringTest(t, feature.Gates, feature.DefaultToPlaceholderImageUUID, true)
+
+	defaulter := &NutanixMachineTemplateDefaulter{}
 
 	// Start with brownfield object (type=name, name=nil)
 	nmt := newTestNutanixMachineTemplate("idempotent-test", &NutanixResourceIdentifier{
@@ -214,7 +203,10 @@ func TestNutanixMachineTemplateDefaulter_Idempotent(t *testing.T) {
 }
 
 func TestNutanixMachineTemplateDefaulter_UnrelatedFieldsUntouched(t *testing.T) {
-	defaulter := &NutanixMachineTemplateDefaulter{Gates: makeTestGates(t, true, true)}
+	featuregatetesting.SetFeatureGateDuringTest(t, feature.Gates, feature.DefaultToPlaceholderImageName, true)
+	featuregatetesting.SetFeatureGateDuringTest(t, feature.Gates, feature.DefaultToPlaceholderImageUUID, true)
+
+	defaulter := &NutanixMachineTemplateDefaulter{}
 
 	nmt := newTestNutanixMachineTemplate("unrelated-fields", &NutanixResourceIdentifier{
 		Type: NutanixIdentifierName,
@@ -241,7 +233,7 @@ func TestNutanixMachineTemplateDefaulter_UnrelatedFieldsUntouched(t *testing.T) 
 }
 
 func TestNutanixMachineTemplateDefaulter_WrongType(t *testing.T) {
-	defaulter := &NutanixMachineTemplateDefaulter{Gates: makeTestGates(t, true, true)}
+	defaulter := &NutanixMachineTemplateDefaulter{}
 
 	// Passing a non-NutanixMachineTemplate should return an error
 	err := defaulter.Default(context.Background(), &NutanixMachine{})
@@ -288,9 +280,10 @@ func TestNutanixMachineTemplateDefaulter_FeatureGateDisabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defaulter := &NutanixMachineTemplateDefaulter{
-				Gates: makeTestGates(t, tt.nameGate, tt.uuidGate),
-			}
+			featuregatetesting.SetFeatureGateDuringTest(t, feature.Gates, feature.DefaultToPlaceholderImageName, tt.nameGate)
+			featuregatetesting.SetFeatureGateDuringTest(t, feature.Gates, feature.DefaultToPlaceholderImageUUID, tt.uuidGate)
+
+			defaulter := &NutanixMachineTemplateDefaulter{}
 			nmt := newTestNutanixMachineTemplate(tt.name, tt.image)
 			err := defaulter.Default(context.Background(), nmt)
 			require.NoError(t, err)
@@ -304,7 +297,10 @@ func TestNutanixMachineTemplateDefaulter_FeatureGateDisabled(t *testing.T) {
 
 func TestNutanixMachineTemplateDefaulter_FeatureGateIndependent(t *testing.T) {
 	// Enable only name defaulting - uuid type should not get defaulted
-	defaulter := &NutanixMachineTemplateDefaulter{Gates: makeTestGates(t, true, false)}
+	featuregatetesting.SetFeatureGateDuringTest(t, feature.Gates, feature.DefaultToPlaceholderImageName, true)
+	featuregatetesting.SetFeatureGateDuringTest(t, feature.Gates, feature.DefaultToPlaceholderImageUUID, false)
+
+	defaulter := &NutanixMachineTemplateDefaulter{}
 
 	// Name type should get defaulted
 	nmt := newTestNutanixMachineTemplate("name-enabled", &NutanixResourceIdentifier{

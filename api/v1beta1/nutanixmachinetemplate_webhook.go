@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -64,11 +63,7 @@ const (
 // Enable via: --feature-gates=DefaultToPlaceholderImageName=true,DefaultToPlaceholderImageUUID=true
 //
 // +kubebuilder:object:generate=false
-type NutanixMachineTemplateDefaulter struct {
-	// Gates is the feature gate set used to check whether each placeholder
-	// defaulting behavior is enabled. Typically feature.Gates.
-	Gates featuregate.FeatureGate
-}
+type NutanixMachineTemplateDefaulter struct{}
 
 var _ webhook.CustomDefaulter = &NutanixMachineTemplateDefaulter{}
 
@@ -93,8 +88,8 @@ func (d *NutanixMachineTemplateDefaulter) Default(_ context.Context, obj runtime
 	}
 
 	defaultNutanixMachineTemplateImage(nmt,
-		d.Gates.Enabled(feature.DefaultToPlaceholderImageName),
-		d.Gates.Enabled(feature.DefaultToPlaceholderImageUUID),
+		feature.Gates.Enabled(feature.DefaultToPlaceholderImageName),
+		feature.Gates.Enabled(feature.DefaultToPlaceholderImageUUID),
 	)
 	return nil
 }
