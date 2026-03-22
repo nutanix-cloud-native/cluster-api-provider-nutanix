@@ -1,4 +1,4 @@
-# Build the manager binary (Go 1.24.12+ for CVE-2025-61726)
+# Build the manager binary
 FROM golang:1.24.12 as builder
 
 WORKDIR /workspace
