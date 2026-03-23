@@ -100,6 +100,65 @@ func (mr *MockVMsMockRecorder[VM]) DeleteAsync(ctx, uuid any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAsync", reflect.TypeOf((*MockVMs[VM])(nil).DeleteAsync), ctx, uuid)
 }
 
+// DeleteCdRom mocks base method.
+func (m *MockVMs[VM]) DeleteCdRom(ctx context.Context, uuid, cdRomUUID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteCdRom", ctx, uuid, cdRomUUID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteCdRom indicates an expected call of DeleteCdRom.
+func (mr *MockVMsMockRecorder[VM]) DeleteCdRom(ctx, uuid, cdRomUUID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCdRom", reflect.TypeOf((*MockVMs[VM])(nil).DeleteCdRom), ctx, uuid, cdRomUUID)
+}
+
+// DeleteCdRomAsync mocks base method.
+func (m *MockVMs[VM]) DeleteCdRomAsync(uuid, cdRomUUID string) (converged.Operation[converged.NoEntity], error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteCdRomAsync", uuid, cdRomUUID)
+	ret0, _ := ret[0].(converged.Operation[converged.NoEntity])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteCdRomAsync indicates an expected call of DeleteCdRomAsync.
+func (mr *MockVMsMockRecorder[VM]) DeleteCdRomAsync(uuid, cdRomUUID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCdRomAsync", reflect.TypeOf((*MockVMs[VM])(nil).DeleteCdRomAsync), uuid, cdRomUUID)
+}
+
+// GenerateConsoleToken mocks base method.
+func (m *MockVMs[VM]) GenerateConsoleToken(ctx context.Context, uuid string) (*converged.VMConsoleToken, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GenerateConsoleToken", ctx, uuid)
+	ret0, _ := ret[0].(*converged.VMConsoleToken)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GenerateConsoleToken indicates an expected call of GenerateConsoleToken.
+func (mr *MockVMsMockRecorder[VM]) GenerateConsoleToken(ctx, uuid any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateConsoleToken", reflect.TypeOf((*MockVMs[VM])(nil).GenerateConsoleToken), ctx, uuid)
+}
+
+// GenerateConsoleTokenAsync mocks base method.
+func (m *MockVMs[VM]) GenerateConsoleTokenAsync(uuid string) (converged.Operation[converged.NoEntity], error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GenerateConsoleTokenAsync", uuid)
+	ret0, _ := ret[0].(converged.Operation[converged.NoEntity])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GenerateConsoleTokenAsync indicates an expected call of GenerateConsoleTokenAsync.
+func (mr *MockVMsMockRecorder[VM]) GenerateConsoleTokenAsync(uuid any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateConsoleTokenAsync", reflect.TypeOf((*MockVMs[VM])(nil).GenerateConsoleTokenAsync), uuid)
+}
+
 // Get mocks base method.
 func (m *MockVMs[VM]) Get(ctx context.Context, uuid string) (*VM, error) {
 	m.ctrl.T.Helper()
