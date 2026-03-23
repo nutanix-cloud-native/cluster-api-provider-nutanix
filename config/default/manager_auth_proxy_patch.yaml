@@ -14,6 +14,7 @@ spec:
         - "--health-probe-bind-address=:8081"
         - "--diagnostics-address=:8443"
         - "--leader-elect"
+        - "--feature-gates=DefaultToPlaceholderImageName=true,DefaultToPlaceholderImageUUID=true"
         - "--zap-log-level=${NUTANIX_LOG_LEVEL=info}"
         - "--zap-devel=${NUTANIX_LOG_DEVELOPMENT=true}"
         - "--zap-stacktrace-level=${NUTANIX_LOG_STACKTRACE_LEVEL=panic}"
