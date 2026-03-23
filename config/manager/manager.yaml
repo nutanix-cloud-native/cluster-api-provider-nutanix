@@ -81,6 +81,7 @@ spec:
       containers:
         - args:
             - --leader-elect
+            - --feature-gates=DefaultToPlaceholderImageName=true,DefaultToPlaceholderImageUUID=true
           image: controller
           imagePullPolicy: IfNotPresent
           name: manager

@@ -5,7 +5,8 @@ GOGET=$(GOCMD) get
 GOTOOL=$(GOCMD) tool
 EXPORT_RESULT?=false # for CI please set EXPORT_RESULT to true
 
-GIT_COMMIT_HASH=$(shell git rev-parse HEAD)
+# Fallback keeps docker-build / template-test image tags aligned when git is unavailable (e.g. tarball checkouts).
+GIT_COMMIT_HASH=$(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 LOCAL_IMAGE_REGISTRY ?= ko.local
 IMG_REPO=${LOCAL_IMAGE_REGISTRY}/cluster-api-provider-nutanix
 IMG_TAG=e2e-${GIT_COMMIT_HASH}
@@ -249,17 +250,17 @@ run: manifests generate ## Run a controller from your host.
 docker-build: ## Build docker image with the manager.
 	$(select_container_engine)
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
-	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS} -t ${IMG_TAG} .
+	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-buildvcs=false -ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push
 docker-push:  ## Push docker image with the manager.
 	$(select_container_engine)
-	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=${IMG_REPO} GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
+	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=${IMG_REPO} GOFLAGS="-buildvcs=false -ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push-kind
 docker-push-kind:  ## Make docker image available to kind cluster.
 	$(select_container_engine)
-	DOCKER_HOST=$(DOCKER_SOCKET) GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local ko build -B -t ${IMG_TAG} .
+	DOCKER_HOST=$(DOCKER_SOCKET) GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local GOFLAGS="-buildvcs=false" ko build -B -t ${IMG_TAG} .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${MANAGER_IMAGE}
 	kind load docker-image --name ${KIND_CLUSTER_NAME} ${MANAGER_IMAGE}
 
@@ -349,7 +350,7 @@ cluster-templates: ## Generate cluster templates for all flavors
 docker-build-e2e: ## Build docker image with the manager with e2e tag.
 	$(select_container_engine)
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
-	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS_E2E} -t ${IMG_TAG} .
+	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-buildvcs=false -ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS_E2E} -t ${IMG_TAG} .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:${IMG_TAG}
 
 .PHONY: prepare-local-clusterctl
@@ -386,7 +387,8 @@ mocks: ## Generate mocks for the project
 	mockgen -destination=mocks/converged/templates.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Templates
 	mockgen -destination=mocks/converged/ovas.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Ovas
 
-GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
+# Disable VCS stamping for `go list` / `go test` so unit tests run in partial checkouts and CI sandboxes.
+GOTESTPKGS = $(shell GOFLAGS=-buildvcs=false go list ./... | grep -v /mocks | grep -v /templates)
 
 KUBEBUILDER_ASSETS=$(shell setup-envtest use $(ENVTEST_K8S_VERSION) --print path --arch=$(shell go env GOARCH))
 
@@ -396,18 +398,19 @@ print-envtest: ## Set up envtest (download kubebuilder assets)
 
 .PHONY: unit-test
 unit-test: mocks  ## Run unit tests.
-	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" \
+	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" GOFLAGS="-buildvcs=false" \
 	$(GOTEST) $(GOTESTPKGS)
 
 .PHONY: coverage
 coverage: mocks ## Run the tests of the project and export the coverage
-	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" \
+	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" GOFLAGS="-buildvcs=false" \
 	$(GOTEST) -race -coverprofile=coverage.out -covermode=atomic $(GOTESTPKGS)
 
 .PHONY: template-test
 template-test: docker-build prepare-local-clusterctl ## Run the template tests
 	$(select_container_engine)
 	GOPROXY=off \
+	GIT_COMMIT_HASH="$(GIT_COMMIT_HASH)" \
 	LOCAL_PROVIDER_VERSION=$(LOCAL_PROVIDER_VERSION) \
 		ginkgo --trace --v run templates
 
