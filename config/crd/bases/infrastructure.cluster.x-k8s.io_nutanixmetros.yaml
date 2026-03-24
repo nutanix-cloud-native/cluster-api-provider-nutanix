@@ -3,34 +3,31 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
+    clusterctl.cluster.x-k8s.io/skip-crd-name-preflight-check: "true"
     controller-gen.kubebuilder.io/version: v0.19.0
   labels:
     clusterctl.cluster.x-k8s.io/move: ""
-  name: nutanixmetrosites.infrastructure.cluster.x-k8s.io
+  name: nutanixmetros.infrastructure.cluster.x-k8s.io
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
     categories:
     - cluster-api
-    kind: NutanixMetroSite
-    listKind: NutanixMetroSiteList
-    plural: nutanixmetrosites
-    singular: nutanixmetrosite
+    kind: NutanixMetro
+    listKind: NutanixMetroList
+    plural: nutanixmetros
+    singular: nutanixmetro
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: Reference of the preferred NutnaixFailureDomain object
-      jsonPath: .spec.preferredFailureDomain
-      name: PreferredFailureDomain
-      type: string
-    - description: Reference of NutnaixMetro object this site belongs to
-      jsonPath: .spec.metroRef
-      name: Metro
+    - description: References of NutnaixFailureDomain objects
+      jsonPath: .spec.failureDomains
+      name: FailureDomains
       type: string
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: NutanixMetroSite is the Schema for the NutanixMetroSite API.
+        description: NutanixMetro is the Schema for the NutanixMetro API.
         properties:
           apiVersion:
             description: |-
@@ -50,48 +47,38 @@ spec:
           metadata:
             type: object
           spec:
-            description: NutanixMetroSiteSpec defines the desired state of NutanixMetroSite
+            description: NutanixMetroSpec defines the desired state of NutanixMetro
             properties:
-              groupNameLabel:
-                description: groupNameLabel optionally provides name for a group of
-                  worker nodes normally anchored to a topology segment.
-                type: string
-              metroRef:
-                description: metroRef holds reference to the NutanixMetro object this
-                  site belongs to.
-                properties:
-                  name:
-                    default: ""
-                    description: |-
-                      Name of the referent.
-                      This field is effectively required, but due to backwards compatibility is
-                      allowed to be empty. Instances of this type with an empty value here are
-                      almost certainly wrong.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                    type: string
-                type: object
-                x-kubernetes-map-type: atomic
-              preferredFailureDomain:
-                description: preferredFailureDomain holds reference to the preferred
-                  NutanixFailureDomain object of the NutanixMetroSite.
-                properties:
-                  name:
-                    default: ""
-                    description: |-
-                      Name of the referent.
-                      This field is effectively required, but due to backwards compatibility is
-                      allowed to be empty. Instances of this type with an empty value here are
-                      almost certainly wrong.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                    type: string
-                type: object
-                x-kubernetes-map-type: atomic
+              failureDomains:
+                description: failureDomains holds references to the two NutanixFailureDomain
+                  objects of the NutanixMetro.
+                items:
+                  description: |-
+                    LocalObjectReference contains enough information to let you locate the
+                    referenced object inside the same namespace.
+                  properties:
+                    name:
+                      default: ""
+                      description: |-
+                        Name of the referent.
+                        This field is effectively required, but due to backwards compatibility is
+                        allowed to be empty. Instances of this type with an empty value here are
+                        almost certainly wrong.
+                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      type: string
+                  type: object
+                  x-kubernetes-map-type: atomic
+                maxItems: 2
+                minItems: 2
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
             required:
-            - metroRef
-            - preferredFailureDomain
+            - failureDomains
             type: object
           status:
-            description: NutanixMetroSiteStatus defines the state of the NutanixMetroSite
+            description: NutanixMetroStatus defines the state of the NutanixMetro
               resource.
             properties:
               conditions:

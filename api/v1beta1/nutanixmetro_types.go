@@ -19,7 +19,6 @@ package v1beta1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 )
 
 const (
@@ -45,28 +44,14 @@ type NutanixMetroSpec struct {
 type NutanixMetroStatus struct {
 	// conditions represent the latest states of the metro,
 	// +optional
-	Conditions []capiv1beta1.Condition `json:"conditions,omitempty"`
-
-	// v1beta2 groups all the fields that will be added or modified in NutanixMetro's status with the v1beta2 version.
-	// +optional
-	V1Beta2 *NutanixMetroV1Beta2Status `json:"v1beta2,omitempty"`
-}
-
-// NutanixMetroV1Beta2Status groups all the fields that will be added or modified in NutanixMetroStatus with the v1beta2 version.
-// See https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more context.
-type NutanixMetroV1Beta2Status struct {
-	// conditions represents the observations of a NutanixMetro's current state.
-	// +optional
-	// +listType=map
-	// +listMapKey=type
-	// +kubebuilder:validation:MaxItems=32
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=nutanixmetroes,scope=Namespaced,categories=cluster-api
+// +kubebuilder:resource:path=nutanixmetros,scope=Namespaced,categories=cluster-api
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
+// +kubebuilder:metadata:annotations="clusterctl.cluster.x-k8s.io/skip-crd-name-preflight-check=true"
 // +kubebuilder:metadata:labels=clusterctl.cluster.x-k8s.io/move=
 // +kubebuilder:printcolumn:name="FailureDomains",type="string",JSONPath=".spec.failureDomains",description="References of NutnaixFailureDomain objects"
 
@@ -80,29 +65,13 @@ type NutanixMetro struct {
 }
 
 // GetConditions returns the set of conditions for this object.
-func (m *NutanixMetro) GetConditions() capiv1beta1.Conditions {
+func (m *NutanixMetro) GetConditions() []metav1.Condition {
 	return m.Status.Conditions
 }
 
 // SetConditions sets the conditions on this object.
-func (m *NutanixMetro) SetConditions(conditions capiv1beta1.Conditions) {
+func (m *NutanixMetro) SetConditions(conditions []metav1.Condition) {
 	m.Status.Conditions = conditions
-}
-
-// GetV1Beta2Conditions returns the set of conditions for this object.
-func (m *NutanixMetro) GetV1Beta2Conditions() []metav1.Condition {
-	if m.Status.V1Beta2 == nil {
-		return nil
-	}
-	return m.Status.V1Beta2.Conditions
-}
-
-// SetV1Beta2Conditions sets the v1beta2 conditions on this object.
-func (m *NutanixMetro) SetV1Beta2Conditions(conditions []metav1.Condition) {
-	if m.Status.V1Beta2 == nil {
-		m.Status.V1Beta2 = &NutanixMetroV1Beta2Status{}
-	}
-	m.Status.V1Beta2.Conditions = conditions
 }
 
 // +kubebuilder:object:root=true

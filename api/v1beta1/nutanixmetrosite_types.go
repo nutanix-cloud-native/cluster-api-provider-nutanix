@@ -19,7 +19,6 @@ package v1beta1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 )
 
 const (
@@ -33,9 +32,9 @@ const (
 
 // NutanixMetroSiteSpec defines the desired state of NutanixMetroSite
 type NutanixMetroSiteSpec struct {
-	// failureDomain holds reference to the NutanixFailureDomain object of the NutanixMetroSite.
+	// preferredFailureDomain holds reference to the preferred NutanixFailureDomain object of the NutanixMetroSite.
 	// +kubebuilder:validation:Required
-	FailureDomainRef corev1.LocalObjectReference `json:"failureDomainRef"`
+	PreferredFailureDomain corev1.LocalObjectReference `json:"preferredFailureDomain"`
 
 	// metroRef holds reference to the NutanixMetro object this site belongs to.
 	// +kubebuilder:validation:Required
@@ -50,21 +49,6 @@ type NutanixMetroSiteSpec struct {
 type NutanixMetroSiteStatus struct {
 	// conditions represent the latest states of the metro,
 	// +optional
-	Conditions []capiv1beta1.Condition `json:"conditions,omitempty"`
-
-	// v1beta2 groups all the fields that will be added or modified in NutanixMetroSite's status with the v1beta2 version.
-	// +optional
-	V1Beta2 *NutanixMetroSiteV1Beta2Status `json:"v1beta2,omitempty"`
-}
-
-// NutanixMetroSiteV1Beta2Status groups all the fields that will be added or modified in NutanixMetroSiteStatus with the v1beta2 version.
-// See https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more context.
-type NutanixMetroSiteV1Beta2Status struct {
-	// conditions represents the observations of a NutanixMetroSite's current state.
-	// +optional
-	// +listType=map
-	// +listMapKey=type
-	// +kubebuilder:validation:MaxItems=32
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
@@ -73,8 +57,8 @@ type NutanixMetroSiteV1Beta2Status struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:metadata:labels=clusterctl.cluster.x-k8s.io/move=
-// +kubebuilder:printcolumn:name="FailureDomain",type="string",JSONPath=".spec.failureDomainRef",description="Reference of NutnaixFailureDomain objects"
-// +kubebuilder:printcolumn:name="Metro",type="string",JSONPath=".spec.metroRef",description="Reference of NutnaixMetro object"
+// +kubebuilder:printcolumn:name="PreferredFailureDomain",type="string",JSONPath=".spec.preferredFailureDomain",description="Reference of the preferred NutnaixFailureDomain object"
+// +kubebuilder:printcolumn:name="Metro",type="string",JSONPath=".spec.metroRef",description="Reference of NutnaixMetro object this site belongs to"
 
 // NutanixMetroSite is the Schema for the NutanixMetroSite API.
 type NutanixMetroSite struct {
@@ -86,29 +70,13 @@ type NutanixMetroSite struct {
 }
 
 // GetConditions returns the set of conditions for this object.
-func (m *NutanixMetroSite) GetConditions() capiv1beta1.Conditions {
+func (m *NutanixMetroSite) GetConditions() []metav1.Condition {
 	return m.Status.Conditions
 }
 
 // SetConditions sets the conditions on this object.
-func (m *NutanixMetroSite) SetConditions(conditions capiv1beta1.Conditions) {
+func (m *NutanixMetroSite) SetConditions(conditions []metav1.Condition) {
 	m.Status.Conditions = conditions
-}
-
-// GetV1Beta2Conditions returns the set of conditions for this object.
-func (m *NutanixMetroSite) GetV1Beta2Conditions() []metav1.Condition {
-	if m.Status.V1Beta2 == nil {
-		return nil
-	}
-	return m.Status.V1Beta2.Conditions
-}
-
-// SetV1Beta2Conditions sets the v1beta2 conditions on this object.
-func (m *NutanixMetroSite) SetV1Beta2Conditions(conditions []metav1.Condition) {
-	if m.Status.V1Beta2 == nil {
-		m.Status.V1Beta2 = &NutanixMetroSiteV1Beta2Status{}
-	}
-	m.Status.V1Beta2.Conditions = conditions
 }
 
 // +kubebuilder:object:root=true
