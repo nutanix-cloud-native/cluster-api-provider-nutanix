@@ -3011,46 +3011,171 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 }
 
 func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
-	t.Run("should populate IP addresses from VM Nics to NutanixMachine addresses", func(t *testing.T) {
-		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+	newIPv4Address := func(ip string) *vmmCommonConfig.IPv4Address {
+		addr := vmmCommonConfig.NewIPv4Address()
+		addr.Value = ptr.To(ip)
+		return addr
+	}
 
-		nic1 := vmmModels.NewNic()
-		nic1.NetworkInfo = vmmModels.NewNicNetworkInfo()
-		ipv4Config := vmmModels.NewIpv4Config()
-		ipv4Config.IpAddress = vmmCommonConfig.NewIPv4Address()
-		ipv4Config.IpAddress.Value = ptr.To("10.10.10.10")
-		nic1.NetworkInfo.Ipv4Config = ipv4Config
+	newNicWithDeprecatedNetworkInfo := func(ip string) *vmmModels.Nic {
+		nic := vmmModels.NewNic()
+		nic.NetworkInfo = vmmModels.NewNicNetworkInfo()
+		nic.NetworkInfo.Ipv4Config = vmmModels.NewIpv4Config()
+		nic.NetworkInfo.Ipv4Config.IpAddress = newIPv4Address(ip)
+		return nic
+	}
 
-		nic2 := vmmModels.NewNic()
-		nic2.NetworkInfo = vmmModels.NewNicNetworkInfo()
-		ipv4Info := vmmModels.NewIpv4Info()
-		ipv4Ip := vmmCommonConfig.NewIPv4Address()
-		ipv4Ip.Value = ptr.To("10.10.10.11")
-		ipv4Info.LearnedIpAddresses = []vmmCommonConfig.IPv4Address{*ipv4Ip}
-		nic2.NetworkInfo.Ipv4Info = ipv4Info
+	newNicWithVirtualEthernetInfo := func(ip string) *vmmModels.Nic {
+		nic := vmmModels.NewNic()
+		info := vmmModels.NewVirtualEthernetNicNetworkInfo()
+		info.Ipv4Config = vmmModels.NewIpv4Config()
+		info.Ipv4Config.IpAddress = newIPv4Address(ip)
+		require.NoError(t, nic.SetNicNetworkInfo(*info))
+		return nic
+	}
 
-		nics := []vmmModels.Nic{*nic1, *nic2}
+	newNicWithDpOffloadInfo := func(ip string) *vmmModels.Nic {
+		nic := vmmModels.NewNic()
+		info := vmmModels.NewDpOffloadNicNetworkInfo()
+		info.Ipv4Config = vmmModels.NewIpv4Config()
+		info.Ipv4Config.IpAddress = newIPv4Address(ip)
+		require.NoError(t, nic.SetNicNetworkInfo(*info))
+		return nic
+	}
+
+	newNicWithSriovInfo := func() *vmmModels.Nic {
+		nic := vmmModels.NewNic()
+		info := vmmModels.NewSriovNicNetworkInfo()
+		info.VlanId = ptr.To(100)
+		require.NoError(t, nic.SetNicNetworkInfo(*info))
+		return nic
+	}
+
+	newNicWithLearnedIPs := func(ips ...string) *vmmModels.Nic {
+		nic := vmmModels.NewNic()
+		info := vmmModels.NewVirtualEthernetNicNetworkInfo()
+		info.Ipv4Info = vmmModels.NewIpv4Info()
+		for _, ip := range ips {
+			info.Ipv4Info.LearnedIpAddresses = append(info.Ipv4Info.LearnedIpAddresses, *newIPv4Address(ip))
+		}
+		require.NoError(t, nic.SetNicNetworkInfo(*info))
+		return nic
+	}
+
+	buildVM := func(nics ...*vmmModels.Nic) *vmmModels.Vm {
 		vm := vmmModels.NewVm()
 		vm.Name = ptr.To("vm-name")
-		vm.Nics = nics
+		for _, nic := range nics {
+			vm.Nics = append(vm.Nics, *nic)
+		}
+		return vm
+	}
 
+	t.Run("deprecated NetworkInfo with static IP", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
 		reconciler := &NutanixMachineReconciler{}
-		err := reconciler.assignAddressesToMachine(rctx, vm)
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(newNicWithDeprecatedNetworkInfo("10.10.10.10")))
 
-		assert.Nil(t, err)
-		assert.Equal(t, 1+len(nics), len(rctx.NutanixMachine.Status.Addresses))
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.10", rctx.NutanixMachine.Status.Addresses[0].Address)
+		assert.Equal(t, "vm-name", rctx.NutanixMachine.Status.Addresses[1].Address)
 	})
 
-	t.Run("should fail if no IP addresses are found from Nics", func(t *testing.T) {
-		rctx := &nctx.MachineContext{}
+	t.Run("new NicNetworkInfo with static IP", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(newNicWithVirtualEthernetInfo("10.10.10.12")))
 
-		vm := vmmModels.NewVm()
-		vm.Name = ptr.To("vm-name")
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.12", rctx.NutanixMachine.Status.Addresses[0].Address)
+	})
+
+	t.Run("new NicNetworkInfo with learned IPs", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(newNicWithLearnedIPs("10.10.10.13")))
+
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.13", rctx.NutanixMachine.Status.Addresses[0].Address)
+	})
+
+	t.Run("DpOffloadNicNetworkInfo with static IP", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(newNicWithDpOffloadInfo("10.10.10.20")))
+
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.20", rctx.NutanixMachine.Status.Addresses[0].Address)
+	})
+
+	t.Run("SriovNicNetworkInfo falls back to deprecated NetworkInfo", func(t *testing.T) {
+		nic := newNicWithSriovInfo()
+		nic.NetworkInfo = vmmModels.NewNicNetworkInfo()
+		nic.NetworkInfo.Ipv4Config = vmmModels.NewIpv4Config()
+		nic.NetworkInfo.Ipv4Config.IpAddress = newIPv4Address("10.10.10.30")
+
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(nic))
+
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.30", rctx.NutanixMachine.Status.Addresses[0].Address)
+	})
+
+	t.Run("SriovNicNetworkInfo without deprecated NetworkInfo yields no addresses", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(
+			newNicWithVirtualEthernetInfo("10.10.10.10"),
+			newNicWithSriovInfo(),
+		))
+
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.10", rctx.NutanixMachine.Status.Addresses[0].Address)
+		assert.Equal(t, "vm-name", rctx.NutanixMachine.Status.Addresses[1].Address)
+	})
+
+	t.Run("prefers new NicNetworkInfo over deprecated NetworkInfo", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+
+		nic := newNicWithVirtualEthernetInfo("10.10.10.50")
+		nic.NetworkInfo = vmmModels.NewNicNetworkInfo()
+		nic.NetworkInfo.Ipv4Config = vmmModels.NewIpv4Config()
+		nic.NetworkInfo.Ipv4Config.IpAddress = newIPv4Address("10.10.10.99")
 
 		reconciler := &NutanixMachineReconciler{}
-		err := reconciler.assignAddressesToMachine(rctx, vm)
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(nic))
 
-		assert.NotNil(t, err)
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.50", rctx.NutanixMachine.Status.Addresses[0].Address)
+	})
+
+	t.Run("multiple NICs with mixed sources", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(
+			newNicWithDeprecatedNetworkInfo("10.10.10.10"),
+			newNicWithVirtualEthernetInfo("10.10.10.11"),
+		))
+
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 3)
+	})
+
+	t.Run("fails if no IP addresses found", func(t *testing.T) {
+		rctx := &nctx.MachineContext{}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM())
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "unable to determine network interfaces")
 	})
 }
 
