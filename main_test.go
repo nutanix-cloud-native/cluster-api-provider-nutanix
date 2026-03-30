@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
@@ -51,6 +52,7 @@ func TestInitializeFlags(t *testing.T) {
 				"--rate-limiter-max-delay=10s",
 				"--rate-limiter-bucket-size=1000",
 				"--rate-limiter-qps=50",
+				"--feature-gates=DefaultToPlaceholderImageName=true,DefaultToPlaceholderImageUUID=true",
 			},
 			want: &options{
 				enableLeaderElection:    true,
@@ -134,6 +136,7 @@ func TestInitializeConfig(t *testing.T) {
 				"--rate-limiter-max-delay=10s",
 				"--rate-limiter-bucket-size=1000",
 				"--rate-limiter-qps=50",
+				"--feature-gates=DefaultToPlaceholderImageName=true,DefaultToPlaceholderImageUUID=true",
 				// Cluster API options.
 				"--insecure-diagnostics=true",
 				"--diagnostics-address=:9999",
@@ -306,6 +309,7 @@ func testRunManagerCommon(t *testing.T, ctrl *gomock.Controller) (*mockctlclient
 	}).AnyTimes()
 	mgr.EXPECT().Add(gomock.Any()).Return(nil).AnyTimes()
 	mgr.EXPECT().GetCache().Return(cache).AnyTimes()
+	mgr.EXPECT().GetWebhookServer().Return(webhook.NewServer(webhook.Options{Port: 0})).AnyTimes()
 
 	return mgr, config, testEnv
 }
