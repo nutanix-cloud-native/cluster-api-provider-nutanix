@@ -62,6 +62,7 @@ rules:
   - nutanixmachines
   - nutanixmetros
   - nutanixmetrosites
+  - nutanixvirtualhadomains
   verbs:
   - create
   - delete
@@ -88,6 +89,8 @@ rules:
   - nutanixmetros/status
   - nutanixmetrosites/finalizers
   - nutanixmetrosites/status
+  - nutanixvirtualhadomains/finalizers
+  - nutanixvirtualhadomains/status
   verbs:
   - get
   - patch
