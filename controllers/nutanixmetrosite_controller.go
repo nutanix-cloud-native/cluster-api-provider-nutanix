@@ -73,7 +73,7 @@ func (r *NutanixMetroSiteReconciler) SetupWithManager(ctx context.Context, mgr c
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		Named("NutanixMetroSite-controller").
+		Named("nutanixmetrosite-controller").
 		For(&infrav1.NutanixMetroSite{}).
 		Watches(
 			&capiv1beta2.Machine{},

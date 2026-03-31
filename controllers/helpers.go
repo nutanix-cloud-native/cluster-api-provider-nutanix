@@ -31,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 	"github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
@@ -42,6 +43,7 @@ import (
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	v1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
@@ -65,8 +67,13 @@ const (
 	createErrorFailureReason  = "CreateError"
 	powerOnErrorFailureReason = "PowerOnError"
 
-	metroFailureDomainPrefix     = "NutanixMetro/"
-	metroSiteFailureDomainPrefix = "NutanixMetroSite/"
+	metroFailureDomainPrefix         = "NutanixMetro/"
+	metroSiteFailureDomainPrefix     = "NutanixMetroSite/"
+	metroNativeFailureDomainLabelKey = "metro.nutanix.com/native-failuredomain"
+	metroNativePELabelKey            = "metro.nutanix.com/native-pe"
+
+	vmCustomAttributePrefix4ProviderID       = "providerid:"
+	vmCustomAttributePrefix4MetroPreferredPE = "metro-preferred-pe:"
 )
 
 type StorageContainerIntentResponse struct {
@@ -203,6 +210,18 @@ func FindVMByName(ctx context.Context, client *v4Converged.Client, vmName string
 	return FindVMByUUID(ctx, client, *vms[0].ExtId)
 }
 
+func GetPECluster(ctx context.Context, client *v4Converged.Client, peUUID string) (*clusterModels.Cluster, error) {
+	peCluster, err := client.Clusters.Get(ctx, peUUID)
+	if err != nil {
+		if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
+			return nil, fmt.Errorf("failed to find Prism Element cluster with UUID %s: %v", peUUID, err)
+		}
+		return nil, fmt.Errorf("failed to get Prism Element cluster with UUID %s: %v", peUUID, err)
+	}
+
+	return peCluster, nil
+}
+
 // GetPEUUID returns the UUID of the Prism Element cluster with the given name
 func GetPEUUID(ctx context.Context, client *v4Converged.Client, peName, peUUID *string) (string, error) {
 	if client == nil {
@@ -242,6 +261,17 @@ func GetPEUUID(ctx context.Context, client *v4Converged.Client, peName, peUUID *
 		}
 	}
 	return "", fmt.Errorf("failed to retrieve Prism Element cluster by name or uuid. Verify input parameters")
+}
+
+func IsPEAvailable(ctx context.Context, client *v4Converged.Client, peUUID string) (bool, error) {
+	pe, err := client.Clusters.Get(ctx, peUUID)
+	if err != nil {
+		if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
+			return false, fmt.Errorf("failed to find Prism Element cluster with UUID %s: %v", peUUID, err)
+		}
+		return false, fmt.Errorf("failed to get Prism Element cluster with UUID %s: %v", peUUID, err)
+	}
+	return *pe.Config.IsAvailable, nil
 }
 
 // GetMibValueOfQuantity returns the given quantity value in Mib
@@ -1236,4 +1266,117 @@ func getNutanixMetroObject(ctx context.Context, ctlclient client.Client, objectN
 		return nil, fmt.Errorf("failed to fetch NutanixMetro object by name %q: %w", objectName, err)
 	}
 	return metroObj, nil
+}
+
+func getNutanixMetroSiteObject(ctx context.Context, ctlclient client.Client, objectName, namespace string) (*infrav1.NutanixMetroSite, error) {
+	metroSiteObj := &infrav1.NutanixMetroSite{}
+	objKey := client.ObjectKey{Name: objectName, Namespace: namespace}
+	if err := ctlclient.Get(ctx, objKey, metroSiteObj); err != nil {
+		return nil, fmt.Errorf("failed to fetch NutanixMetroSite object by name %q: %w", objectName, err)
+	}
+	return metroSiteObj, nil
+}
+
+func getNutanixVHADomainObject(ctx context.Context, ctlclient client.Client, objectName, namespace string) (*infrav1.NutanixVirtualHADomain, error) {
+	vhaDomain := &infrav1.NutanixVirtualHADomain{}
+	objKey := client.ObjectKey{Name: objectName, Namespace: namespace}
+	if err := ctlclient.Get(ctx, objKey, vhaDomain); err != nil {
+		return nil, fmt.Errorf("failed to fetch NutanixVirutalHADomain object by name %q: %w", objectName, err)
+	}
+	return vhaDomain, nil
+}
+
+// getOwnerCluster returns the NutanixVirutalHADomain objects owned by the named NutanixCluster object in the local namespace.
+func getOwnedVHADomains(ctx context.Context, ctlclient client.Client, ncl *infrav1.NutanixCluster) ([]*infrav1.NutanixVirtualHADomain, error) {
+	// Get all the NutanixVirutalHADomain CRs in the local namespace
+	vHADomainsList := &infrav1.NutanixVirtualHADomainList{}
+	if err := ctlclient.List(ctx, vHADomainsList, client.InNamespace(ncl.Namespace)); err != nil {
+		return nil, err
+	}
+
+	vHADomains := []*infrav1.NutanixVirtualHADomain{}
+	for _, vhaDomain := range vHADomainsList.Items {
+		for _, ownerRef := range vhaDomain.GetOwnerReferences() {
+			if ownerRef.Kind != "NutanixCluster" || ownerRef.Name != ncl.Name {
+				continue
+			}
+			gv, err := schema.ParseGroupVersion(ownerRef.APIVersion)
+			if err != nil {
+				continue
+			}
+			if gv.Group == infrav1.GroupVersion.Group {
+				vHADomains = append(vHADomains, &vhaDomain)
+				break
+			}
+		}
+	}
+
+	return vHADomains, nil
+}
+
+func getVHADomainCategory(mctx *nctx.MachineContext, ctlclient client.Client) (*infrav1.NutanixCategoryIdentifier, error) {
+	fdName := mctx.Machine.Spec.FailureDomain
+	if !isNutanixMetroFailureDomain(fdName) && !isNutanixMetroSiteFailureDomain(fdName) {
+		return nil, fmt.Errorf("the Machine's spec.failureDomain is not configured with NutanixMetro/ or NutanixMetroSite/ prefix: %s", fdName)
+	}
+
+	metroName := ""
+	namespace := mctx.Machine.Namespace
+	if isNutanixMetroSiteFailureDomain(fdName) {
+		metrositeObj, err := getNutanixMetroSiteObject(mctx.Context, ctlclient, fdName[len(metroSiteFailureDomainPrefix):], namespace)
+		if err != nil {
+			return nil, err
+		}
+		metroName = metrositeObj.Spec.MetroRef.Name
+	} else if isNutanixMetroFailureDomain(fdName) {
+		metroName = fdName[len(metroFailureDomainPrefix):]
+	}
+
+	preferredFailureDomain := mctx.Datastore[nctx.MetroPreferredFailureDomainName]
+	if preferredFailureDomain == nil {
+		return nil, fmt.Errorf("failed to get %s from reconciling context", nctx.MetroPreferredFailureDomainName)
+	}
+
+	// Fetch the NutanixMetro CR
+	metroObj, err := getNutanixMetroObject(mctx.Context, ctlclient, metroName, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	// The preferredIdx is used to match the Category in the vHADomain corresponding to the preferredFailureDomain
+	preferredIdx := -1
+	for i, fdRef := range metroObj.Spec.FailureDomains {
+		if fdRef.Name == *preferredFailureDomain {
+			preferredIdx = i
+			break
+		}
+	}
+	if preferredIdx < 0 {
+		return nil, fmt.Errorf("the preferred failureDomain %s is not in the NutanixMetro %s failureDomains", *preferredFailureDomain, metroName)
+	}
+
+	// Fetch the NutanixCluster owned vHADomain CRs
+	vHADomains, err := getOwnedVHADomains(mctx.Context, ctlclient, mctx.NutanixCluster)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, vhaDomain := range vHADomains {
+		if vhaDomain.Spec.MetroRef.Name == metroName {
+			if !vhaDomain.Status.Ready {
+				return nil, fmt.Errorf("the vHADomain %s is not ready", vhaDomain.Name)
+			}
+
+			preferredCategory := vhaDomain.Spec.Categories[preferredIdx]
+			// validate the preferredCategory exist in PC
+			_, err := getCategory(mctx.Context, mctx.ConvergedClient, preferredCategory.Key, preferredCategory.Value)
+			if err != nil {
+				return nil, fmt.Errorf("HADomain: %s, NutanixMetro: %s, failed to fetch Category (key:%s, value:%s) from PC: %w", vhaDomain.Name, metroName, preferredCategory.Key, preferredCategory.Value, err)
+			}
+
+			return &preferredCategory, nil
+		}
+	}
+
+	return nil, fmt.Errorf("not found vHADomain category for NuatanixMachine")
 }
