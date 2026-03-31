@@ -1,0 +1,7 @@
+# CVE-2026-34040: Docker AuthZ plugin bypass with oversized request bodies (CVSS 8.8)
+# github.com/docker/docker v28.5.2+incompatible — indirect test-only dependency
+# pulled in via sigs.k8s.io/cluster-api/test → test/infrastructure/container.
+# Fix requires v29.3.1 which uses new module paths (github.com/moby/moby/client);
+# no v28.x backport exists. Waiting on upstream cluster-api to migrate.
+# This project does not use Docker AuthZ plugins.
+CVE-2026-34040
