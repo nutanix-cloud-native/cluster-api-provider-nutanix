@@ -72,8 +72,9 @@ const (
 	metroNativeFailureDomainLabelKey = "metro.nutanix.com/native-failuredomain"
 	metroNativePELabelKey            = "metro.nutanix.com/native-pe"
 
-	vmCustomAttributePrefix4ProviderID       = "providerid:"
-	vmCustomAttributePrefix4MetroPreferredPE = "metro-preferred-pe:"
+	vmCustomAttributePrefix4ProviderID              = "providerid:"
+	vmCustomAttributePrefix4MetroPreferredPE        = "metro-preferred-pe:"
+	vmCustomAttributePrefix4MetroNodeGroupNameLabel = "metro-node-group-name:"
 )
 
 type StorageContainerIntentResponse struct {

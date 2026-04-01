@@ -824,6 +824,11 @@ func (r *NutanixMachineReconciler) getMetroSiteFailureDomainSpec(rctx *nctx.Mach
 	rctx.Datastore[nctx.MetroPreferredFailureDomainName] = ptr.To(selectedFd.Name)
 	rctx.Datastore[nctx.MetroPreferredPE] = ptr.To(selectedFd.Spec.PrismElementCluster.String())
 
+	// Keep the MetroSite's groupNameLabel in the context Datastore
+	if metrositeObj.Spec.GroupNameLabel != nil && *metrositeObj.Spec.GroupNameLabel != "" {
+		rctx.Datastore[nctx.MetroNodeGroupNameLabel] = metrositeObj.Spec.GroupNameLabel
+	}
+
 	// The selected is the preferred failureDomain. Only when it failed at validation, try the remaining one.
 	if err = r.validateFailureDomainSpec(rctx, &selectedFd.Spec); err != nil {
 		log.Error(err, fmt.Sprintf("The preferred failureDomain %s failed at validatation. Try with the other failureDomain %s.", selectedFd.Name, remainingFd.Name))
@@ -1059,6 +1064,12 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 			vm.CustomAttributes = []string{
 				vmCustomAttributePrefix4MetroPreferredPE + *preferredPE,
 			}
+		}
+	}
+	if isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
+		if groupNameLabel := rctx.Datastore[nctx.MetroNodeGroupNameLabel]; groupNameLabel != nil {
+			// Set the "metro-node-group-name:" customAttribute to VM for the MetroSite's goupNameLabel value
+			vm.CustomAttributes = append(vm.CustomAttributes, vmCustomAttributePrefix4MetroNodeGroupNameLabel+*groupNameLabel)
 		}
 	}
 

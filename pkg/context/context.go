@@ -34,6 +34,7 @@ import (
 const (
 	MetroPreferredFailureDomainName = "metro-preferred-failuredomain"
 	MetroPreferredPE                = "metro-preferred-pe"
+	MetroNodeGroupNameLabel         = "metro-node-group-name-label"
 )
 
 var (
