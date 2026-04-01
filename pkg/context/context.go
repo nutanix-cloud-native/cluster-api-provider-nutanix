@@ -22,7 +22,6 @@ import (
 	"sync"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	"k8s.io/utils/ptr"
@@ -30,6 +29,12 @@ import (
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	MetroPreferredFailureDomainName = "metro-preferred-failuredomain"
+	MetroPreferredPE                = "metro-preferred-pe"
+	MetroNodeGroupNameLabel         = "metro-node-group-name-label"
 )
 
 var (
@@ -60,6 +65,20 @@ type MachineContext struct {
 
 	// The VM ip address
 	IP string
+
+	// dataStore is used to pass data among functions in the same reconciling cycle
+	Datastore map[string]*string
+}
+
+// VHADomainContext is a context used with a NutanixVirutualHADomain reconciler
+type VHADomainContext struct {
+	Context         context.Context
+	NutanixClient   *prismclientv3.Client
+	ConvergedClient *v4Converged.Client
+
+	Cluster        *capiv1beta2.Cluster
+	NutanixCluster *infrav1.NutanixCluster
+	VHADomain      *infrav1.NutanixVirtualHADomain
 }
 
 // IsControlPlaneMachine returns true if the provided resource is

@@ -23,6 +23,9 @@ import (
 	"fmt"
 	"time"
 
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	corev1 "k8s.io/api/core/v1"
 	kapierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -39,7 +42,6 @@ import (
 	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"         //nolint:staticcheck // suppress complaining on Deprecated package
 	v1beta2conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions/v1beta2" //nolint:staticcheck // suppress complaining on Deprecated package
 	v1beta1patch "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"                   //nolint:staticcheck // suppress complaining on Deprecated package
-
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -48,10 +50,6 @@ import (
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
-	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
 // NutanixClusterReconciler reconciles a NutanixCluster object
@@ -149,16 +147,10 @@ func (r *NutanixClusterReconciler) mapNutanixFailureDomainToNutanixCluster() han
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters/finalizers,verbs=update
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixfailuredomains,verbs=get;list;watch
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixmetros,verbs=get;list;watch
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixvirtualhadomains,verbs=get;list;watch;create
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the NutanixCluster object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, reterr error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.Info("Reconciling the NutanixCluster")
@@ -336,6 +328,14 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 		return reconcile.Result{}, err
 	}
 
+	// Reconciling metroRefs before Ready check
+	if len(rctx.NutanixCluster.Spec.MetroRefs) > 0 {
+		if err := r.reconcileMetroRefs(rctx); err != nil {
+			log.Error(err, "failed to reconcile metroRefs for cluster")
+			return reconcile.Result{}, err
+		}
+	}
+
 	if rctx.NutanixCluster.Status.Ready {
 		log.Info("NutanixCluster is already in ready status.")
 		return reconcile.Result{}, nil
@@ -352,7 +352,75 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 	return reconcile.Result{}, nil
 }
 
-func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterContext) error {
+func (r *NutanixClusterReconciler) reconcileMetroRefs(rctx *nctx.ClusterContext) error {
+	log := ctrl.LoggerFrom(rctx.Context)
+	log.Info("Reconciling metroRefs for cluster")
+
+	// fetch the NutanixCluster CR owned NutanixVirtualHADomain objects
+	vHADomains, err := getOwnedVHADomains(rctx.Context, r.Client, rctx.NutanixCluster)
+	if err != nil {
+		return err
+	}
+
+	namespace := rctx.NutanixCluster.Namespace
+	for _, metroRef := range rctx.NutanixCluster.Spec.MetroRefs {
+		// verify that the referent NutanixMetro CR exists
+		metroObj, err := getNutanixMetroObject(rctx.Context, r.Client, metroRef.Name, namespace)
+		if err != nil {
+			return err
+		}
+
+		// verify that the referent NutanixFailureDomain CRs exists
+		for _, fdRef := range metroObj.Spec.FailureDomains {
+			_, err := getNutanixFailureDomainObject(rctx.Context, r.Client, fdRef.Name, namespace)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Create the NutanixVirtualHADomain CR corresponding to this NutanixMetro CR if not found.
+		found := false
+		for _, vHADomain := range vHADomains {
+			if vHADomain.Spec.MetroRef.Name == metroObj.Name {
+				log.Info("Found the NutanixVirtualHADomain CR", "vHADomain.name", vHADomain.Name, "metroRef.name", metroRef.Name)
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			// Create the NutanixVirtualHADomain CR
+			vHADomain := &infrav1.NutanixVirtualHADomain{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: infrav1.GroupVersion.String(),
+					Kind:       infrav1.NutanixVirtualHADomainKind,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      metroRef.Name,
+					Namespace: namespace,
+					OwnerReferences: []metav1.OwnerReference{
+						*metav1.NewControllerRef(rctx.NutanixCluster, infrav1.GroupVersion.WithKind(infrav1.NutanixClusterKind)),
+					},
+					Labels: map[string]string{
+						capiv1beta2.ClusterNameLabel: rctx.Cluster.Name,
+					},
+				},
+				Spec: infrav1.NutanixVirtualHADomainSpec{
+					MetroRef: metroRef,
+				},
+			}
+
+			if err = r.Client.Create(rctx.Context, vHADomain); err != nil {
+				return fmt.Errorf("failed to create the NutanixVirtualHADomain CR corresponding to metroRef %q", metroRef.Name)
+			}
+			log.Info(fmt.Sprintf("Created the NutanixVirtualHADomain CR corresponding to metroRef %q", metroRef.Name))
+		}
+	}
+
+	return nil
+}
+
+func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterContext) error { //nolint:gocognit // suppress fumction complexity check
 	log := ctrl.LoggerFrom(rctx.Context)
 	log.Info("Reconciling failure domains for cluster")
 
@@ -379,26 +447,64 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 
 	validationErrs := []error{}
 	for _, fdRef := range rctx.NutanixCluster.Spec.ControlPlaneFailureDomains {
-		// Fetch the referent failure domain object
-		fdObj := &infrav1.NutanixFailureDomain{}
-		fdKey := client.ObjectKey{Name: fdRef.Name, Namespace: rctx.NutanixCluster.Namespace}
-		if err := r.Client.Get(rctx.Context, fdKey, fdObj); err != nil {
-			if kapierrors.IsNotFound(err) {
-				validationErrs = append(validationErrs, fmt.Errorf("not found the failure domain object with name %q", fdRef.Name))
+		switch {
+		case isNutanixMetroFailureDomain(fdRef.Name):
+			metroObj, err := getNutanixMetroObject(rctx.Context, r.Client, fdRef.Name[len(metroFailureDomainPrefix):], rctx.NutanixCluster.Namespace)
+			if err != nil {
+				validationErrs = append(validationErrs, err)
 				continue
 			}
-			validationErrs = append(validationErrs, fmt.Errorf("failed to fetch the failure domain object with name %q: %w", fdRef.Name, err))
-			continue
-		}
 
-		// Validate the failure domain configuration
-		if err := r.validateFailureDomainSpec(rctx, fdObj); err != nil {
-			validationErrs = append(validationErrs, fmt.Errorf("failed to validate the failure domain %q configuration: %w", fdRef.Name, err))
-			continue
+			for _, fd := range metroObj.Spec.FailureDomains {
+				fdObj, err := getNutanixFailureDomainObject(rctx.Context, r.Client, fd.Name, metroObj.Namespace)
+				if err != nil {
+					validationErrs = append(validationErrs, fmt.Errorf("failed to fetch the NutanixMetro %s referenced failureDomain object %s: %w", metroObj.Name, fd.Name, err))
+					continue
+				}
+
+				// Validate the failure domain configuration
+				if err := r.validateFailureDomainSpec(rctx, fdObj); err != nil {
+					validationErrs = append(validationErrs, fmt.Errorf("failed to validate the failure domain %s configuration: %w", fdObj.Name, err))
+				}
+			}
+		case isNutanixMetroSiteFailureDomain(fdRef.Name):
+			metrositeObj, err := getNutanixMetroSiteObject(rctx.Context, r.Client, fdRef.Name[len(metroSiteFailureDomainPrefix):], rctx.NutanixCluster.Namespace)
+			if err != nil {
+				validationErrs = append(validationErrs, err)
+				continue
+			}
+
+			fdObj, err := getNutanixFailureDomainObject(rctx.Context, r.Client, metrositeObj.Spec.PreferredFailureDomain.Name, metrositeObj.Namespace)
+			if err != nil {
+				validationErrs = append(validationErrs, fmt.Errorf("failed to fetch the NutanixMetroSite %s referenced failureDomain object %s: %w", metrositeObj.Name, metrositeObj.Spec.PreferredFailureDomain.Name, err))
+			}
+
+			// Validate the failure domain configuration
+			if err := r.validateFailureDomainSpec(rctx, fdObj); err != nil {
+				validationErrs = append(validationErrs, fmt.Errorf("failed to validate the failure domain %s configuration: %w", fdObj.Name, err))
+			}
+		default:
+			// Fetch the referent failure domain object
+			fdObj := &infrav1.NutanixFailureDomain{}
+			fdKey := client.ObjectKey{Name: fdRef.Name, Namespace: rctx.NutanixCluster.Namespace}
+			if err := r.Client.Get(rctx.Context, fdKey, fdObj); err != nil {
+				if kapierrors.IsNotFound(err) {
+					validationErrs = append(validationErrs, fmt.Errorf("not found the failure domain object with name %q", fdRef.Name))
+					continue
+				}
+				validationErrs = append(validationErrs, fmt.Errorf("failed to fetch the failure domain object with name %q: %w", fdRef.Name, err))
+				continue
+			}
+
+			// Validate the failure domain configuration
+			if err := r.validateFailureDomainSpec(rctx, fdObj); err != nil {
+				validationErrs = append(validationErrs, fmt.Errorf("failed to validate the failure domain %q configuration: %w", fdRef.Name, err))
+				continue
+			}
 		}
 
 		// The failure domain configuration passed validation. Add it to the result map.
-		failureDomains[fdObj.Name] = capiv1beta1.FailureDomainSpec{ControlPlane: true}
+		failureDomains[fdRef.Name] = capiv1beta1.FailureDomainSpec{ControlPlane: true}
 	}
 
 	// Remove below when the Deprecated field NutanixCluster.Spec.FailureDomains is removed
