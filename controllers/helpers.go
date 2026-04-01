@@ -73,6 +73,18 @@ type StorageContainerIntentResponse struct {
 	ClusterUUID *string
 }
 
+func isRetryableAPIError(err error) bool {
+	switch {
+	case converged.IsNotFound(err):
+		return false
+	case converged.IsRateLimit(err), converged.IsInternal(err):
+		return true
+	default:
+		// Keep unknown API errors retryable to avoid terminalizing transient outages.
+		return true
+	}
+}
+
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
 func DeleteVM(ctx context.Context, client *v4Converged.Client, vmName, vmUUID string) (string, error) {
 	log := ctrl.LoggerFrom(ctx)

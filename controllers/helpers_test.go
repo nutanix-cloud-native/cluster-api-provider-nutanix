@@ -57,6 +57,41 @@ import (
 	"sigs.k8s.io/cluster-api/util"
 )
 
+func Test_isRetryableAPIError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "not found is not retryable",
+			err:      &converged.APIError{Kind: converged.ErrNotFound, Message: "not found"},
+			expected: false,
+		},
+		{
+			name:     "rate limit is retryable",
+			err:      &converged.APIError{Kind: converged.ErrRateLimit, Message: "rate limited"},
+			expected: true,
+		},
+		{
+			name:     "internal is retryable",
+			err:      &converged.APIError{Kind: converged.ErrInternal, Message: "internal error"},
+			expected: true,
+		},
+		{
+			name:     "unknown errors default to retryable",
+			err:      errors.New("timeout awaiting headers"),
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, isRetryableAPIError(tt.err))
+		})
+	}
+}
+
 func TestControllerHelpers(t *testing.T) {
 	g := NewWithT(t)
 

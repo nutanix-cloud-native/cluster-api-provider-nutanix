@@ -865,6 +865,7 @@ func validateDataDiskDeviceProperties(disk infrav1.NutanixMachineVMDisk, errors 
 }
 
 // GetOrCreateVM creates a VM and is invoked by the NutanixMachineReconciler
+//nolint:gocognit // Keep orchestration in one place; covers VM discovery, spec build, create, and post-create steps.
 func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vmmconfig.Vm, error) {
 	var err error
 	ctx := rctx.Context
@@ -932,6 +933,9 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	categoryReferences, err := GetPrismReferencesOfCategoryIdentifiers(ctx, rctx.ConvergedClient, r.getMachineCategoryIdentifiers(rctx))
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %w", vmName, err)
+		if !isRetryableAPIError(err) {
+			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		}
 		return nil, errorMsg
 	}
 	vm.Categories = categoryReferences
@@ -940,6 +944,9 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	err = r.addVMToProject(rctx, vm)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while trying to add VM %s to project: %w", vmName, err)
+		if !isRetryableAPIError(err) {
+			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		}
 		return nil, errorMsg
 	}
 
@@ -947,6 +954,9 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	gpus, err := GetGPUList(ctx, convergedClient, rctx.NutanixMachine.Spec.GPUs, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the GPU list to create the VM %s: %w", vmName, err)
+		if !isRetryableAPIError(err) {
+			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		}
 		return nil, errorMsg
 	}
 	vm.Gpus = gpus
@@ -954,6 +964,9 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	disks, cdRoms, err := getDiskList(rctx, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the disk list to create the VM %s: %w", vmName, err)
+		if !isRetryableAPIError(err) {
+			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		}
 		return nil, errorMsg
 	}
 	vm.Disks = disks
@@ -978,6 +991,9 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	vm, err = convergedClient.VMs.Create(ctx, vm)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to create VM %s: %w", vmName, err)
+		if !isRetryableAPIError(err) {
+			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		}
 		return nil, errorMsg
 	}
 
@@ -1011,11 +1027,17 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	powerOnTask, err := convergedClient.VMs.PowerOnVM(vmUuid)
 	if err != nil {
 		errMsg := fmt.Errorf("error occured while powering on VM %s: %w", vmName, err)
+		if !isRetryableAPIError(err) {
+			rctx.SetFailureStatus(powerOnErrorFailureReason, errMsg)
+		}
 		return nil, errMsg
 	}
 	_, err = powerOnTask.Wait(ctx)
 	if err != nil {
 		errMsg := fmt.Errorf("error occured while waiting for VM %s to power on: %w", vmName, err)
+		if !isRetryableAPIError(err) {
+			rctx.SetFailureStatus(powerOnErrorFailureReason, errMsg)
+		}
 		return nil, errMsg
 	}
 
@@ -1023,6 +1045,9 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	vm, err = FindVMByUUID(ctx, convergedClient, vmUuid)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while getting VM %s after creation: %w", vmName, err)
+		if !isRetryableAPIError(err) {
+			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		}
 		return nil, errorMsg
 	}
 
@@ -1131,6 +1156,9 @@ func getSystemDisk(rctx *nctx.MachineContext) (*vmmconfig.Disk, error) {
 	}
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get system disk image %q: %w", rctx.NutanixMachine.Spec.Image, err)
+		if !isRetryableAPIError(err) {
+			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		}
 		return nil, errorMsg
 	}
 
@@ -1166,6 +1194,9 @@ func getBootstrapDisk(rctx *nctx.MachineContext) (*vmmconfig.CdRom, error) {
 	bootstrapImage, err := GetImage(rctx.Context, rctx.ConvergedClient, bootstrapImageRef)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get bootstrap disk image %q: %w", bootstrapImageRef, err)
+		if !isRetryableAPIError(err) {
+			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		}
 		return nil, errorMsg
 	}
 
@@ -1195,6 +1226,9 @@ func getDataDisks(rctx *nctx.MachineContext, peUUID string) ([]vmmconfig.Disk, [
 	dataDisks, dataCdRoms, err := CreateDataDiskList(rctx.Context, rctx.ConvergedClient, rctx.NutanixMachine.Spec.DataDisks, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating data disk spec: %w", err)
+		if !isRetryableAPIError(err) {
+			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		}
 		return nil, nil, errorMsg
 	}
 
