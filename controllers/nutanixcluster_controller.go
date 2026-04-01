@@ -670,7 +670,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, n
 	}
 
 	if err := r.Client.Get(ctx, secretKey, secret); err != nil {
-		errorMsg := fmt.Errorf("error occurred while fetching cluster %s secret for credential ref: %v", nutanixCluster.Name, err)
+		errorMsg := fmt.Errorf("error occurred while fetching cluster %s secret for credential ref: %w", nutanixCluster.Name, err)
 		log.Error(errorMsg, "error occurred fetching cluster")
 		return errorMsg
 	}
@@ -699,7 +699,7 @@ func (r *NutanixClusterReconciler) reconcileCredentialRef(ctx context.Context, n
 
 	err = r.Client.Update(ctx, secret)
 	if err != nil {
-		errorMsg := fmt.Errorf("failed to update secret for cluster %s: %v", nutanixCluster.Name, err)
+		errorMsg := fmt.Errorf("failed to update secret for cluster %s: %w", nutanixCluster.Name, err)
 		log.Error(errorMsg, "failed to update secret")
 		return errorMsg
 	}

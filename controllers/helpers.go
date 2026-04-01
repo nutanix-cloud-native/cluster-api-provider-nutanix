@@ -127,14 +127,14 @@ func GetVMUUID(machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMach
 	if machine != nil && machine.Status.NodeInfo != nil && machine.Status.NodeInfo.SystemUUID != "" {
 		systemUUID := machine.Status.NodeInfo.SystemUUID
 		if _, err := uuid.Parse(systemUUID); err != nil {
-			return "", fmt.Errorf("Machine.Status.NodeInfo.SystemUUID was set but was not a valid UUID: %s err: %v", systemUUID, err)
+			return "", fmt.Errorf("Machine.Status.NodeInfo.SystemUUID was set but was not a valid UUID: %s err: %w", systemUUID, err)
 		}
 		return systemUUID, nil
 	}
 	vmUUID := nutanixMachine.Status.VmUUID
 	if vmUUID != "" {
 		if _, err := uuid.Parse(vmUUID); err != nil {
-			return "", fmt.Errorf("VMUUID was set but was not a valid UUID: %s err: %v", vmUUID, err)
+			return "", fmt.Errorf("VMUUID was set but was not a valid UUID: %s err: %w", vmUUID, err)
 		}
 		return vmUUID, nil
 	}
@@ -214,7 +214,7 @@ func GetPEUUID(ctx context.Context, client *v4Converged.Client, peName, peUUID *
 			if converged.IsNotFound(err) {
 				return "", fmt.Errorf("failed to find Prism Element cluster with UUID %s: %w", *peUUID, err)
 			}
-			return "", fmt.Errorf("failed to get Prism Element cluster with UUID %s: %v", *peUUID, err)
+			return "", fmt.Errorf("failed to get Prism Element cluster with UUID %s: %w", *peUUID, err)
 		}
 		return *peIntentResponse.ExtId, nil
 	} else if peName != nil && *peName != "" {
@@ -470,7 +470,7 @@ func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID strin
 			if converged.IsNotFound(err) {
 				return "", fmt.Errorf("failed to find subnet with UUID %s: %w", *subnetUUID, err)
 			}
-			return "", fmt.Errorf("failed to get subnet with UUID %s: %v", *subnetUUID, err)
+			return "", fmt.Errorf("failed to get subnet with UUID %s: %w", *subnetUUID, err)
 		}
 		foundSubnetUUID = *subnetIntentResponse.ExtId
 	} else { // else search by name
@@ -522,7 +522,7 @@ func GetImage(ctx context.Context, client *v4Converged.Client, id infrav1.Nutani
 			if converged.IsNotFound(err) {
 				return nil, fmt.Errorf("failed to find image with UUID %s: %w", *id.UUID, err)
 			}
-			return nil, fmt.Errorf("failed to get image with UUID %s: %v", *id.UUID, err)
+			return nil, fmt.Errorf("failed to get image with UUID %s: %w", *id.UUID, err)
 		}
 		return resp, nil
 	case id.IsName():
@@ -567,7 +567,7 @@ func GetImageByLookup(
 	params := ImageLookup{*imageLookupBaseOS, *k8sVersion}
 	t, err := template.New("k8sTemplate").Parse(*imageTemplate)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse template given %s %v", *imageTemplate, err)
+		return nil, fmt.Errorf("failed to parse template given %s: %w", *imageTemplate, err)
 	}
 	var templateBytes bytes.Buffer
 	err = t.Execute(&templateBytes, params)
@@ -719,7 +719,7 @@ func GetOrCreateCategories(ctx context.Context, client *v4Converged.Client, cate
 func getCategory(ctx context.Context, client *v4Converged.Client, key, value string) (*prismModels.Category, error) {
 	categories, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s' and value eq '%s'", key, value)))
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
+		return nil, fmt.Errorf("failed to retrieve category value %s in category %s. error: %w", value, key, err)
 	}
 	if len(categories) == 0 {
 		return nil, nil
@@ -745,7 +745,7 @@ func deleteCategoryKeyValues(ctx context.Context, client *v4Converged.Client, ca
 		for _, value := range values {
 			prismCategory, err := getCategory(ctx, client, key, value)
 			if err != nil {
-				errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %v", value, key, err)
+				errorMsg := fmt.Errorf("failed to retrieve category value %s in category %s. error: %w", value, key, err)
 				log.Error(errorMsg, "failed to retrieve category value")
 				return errorMsg
 			}
@@ -756,7 +756,7 @@ func deleteCategoryKeyValues(ctx context.Context, client *v4Converged.Client, ca
 
 			err = client.Categories.Delete(ctx, *prismCategory.ExtId)
 			if err != nil {
-				errorMsg := fmt.Errorf("failed to delete category value with key:value %s:%s. error: %v", key, value, err)
+				errorMsg := fmt.Errorf("failed to delete category value with key:value %s:%s. error: %w", key, value, err)
 				log.Error(errorMsg, "failed to delete category value")
 				// NCN-101935: If the category value still has VMs assigned, do not delete the category key:value
 				// TODO:deepakmntnx Add a check for specific error mentioned in NCN-101935
@@ -797,7 +797,7 @@ func getOrCreateCategory(ctx context.Context, client *v4Converged.Client, catego
 	log.V(1).Info(fmt.Sprintf("Checking existence of category with key %s and value %s", categoryIdentifier.Key, categoryIdentifier.Value))
 	prismCategory, err := getCategory(ctx, client, categoryIdentifier.Key, categoryIdentifier.Value)
 	if err != nil {
-		errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %v", categoryIdentifier.Key, err)
+		errorMsg := fmt.Errorf("failed to retrieve category with key %s. error: %w", categoryIdentifier.Key, err)
 		log.Error(errorMsg, "failed to retrieve category")
 		return nil, errorMsg
 	}
@@ -809,7 +809,7 @@ func getOrCreateCategory(ctx context.Context, client *v4Converged.Client, catego
 			Value:       ptr.To(categoryIdentifier.Value),
 		})
 		if err != nil {
-			errorMsg := fmt.Errorf("failed to create category with key %s and value %s. error: %v", categoryIdentifier.Key, categoryIdentifier.Value, err)
+			errorMsg := fmt.Errorf("failed to create category with key %s and value %s. error: %w", categoryIdentifier.Key, categoryIdentifier.Value, err)
 			log.Error(errorMsg, "failed to create category")
 			return nil, errorMsg
 		}
@@ -831,7 +831,7 @@ func GetPrismReferencesOfCategoryIdentifiers(
 		}
 		prismCategory, err := getCategory(ctx, client, ci.Key, ci.Value)
 		if err != nil {
-			errorMsg := fmt.Errorf("error occurred while to retrieving category value %s in category %s. error: %v", ci.Value, ci.Key, err)
+			errorMsg := fmt.Errorf("error occurred while to retrieving category value %s in category %s. error: %w", ci.Value, ci.Key, err)
 			log.Error(errorMsg, "failed to retrieve category")
 			return nil, errorMsg
 		}
@@ -866,9 +866,9 @@ func GetProjectUUID(ctx context.Context, client *prismclientv3.Client, projectNa
 		projectIntentResponse, err := client.V3.GetProject(ctx, *projectUUID)
 		if err != nil {
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-				return "", fmt.Errorf("failed to find project with UUID %s: %v", *projectUUID, err)
+				return "", fmt.Errorf("failed to find project with UUID %s: %w", *projectUUID, err)
 			}
-			return "", fmt.Errorf("failed to get project with UUID %s: %v", *projectUUID, err)
+			return "", fmt.Errorf("failed to get project with UUID %s: %w", *projectUUID, err)
 		}
 		foundProjectUUID = *projectIntentResponse.Metadata.UUID
 	} else { // else search by name
