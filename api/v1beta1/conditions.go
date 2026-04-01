@@ -50,6 +50,47 @@ const (
 	FailureDomainsValidationInProgressReason = "FailureDomainsValidationInProgress"
 )
 
+// Conditions and Reasons releated to NutanixMetro and NuanixMetroSite
+const (
+	// MetroSafeForDeletionCondition indicates whether the NutanixMetro object is safe for deletion,
+	// ie., when it is not used or referenced by other resources
+	MetroSafeForDeletionCondition = "metroSafeForDeletion"
+
+	// MetroInUseReason indicates that the NutanixMetro is used by other objects.
+	MetroInUseReason = "metroInUse"
+
+	// MetroNotInUseReason indicates that the NutanixMetro is used by other objects.
+	MetroNotInUseReason = "metroNotInUse"
+
+	// MetroValidatedCondition indicates whether the NutanixMetro spec is configured correctly or not.
+	MetroValidatedCondition = "metroValidated"
+
+	// MetroMisconfiguredReason indicates that the NutanixMetro spec is misconfigured.
+	MetroMisconfiguredReason = "metroMisconfigured"
+
+	// MetroSpecValidReason indicates that the NutanixMetro spec is valid.
+	MetroSpecValidReason = "metroSpecValid"
+
+	// MetroSiteSafeForDeletionCondition indicates whether the NutanixMetroSite object is safe for deletion,
+	// ie., when it is not used or referenced by other resources
+	MetroSiteSafeForDeletionCondition = "metroSiteSafeForDeletion"
+
+	// MetroSiteInUseReason indicates that the NutanixMetroSite is used by other objects.
+	MetroSiteInUseReason = "metroSiteInUse"
+
+	// MetroSiteNotInUseReason indicates that the NutanixMetroSite is not used by other objects.
+	MetroSiteNotInUseReason = "metroSiteNotInUse"
+
+	// MetroSiteValidatedCondition indicates whether the NutanixMetro spec is configured correctly or not.
+	MetroSiteValidatedCondition = "metroSiteValidated"
+
+	// MetroSiteMisconfiguredReason indicates that the NutanixMetro spec is misconfigured.
+	MetroSiteMisconfiguredReason = "metroSiteMisconfigured"
+
+	// MetroSiteSpecValidReason indicates that the NutanixMetroSite spec is valid.
+	MetroSiteSpecValidReason = "metroSiteSpecValid"
+)
+
 const (
 	// ClusterCategoryCreatedCondition indicates the status of the category linked to the NutanixCluster
 	ClusterCategoryCreatedCondition capiv1beta1.ConditionType = "ClusterCategoryCreated"
