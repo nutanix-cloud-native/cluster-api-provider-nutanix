@@ -359,7 +359,7 @@ func setupNutanixMetroController(ctx context.Context, mgr manager.Manager, secre
 func setupNutanixMetroSiteController(ctx context.Context, mgr manager.Manager, secretInformer coreinformers.SecretInformer,
 	configMapInformer coreinformers.ConfigMapInformer, opts ...controllers.ControllerConfigOpts,
 ) error {
-	machineCtrl, err := controllers.NewNutanixMetroReconciler(
+	machineCtrl, err := controllers.NewNutanixMetroSiteReconciler(
 		mgr.GetClient(),
 		secretInformer,
 		configMapInformer,
@@ -372,6 +372,27 @@ func setupNutanixMetroSiteController(ctx context.Context, mgr manager.Manager, s
 
 	if err := machineCtrl.SetupWithManager(ctx, mgr); err != nil {
 		return fmt.Errorf("unable to setup NutanixMetroSite controller with manager: %w", err)
+	}
+
+	return nil
+}
+
+func setupNutanixVirtualHADomainController(ctx context.Context, mgr manager.Manager, secretInformer coreinformers.SecretInformer,
+	configMapInformer coreinformers.ConfigMapInformer, opts ...controllers.ControllerConfigOpts,
+) error {
+	machineCtrl, err := controllers.NewNutanixVirtualHADomainReconciler(
+		mgr.GetClient(),
+		secretInformer,
+		configMapInformer,
+		mgr.GetScheme(),
+		opts...,
+	)
+	if err != nil {
+		return fmt.Errorf("unable to create NutanixVirtualHADomain controller: %w", err)
+	}
+
+	if err := machineCtrl.SetupWithManager(ctx, mgr); err != nil {
+		return fmt.Errorf("unable to setup NutanixVirtualHADomain controller with manager: %w", err)
 	}
 
 	return nil
@@ -427,6 +448,10 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 	}
 
 	if err := setupNutanixMetroSiteController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
+		return fmt.Errorf("unable to setup controllers: %w", err)
+	}
+
+	if err := setupNutanixVirtualHADomainController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
 		return fmt.Errorf("unable to setup controllers: %w", err)
 	}
 
