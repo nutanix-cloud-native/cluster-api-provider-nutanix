@@ -137,10 +137,12 @@ func (nri NutanixResourceIdentifier) EqualTo(other *NutanixResourceIdentifier) b
 
 type NutanixCategoryIdentifier struct {
 	// key is the Key of category in PC.
+	// +kubebuilder:default=""
 	// +optional
 	Key string `json:"key,omitempty"`
 
 	// value is the category value linked to the category key in PC
+	// +kubebuilder:default=""
 	// +optional
 	Value string `json:"value,omitempty"`
 }
