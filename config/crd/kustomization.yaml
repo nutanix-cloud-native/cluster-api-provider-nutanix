@@ -9,6 +9,7 @@ resources:
 - bases/infrastructure.cluster.x-k8s.io_nutanixfailuredomains.yaml
 - bases/infrastructure.cluster.x-k8s.io_nutanixmetros.yaml
 - bases/infrastructure.cluster.x-k8s.io_nutanixmetrosites.yaml
+- bases/infrastructure.cluster.x-k8s.io_nutanixvirtualhadomains.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.
