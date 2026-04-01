@@ -29,6 +29,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	"github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
@@ -47,9 +49,7 @@ import (
 	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"         //nolint:staticcheck // suppress complaining on Deprecated package
 	v1beta2conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions/v1beta2" //nolint:staticcheck // suppress complaining on Deprecated package
 	ctrl "sigs.k8s.io/controller-runtime"
-
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -64,6 +64,9 @@ const (
 
 	createErrorFailureReason  = "CreateError"
 	powerOnErrorFailureReason = "PowerOnError"
+
+	metroFailureDomainPrefix     = "NutanixMetro/"
+	metroSiteFailureDomainPrefix = "NutanixMetroSite/"
 )
 
 type StorageContainerIntentResponse struct {
@@ -1207,4 +1210,30 @@ func resourceIdsEquals(nris1, nris2 []infrav1.NutanixResourceIdentifier) bool {
 	}
 
 	return true
+}
+
+func isNutanixMetroFailureDomain(fdName string) bool {
+	return strings.HasPrefix(fdName, metroFailureDomainPrefix)
+}
+
+func isNutanixMetroSiteFailureDomain(fdName string) bool {
+	return strings.HasPrefix(fdName, metroSiteFailureDomainPrefix)
+}
+
+func getNutanixFailureDomainObject(ctx context.Context, ctlclient client.Client, objectName, namespace string) (*infrav1.NutanixFailureDomain, error) {
+	fdObj := &infrav1.NutanixFailureDomain{}
+	objKey := client.ObjectKey{Name: objectName, Namespace: namespace}
+	if err := ctlclient.Get(ctx, objKey, fdObj); err != nil {
+		return nil, fmt.Errorf("failed to fetch NutanixFailureDomain object by name %q: %w", objectName, err)
+	}
+	return fdObj, nil
+}
+
+func getNutanixMetroObject(ctx context.Context, ctlclient client.Client, objectName, namespace string) (*infrav1.NutanixMetro, error) {
+	metroObj := &infrav1.NutanixMetro{}
+	objKey := client.ObjectKey{Name: objectName, Namespace: namespace}
+	if err := ctlclient.Get(ctx, objKey, metroObj); err != nil {
+		return nil, fmt.Errorf("failed to fetch NutanixMetro object by name %q: %w", objectName, err)
+	}
+	return metroObj, nil
 }
