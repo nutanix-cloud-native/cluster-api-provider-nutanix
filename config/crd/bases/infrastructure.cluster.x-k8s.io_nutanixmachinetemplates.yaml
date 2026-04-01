@@ -82,9 +82,11 @@ spec:
                         items:
                           properties:
                             key:
+                              default: ""
                               description: key is the Key of category in PC.
                               type: string
                             value:
+                              default: ""
                               description: value is the category value linked to the
                                 category key in PC
                               type: string
