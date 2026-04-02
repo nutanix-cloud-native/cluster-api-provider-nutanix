@@ -3008,6 +3008,216 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		// The providerID should be set using the actual VM UUID
 		assert.Equal(t, fmt.Sprintf("nutanix://%s", vmUUID), ntnxMachine.Spec.ProviderID)
 	})
+
+	t.Run("should set failure status when category lookup returns not found", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		vmName := "test-vm"
+		peUUID := "00056024-f4f2-a6f6-0000-00000000e7f4"
+		subnetUUID := "b8c6d9f0-4c5e-4c5e-8c5e-4c5e4c5e4c5e"
+		imageUUID := "c5e4c5e4-c5e4-c5e4-c5e4-c5e4c5e4c5e4"
+		clusterName := "test-cluster"
+		projectName := "test-project"
+
+		ntnxMachine := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+			},
+			Spec: infrav1.NutanixMachineSpec{
+				VCPUSockets:    2,
+				VCPUsPerSocket: 1,
+				MemorySize:     resource.MustParse("4Gi"),
+				SystemDiskSize: resource.MustParse("40Gi"),
+				BootType:       infrav1.NutanixBootTypeLegacy,
+				Project: &infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierName,
+					Name: &projectName,
+				},
+				Image: &infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierUUID,
+					UUID: &imageUUID,
+				},
+				Cluster: infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierUUID,
+					UUID: &peUUID,
+				},
+				Subnets: []infrav1.NutanixResourceIdentifier{
+					{
+						Type: infrav1.NutanixIdentifierUUID,
+						UUID: &subnetUUID,
+					},
+				},
+				BootstrapRef: &corev1.ObjectReference{
+					Kind:      infrav1.NutanixMachineBootstrapRefKindSecret,
+					Name:      "bootstrap-secret",
+					Namespace: "default",
+				},
+			},
+		}
+
+		machine := &capiv1beta2.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: vmName,
+			},
+			Spec: capiv1beta2.MachineSpec{
+				Version: "v1.28.0",
+			},
+		}
+
+		cluster := &capiv1beta2.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      clusterName,
+				Namespace: "default",
+			},
+		}
+
+		ntnxCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      clusterName,
+				Namespace: "default",
+			},
+		}
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+
+		// VM not found, proceed to create flow.
+		mockConvergedClient.MockVMs.EXPECT().List(ctx, gomock.Any()).Return([]vmmModels.Vm{}, nil)
+		mockConvergedClient.MockClusters.EXPECT().Get(ctx, peUUID).Return(&clustermgmtconfig.Cluster{
+			ExtId: &peUUID,
+		}, nil)
+		mockConvergedClient.MockSubnets.EXPECT().Get(ctx, subnetUUID).Return(&subnetModels.Subnet{
+			ExtId: &subnetUUID,
+		}, nil)
+		mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil,
+			&converged.APIError{Kind: converged.ErrNotFound, Message: "category not found"},
+		).AnyTimes()
+
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Cluster:         cluster,
+			Machine:         machine,
+			NutanixMachine:  ntnxMachine,
+			NutanixCluster:  ntnxCluster,
+			ConvergedClient: mockConvergedClient.Client,
+		}
+
+		reconciler := &NutanixMachineReconciler{}
+		vm, err := reconciler.getOrCreateVM(rctx)
+
+		require.Error(t, err)
+		assert.Nil(t, vm)
+		require.NotNil(t, ntnxMachine.Status.FailureReason)
+		assert.Equal(t, createErrorFailureReason, *ntnxMachine.Status.FailureReason)
+		require.NotNil(t, ntnxMachine.Status.FailureMessage)
+		assert.Contains(t, *ntnxMachine.Status.FailureMessage, "category spec")
+	})
+
+	t.Run("should not set failure status when category lookup returns internal error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		vmName := "test-vm"
+		peUUID := "00056024-f4f2-a6f6-0000-00000000e7f4"
+		subnetUUID := "b8c6d9f0-4c5e-4c5e-8c5e-4c5e4c5e4c5e"
+		imageUUID := "c5e4c5e4-c5e4-c5e4-c5e4-c5e4c5e4c5e4"
+		clusterName := "test-cluster"
+		projectName := "test-project"
+
+		ntnxMachine := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+			},
+			Spec: infrav1.NutanixMachineSpec{
+				VCPUSockets:    2,
+				VCPUsPerSocket: 1,
+				MemorySize:     resource.MustParse("4Gi"),
+				SystemDiskSize: resource.MustParse("40Gi"),
+				BootType:       infrav1.NutanixBootTypeLegacy,
+				Project: &infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierName,
+					Name: &projectName,
+				},
+				Image: &infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierUUID,
+					UUID: &imageUUID,
+				},
+				Cluster: infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierUUID,
+					UUID: &peUUID,
+				},
+				Subnets: []infrav1.NutanixResourceIdentifier{
+					{
+						Type: infrav1.NutanixIdentifierUUID,
+						UUID: &subnetUUID,
+					},
+				},
+				BootstrapRef: &corev1.ObjectReference{
+					Kind:      infrav1.NutanixMachineBootstrapRefKindSecret,
+					Name:      "bootstrap-secret",
+					Namespace: "default",
+				},
+			},
+		}
+
+		machine := &capiv1beta2.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: vmName,
+			},
+			Spec: capiv1beta2.MachineSpec{
+				Version: "v1.28.0",
+			},
+		}
+
+		cluster := &capiv1beta2.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      clusterName,
+				Namespace: "default",
+			},
+		}
+
+		ntnxCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      clusterName,
+				Namespace: "default",
+			},
+		}
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+
+		// VM not found, proceed to create flow.
+		mockConvergedClient.MockVMs.EXPECT().List(ctx, gomock.Any()).Return([]vmmModels.Vm{}, nil)
+		mockConvergedClient.MockClusters.EXPECT().Get(ctx, peUUID).Return(&clustermgmtconfig.Cluster{
+			ExtId: &peUUID,
+		}, nil)
+		mockConvergedClient.MockSubnets.EXPECT().Get(ctx, subnetUUID).Return(&subnetModels.Subnet{
+			ExtId: &subnetUUID,
+		}, nil)
+		mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil,
+			&converged.APIError{Kind: converged.ErrInternal, Message: "pc internal error"},
+		).AnyTimes()
+
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Cluster:         cluster,
+			Machine:         machine,
+			NutanixMachine:  ntnxMachine,
+			NutanixCluster:  ntnxCluster,
+			ConvergedClient: mockConvergedClient.Client,
+		}
+
+		reconciler := &NutanixMachineReconciler{}
+		vm, err := reconciler.getOrCreateVM(rctx)
+
+		require.Error(t, err)
+		assert.Nil(t, vm)
+		assert.Nil(t, ntnxMachine.Status.FailureReason)
+		assert.Nil(t, ntnxMachine.Status.FailureMessage)
+	})
 }
 
 func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
