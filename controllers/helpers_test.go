@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -87,6 +88,16 @@ func Test_isRetryableAPIError(t *testing.T) {
 		{
 			name:     "terminal error is not retryable",
 			err:      &terminalError{message: "resource not found"},
+			expected: false,
+		},
+		{
+			name:     "unclassified APIError (Kind nil) is not retryable",
+			err:      &converged.APIError{Kind: nil, Cause: errors.New("400 Bad Request")},
+			expected: false,
+		},
+		{
+			name:     "wrapped unclassified APIError is not retryable",
+			err:      fmt.Errorf("failed to create VM: %w", &converged.APIError{Kind: nil, Cause: errors.New("validation error")}),
 			expected: false,
 		},
 	}

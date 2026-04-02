@@ -95,6 +95,14 @@ func isRetryableAPIError(err error) bool {
 	case converged.IsRateLimit(err), converged.IsInternal(err):
 		return true
 	default:
+		// Converged API errors with Kind == nil are parsed HTTP responses that
+		// are not expected to succeed on retry (for example, 4xx validation errors).
+		// Non-API errors (for example, transport/network timeouts) remain
+		// retryable.
+		var apiErr *converged.APIError
+		if errors.As(err, &apiErr) {
+			return false
+		}
 		return true
 	}
 }
