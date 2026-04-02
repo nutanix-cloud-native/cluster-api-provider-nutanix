@@ -39,10 +39,13 @@ import (
 	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"         //nolint:staticcheck // suppress complaining on Deprecated package
+	v1beta2conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions/v1beta2" //nolint:staticcheck // suppress complaining on Deprecated package
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
@@ -102,13 +105,12 @@ func FindVMByUUID(ctx context.Context, client *v4Converged.Client, uuid string) 
 
 	response, err := client.VMs.Get(ctx, uuid)
 	if err != nil {
-		if strings.Contains(fmt.Sprint(err), "VM_NOT_FOUND") {
+		if converged.IsNotFound(err) {
 			log.V(1).Info(fmt.Sprintf("vm with uuid %s does not exist.", uuid))
 			return nil, nil
-		} else {
-			log.Error(err, fmt.Sprintf("Failed to find VM by vmUUID %s", uuid))
-			return nil, err
 		}
+		log.Error(err, fmt.Sprintf("Failed to find VM by vmUUID %s", uuid))
+		return nil, err
 	}
 
 	return response, nil
@@ -120,7 +122,7 @@ func GenerateProviderID(uuid string) string {
 }
 
 // GetVMUUID returns the UUID of the VM.
-func GetVMUUID(machine *capiv1.Machine, nutanixMachine *infrav1.NutanixMachine) (string, error) {
+func GetVMUUID(machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMachine) (string, error) {
 	// First, try to get the systemUUID from Machine.Status.NodeInfo
 	if machine != nil && machine.Status.NodeInfo != nil && machine.Status.NodeInfo.SystemUUID != "" {
 		systemUUID := machine.Status.NodeInfo.SystemUUID
@@ -140,7 +142,7 @@ func GetVMUUID(machine *capiv1.Machine, nutanixMachine *infrav1.NutanixMachine) 
 }
 
 // FindVM retrieves the VM with the given uuid or name
-func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1.Machine, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
+func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
 	vmUUID, err := GetVMUUID(machine, nutanixMachine)
 	if err != nil {
@@ -209,8 +211,8 @@ func GetPEUUID(ctx context.Context, client *v4Converged.Client, peName, peUUID *
 	if peUUID != nil && *peUUID != "" {
 		peIntentResponse, err := client.Clusters.Get(ctx, *peUUID)
 		if err != nil {
-			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-				return "", fmt.Errorf("failed to find Prism Element cluster with UUID %s: %v", *peUUID, err)
+			if converged.IsNotFound(err) {
+				return "", fmt.Errorf("failed to find Prism Element cluster with UUID %s: %w", *peUUID, err)
 			}
 			return "", fmt.Errorf("failed to get Prism Element cluster with UUID %s: %v", *peUUID, err)
 		}
@@ -465,8 +467,8 @@ func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID strin
 	if subnetUUID != nil {
 		subnetIntentResponse, err := client.Subnets.Get(ctx, *subnetUUID)
 		if err != nil {
-			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-				return "", fmt.Errorf("failed to find subnet with UUID %s: %v", *subnetUUID, err)
+			if converged.IsNotFound(err) {
+				return "", fmt.Errorf("failed to find subnet with UUID %s: %w", *subnetUUID, err)
 			}
 			return "", fmt.Errorf("failed to get subnet with UUID %s: %v", *subnetUUID, err)
 		}
@@ -517,9 +519,8 @@ func GetImage(ctx context.Context, client *v4Converged.Client, id infrav1.Nutani
 	case id.IsUUID():
 		resp, err := client.Images.Get(ctx, *id.UUID)
 		if err != nil {
-			// TODO: Improve when error handling is improved
-			if strings.Contains(fmt.Sprint(err), "VMM-20005") {
-				return nil, fmt.Errorf("failed to find image with UUID %s: %v", *id.UUID, err)
+			if converged.IsNotFound(err) {
+				return nil, fmt.Errorf("failed to find image with UUID %s: %w", *id.UUID, err)
 			}
 			return nil, fmt.Errorf("failed to get image with UUID %s: %v", *id.UUID, err)
 		}
@@ -1065,7 +1066,13 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
-		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
+		v1beta2conditions.Set(cluster, metav1.Condition{
+			Type:    string(infrav1.PrismCentralClientCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.PrismCentralClientInitializationFailed,
+			Message: err.Error(),
+		})
 		return nil, err
 	}
 
@@ -1076,11 +1083,22 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 	})
 	if err != nil {
 		log.Error(err, "error occurred while getting nutanix prism v3 Client from cache")
-		conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
+		v1beta2conditions.Set(cluster, metav1.Condition{
+			Type:    string(infrav1.PrismCentralClientCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.PrismCentralClientInitializationFailed,
+			Message: err.Error(),
+		})
 		return nil, fmt.Errorf("nutanix prism v3 Client error: %w", err)
 	}
 
-	conditions.MarkTrue(cluster, infrav1.PrismCentralClientCondition)
+	v1beta1conditions.MarkTrue(cluster, infrav1.PrismCentralClientCondition)
+	v1beta2conditions.Set(cluster, metav1.Condition{
+		Type:   string(infrav1.PrismCentralClientCondition),
+		Status: metav1.ConditionTrue,
+		Reason: infrav1.Succeeded,
+	})
 	return v3Client, nil
 }
 
@@ -1091,7 +1109,13 @@ func getPrismCentralConvergedV4ClientForCluster(ctx context.Context, cluster *in
 	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
-		conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
+		v1beta2conditions.Set(cluster, metav1.Condition{
+			Type:    string(infrav1.PrismCentralConvergedV4ClientCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.PrismCentralConvergedV4ClientInitializationFailed,
+			Message: err.Error(),
+		})
 		return nil, err
 	}
 
@@ -1101,11 +1125,22 @@ func getPrismCentralConvergedV4ClientForCluster(ctx context.Context, cluster *in
 	})
 	if err != nil {
 		log.Error(err, "error occurred while getting nutanix prism converged v4 client from cache")
-		conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1.ConditionSeverityError, "%s", err.Error())
+		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
+		v1beta2conditions.Set(cluster, metav1.Condition{
+			Type:    string(infrav1.PrismCentralConvergedV4ClientCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.PrismCentralConvergedV4ClientInitializationFailed,
+			Message: err.Error(),
+		})
 		return nil, fmt.Errorf("nutanix prism converged v4 client error: %w", err)
 	}
 
-	conditions.MarkTrue(cluster, infrav1.PrismCentralConvergedV4ClientCondition)
+	v1beta1conditions.MarkTrue(cluster, infrav1.PrismCentralConvergedV4ClientCondition)
+	v1beta2conditions.Set(cluster, metav1.Condition{
+		Type:   string(infrav1.PrismCentralConvergedV4ClientCondition),
+		Status: metav1.ConditionTrue,
+		Reason: infrav1.Succeeded,
+	})
 	return client, nil
 }
 

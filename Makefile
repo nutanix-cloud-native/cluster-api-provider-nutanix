@@ -5,7 +5,8 @@ GOGET=$(GOCMD) get
 GOTOOL=$(GOCMD) tool
 EXPORT_RESULT?=false # for CI please set EXPORT_RESULT to true
 
-GIT_COMMIT_HASH=$(shell git rev-parse HEAD)
+# Fallback keeps docker-build / template-test image tags aligned when git is unavailable (e.g. tarball checkouts).
+GIT_COMMIT_HASH=$(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 LOCAL_IMAGE_REGISTRY ?= ko.local
 IMG_REPO=${LOCAL_IMAGE_REGISTRY}/cluster-api-provider-nutanix
 IMG_TAG=e2e-${GIT_COMMIT_HASH}
@@ -45,7 +46,7 @@ LOCAL_PROVIDER_VERSION ?= ${IMG_TAG}
 
 ifeq (${LOCAL_PROVIDER_VERSION},${IMG_TAG})
 # TODO(release-blocker): Change this versions after release when required here
-LOCAL_PROVIDER_VERSION := v1.8.99
+LOCAL_PROVIDER_VERSION := v1.9.99
 endif
 
 # PLATFORMS is a list of platforms to build for.
@@ -56,7 +57,7 @@ PLATFORMS_E2E ?= linux/amd64,linux/arm64,linux/arm
 KIND_CLUSTER_NAME ?= capi-test
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.29
+ENVTEST_K8S_VERSION = 1.35
 
 #
 # Directories.
@@ -80,7 +81,7 @@ CNI_PATH_CILIUM ?= "${E2E_DIR}/data/cni/cilium/cilium.yaml"
 CNI_PATH_CILIUM_NO_KUBEPROXY ?= "${E2E_DIR}/data/cni/cilium/cilium-no-kubeproxy.yaml"
 CNI_PATH_FLANNEL ?= "${E2E_DIR}/data/cni/flannel/flannel.yaml"
 CNI_PATH_KINDNET ?= "${E2E_DIR}/data/cni/kindnet/kindnet.yaml"
-CCM_VERSION ?= v0.5.4
+CCM_VERSION ?= 0.7.0-alpha.1
 
 # CRD_OPTIONS define options to add to the CONTROLLER_GEN
 CRD_OPTIONS ?= "crd:crdVersions=v1"
@@ -220,9 +221,11 @@ update-kindnet-cni: ## Updates the kindnet CNI manifests
 
 .PHONY: update-ccm
 update-ccm: ## Updates the Nutanix CCM tag in all the template manifests to CCM_VERSION
-	@echo "Updating Nutanix CCM tag"
-	@find $(TEMPLATES_DIR) -type f -name "*.yaml" -exec sed -i '' 's|CCM_TAG=v[0-9]*\.[0-9]*\.[0-9]*|CCM_TAG=$(CCM_VERSION)|g' {} +
-	@find $(NUTANIX_E2E_TEMPLATES) -type f -name "*.yaml" -exec sed -i '' 's|CCM_TAG=v[0-9]*\.[0-9]*\.[0-9]*|CCM_TAG=$(CCM_VERSION)|g' {} +
+	@echo "Updating Nutanix CCM tag to $(CCM_VERSION)"
+	@find $(TEMPLATES_DIR) -type f -name "*.yaml" -exec sed -i '' 's|CCM_TAG=[^}]*|CCM_TAG=$(CCM_VERSION)|g' {} +
+	@find $(NUTANIX_E2E_TEMPLATES) -type f -name "*.yaml" -exec sed -i '' 's|CCM_TAG=[^}]*|CCM_TAG=$(CCM_VERSION)|g' {} +
+	@sed -i '' 's|CCM_TAG: ".*"|CCM_TAG: "$(CCM_VERSION)"|g' $(E2E_DIR)/config/nutanix.yaml
+	@echo "Updated CCM tag to $(CCM_VERSION) in templates and E2E config"
 
 .PHONY: update-cni-manifests ## Updates all the CNI manifests to latest variants from upstream
 update-cni-manifests: update-calico-cni update-cilium-cni update-flannel-cni update-kindnet-cni  ## Updates all the CNI manifests to latest variants from upstream
@@ -247,17 +250,17 @@ run: manifests generate ## Run a controller from your host.
 docker-build: ## Build docker image with the manager.
 	$(select_container_engine)
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
-	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS} -t ${IMG_TAG} .
+	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-buildvcs=false -ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push
 docker-push:  ## Push docker image with the manager.
 	$(select_container_engine)
-	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=${IMG_REPO} GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
+	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=${IMG_REPO} GOFLAGS="-buildvcs=false -ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push-kind
 docker-push-kind:  ## Make docker image available to kind cluster.
 	$(select_container_engine)
-	DOCKER_HOST=$(DOCKER_SOCKET) GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local ko build -B -t ${IMG_TAG} .
+	DOCKER_HOST=$(DOCKER_SOCKET) GOOS=linux GOARCH=${shell go env GOARCH} KO_DOCKER_REPO=ko.local GOFLAGS="-buildvcs=false" ko build -B -t ${IMG_TAG} .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${MANAGER_IMAGE}
 	kind load docker-image --name ${KIND_CLUSTER_NAME} ${MANAGER_IMAGE}
 
@@ -288,10 +291,10 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 ##@ Templates
 
 .PHONY: cluster-e2e-templates
-cluster-e2e-templates: cluster-e2e-templates-v1beta1 cluster-e2e-templates-v171 ## Generate cluster templates for all versions
+cluster-e2e-templates: cluster-e2e-templates-v1beta1 cluster-e2e-templates-v183 ## Generate cluster templates for all versions
 
-cluster-e2e-templates-v171: ## Generate cluster templates for CAPX v1.7.1
-	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1.7.1/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1.7.1/cluster-template.yaml
+cluster-e2e-templates-v183: ## Generate cluster templates for CAPX v1.8.3
+	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1.8.3/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1.8.3/cluster-template.yaml
 
 cluster-e2e-templates-v1beta1: ## Generate cluster templates for v1beta1
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template.yaml
@@ -302,6 +305,7 @@ cluster-e2e-templates-v1beta1: ## Generate cluster templates for v1beta1
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project.yaml
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-upgrades --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-upgrades.yaml
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-remediation --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-remediation.yaml
+	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-taints --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-taints.yaml
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-remediation --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-remediation.yaml
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-kcp-scale-in.yaml
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-csi.yaml
@@ -346,7 +350,7 @@ cluster-templates: ## Generate cluster templates for all flavors
 docker-build-e2e: ## Build docker image with the manager with e2e tag.
 	$(select_container_engine)
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
-	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS_E2E} -t ${IMG_TAG} .
+	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-buildvcs=false -ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS_E2E} -t ${IMG_TAG} .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:${IMG_TAG}
 
 .PHONY: prepare-local-clusterctl
@@ -380,10 +384,13 @@ mocks: ## Generate mocks for the project
 	mockgen -destination=mocks/converged/volume_groups.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged VolumeGroups
 	mockgen -destination=mocks/converged/domain_manager.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged DomainManager
 	mockgen -destination=mocks/converged/users.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Users
+	mockgen -destination=mocks/converged/templates.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Templates
+	mockgen -destination=mocks/converged/ovas.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Ovas
 
-GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
+# Disable VCS stamping for `go list` / `go test` so unit tests run in partial checkouts and CI sandboxes.
+GOTESTPKGS = $(shell GOFLAGS=-buildvcs=false go list ./... | grep -v /mocks | grep -v /templates)
 
-KUBEBUILDER_ASSETS=$(shell setup-envtest use --print path $(ENVTEST_K8S_VERSION) --arch=amd64)
+KUBEBUILDER_ASSETS=$(shell setup-envtest use $(ENVTEST_K8S_VERSION) --print path --arch=$(shell go env GOARCH))
 
 .PHONY: print-envtest
 print-envtest: ## Set up envtest (download kubebuilder assets)
@@ -391,18 +398,19 @@ print-envtest: ## Set up envtest (download kubebuilder assets)
 
 .PHONY: unit-test
 unit-test: mocks  ## Run unit tests.
-	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" \
+	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" GOFLAGS="-buildvcs=false" \
 	$(GOTEST) $(GOTESTPKGS)
 
 .PHONY: coverage
 coverage: mocks ## Run the tests of the project and export the coverage
-	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" \
+	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" GOFLAGS="-buildvcs=false" \
 	$(GOTEST) -race -coverprofile=coverage.out -covermode=atomic $(GOTESTPKGS)
 
 .PHONY: template-test
 template-test: docker-build prepare-local-clusterctl ## Run the template tests
 	$(select_container_engine)
 	GOPROXY=off \
+	GIT_COMMIT_HASH="$(GIT_COMMIT_HASH)" \
 	LOCAL_PROVIDER_VERSION=$(LOCAL_PROVIDER_VERSION) \
 		ginkgo --trace --v run templates
 

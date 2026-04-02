@@ -18,7 +18,7 @@ package v1beta1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 )
 
 const (
@@ -96,7 +96,22 @@ type VMPlacement struct {
 type AHVMetroZoneStatus struct {
 	// conditions represent the latest states of the AHVMetroZone.
 	// +optional
-	Conditions []capiv1.Condition `json:"conditions,omitempty"`
+	Conditions []capiv1beta1.Condition `json:"conditions,omitempty"`
+
+	// v1beta2 groups all the fields that will be added or modified in AHVMetroZone's status with the v1beta2 version.
+	// +optional
+	V1Beta2 *AHVMetroZoneV1Beta2Status `json:"v1beta2,omitempty"`
+}
+
+// AHVMetroZoneV1Beta2Status groups all the fields that will be added or modified in AHVMetroZoneStatus with the v1beta2 version.
+// See https://github.com/kubernetes-sigs/cluster-api/blob/main/docs/proposals/20240916-improve-status-in-CAPI-resources.md for more context.
+type AHVMetroZoneV1Beta2Status struct {
+	// conditions represents the observations of a AHVMetroZone's current state.
+	// +optional
+	// +listType=map
+	// +listMapKey=type
+	// +kubebuilder:validation:MaxItems=32
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -115,13 +130,29 @@ type AHVMetroZone struct {
 }
 
 // GetConditions returns the set of conditions for this object.
-func (z *AHVMetroZone) GetConditions() capiv1.Conditions {
+func (z *AHVMetroZone) GetConditions() capiv1beta1.Conditions {
 	return z.Status.Conditions
 }
 
 // SetConditions sets the conditions on this object.
-func (z *AHVMetroZone) SetConditions(conditions capiv1.Conditions) {
+func (z *AHVMetroZone) SetConditions(conditions capiv1beta1.Conditions) {
 	z.Status.Conditions = conditions
+}
+
+// GetV1Beta2Conditions returns the set of conditions for this object.
+func (z *AHVMetroZone) GetV1Beta2Conditions() []metav1.Condition {
+	if z.Status.V1Beta2 == nil {
+		return nil
+	}
+	return z.Status.V1Beta2.Conditions
+}
+
+// SetV1Beta2Conditions sets the v1beta2 conditions on this object.
+func (z *AHVMetroZone) SetV1Beta2Conditions(conditions []metav1.Condition) {
+	if z.Status.V1Beta2 == nil {
+		z.Status.V1Beta2 = &AHVMetroZoneV1Beta2Status{}
+	}
+	z.Status.V1Beta2.Conditions = conditions
 }
 
 // +kubebuilder:object:root=true

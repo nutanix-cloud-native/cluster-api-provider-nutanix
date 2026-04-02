@@ -38,8 +38,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	bootstrapv1 "sigs.k8s.io/cluster-api/bootstrap/kubeadm/api/v1beta1"
+	bootstrapv1beta2 "sigs.k8s.io/cluster-api/api/bootstrap/kubeadm/v1beta2"
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	capiflags "sigs.k8s.io/cluster-api/util/flags"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -51,6 +51,7 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/feature"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -61,8 +62,8 @@ var gitCommitHash string
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(capiv1.AddToScheme(scheme))
-	utilruntime.Must(bootstrapv1.AddToScheme(scheme))
+	utilruntime.Must(capiv1beta2.AddToScheme(scheme))
+	utilruntime.Must(bootstrapv1beta2.AddToScheme(scheme))
 	utilruntime.Must(infrav1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
@@ -107,7 +108,7 @@ func compositeRateLimiter(baseDelay, maxDelay time.Duration, bucketSize, qps int
 	}
 	exponentialBackoffLimiter := workqueue.NewTypedItemExponentialFailureRateLimiter[reconcile.Request](baseDelay, maxDelay)
 	bucketLimiter := &workqueue.TypedBucketRateLimiter[reconcile.Request]{Limiter: rate.NewLimiter(rate.Limit(qps), bucketSize)}
-	return workqueue.NewTypedMaxOfRateLimiter[reconcile.Request](exponentialBackoffLimiter, bucketLimiter), nil
+	return workqueue.NewTypedMaxOfRateLimiter(exponentialBackoffLimiter, bucketLimiter), nil
 }
 
 // validateRateLimiterConfig validates the rate limiter configuration parameters
@@ -168,6 +169,8 @@ func initializeFlags() *options {
 	pflag.DurationVar(&opts.rateLimiterMaxDelay, "rate-limiter-max-delay", 15*time.Minute, "The maximum delay for the rate limiter.")
 	pflag.IntVar(&opts.rateLimiterBucketSize, "rate-limiter-bucket-size", 100, "The bucket size for the rate limiter.")
 	pflag.IntVar(&opts.rateLimiterQPS, "rate-limiter-qps", 10, "The QPS for the rate limiter.")
+
+	feature.MutableGates.AddFlag(pflag.CommandLine)
 
 	// At this point, we should be done adding flags to the standard library FlagSet, flag.CommandLine.
 	// So we can include the flags that third-party libraries, e.g. controller-runtime, and zap,
@@ -323,10 +326,24 @@ func setupNutanixFailureDomainController(ctx context.Context, mgr manager.Manage
 	return nil
 }
 
+func setupNutanixMachineTemplateWebhook(mgr manager.Manager) error {
+	defaulter := &infrav1.NutanixMachineTemplateDefaulter{}
+	if err := defaulter.SetupWebhookWithManager(mgr); err != nil {
+		return fmt.Errorf("unable to setup NutanixMachineTemplate webhook: %w", err)
+	}
+	return nil
+}
+
 func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig) error {
 	secretInformer, configMapInformer, err := createInformers(ctx, mgr)
 	if err != nil {
 		return fmt.Errorf("unable to create informers: %w", err)
+	}
+
+	// Set up webhooks before controllers so that defaulting runs
+	// at admission time, before CEL validation.
+	if err := setupNutanixMachineTemplateWebhook(mgr); err != nil {
+		return fmt.Errorf("unable to setup webhooks: %w", err)
 	}
 
 	clusterControllerOpts := []controllers.ControllerConfigOpts{

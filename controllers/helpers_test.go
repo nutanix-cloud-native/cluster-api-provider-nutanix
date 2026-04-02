@@ -53,7 +53,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
 )
 
@@ -573,12 +573,27 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "image UUID not found",
+			name: "image UUID not found (classified ErrNotFound)",
 			clientBuilder: func() *v4Converged.Client {
 				mockctrl := gomock.NewController(t)
 				convergedClient := NewMockConvergedClient(mockctrl)
-				errorMessage := `Error getting image: failed to get image: API call failed: {"data":{"error":[{"$reserved":{"$fv":"v4.r1"},"$objectType":"vmm.v4.error.AppMessage","message":"Failed to perform the operation as the backend service could not find the entity.","severity":"ERROR","code":"VMM-20005","locale":"en_US"}],"$reserved":{"$fv":"v4.r1"},"$objectType":"vmm.v4.error.ErrorResponse"},"$reserved":{"$fv":"v4.r1"},"$objectType":"vmm.v4.content.GetImageApiResponse"}`
-				convergedClient.MockImages.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, errors.New(errorMessage))
+				convergedClient.MockImages.EXPECT().Get(gomock.Any(), gomock.Any()).
+					Return(nil, &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")})
+
+				return convergedClient.Client
+			},
+			id: infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierUUID,
+				UUID: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "image UUID not found (unclassified error)",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockImages.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, errors.New("generic API error"))
 
 				return convergedClient.Client
 			},
@@ -754,6 +769,315 @@ func TestGetImageByNameOrUUID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFindVMByUUID(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns VM when found", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		expectedVM := &vmmModels.Vm{
+			ExtId: ptr.To("test-vm-uuid"),
+			Name:  ptr.To("test-vm"),
+		}
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), "test-vm-uuid").Return(expectedVM, nil)
+
+		vm, err := FindVMByUUID(ctx, convergedClient.Client, "test-vm-uuid")
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, "test-vm-uuid", *vm.ExtId)
+	})
+
+	t.Run("returns nil when VM not found (classified ErrNotFound)", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), "missing-vm-uuid").
+			Return(nil, &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")})
+
+		vm, err := FindVMByUUID(ctx, convergedClient.Client, "missing-vm-uuid")
+		require.NoError(t, err)
+		require.Nil(t, vm)
+	})
+
+	t.Run("returns error when API returns non-NotFound error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		apiErr := errors.New("rate limit exceeded")
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), "test-vm-uuid").Return(nil, apiErr)
+
+		vm, err := FindVMByUUID(ctx, convergedClient.Client, "test-vm-uuid")
+		require.Error(t, err)
+		require.Nil(t, vm)
+		assert.ErrorIs(t, err, apiErr)
+	})
+}
+
+func TestGetPEUUID(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name          string
+		clientBuilder func() *v4Converged.Client
+		peName        *string
+		peUUID        *string
+		want          string
+		wantErr       bool
+		errorContains string
+	}{
+		{
+			name: "PE cluster UUID not found (classified ErrNotFound)",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockClusters.EXPECT().Get(gomock.Any(), "missing-pe-uuid").
+					Return(nil, &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")})
+				return convergedClient.Client
+			},
+			peUUID:        ptr.To("missing-pe-uuid"),
+			wantErr:       true,
+			errorContains: "failed to find Prism Element cluster with UUID",
+		},
+		{
+			name: "PE cluster UUID found",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockClusters.EXPECT().Get(gomock.Any(), "found-pe-uuid").Return(
+					&clusterModels.Cluster{
+						ExtId: ptr.To("found-pe-uuid"),
+						Name: ptr.To("my-cluster"),
+					}, nil)
+				return convergedClient.Client
+			},
+			peUUID:  ptr.To("found-pe-uuid"),
+			want:    "found-pe-uuid",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := GetPEUUID(ctx, tt.clientBuilder(), tt.peName, tt.peUUID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetPEUUID() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr && tt.errorContains != "" && (err == nil || !strings.Contains(err.Error(), tt.errorContains)) {
+				t.Errorf("GetPEUUID() error = %v, want to contain %q", err, tt.errorContains)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("GetPEUUID() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetSubnetUUID(t *testing.T) {
+	ctx := context.Background()
+	peUUID := "11111111-1111-1111-1111-111111111111"
+
+	tests := []struct {
+		name          string
+		clientBuilder func() *v4Converged.Client
+		peUUID        string
+		subnetName    *string
+		subnetUUID    *string
+		want          string
+		wantErr       bool
+	}{
+		{
+			name: "missing name and UUID in the input",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				return convergedClient.Client
+			},
+			peUUID:  peUUID,
+			wantErr: true,
+		},
+		{
+			name: "subnet UUID not found (classified ErrNotFound)",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), "missing-uuid").
+					Return(nil, &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")})
+				return convergedClient.Client
+			},
+			peUUID:     peUUID,
+			subnetUUID: ptr.To("missing-uuid"),
+			wantErr:    true,
+		},
+		{
+			name: "subnet UUID not found (unclassified error)",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), "test-uuid").Return(nil, errors.New("generic API error"))
+				return convergedClient.Client
+			},
+			peUUID:     peUUID,
+			subnetUUID: ptr.To("test-uuid"),
+			wantErr:    true,
+		},
+		{
+			name: "subnet UUID found",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), "found-subnet-uuid").Return(
+					&subnetModels.Subnet{
+						ExtId: ptr.To("found-subnet-uuid"),
+						Name: ptr.To("my-subnet"),
+					}, nil)
+				return convergedClient.Client
+			},
+			peUUID:     peUUID,
+			subnetUUID: ptr.To("found-subnet-uuid"),
+			want:       "found-subnet-uuid",
+			wantErr:    false,
+		},
+		{
+			name: "subnet name query fails",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("fake error"))
+				return convergedClient.Client
+			},
+			peUUID:     peUUID,
+			subnetName: ptr.To("my-subnet"),
+			wantErr:    true,
+		},
+		{
+			name: "subnet name found - overlay subnet",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				subnetType := subnetModels.SUBNETTYPE_OVERLAY
+				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]subnetModels.Subnet{
+						{
+							ExtId:       ptr.To("overlay-subnet-uuid"),
+							Name:        ptr.To("my-overlay"),
+							SubnetType:  &subnetType,
+						},
+					}, nil)
+				return convergedClient.Client
+			},
+			peUUID:     peUUID,
+			subnetName: ptr.To("my-overlay"),
+			want:       "overlay-subnet-uuid",
+			wantErr:    false,
+		},
+		{
+			name: "subnet name found - VLAN subnet with ClusterReference",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				subnetType := subnetModels.SUBNETTYPE_VLAN
+				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]subnetModels.Subnet{
+						{
+							ExtId:             ptr.To("vlan-subnet-uuid"),
+							Name:              ptr.To("my-vlan"),
+							SubnetType:        &subnetType,
+							ClusterReference:  ptr.To(peUUID),
+						},
+					}, nil)
+				return convergedClient.Client
+			},
+			peUUID:     peUUID,
+			subnetName: ptr.To("my-vlan"),
+			want:       "vlan-subnet-uuid",
+			wantErr:    false,
+		},
+		{
+			name: "subnet name matches zero subnets",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return([]subnetModels.Subnet{}, nil)
+				return convergedClient.Client
+			},
+			peUUID:     peUUID,
+			subnetName: ptr.To("nonexistent"),
+			wantErr:    true,
+		},
+		{
+			name: "subnet name matches multiple subnets",
+			clientBuilder: func() *v4Converged.Client {
+				mockctrl := gomock.NewController(t)
+				convergedClient := NewMockConvergedClient(mockctrl)
+				subnetType := subnetModels.SUBNETTYPE_OVERLAY
+				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+					[]subnetModels.Subnet{
+						{ExtId: ptr.To("uuid-1"), Name: ptr.To("dup"), SubnetType: &subnetType},
+						{ExtId: ptr.To("uuid-2"), Name: ptr.To("dup"), SubnetType: &subnetType},
+					}, nil)
+				return convergedClient.Client
+			},
+			peUUID:     peUUID,
+			subnetName: ptr.To("dup"),
+			wantErr:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := GetSubnetUUID(ctx, tt.clientBuilder(), tt.peUUID, tt.subnetName, tt.subnetUUID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetSubnetUUID() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("GetSubnetUUID() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetSubnetUUIDList(t *testing.T) {
+	ctx := context.Background()
+	peUUID := "11111111-1111-1111-1111-111111111111"
+
+	t.Run("returns list of subnet UUIDs", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		subnetUUID1 := "subnet-uuid-1"
+		subnetUUID2 := "subnet-uuid-2"
+
+		convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), subnetUUID1).Return(
+			&subnetModels.Subnet{ExtId: &subnetUUID1}, nil)
+		convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), subnetUUID2).Return(
+			&subnetModels.Subnet{ExtId: &subnetUUID2}, nil)
+
+		machineSubnets := []infrav1.NutanixResourceIdentifier{
+			{Type: infrav1.NutanixIdentifierUUID, UUID: &subnetUUID1},
+			{Type: infrav1.NutanixIdentifierUUID, UUID: &subnetUUID2},
+		}
+
+		got, err := GetSubnetUUIDList(ctx, convergedClient.Client, machineSubnets, peUUID)
+		require.NoError(t, err)
+		require.Len(t, got, 2)
+		assert.Equal(t, subnetUUID1, got[0])
+		assert.Equal(t, subnetUUID2, got[1])
+	})
+
+	t.Run("returns error when GetSubnetUUID fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), gomock.Any()).
+			Return(nil, &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")})
+
+		machineSubnets := []infrav1.NutanixResourceIdentifier{
+			{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To("missing-uuid")},
+		}
+
+		got, err := GetSubnetUUIDList(ctx, convergedClient.Client, machineSubnets, peUUID)
+		require.Error(t, err)
+		assert.Empty(t, got)
+	})
 }
 
 func TestCreateDataDiskList(t *testing.T) {
@@ -2518,7 +2842,7 @@ type MockConvergedClientWrapper struct {
 	MockAntiAffinityPolicies *mockconverged.MockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy]
 	MockClusters             *mockconverged.MockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile, clusterModels.Host]
 	MockCategories           *mockconverged.MockCategories[prismModels.Category]
-	MockImages               *mockconverged.MockImages[imageModels.Image]
+	MockImages               *mockconverged.MockImages[imageModels.Image, imageModels.FileDetail]
 	MockStorageContainers    *mockconverged.MockStorageContainers[clusterModels.StorageContainer]
 	MockSubnets              *mockconverged.MockSubnets[subnetModels.Subnet, prismNetworkingModels.TaskReference]
 	MockVMs                  *mockconverged.MockVMs[vmmModels.Vm]
@@ -2526,6 +2850,8 @@ type MockConvergedClientWrapper struct {
 	MockVolumeGroups         *mockconverged.MockVolumeGroups[volumesconfig.VolumeGroup, volumesconfig.VmAttachment]
 	MockDomainManager        *mockconverged.MockDomainManager[prismModels.DomainManager]
 	MockUsers                *mockconverged.MockUsers[iamModels.User]
+	MockTemplates            *mockconverged.MockTemplates[imageModels.Template]
+	MockOvas                 *mockconverged.MockOvas[imageModels.Ova, imageModels.FileDetail]
 }
 
 // NewMockConvergedClient creates a new mock converged client
@@ -2533,15 +2859,16 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 	mockAntiAffinityPolicies := mockconverged.NewMockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy](ctrl)
 	mockClusters := mockconverged.NewMockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile, clusterModels.Host](ctrl)
 	mockCategories := mockconverged.NewMockCategories[prismModels.Category](ctrl)
-	mockImages := mockconverged.NewMockImages[imageModels.Image](ctrl)
+	mockImages := mockconverged.NewMockImages[imageModels.Image, imageModels.FileDetail](ctrl)
 	mockStorageContainers := mockconverged.NewMockStorageContainers[clusterModels.StorageContainer](ctrl)
 	mockSubnets := mockconverged.NewMockSubnets[subnetModels.Subnet, prismNetworkingModels.TaskReference](ctrl)
 	mockTasks := mockconverged.NewMockTasks[prismModels.Task, prismErrors.AppMessage](ctrl)
-	// Create mock VMs service with the correct type
 	mockVMs := mockconverged.NewMockVMs[vmmModels.Vm](ctrl)
 	mockVolumeGroups := mockconverged.NewMockVolumeGroups[volumesconfig.VolumeGroup, volumesconfig.VmAttachment](ctrl)
 	mockDomainManager := mockconverged.NewMockDomainManager[prismModels.DomainManager](ctrl)
 	mockUsers := mockconverged.NewMockUsers[iamModels.User](ctrl)
+	mockTemplates := mockconverged.NewMockTemplates[imageModels.Template](ctrl)
+	mockOvas := mockconverged.NewMockOvas[imageModels.Ova, imageModels.FileDetail](ctrl)
 
 	realClient := &v4Converged.Client{
 		Client: converged.Client[
@@ -2552,6 +2879,7 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			clusterModels.Host,
 			prismModels.Category,
 			imageModels.Image,
+			imageModels.FileDetail,
 			clusterModels.StorageContainer,
 			subnetModels.Subnet,
 			prismNetworkingModels.TaskReference,
@@ -2562,6 +2890,9 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			volumesconfig.VmAttachment,
 			prismModels.DomainManager,
 			iamModels.User,
+			imageModels.Template,
+			imageModels.Ova,
+			imageModels.FileDetail,
 		]{
 			AntiAffinityPolicies: mockAntiAffinityPolicies,
 			Clusters:             mockClusters,
@@ -2574,6 +2905,8 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			VolumeGroups:         mockVolumeGroups,
 			DomainManager:        mockDomainManager,
 			Users:                mockUsers,
+			Templates:            mockTemplates,
+			Ovas:                 mockOvas,
 		},
 	}
 
@@ -2590,6 +2923,8 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 		MockVolumeGroups:         mockVolumeGroups,
 		MockDomainManager:        mockDomainManager,
 		MockUsers:                mockUsers,
+		MockTemplates:            mockTemplates,
+		MockOvas:                 mockOvas,
 	}
 }
 
@@ -2708,7 +3043,7 @@ func TestGetVMUUID(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		machine        *capiv1.Machine
+		machine        *capiv1beta2.Machine
 		nutanixMachine *infrav1.NutanixMachine
 		want           string
 		wantErr        bool
@@ -2716,8 +3051,8 @@ func TestGetVMUUID(t *testing.T) {
 	}{
 		{
 			name: "should return systemUUID from Machine.Status.NodeInfo when available",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: &corev1.NodeSystemInfo{
 						SystemUUID: validUUID,
 					},
@@ -2733,8 +3068,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should fall back to VmUUID when Machine.Status.NodeInfo is nil",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: nil,
 				},
 			},
@@ -2748,8 +3083,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should fall back to VmUUID when Machine.Status.NodeInfo.SystemUUID is empty",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: &corev1.NodeSystemInfo{
 						SystemUUID: "",
 					},
@@ -2776,8 +3111,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should return empty string when both systemUUID and VmUUID are not available",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: nil,
 				},
 			},
@@ -2791,8 +3126,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should return error when systemUUID is not a valid UUID",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: &corev1.NodeSystemInfo{
 						SystemUUID: invalidUUID,
 					},
@@ -2809,8 +3144,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should return error when VmUUID is not a valid UUID",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: nil,
 				},
 			},
@@ -2825,8 +3160,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should prioritize systemUUID even when VmUUID has different UUID",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: &corev1.NodeSystemInfo{
 						SystemUUID: validUUID,
 					},
@@ -2842,8 +3177,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should use VmUUID when SystemUUID is empty",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
 					NodeInfo: &corev1.NodeSystemInfo{
 						SystemUUID: "",
 					},
@@ -2859,8 +3194,8 @@ func TestGetVMUUID(t *testing.T) {
 		},
 		{
 			name: "should handle Machine with empty Status",
-			machine: &capiv1.Machine{
-				Status: capiv1.MachineStatus{},
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{},
 			},
 			nutanixMachine: &infrav1.NutanixMachine{
 				Status: infrav1.NutanixMachineStatus{

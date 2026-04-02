@@ -47,7 +47,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
-	capiv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -72,7 +72,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 			reconciler  *NutanixMachineReconciler
 			ctx         context.Context
 			ntnxMachine *infrav1.NutanixMachine
-			machine     *capiv1.Machine
+			machine     *capiv1beta2.Machine
 			ntnxCluster *infrav1.NutanixCluster
 			fdObj       *infrav1.NutanixFailureDomain
 			r           string
@@ -98,7 +98,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 					VCPUSockets:    int32(minVCPUSockets),
 				},
 			}
-			machine = &capiv1.Machine{ObjectMeta: metav1.ObjectMeta{
+			machine = &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
 				Namespace: "default",
 			}}
@@ -159,7 +159,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				// Create the NutanixFailureDomain object and expect creation success
 				g.Expect(k8sClient.Create(ctx, fdObj)).To(Succeed())
 
-				machine.Spec.FailureDomain = &fdObj.Name
+				machine.Spec.FailureDomain = fdObj.Name
 				ntnxMachine.Spec.Cluster = fdObj.Spec.PrismElementCluster
 				ntnxMachine.Spec.Subnets = fdObj.Spec.Subnets
 				mctx := &nctx.MachineContext{
@@ -175,7 +175,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 			})
 
 			It("should error if failureDomain is configured in the owner machine spec and the failureDomain object not found", func() {
-				machine.Spec.FailureDomain = &fdObj.Name
+				machine.Spec.FailureDomain = fdObj.Name
 				ntnxMachine.Spec.Cluster = fdObj.Spec.PrismElementCluster
 				ntnxMachine.Spec.Subnets = fdObj.Spec.Subnets
 				mctx := &nctx.MachineContext{
@@ -193,7 +193,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				// Create the NutanixFailureDomain object and expect creation success
 				g.Expect(k8sClient.Create(ctx, fdObj)).To(Succeed())
 
-				machine.Spec.FailureDomain = &fdObj.Name
+				machine.Spec.FailureDomain = fdObj.Name
 				ntnxMachine.Spec.Cluster = fdObj.Spec.PrismElementCluster
 				ntnxMachine.Spec.Cluster.Name = nil
 				mctx := &nctx.MachineContext{
@@ -211,7 +211,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				// Create the NutanixFailureDomain object and expect creation success
 				g.Expect(k8sClient.Create(ctx, fdObj)).To(Succeed())
 
-				machine.Spec.FailureDomain = &fdObj.Name
+				machine.Spec.FailureDomain = fdObj.Name
 				ntnxMachine.Spec.Cluster = fdObj.Spec.PrismElementCluster
 				// ntnxMachine.Spec.Subnets is empty
 				mctx := &nctx.MachineContext{
@@ -237,7 +237,6 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				})
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(result.RequeueAfter).To(BeZero())
-				g.Expect(result.Requeue).To(BeFalse())
 			})
 		})
 
@@ -283,7 +282,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 			})
 			It("returns error if invalid machine config is passed with reference to not-exist failure domain", func() {
-				machine.Spec.FailureDomain = &r
+				machine.Spec.FailureDomain = r
 				err := reconciler.validateMachineConfig(&nctx.MachineContext{
 					Context:        ctx,
 					NutanixMachine: ntnxMachine,
@@ -349,7 +348,7 @@ func TestNutanixMachineReconciler(t *testing.T) {
 						Subnets: fdObj.Spec.Subnets,
 					},
 				}
-				machine.Spec.FailureDomain = ptr.To("failure-domain")
+				machine.Spec.FailureDomain = "failure-domain"
 				fd, err := reconciler.getFailureDomainSpec(&nctx.MachineContext{
 					Context:        ctx,
 					NutanixMachine: ntnxMachine,
@@ -372,7 +371,7 @@ func TestNutanixMachineReconciler_SetupWithManager(t *testing.T) {
 	scheme := runtime.NewScheme()
 	err := infrav1.AddToScheme(scheme)
 	require.NoError(t, err)
-	err = capiv1.AddToScheme(scheme)
+	err = capiv1beta2.AddToScheme(scheme)
 	require.NoError(t, err)
 
 	cache := mockctlclient.NewMockCache(mockCtrl)
@@ -416,7 +415,7 @@ func TestNutanixMachineReconciler_SetupWithManager_BuildError(t *testing.T) {
 	scheme := runtime.NewScheme()
 	err := infrav1.AddToScheme(scheme)
 	require.NoError(t, err)
-	err = capiv1.AddToScheme(scheme)
+	err = capiv1beta2.AddToScheme(scheme)
 	require.NoError(t, err)
 
 	cache := mockctlclient.NewMockCache(mockCtrl)
@@ -459,7 +458,7 @@ func TestNutanixMachineReconciler_SetupWithManager_ClusterToTypedObjectsMapperEr
 	scheme := runtime.NewScheme()
 	err := infrav1.AddToScheme(scheme)
 	require.NoError(t, err)
-	err = capiv1.AddToScheme(scheme)
+	err = capiv1beta2.AddToScheme(scheme)
 	require.NoError(t, err)
 
 	cache := mockctlclient.NewMockCache(mockCtrl)
@@ -790,7 +789,7 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 				reconciler  *NutanixMachineReconciler
 				ctx         context.Context
 				ntnxMachine *infrav1.NutanixMachine
-				machine     *capiv1.Machine
+				machine     *capiv1beta2.Machine
 				ntnxCluster *infrav1.NutanixCluster
 				dataDisks   func() []infrav1.NutanixMachineVMDisk
 			)
@@ -831,7 +830,7 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 					},
 				}
 
-				machine = &capiv1.Machine{
+				machine = &capiv1beta2.Machine{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: "default",
@@ -839,7 +838,7 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 							"cluster.x-k8s.io/cluster-name": "test",
 						},
 					},
-					Spec: capiv1.MachineSpec{
+					Spec: capiv1beta2.MachineSpec{
 						ClusterName: "test",
 					},
 				}
@@ -983,7 +982,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 		},
 	}
 
-	defaultMachine := &capiv1.Machine{
+	defaultMachine := &capiv1beta2.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test",
 			Namespace: "default",
@@ -991,7 +990,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 				"cluster.x-k8s.io/cluster-name": "test",
 			},
 		},
-		Spec: capiv1.MachineSpec{
+		Spec: capiv1beta2.MachineSpec{
 			ClusterName: "test",
 		},
 	}
@@ -1016,14 +1015,14 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 
 	tt := []struct {
 		name         string
-		fixtures     func(*gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *v4Converged.Client)
+		fixtures     func(*gomock.Controller) (*infrav1.NutanixMachine, *capiv1beta2.Machine, *infrav1.NutanixCluster, *v4Converged.Client)
 		wantDisksLen int
 		wantErr      bool
 	}{
 		{
 			name:         "return get disk list",
 			wantDisksLen: 3,
-			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1beta2.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
 				convergedClientMock := NewMockConvergedClient(mockCtrl)
 				convergedClientMock.MockImages.EXPECT().Get(gomock.Any(), *defaultSystemImage.ExtId).Return(defaultSystemImage, nil).MinTimes(1)
 				convergedClientMock.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
@@ -1046,7 +1045,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 		{
 			name:    "return an error if the bootstrap disk is not found",
 			wantErr: true,
-			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1beta2.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
 				convergedClientMock := NewMockConvergedClient(mockCtrl)
 				convergedClientMock.MockImages.EXPECT().Get(gomock.Any(), *defaultSystemImage.ExtId).Return(defaultSystemImage, nil).MinTimes(1)
 				convergedClientMock.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
@@ -1061,7 +1060,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 		{
 			name:    "return an error if the system disk is not found",
 			wantErr: true,
-			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1beta2.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
 				errorMessage := `Error getting image: failed to get image: API call failed: {"data":{"error":[{"$reserved":{"$fv":"v4.r1"},"$objectType":"vmm.v4.error.AppMessage","message":"Failed to perform the operation as the backend service could not find the entity.","severity":"ERROR","code":"VMM-20005","locale":"en_US"}],"$reserved":{"$fv":"v4.r1"},"$objectType":"vmm.v4.error.ErrorResponse"},"$reserved":{"$fv":"v4.r1"},"$objectType":"vmm.v4.content.GetImageApiResponse"}`
 				convergedClientMock := NewMockConvergedClient(mockCtrl)
 				convergedClientMock.MockImages.EXPECT().Get(gomock.Any(), *defaultSystemImage.ExtId).Return(
@@ -1075,7 +1074,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 		{
 			name:    "return an error if the system disk is marked for deletion",
 			wantErr: true,
-			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1beta2.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
 				systemImage := &imageModels.Image{
 					ExtId: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
 					Name:  ptr.To("system_image"),
@@ -1106,7 +1105,7 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 		{
 			name:    "return an error if the bootstrap disk is marked for deletion",
 			wantErr: true,
-			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1beta2.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
 				convergedClientMock := NewMockConvergedClient(mockCtrl)
 				convergedClientMock.MockImages.EXPECT().Get(gomock.Any(), *defaultSystemImage.ExtId).Return(defaultSystemImage, nil).MinTimes(1)
 				convergedClientMock.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
@@ -1441,12 +1440,12 @@ func TestGetSystemDisk(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
-			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+			Spec: capiv1beta2.MachineSpec{
+				Version: k8sVersion,
 			},
 		}
 
@@ -1529,12 +1528,12 @@ func TestGetSystemDisk(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
-			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+			Spec: capiv1beta2.MachineSpec{
+				Version: k8sVersion,
 			},
 		}
 
@@ -1597,12 +1596,12 @@ func TestGetSystemDisk(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
-			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+			Spec: capiv1beta2.MachineSpec{
+				Version: k8sVersion,
 			},
 		}
 
@@ -1686,12 +1685,12 @@ func TestGetSystemDisk(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
-			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+			Spec: capiv1beta2.MachineSpec{
+				Version: k8sVersion,
 			},
 		}
 
@@ -1748,12 +1747,12 @@ func TestGetSystemDisk(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
-			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+			Spec: capiv1beta2.MachineSpec{
+				Version: k8sVersion,
 			},
 		}
 
@@ -1816,12 +1815,12 @@ func TestGetSystemDisk(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
-			Spec: capiv1.MachineSpec{
-				Version: &k8sVersion,
+			Spec: capiv1beta2.MachineSpec{
+				Version: k8sVersion,
 			},
 		}
 
@@ -1905,7 +1904,7 @@ func TestGetSystemDisk(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
@@ -1963,7 +1962,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			infrav1.DeprecatedNutanixMachineFinalizer,
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
@@ -2029,7 +2028,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			infrav1.DeprecatedNutanixMachineFinalizer,
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
@@ -2090,7 +2089,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
@@ -2155,7 +2154,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
@@ -2222,7 +2221,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
@@ -2292,7 +2291,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
@@ -2361,7 +2360,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
@@ -2421,7 +2420,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
@@ -2487,7 +2486,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
@@ -2563,7 +2562,7 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
@@ -2637,7 +2636,7 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
@@ -2698,7 +2697,7 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			Spec: infrav1.NutanixMachineSpec{},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
@@ -2758,7 +2757,7 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			Spec: infrav1.NutanixMachineSpec{},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
@@ -2850,18 +2849,18 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			},
 		}
 
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
-			Spec: capiv1.MachineSpec{
-				Version: ptr.To("v1.28.0"),
+			Spec: capiv1beta2.MachineSpec{
+				Version: "v1.28.0",
 			},
 			// SystemUUID is not set initially - it only gets set after the VM is created
 			// and the node reports its SystemUUID. For this test, we're creating a new VM.
 		}
 
-		cluster := &capiv1.Cluster{
+		cluster := &capiv1beta2.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      clusterName,
 				Namespace: "default",
@@ -2934,6 +2933,12 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		createdVM.ExtId = ptr.To(vmUUID)
 		mockConvergedClient.MockVMs.EXPECT().Create(ctx, gomock.Any()).Return(createdVM, nil)
 
+		// Mock AddVmCustomAttributes for setting custom attributes after providerID is assigned
+		updatedVM := vmmModels.NewVm()
+		updatedVM.Name = ptr.To(vmName)
+		updatedVM.ExtId = ptr.To(vmUUID)
+		mockConvergedClient.MockVMs.EXPECT().AddVmCustomAttributes(ctx, vmUUID, gomock.Any()).Return(updatedVM, nil)
+
 		// Mock PowerOnVM
 		mockOperation := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
 		mockConvergedClient.MockVMs.EXPECT().PowerOnVM(vmUUID).Return(mockOperation, nil)
@@ -2976,7 +2981,7 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		// Create a scheme with the necessary types registered
 		scheme := runtime.NewScheme()
 		_ = infrav1.AddToScheme(scheme)
-		_ = capiv1.AddToScheme(scheme)
+		_ = capiv1beta2.AddToScheme(scheme)
 
 		// Mock Scheme.Convert for patchMachine
 		mockK8sClient.EXPECT().Scheme().Return(scheme).AnyTimes()
@@ -2999,57 +3004,178 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		require.NotNil(t, vm)
 		assert.Equal(t, vmName, *vm.Name)
 		assert.Equal(t, vmUUID, *vm.ExtId)
-
-		// Verify ProviderID is set (set by getOrCreateVM line 927)
-		assert.Contains(t, ntnxMachine.Spec.ProviderID, vmUUID)
-
-		// Note: Status.VmUUID is NOT set by getOrCreateVM itself.
-		// It is set by syncVmUUID which is called from reconcileNormal after getOrCreateVM returns.
-		// When testing getOrCreateVM in isolation, Status.VmUUID will not be populated.
+		assert.Equal(t, vmUUID, ntnxMachine.Status.VmUUID)
+		// The providerID should be set using the actual VM UUID
+		assert.Equal(t, fmt.Sprintf("nutanix://%s", vmUUID), ntnxMachine.Spec.ProviderID)
 	})
 }
 
 func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
-	t.Run("should populate IP addresses from VM Nics to NutanixMachine addresses", func(t *testing.T) {
-		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+	newIPv4Address := func(ip string) *vmmCommonConfig.IPv4Address {
+		addr := vmmCommonConfig.NewIPv4Address()
+		addr.Value = ptr.To(ip)
+		return addr
+	}
 
-		nic1 := vmmModels.NewNic()
-		nic1.NetworkInfo = vmmModels.NewNicNetworkInfo()
-		ipv4Config := vmmModels.NewIpv4Config()
-		ipv4Config.IpAddress = vmmCommonConfig.NewIPv4Address()
-		ipv4Config.IpAddress.Value = ptr.To("10.10.10.10")
-		nic1.NetworkInfo.Ipv4Config = ipv4Config
+	newNicWithDeprecatedNetworkInfo := func(ip string) *vmmModels.Nic {
+		nic := vmmModels.NewNic()
+		nic.NetworkInfo = vmmModels.NewNicNetworkInfo()
+		nic.NetworkInfo.Ipv4Config = vmmModels.NewIpv4Config()
+		nic.NetworkInfo.Ipv4Config.IpAddress = newIPv4Address(ip)
+		return nic
+	}
 
-		nic2 := vmmModels.NewNic()
-		nic2.NetworkInfo = vmmModels.NewNicNetworkInfo()
-		ipv4Info := vmmModels.NewIpv4Info()
-		ipv4Ip := vmmCommonConfig.NewIPv4Address()
-		ipv4Ip.Value = ptr.To("10.10.10.11")
-		ipv4Info.LearnedIpAddresses = []vmmCommonConfig.IPv4Address{*ipv4Ip}
-		nic2.NetworkInfo.Ipv4Info = ipv4Info
+	newNicWithVirtualEthernetInfo := func(ip string) *vmmModels.Nic {
+		nic := vmmModels.NewNic()
+		info := vmmModels.NewVirtualEthernetNicNetworkInfo()
+		info.Ipv4Config = vmmModels.NewIpv4Config()
+		info.Ipv4Config.IpAddress = newIPv4Address(ip)
+		require.NoError(t, nic.SetNicNetworkInfo(*info))
+		return nic
+	}
 
-		nics := []vmmModels.Nic{*nic1, *nic2}
+	newNicWithDpOffloadInfo := func(ip string) *vmmModels.Nic {
+		nic := vmmModels.NewNic()
+		info := vmmModels.NewDpOffloadNicNetworkInfo()
+		info.Ipv4Config = vmmModels.NewIpv4Config()
+		info.Ipv4Config.IpAddress = newIPv4Address(ip)
+		require.NoError(t, nic.SetNicNetworkInfo(*info))
+		return nic
+	}
+
+	newNicWithSriovInfo := func() *vmmModels.Nic {
+		nic := vmmModels.NewNic()
+		info := vmmModels.NewSriovNicNetworkInfo()
+		info.VlanId = ptr.To(100)
+		require.NoError(t, nic.SetNicNetworkInfo(*info))
+		return nic
+	}
+
+	newNicWithLearnedIPs := func(ips ...string) *vmmModels.Nic {
+		nic := vmmModels.NewNic()
+		info := vmmModels.NewVirtualEthernetNicNetworkInfo()
+		info.Ipv4Info = vmmModels.NewIpv4Info()
+		for _, ip := range ips {
+			info.Ipv4Info.LearnedIpAddresses = append(info.Ipv4Info.LearnedIpAddresses, *newIPv4Address(ip))
+		}
+		require.NoError(t, nic.SetNicNetworkInfo(*info))
+		return nic
+	}
+
+	buildVM := func(nics ...*vmmModels.Nic) *vmmModels.Vm {
 		vm := vmmModels.NewVm()
 		vm.Name = ptr.To("vm-name")
-		vm.Nics = nics
+		for _, nic := range nics {
+			vm.Nics = append(vm.Nics, *nic)
+		}
+		return vm
+	}
 
+	t.Run("deprecated NetworkInfo with static IP", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
 		reconciler := &NutanixMachineReconciler{}
-		err := reconciler.assignAddressesToMachine(rctx, vm)
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(newNicWithDeprecatedNetworkInfo("10.10.10.10")))
 
-		assert.Nil(t, err)
-		assert.Equal(t, 1+len(nics), len(rctx.NutanixMachine.Status.Addresses))
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.10", rctx.NutanixMachine.Status.Addresses[0].Address)
+		assert.Equal(t, "vm-name", rctx.NutanixMachine.Status.Addresses[1].Address)
 	})
 
-	t.Run("should fail if no IP addresses are found from Nics", func(t *testing.T) {
-		rctx := &nctx.MachineContext{}
+	t.Run("new NicNetworkInfo with static IP", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(newNicWithVirtualEthernetInfo("10.10.10.12")))
 
-		vm := vmmModels.NewVm()
-		vm.Name = ptr.To("vm-name")
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.12", rctx.NutanixMachine.Status.Addresses[0].Address)
+	})
+
+	t.Run("new NicNetworkInfo with learned IPs", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(newNicWithLearnedIPs("10.10.10.13")))
+
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.13", rctx.NutanixMachine.Status.Addresses[0].Address)
+	})
+
+	t.Run("DpOffloadNicNetworkInfo with static IP", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(newNicWithDpOffloadInfo("10.10.10.20")))
+
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.20", rctx.NutanixMachine.Status.Addresses[0].Address)
+	})
+
+	t.Run("SriovNicNetworkInfo falls back to deprecated NetworkInfo", func(t *testing.T) {
+		nic := newNicWithSriovInfo()
+		nic.NetworkInfo = vmmModels.NewNicNetworkInfo()
+		nic.NetworkInfo.Ipv4Config = vmmModels.NewIpv4Config()
+		nic.NetworkInfo.Ipv4Config.IpAddress = newIPv4Address("10.10.10.30")
+
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(nic))
+
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.30", rctx.NutanixMachine.Status.Addresses[0].Address)
+	})
+
+	t.Run("SriovNicNetworkInfo without deprecated NetworkInfo yields no addresses", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(
+			newNicWithVirtualEthernetInfo("10.10.10.10"),
+			newNicWithSriovInfo(),
+		))
+
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.10", rctx.NutanixMachine.Status.Addresses[0].Address)
+		assert.Equal(t, "vm-name", rctx.NutanixMachine.Status.Addresses[1].Address)
+	})
+
+	t.Run("prefers new NicNetworkInfo over deprecated NetworkInfo", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+
+		nic := newNicWithVirtualEthernetInfo("10.10.10.50")
+		nic.NetworkInfo = vmmModels.NewNicNetworkInfo()
+		nic.NetworkInfo.Ipv4Config = vmmModels.NewIpv4Config()
+		nic.NetworkInfo.Ipv4Config.IpAddress = newIPv4Address("10.10.10.99")
 
 		reconciler := &NutanixMachineReconciler{}
-		err := reconciler.assignAddressesToMachine(rctx, vm)
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(nic))
 
-		assert.NotNil(t, err)
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		assert.Equal(t, "10.10.10.50", rctx.NutanixMachine.Status.Addresses[0].Address)
+	})
+
+	t.Run("multiple NICs with mixed sources", func(t *testing.T) {
+		rctx := &nctx.MachineContext{NutanixMachine: &infrav1.NutanixMachine{}}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM(
+			newNicWithDeprecatedNetworkInfo("10.10.10.10"),
+			newNicWithVirtualEthernetInfo("10.10.10.11"),
+		))
+
+		require.NoError(t, err)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 3)
+	})
+
+	t.Run("fails if no IP addresses found", func(t *testing.T) {
+		rctx := &nctx.MachineContext{}
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.assignAddressesToMachine(rctx, buildVM())
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "unable to determine network interfaces")
 	})
 }
 
@@ -3080,11 +3206,11 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 		}
 
 		// Create Machine with SystemUUID in NodeInfo
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
-			Status: capiv1.MachineStatus{
+			Status: capiv1beta2.MachineStatus{
 				NodeInfo: &corev1.NodeSystemInfo{
 					SystemUUID: systemUUID,
 				},
@@ -3153,11 +3279,11 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 		}
 
 		// Create Machine with SystemUUID in NodeInfo
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
-			Status: capiv1.MachineStatus{
+			Status: capiv1beta2.MachineStatus{
 				NodeInfo: &corev1.NodeSystemInfo{
 					SystemUUID: systemUUID,
 				},
@@ -3223,11 +3349,11 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 		}
 
 		// Create Machine WITHOUT NodeInfo (fallback scenario)
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
-			Status: capiv1.MachineStatus{
+			Status: capiv1beta2.MachineStatus{
 				NodeInfo: nil,
 			},
 		}
@@ -3291,11 +3417,11 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 		}
 
 		// Create Machine with empty SystemUUID (fallback scenario)
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: vmName,
 			},
-			Status: capiv1.MachineStatus{
+			Status: capiv1beta2.MachineStatus{
 				NodeInfo: &corev1.NodeSystemInfo{
 					SystemUUID: "", // Empty
 				},
@@ -3352,12 +3478,12 @@ func TestNutanixMachineReconciler_syncVmUUID(t *testing.T) {
 		ctx := context.Background()
 
 		// Machine with SystemUUID
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-machine",
 				Namespace: "default",
 			},
-			Status: capiv1.MachineStatus{
+			Status: capiv1beta2.MachineStatus{
 				NodeInfo: &corev1.NodeSystemInfo{
 					SystemUUID: validUUID1,
 				},
@@ -3378,7 +3504,7 @@ func TestNutanixMachineReconciler_syncVmUUID(t *testing.T) {
 		// Create a fake client
 		scheme := runtime.NewScheme()
 		_ = infrav1.AddToScheme(scheme)
-		_ = capiv1.AddToScheme(scheme)
+		_ = capiv1beta2.AddToScheme(scheme)
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(nutanixMachine).Build()
 
 		rctx := &nctx.MachineContext{
@@ -3404,12 +3530,12 @@ func TestNutanixMachineReconciler_syncVmUUID(t *testing.T) {
 		ctx := context.Background()
 
 		// Machine with SystemUUID
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-machine",
 				Namespace: "default",
 			},
-			Status: capiv1.MachineStatus{
+			Status: capiv1beta2.MachineStatus{
 				NodeInfo: &corev1.NodeSystemInfo{
 					SystemUUID: validUUID1,
 				},
@@ -3430,7 +3556,7 @@ func TestNutanixMachineReconciler_syncVmUUID(t *testing.T) {
 		// Create a fake client
 		scheme := runtime.NewScheme()
 		_ = infrav1.AddToScheme(scheme)
-		_ = capiv1.AddToScheme(scheme)
+		_ = capiv1beta2.AddToScheme(scheme)
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(nutanixMachine).Build()
 
 		rctx := &nctx.MachineContext{
@@ -3456,12 +3582,12 @@ func TestNutanixMachineReconciler_syncVmUUID(t *testing.T) {
 		ctx := context.Background()
 
 		// Machine without NodeInfo
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-machine",
 				Namespace: "default",
 			},
-			Status: capiv1.MachineStatus{
+			Status: capiv1beta2.MachineStatus{
 				NodeInfo: nil,
 			},
 		}
@@ -3480,7 +3606,7 @@ func TestNutanixMachineReconciler_syncVmUUID(t *testing.T) {
 		// Create a fake client
 		scheme := runtime.NewScheme()
 		_ = infrav1.AddToScheme(scheme)
-		_ = capiv1.AddToScheme(scheme)
+		_ = capiv1beta2.AddToScheme(scheme)
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(nutanixMachine).Build()
 
 		rctx := &nctx.MachineContext{
@@ -3506,12 +3632,12 @@ func TestNutanixMachineReconciler_syncVmUUID(t *testing.T) {
 		ctx := context.Background()
 
 		// Machine with empty SystemUUID
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-machine",
 				Namespace: "default",
 			},
-			Status: capiv1.MachineStatus{
+			Status: capiv1beta2.MachineStatus{
 				NodeInfo: &corev1.NodeSystemInfo{
 					SystemUUID: "",
 				},
@@ -3532,7 +3658,7 @@ func TestNutanixMachineReconciler_syncVmUUID(t *testing.T) {
 		// Create a fake client
 		scheme := runtime.NewScheme()
 		_ = infrav1.AddToScheme(scheme)
-		_ = capiv1.AddToScheme(scheme)
+		_ = capiv1beta2.AddToScheme(scheme)
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(nutanixMachine).Build()
 
 		rctx := &nctx.MachineContext{
@@ -3558,12 +3684,12 @@ func TestNutanixMachineReconciler_syncVmUUID(t *testing.T) {
 		ctx := context.Background()
 
 		// Machine with invalid SystemUUID
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-machine",
 				Namespace: "default",
 			},
-			Status: capiv1.MachineStatus{
+			Status: capiv1beta2.MachineStatus{
 				NodeInfo: &corev1.NodeSystemInfo{
 					SystemUUID: invalidUUID,
 				},
@@ -3584,7 +3710,7 @@ func TestNutanixMachineReconciler_syncVmUUID(t *testing.T) {
 		// Create a fake client
 		scheme := runtime.NewScheme()
 		_ = infrav1.AddToScheme(scheme)
-		_ = capiv1.AddToScheme(scheme)
+		_ = capiv1beta2.AddToScheme(scheme)
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(nutanixMachine).Build()
 
 		rctx := &nctx.MachineContext{
@@ -3610,12 +3736,12 @@ func TestNutanixMachineReconciler_syncVmUUID(t *testing.T) {
 		ctx := context.Background()
 
 		// Machine with SystemUUID
-		machine := &capiv1.Machine{
+		machine := &capiv1beta2.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-machine",
 				Namespace: "default",
 			},
-			Status: capiv1.MachineStatus{
+			Status: capiv1beta2.MachineStatus{
 				NodeInfo: &corev1.NodeSystemInfo{
 					SystemUUID: validUUID1,
 				},
@@ -3636,7 +3762,7 @@ func TestNutanixMachineReconciler_syncVmUUID(t *testing.T) {
 		// Create a fake client
 		scheme := runtime.NewScheme()
 		_ = infrav1.AddToScheme(scheme)
-		_ = capiv1.AddToScheme(scheme)
+		_ = capiv1beta2.AddToScheme(scheme)
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(nutanixMachine).Build()
 
 		rctx := &nctx.MachineContext{
