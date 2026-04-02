@@ -19,6 +19,7 @@ package controllers
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"regexp"
@@ -73,14 +74,27 @@ type StorageContainerIntentResponse struct {
 	ClusterUUID *string
 }
 
+// terminalError represents a deterministic, non-retryable error caused by
+// invalid user configuration (e.g. referenced resource does not exist).
+// It is distinct from converged.APIError which represents HTTP-level failures.
+type terminalError struct {
+	message string
+}
+
+func (e *terminalError) Error() string { return e.message }
+
+func isTerminalError(err error) bool {
+	var te *terminalError
+	return errors.As(err, &te)
+}
+
 func isRetryableAPIError(err error) bool {
 	switch {
-	case converged.IsNotFound(err):
+	case converged.IsNotFound(err), isTerminalError(err):
 		return false
 	case converged.IsRateLimit(err), converged.IsInternal(err):
 		return true
 	default:
-		// Keep unknown API errors retryable to avoid terminalizing transient outages.
 		return true
 	}
 }
@@ -245,7 +259,7 @@ func GetPEUUID(ctx context.Context, client *v4Converged.Client, peName, peUUID *
 			return *foundPEs[0].ExtId, nil
 		}
 		if len(foundPEs) == 0 {
-			return "", fmt.Errorf("failed to retrieve Prism Element cluster by name %s", *peName)
+			return "", &terminalError{message: fmt.Sprintf("failed to retrieve Prism Element cluster by name %s", *peName)}
 		} else {
 			return "", fmt.Errorf("more than one Prism Element cluster found with name %s", *peName)
 		}
@@ -511,7 +525,7 @@ func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID strin
 		}
 
 		if len(foundSubnets) == 0 {
-			return "", fmt.Errorf("failed to retrieve subnet by name %s", *subnetName)
+			return "", &terminalError{message: fmt.Sprintf("failed to retrieve subnet by name %s", *subnetName)}
 		} else if len(foundSubnets) > 1 {
 			return "", fmt.Errorf("more than one subnet found with name %s", *subnetName)
 		} else {
@@ -550,7 +564,7 @@ func GetImage(ctx context.Context, client *v4Converged.Client, id infrav1.Nutani
 			}
 		}
 		if len(foundImages) == 0 {
-			return nil, fmt.Errorf("found no image with name %s", *id.Name)
+			return nil, &terminalError{message: fmt.Sprintf("found no image with name %s", *id.Name)}
 		} else if len(foundImages) > 1 {
 			return nil, fmt.Errorf("more than one image found with name %s", *id.Name)
 		} else {
@@ -604,7 +618,7 @@ func GetImageByLookup(
 	}
 	sorted := sortImagesByLatestCreationTime(foundImages)
 	if len(sorted) == 0 {
-		return nil, fmt.Errorf("failed to find image with filter %s", templateBytes.String())
+		return nil, &terminalError{message: fmt.Sprintf("failed to find image with filter %s", templateBytes.String())}
 	}
 	return sorted[0], nil
 }
@@ -848,7 +862,7 @@ func GetPrismReferencesOfCategoryIdentifiers(
 			return nil, errorMsg
 		}
 		if prismCategory == nil || prismCategory.ExtId == nil {
-			errorMsg := fmt.Errorf("category value %s not found in category %s. error", ci.Value, ci.Key)
+			errorMsg := &terminalError{message: fmt.Sprintf("category value %s not found in category %s", ci.Value, ci.Key)}
 			log.Error(errorMsg, "category value not found")
 			return nil, errorMsg
 		}
@@ -878,7 +892,7 @@ func GetProjectUUID(ctx context.Context, client *prismclientv3.Client, projectNa
 		projectIntentResponse, err := client.V3.GetProject(ctx, *projectUUID)
 		if err != nil {
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-				return "", fmt.Errorf("failed to find project with UUID %s: %w", *projectUUID, err)
+				return "", &terminalError{message: fmt.Sprintf("failed to find project with UUID %s: %v", *projectUUID, err)}
 			}
 			return "", fmt.Errorf("failed to get project with UUID %s: %w", *projectUUID, err)
 		}
@@ -896,7 +910,7 @@ func GetProjectUUID(ctx context.Context, client *prismclientv3.Client, projectNa
 			}
 		}
 		if len(foundProjects) == 0 {
-			return "", fmt.Errorf("failed to retrieve project by name %s", *projectName)
+			return "", &terminalError{message: fmt.Sprintf("failed to retrieve project by name %s", *projectName)}
 		} else if len(foundProjects) > 1 {
 			return "", fmt.Errorf("more than one project found with name %s", *projectName)
 		} else {
@@ -949,7 +963,7 @@ func GetGPU(ctx context.Context, client *v4Converged.Client, peUUID string, gpu 
 		return nil, err
 	}
 	if len(allUnusedGPUs) == 0 {
-		return nil, fmt.Errorf("no available GPUs found in Prism Element cluster with UUID %s", peUUID)
+		return nil, &terminalError{message: fmt.Sprintf("no available GPUs found in Prism Element cluster with UUID %s", peUUID)}
 	}
 
 	randomIndex := rand.Intn(len(allUnusedGPUs))
@@ -1062,7 +1076,7 @@ func GetStorageContainerInCluster(ctx context.Context, client *v4Converged.Clien
 	}
 
 	if len(storageContainers) == 0 {
-		return nil, fmt.Errorf("found no storage container using filter: %s", filter)
+		return nil, &terminalError{message: fmt.Sprintf("found no storage container using filter: %s", filter)}
 	}
 
 	return &storageContainers[0], nil
