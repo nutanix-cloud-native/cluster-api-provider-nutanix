@@ -769,6 +769,7 @@ func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineConte
 
 func (r *NutanixMachineReconciler) validateDataDisks(dataDisks []infrav1.NutanixMachineVMDisk) error {
 	errors := []error{}
+	usedDeviceIndexByAdapter := make(map[string]map[int32]struct{})
 	for _, disk := range dataDisks {
 
 		if disk.DiskSize.Cmp(minMachineDataDiskSize) < 0 {
@@ -779,6 +780,20 @@ func (r *NutanixMachineReconciler) validateDataDisks(dataDisks []infrav1.Nutanix
 
 		if disk.DeviceProperties != nil {
 			errors = validateDataDiskDeviceProperties(disk, errors)
+
+			// DeviceIndex 0 means "unspecified" and is auto-assigned later, so we
+			// only detect duplicates for explicitly set non-zero indexes.
+			if disk.DeviceProperties.DeviceIndex != 0 {
+				adapterType := string(disk.DeviceProperties.AdapterType)
+				if _, ok := usedDeviceIndexByAdapter[adapterType]; !ok {
+					usedDeviceIndexByAdapter[adapterType] = make(map[int32]struct{})
+				}
+				if _, ok := usedDeviceIndexByAdapter[adapterType][disk.DeviceProperties.DeviceIndex]; ok {
+					errors = append(errors, fmt.Errorf("index '%d' is already in use", disk.DeviceProperties.DeviceIndex))
+				} else {
+					usedDeviceIndexByAdapter[adapterType][disk.DeviceProperties.DeviceIndex] = struct{}{}
+				}
+			}
 		}
 
 		if disk.DataSource != nil {

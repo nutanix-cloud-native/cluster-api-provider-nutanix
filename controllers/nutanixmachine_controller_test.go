@@ -779,6 +779,49 @@ func TestNutanixMachineValidateDataDisks(t *testing.T) {
 				g.Expect(err.Error()).To(ContainSubstring("invalid device index -1 for data disk"))
 			},
 		},
+		{
+			name: "dataDiskErrorDuplicateDeviceIndex",
+			dataDisks: func() []infrav1.NutanixMachineVMDisk {
+				return []infrav1.NutanixMachineVMDisk{
+					{
+						DiskSize: resource.MustParse("20Gi"),
+						DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+							DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+							AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+							DeviceIndex: 10,
+						},
+						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+							DiskMode: infrav1.NutanixMachineDiskModeStandard,
+							StorageContainer: &infrav1.NutanixResourceIdentifier{
+								UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+								Type: infrav1.NutanixIdentifierUUID,
+							},
+						},
+					},
+					{
+						DiskSize: resource.MustParse("20Gi"),
+						DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+							DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
+							AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
+							DeviceIndex: 10,
+						},
+						StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+							DiskMode: infrav1.NutanixMachineDiskModeStandard,
+							StorageContainer: &infrav1.NutanixResourceIdentifier{
+								UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+								Type: infrav1.NutanixIdentifierUUID,
+							},
+						},
+					},
+				}
+			},
+			description: "Verify NutanixMachine with duplicate data disk device index error",
+			stepDesc:    "should error on validation due to duplicate device index",
+			errCheck: func(g *WithT, err error) {
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("index '10' is already in use"))
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
