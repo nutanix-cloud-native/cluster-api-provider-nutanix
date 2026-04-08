@@ -2695,10 +2695,11 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		// Create mock clients
 		mockConvergedClient := NewMockConvergedClient(ctrl)
 
-		// Mock FindVM to return existing VM
+		// Mock FindVM to return existing VM (already powered on)
 		expectedVm := vmmModels.NewVm()
 		expectedVm.Name = ptr.To(vmName)
 		expectedVm.ExtId = ptr.To(vmUUID)
+		expectedVm.PowerState = vmmModels.POWERSTATE_ON.Ref()
 		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(expectedVm, nil)
 
 		// Create machine context
@@ -2756,10 +2757,11 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		// Create mock clients
 		mockConvergedClient := NewMockConvergedClient(ctrl)
 
-		// Mock FindVMByName
+		// Mock FindVMByName (already powered on)
 		expectedVM := vmmModels.NewVm()
 		expectedVM.Name = ptr.To(vmName)
 		expectedVM.ExtId = ptr.To(vmUUID)
+		expectedVM.PowerState = vmmModels.POWERSTATE_ON.Ref()
 		mockConvergedClient.MockVMs.EXPECT().List(ctx, FilterMatcher{ContainsExtId: vmName}).Return([]vmmModels.Vm{*expectedVM}, nil)
 		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(expectedVM, nil)
 
@@ -2782,6 +2784,78 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, vm)
 		assert.Equal(t, vmName, *vm.Name)
+	})
+
+	t.Run("should power on existing VM that is not powered on", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		vmName := "test-vm"
+		vmUUID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+
+		ntnxMachine := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+			},
+			Spec: infrav1.NutanixMachineSpec{
+				ProviderID: fmt.Sprintf("nutanix://%s", vmUUID),
+			},
+			Status: infrav1.NutanixMachineStatus{
+				VmUUID: vmUUID,
+			},
+		}
+
+		machine := &capiv1beta2.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: vmName,
+			},
+		}
+
+		ntnxCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-cluster",
+				Namespace: "default",
+			},
+		}
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+
+		// Mock FindVM to return existing VM that is OFF
+		existingVm := vmmModels.NewVm()
+		existingVm.Name = ptr.To(vmName)
+		existingVm.ExtId = ptr.To(vmUUID)
+		existingVm.PowerState = vmmModels.POWERSTATE_OFF.Ref()
+		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(existingVm, nil)
+
+		// Mock PowerOnVM
+		mockOperation := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
+		mockConvergedClient.MockVMs.EXPECT().PowerOnVM(vmUUID).Return(mockOperation, nil)
+		mockOperation.EXPECT().Wait(gomock.Any()).Return(nil, nil)
+
+		// Mock re-fetch after power on
+		poweredOnVm := vmmModels.NewVm()
+		poweredOnVm.Name = ptr.To(vmName)
+		poweredOnVm.ExtId = ptr.To(vmUUID)
+		poweredOnVm.PowerState = vmmModels.POWERSTATE_ON.Ref()
+		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(poweredOnVm, nil)
+
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Machine:         machine,
+			NutanixMachine:  ntnxMachine,
+			NutanixCluster:  ntnxCluster,
+			ConvergedClient: mockConvergedClient.Client,
+		}
+
+		reconciler := &NutanixMachineReconciler{}
+		vm, err := reconciler.getOrCreateVM(rctx)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, vm)
+		assert.Equal(t, vmName, *vm.Name)
+		assert.Equal(t, vmUUID, *vm.ExtId)
 	})
 
 	t.Run("should return error when FindVM fails", func(t *testing.T) {
@@ -3553,10 +3627,11 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 		// Create mock clients
 		mockConvergedClient := NewMockConvergedClient(ctrl)
 
-		// Mock FindVM to return VM matching systemUUID
+		// Mock FindVM to return VM matching systemUUID (already powered on)
 		expectedVm := vmmModels.NewVm()
 		expectedVm.Name = ptr.To(vmName)
 		expectedVm.ExtId = ptr.To(systemUUID)
+		expectedVm.PowerState = vmmModels.POWERSTATE_ON.Ref()
 		// Should get VM by systemUUID, NOT VmUUID
 		mockConvergedClient.MockVMs.EXPECT().Get(ctx, systemUUID).Return(expectedVm, nil)
 
@@ -3621,10 +3696,11 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 		// Create mock clients
 		mockConvergedClient := NewMockConvergedClient(ctrl)
 
-		// Mock FindVM to return VM matching VmUUID
+		// Mock FindVM to return VM matching VmUUID (already powered on)
 		expectedVm := vmmModels.NewVm()
 		expectedVm.Name = ptr.To(vmName)
 		expectedVm.ExtId = ptr.To(vmUUID)
+		expectedVm.PowerState = vmmModels.POWERSTATE_ON.Ref()
 		// Should get VM by VmUUID since NodeInfo is nil
 		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(expectedVm, nil)
 
@@ -3691,10 +3767,11 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 		// Create mock clients
 		mockConvergedClient := NewMockConvergedClient(ctrl)
 
-		// Mock FindVM to return VM matching VmUUID
+		// Mock FindVM to return VM matching VmUUID (already powered on)
 		expectedVm := vmmModels.NewVm()
 		expectedVm.Name = ptr.To(vmName)
 		expectedVm.ExtId = ptr.To(vmUUID)
+		expectedVm.PowerState = vmmModels.POWERSTATE_ON.Ref()
 		// Should get VM by VmUUID since SystemUUID is empty
 		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(expectedVm, nil)
 

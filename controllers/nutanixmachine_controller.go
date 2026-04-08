@@ -898,6 +898,17 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	// if VM exists
 	if vmFound != nil {
 		log.Info(fmt.Sprintf("vm %s found with UUID %s", *vmFound.Name, rctx.NutanixMachine.Status.VmUUID))
+
+		// Ensure the VM is powered on. A previous reconcile may have created the
+		// VM but failed to power it on (e.g. transient etag mismatch).
+		if vmFound.PowerState == nil || *vmFound.PowerState != vmmconfig.POWERSTATE_ON {
+			var err error
+			vmFound, err = r.powerOnVM(rctx, *vmFound.ExtId, vmName)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
 		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
 			Type:   string(infrav1.VMProvisionedCondition),
@@ -1037,9 +1048,31 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		log.Error(err, fmt.Sprintf("failed to update custom attributes on VM %s with UUID %s, continuing", vmName, vmUuid))
 	}
 
-	// Power on VM
-	log.Info("Powering VM on after creation")
-	powerOnTask, err := convergedClient.VMs.PowerOnVM(vmUuid)
+	// Power on VM and re-fetch updated state
+	vm, err = r.powerOnVM(rctx, vmUuid, vmName)
+	if err != nil {
+		return nil, err
+	}
+
+	v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
+	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+		Type:   string(infrav1.VMProvisionedCondition),
+		Status: metav1.ConditionTrue,
+		Reason: capiv1beta1.ProvisionedV1Beta2Reason,
+	})
+	return vm, nil
+}
+
+// powerOnVM powers on the VM, waits for the task to complete, and returns the
+// re-fetched VM. Both the "existing VM found off" and "newly created VM" paths
+// use this so power-on error handling stays in one place.
+func (r *NutanixMachineReconciler) powerOnVM(rctx *nctx.MachineContext, vmUUID, vmName string) (*vmmconfig.Vm, error) {
+	ctx := rctx.Context
+	log := ctrl.LoggerFrom(ctx)
+	convergedClient := rctx.ConvergedClient
+
+	log.Info(fmt.Sprintf("Powering on VM %s", vmName))
+	powerOnTask, err := convergedClient.VMs.PowerOnVM(vmUUID)
 	if err != nil {
 		errMsg := fmt.Errorf("error occured while powering on VM %s: %w", vmName, err)
 		if !isRetryableAPIError(err) {
@@ -1056,22 +1089,15 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		return nil, errMsg
 	}
 
-	log.Info("Fetching VM after creation")
-	vm, err = FindVMByUUID(ctx, convergedClient, vmUuid)
+	log.Info(fmt.Sprintf("Fetching VM %s after power on", vmName))
+	vm, err := FindVMByUUID(ctx, convergedClient, vmUUID)
 	if err != nil {
-		errorMsg := fmt.Errorf("error occurred while getting VM %s after creation: %w", vmName, err)
+		errorMsg := fmt.Errorf("error occurred while getting VM %s after power on: %w", vmName, err)
 		if !isRetryableAPIError(err) {
-			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+			rctx.SetFailureStatus(powerOnErrorFailureReason, errorMsg)
 		}
 		return nil, errorMsg
 	}
-
-	v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
-	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
-		Type:   string(infrav1.VMProvisionedCondition),
-		Status: metav1.ConditionTrue,
-		Reason: capiv1beta1.ProvisionedV1Beta2Reason,
-	})
 	return vm, nil
 }
 
