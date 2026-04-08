@@ -531,6 +531,15 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	}
 	log.V(1).Info(fmt.Sprintf("Found VM with name: %s, vmUUID: %s", rctx.Machine.Name, *vm.ExtId))
 
+	// Power-on is an explicit reconcile step after VM discovery/creation.
+	if vm.PowerState == nil || *vm.PowerState != vmmconfig.POWERSTATE_ON {
+		vm, err = r.powerOnVM(rctx, *vm.ExtId, rctx.Machine.Name)
+		if err != nil {
+			log.Error(err, fmt.Sprintf("Failed to power on VM %s.", rctx.Machine.Name))
+			return reconcile.Result{}, err
+		}
+	}
+
 	// Set and sync VmUUID with SystemUUID to ensure consistency
 	if err := r.syncVmUUID(rctx, *vm.ExtId); err != nil {
 		log.Error(err, "Failed to sync VmUUID")
@@ -880,7 +889,6 @@ func validateDataDiskDeviceProperties(disk infrav1.NutanixMachineVMDisk, errors 
 }
 
 // GetOrCreateVM creates a VM and is invoked by the NutanixMachineReconciler
-//nolint:gocognit // Keep orchestration in one place; covers VM discovery, spec build, create, and post-create steps.
 func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vmmconfig.Vm, error) {
 	var err error
 	ctx := rctx.Context
@@ -898,16 +906,6 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	// if VM exists
 	if vmFound != nil {
 		log.Info(fmt.Sprintf("vm %s found with UUID %s", *vmFound.Name, rctx.NutanixMachine.Status.VmUUID))
-
-		// Ensure the VM is powered on. A previous reconcile may have created the
-		// VM but failed to power it on (e.g. transient etag mismatch).
-		if vmFound.PowerState == nil || *vmFound.PowerState != vmmconfig.POWERSTATE_ON {
-			var err error
-			vmFound, err = r.powerOnVM(rctx, *vmFound.ExtId, vmName)
-			if err != nil {
-				return nil, err
-			}
-		}
 
 		v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
 		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
@@ -1046,12 +1044,6 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	_, err = convergedClient.VMs.AddVmCustomAttributes(ctx, vmUuid, customAttributes)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("failed to update custom attributes on VM %s with UUID %s, continuing", vmName, vmUuid))
-	}
-
-	// Power on VM and re-fetch updated state
-	vm, err = r.powerOnVM(rctx, vmUuid, vmName)
-	if err != nil {
-		return nil, err
 	}
 
 	v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)

@@ -2786,7 +2786,7 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		assert.Equal(t, vmName, *vm.Name)
 	})
 
-	t.Run("should power on existing VM that is not powered on", func(t *testing.T) {
+	t.Run("should return existing VM even when it is powered off", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -2829,18 +2829,6 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		existingVm.PowerState = vmmModels.POWERSTATE_OFF.Ref()
 		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(existingVm, nil)
 
-		// Mock PowerOnVM
-		mockOperation := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
-		mockConvergedClient.MockVMs.EXPECT().PowerOnVM(vmUUID).Return(mockOperation, nil)
-		mockOperation.EXPECT().Wait(gomock.Any()).Return(nil, nil)
-
-		// Mock re-fetch after power on
-		poweredOnVm := vmmModels.NewVm()
-		poweredOnVm.Name = ptr.To(vmName)
-		poweredOnVm.ExtId = ptr.To(vmUUID)
-		poweredOnVm.PowerState = vmmModels.POWERSTATE_ON.Ref()
-		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(poweredOnVm, nil)
-
 		rctx := &nctx.MachineContext{
 			Context:         ctx,
 			Machine:         machine,
@@ -2856,6 +2844,7 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		assert.NotNil(t, vm)
 		assert.Equal(t, vmName, *vm.Name)
 		assert.Equal(t, vmUUID, *vm.ExtId)
+		assert.Equal(t, vmmModels.POWERSTATE_OFF, *vm.PowerState)
 	})
 
 	t.Run("should return error when FindVM fails", func(t *testing.T) {
@@ -3055,18 +3044,6 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		updatedVM.Name = ptr.To(vmName)
 		updatedVM.ExtId = ptr.To(vmUUID)
 		mockConvergedClient.MockVMs.EXPECT().AddVmCustomAttributes(ctx, vmUUID, gomock.Any()).Return(updatedVM, nil)
-
-		// Mock PowerOnVM
-		mockOperation := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
-		mockConvergedClient.MockVMs.EXPECT().PowerOnVM(vmUUID).Return(mockOperation, nil)
-		mockOperation.EXPECT().Wait(gomock.Any()).Return(nil, nil)
-
-		// Mock final FindVMByUUID call
-		finalVM := vmmModels.NewVm()
-		finalVM.Name = ptr.To(vmName)
-		finalVM.ExtId = ptr.To(vmUUID)
-		finalVM.PowerState = vmmModels.POWERSTATE_ON.Ref()
-		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(finalVM, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
