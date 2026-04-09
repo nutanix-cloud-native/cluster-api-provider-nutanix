@@ -98,7 +98,6 @@ jobs:
         uses: aquasecurity/trivy-action@0.35.0
         with:
           scan-type: "fs"
-          trivyignores: ".trivyignore"
           ignore-unfixed: true
           format: "table"
           exit-code: "1"
