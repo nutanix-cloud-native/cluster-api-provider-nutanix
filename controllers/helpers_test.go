@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -28,6 +29,7 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	mockconverged "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/converged"
 	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
+	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	converged "github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
@@ -55,6 +57,56 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/cluster-api/util"
 )
+
+func Test_isRetryableAPIError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "not found is not retryable",
+			err:      &converged.APIError{Kind: converged.ErrNotFound, Message: "not found"},
+			expected: false,
+		},
+		{
+			name:     "rate limit is retryable",
+			err:      &converged.APIError{Kind: converged.ErrRateLimit, Message: "rate limited"},
+			expected: true,
+		},
+		{
+			name:     "internal is retryable",
+			err:      &converged.APIError{Kind: converged.ErrInternal, Message: "internal error"},
+			expected: true,
+		},
+		{
+			name:     "unknown errors default to retryable",
+			err:      errors.New("timeout awaiting headers"),
+			expected: true,
+		},
+		{
+			name:     "terminal error is not retryable",
+			err:      &terminalError{message: "resource not found"},
+			expected: false,
+		},
+		{
+			name:     "unclassified APIError (Kind nil) is not retryable",
+			err:      &converged.APIError{Kind: nil, Cause: errors.New("400 Bad Request")},
+			expected: false,
+		},
+		{
+			name:     "wrapped unclassified APIError is not retryable",
+			err:      fmt.Errorf("failed to create VM: %w", &converged.APIError{Kind: nil, Cause: errors.New("validation error")}),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, isRetryableAPIError(tt.err))
+		})
+	}
+}
 
 func TestControllerHelpers(t *testing.T) {
 	g := NewWithT(t)
@@ -1917,6 +1969,7 @@ func TestGetStorageContainerInCluster(t *testing.T) {
 		want               *clusterModels.StorageContainer
 		wantErr            bool
 		errorMessage       string
+		assertNotFound     bool
 	}{
 		{
 			name: "GetStorageContainerInCluster succeeds with ID UUID",
@@ -1993,6 +2046,26 @@ func TestGetStorageContainerInCluster(t *testing.T) {
 			want:         &storageContainers[0],
 			wantErr:      false,
 			errorMessage: "",
+		},
+		{
+			name: "GetStorageContainerInCluster returns classified not found when no containers match",
+			mockBuilder: func() *v4Converged.Client {
+				mockClientWrapper := NewMockConvergedClient(mockctl)
+				mockClientWrapper.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return([]clusterModels.StorageContainer{}, nil)
+				return mockClientWrapper.Client
+			},
+			clusterId: infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierUUID,
+				UUID: ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
+			},
+			storageContainerId: infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierUUID,
+				UUID: ptr.To("2a61b02a-54a6-475e-93b9-5efc895b48e3"),
+			},
+			want:           nil,
+			wantErr:        true,
+			errorMessage:   "found no storage container using filter",
+			assertNotFound: true,
 		},
 		{
 			name: "GetStorageContainerInCluster fails",
@@ -2113,8 +2186,71 @@ func TestGetStorageContainerInCluster(t *testing.T) {
 			if tt.errorMessage != "" {
 				assert.Contains(t, err.Error(), tt.errorMessage)
 			}
+			if tt.assertNotFound {
+				assert.True(t, isTerminalError(err))
+			}
 		})
 	}
+}
+
+func TestGetPrismReferencesOfCategoryIdentifiers_NotFoundClassification(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+
+	_, err := GetPrismReferencesOfCategoryIdentifiers(ctx, mockClient.Client, []*infrav1.NutanixCategoryIdentifier{
+		{
+			Key:   "cluster-name",
+			Value: "missing",
+		},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found in category")
+	assert.True(t, isTerminalError(err))
+}
+
+func TestGetProjectUUID_NotFoundClassification(t *testing.T) {
+	t.Run("returns classified not found for missing project UUID", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		mockV3Client := mocknutanixv3.NewMockService(ctrl)
+		client := &prismclientv3.Client{V3: mockV3Client}
+		projectUUID := "missing-project-uuid"
+
+		mockV3Client.EXPECT().GetProject(ctx, projectUUID).Return(nil, errors.New("ENTITY_NOT_FOUND"))
+
+		_, err := GetProjectUUID(ctx, client, nil, &projectUUID)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to find project with UUID")
+		assert.True(t, isTerminalError(err))
+	})
+
+	t.Run("returns classified not found for missing project name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		mockV3Client := mocknutanixv3.NewMockService(ctrl)
+		client := &prismclientv3.Client{V3: mockV3Client}
+		projectName := "missing-project-name"
+
+		mockV3Client.EXPECT().ListAllProject(ctx, "").Return(&prismclientv3.ProjectListResponse{
+			Entities: []*prismclientv3.Project{},
+		}, nil)
+
+		_, err := GetProjectUUID(ctx, client, &projectName, nil)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to retrieve project by name")
+		assert.True(t, isTerminalError(err))
+	})
 }
 
 func TestDeleteVM(t *testing.T) {
@@ -2363,6 +2499,7 @@ func TestGetGPU(t *testing.T) {
 		_, err := GetGPU(ctx, mockClientWrapper.Client, peUUID, gpu)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "no available GPUs found")
+		assert.True(t, isTerminalError(err))
 	})
 }
 
