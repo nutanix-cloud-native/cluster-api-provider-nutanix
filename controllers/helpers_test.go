@@ -34,7 +34,9 @@ import (
 	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
+	iamModels "github.com/nutanix/ntnx-api-golang-clients/iam-go-client/v4/models/iam/v4/authn"
 	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
+	networkingprismapi "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/prism/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	prismErrors "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/error"
 	vmmModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
@@ -2839,9 +2841,9 @@ type MockConvergedClientWrapper struct {
 	MockAntiAffinityPolicies *mockconverged.MockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy]
 	MockClusters             *mockconverged.MockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile, clusterModels.Host]
 	MockCategories           *mockconverged.MockCategories[prismModels.Category]
-	MockImages               *mockconverged.MockImages[imageModels.Image]
+	MockImages               *mockconverged.MockImages[imageModels.Image, imageModels.FileDetail]
 	MockStorageContainers    *mockconverged.MockStorageContainers[clusterModels.StorageContainer]
-	MockSubnets              *mockconverged.MockSubnets[subnetModels.Subnet]
+	MockSubnets              *mockconverged.MockSubnets[subnetModels.Subnet, networkingprismapi.TaskReference]
 	MockVMs                  *mockconverged.MockVMs[vmmModels.Vm]
 	MockTasks                *mockconverged.MockTasks[prismModels.Task, prismErrors.AppMessage]
 	MockVolumeGroups         *mockconverged.MockVolumeGroups[volumesconfig.VolumeGroup, volumesconfig.VmAttachment]
@@ -2852,9 +2854,9 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 	mockAntiAffinityPolicies := mockconverged.NewMockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy](ctrl)
 	mockClusters := mockconverged.NewMockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile, clusterModels.Host](ctrl)
 	mockCategories := mockconverged.NewMockCategories[prismModels.Category](ctrl)
-	mockImages := mockconverged.NewMockImages[imageModels.Image](ctrl)
+	mockImages := mockconverged.NewMockImages[imageModels.Image, imageModels.FileDetail](ctrl)
 	mockStorageContainers := mockconverged.NewMockStorageContainers[clusterModels.StorageContainer](ctrl)
-	mockSubnets := mockconverged.NewMockSubnets[subnetModels.Subnet](ctrl)
+	mockSubnets := mockconverged.NewMockSubnets[subnetModels.Subnet, networkingprismapi.TaskReference](ctrl)
 	mockTasks := mockconverged.NewMockTasks[prismModels.Task, prismErrors.AppMessage](ctrl)
 	// Create mock VMs service with the correct type
 	mockVMs := mockconverged.NewMockVMs[vmmModels.Vm](ctrl)
@@ -2869,13 +2871,20 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			clusterModels.Host,
 			prismModels.Category,
 			imageModels.Image,
+			imageModels.FileDetail,
 			clusterModels.StorageContainer,
 			subnetModels.Subnet,
+			networkingprismapi.TaskReference,
 			vmmModels.Vm,
 			prismModels.Task,
 			prismErrors.AppMessage,
 			volumesconfig.VolumeGroup,
 			volumesconfig.VmAttachment,
+			prismModels.DomainManager,
+			iamModels.User,
+			imageModels.Template,
+			imageModels.Ova,
+			imageModels.FileDetail,
 		]{
 			AntiAffinityPolicies: mockAntiAffinityPolicies,
 			Clusters:             mockClusters,
