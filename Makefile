@@ -389,18 +389,19 @@ print-envtest: ## Set up envtest (download kubebuilder assets)
 
 .PHONY: unit-test
 unit-test: mocks  ## Run unit tests.
-	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" GOFLAGS="-buildvcs=false" \
+	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" GOFLAGS="-buildvcs=false" CGO_ENABLED=0 \
 	$(GOTEST) $(GOTESTPKGS)
 
 .PHONY: coverage
 coverage: mocks ## Run the tests of the project and export the coverage
-	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" GOFLAGS="-buildvcs=false" \
+	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" GOFLAGS="-buildvcs=false" CGO_ENABLED=1 \
 	$(GOTEST) -race -coverprofile=coverage.out -covermode=atomic $(GOTESTPKGS)
 
 .PHONY: template-test
 template-test: docker-build prepare-local-clusterctl ## Run the template tests
 	$(select_container_engine)
 	GOPROXY=off \
+	CGO_ENABLED=0 \
 	LOCAL_PROVIDER_VERSION=$(LOCAL_PROVIDER_VERSION) \
 		ginkgo --trace --v run templates
 
