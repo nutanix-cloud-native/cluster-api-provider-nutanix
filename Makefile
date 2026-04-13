@@ -394,8 +394,8 @@ unit-test: mocks  ## Run unit tests.
 
 .PHONY: coverage
 coverage: mocks ## Run the tests of the project and export the coverage
-	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" GOFLAGS="-buildvcs=false" CGO_ENABLED=1 \
-	$(GOTEST) -race -coverprofile=coverage.out -covermode=atomic $(GOTESTPKGS)
+	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" GOFLAGS="-buildvcs=false" CGO_ENABLED=0 \
+	$(GOTEST) -coverprofile=coverage.out -covermode=atomic $(GOTESTPKGS)
 
 .PHONY: template-test
 template-test: docker-build prepare-local-clusterctl ## Run the template tests
