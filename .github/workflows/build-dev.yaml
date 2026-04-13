@@ -62,9 +62,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - name: Print envtest path
-        run: devbox run -- make print-envtest
-
       - name: Verify that generated manifests committed to the repository are up to date
         run: devbox run -- make verify-manifests
 
