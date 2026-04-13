@@ -417,6 +417,7 @@ test-e2e: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the en
 	mkdir -p $(ARTIFACTS)
 	NUTANIX_LOG_LEVEL=debug \
 	    DOCKER_HOST=$(DOCKER_SOCKET) \
+	    CGO_ENABLED=0 \
 	    ginkgo -v \
 		--trace \
 		--tags=e2e \
@@ -445,6 +446,7 @@ test-e2e-no-kubeproxy: docker-build-e2e cluster-e2e-templates-no-kubeproxy clust
 	mkdir -p $(ARTIFACTS)
 	NUTANIX_LOG_LEVEL=debug \
 	    DOCKER_HOST=$(DOCKER_SOCKET) \
+	    CGO_ENABLED=0 \
 	    ginkgo -v \
 		--trace \
 		--tags=e2e \
@@ -467,7 +469,7 @@ test-e2e-no-kubeproxy: docker-build-e2e cluster-e2e-templates-no-kubeproxy clust
 list-e2e: docker-build-e2e cluster-e2e-templates cluster-templates ## Run the end-to-end tests
 	$(select_container_engine)
 	mkdir -p $(ARTIFACTS)
-	ginkgo -v \
+	CGO_ENABLED=0 ginkgo -v \
 	    --trace \
 	    --dry-run \
 	    --tags=e2e \
