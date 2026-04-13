@@ -102,13 +102,12 @@ func FindVMByUUID(ctx context.Context, client *v4Converged.Client, uuid string) 
 
 	response, err := client.VMs.Get(ctx, uuid)
 	if err != nil {
-		if strings.Contains(fmt.Sprint(err), "VM_NOT_FOUND") {
+		if converged.IsNotFound(err) {
 			log.V(1).Info(fmt.Sprintf("vm with uuid %s does not exist.", uuid))
 			return nil, nil
-		} else {
-			log.Error(err, fmt.Sprintf("Failed to find VM by vmUUID %s", uuid))
-			return nil, err
 		}
+		log.Error(err, fmt.Sprintf("Failed to find VM by vmUUID %s", uuid))
+		return nil, err
 	}
 
 	return response, nil
@@ -211,8 +210,8 @@ func GetPEUUID(ctx context.Context, client *v4Converged.Client, peName, peUUID *
 	if peUUID != nil && *peUUID != "" {
 		peIntentResponse, err := client.Clusters.Get(ctx, *peUUID)
 		if err != nil {
-			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-				return "", fmt.Errorf("failed to find Prism Element cluster with UUID %s: %v", *peUUID, err)
+			if converged.IsNotFound(err) {
+				return "", fmt.Errorf("failed to find Prism Element cluster with UUID %s: %w", *peUUID, err)
 			}
 			return "", fmt.Errorf("failed to get Prism Element cluster with UUID %s: %v", *peUUID, err)
 		}
@@ -467,8 +466,8 @@ func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID strin
 	if subnetUUID != nil {
 		subnetIntentResponse, err := client.Subnets.Get(ctx, *subnetUUID)
 		if err != nil {
-			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-				return "", fmt.Errorf("failed to find subnet with UUID %s: %v", *subnetUUID, err)
+			if converged.IsNotFound(err) {
+				return "", fmt.Errorf("failed to find subnet with UUID %s: %w", *subnetUUID, err)
 			}
 			return "", fmt.Errorf("failed to get subnet with UUID %s: %v", *subnetUUID, err)
 		}
@@ -519,9 +518,8 @@ func GetImage(ctx context.Context, client *v4Converged.Client, id infrav1.Nutani
 	case id.IsUUID():
 		resp, err := client.Images.Get(ctx, *id.UUID)
 		if err != nil {
-			// TODO: Improve when error handling is improved
-			if strings.Contains(fmt.Sprint(err), "VMM-20005") {
-				return nil, fmt.Errorf("failed to find image with UUID %s: %v", *id.UUID, err)
+			if converged.IsNotFound(err) {
+				return nil, fmt.Errorf("failed to find image with UUID %s: %w", *id.UUID, err)
 			}
 			return nil, fmt.Errorf("failed to get image with UUID %s: %v", *id.UUID, err)
 		}
