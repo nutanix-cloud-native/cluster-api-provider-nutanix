@@ -379,7 +379,7 @@ mocks: ## Generate mocks for the project
 	mockgen -destination=mocks/converged/tasks.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Tasks
 	mockgen -destination=mocks/converged/volume_groups.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged VolumeGroups
 
-GOTESTPKGS = $(shell go list ./... | grep -v /mocks | grep -v /templates)
+GOTESTPKGS = $(shell GOFLAGS=-buildvcs=false go list ./... | grep -v /mocks | grep -v /templates)
 
 KUBEBUILDER_ASSETS=$(shell setup-envtest use --print path $(ENVTEST_K8S_VERSION) --arch=amd64)
 
@@ -389,18 +389,19 @@ print-envtest: ## Set up envtest (download kubebuilder assets)
 
 .PHONY: unit-test
 unit-test: mocks  ## Run unit tests.
-	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" \
+	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" GOFLAGS="-buildvcs=false" CC=clang CXX=clang++ \
 	$(GOTEST) $(GOTESTPKGS)
 
 .PHONY: coverage
 coverage: mocks ## Run the tests of the project and export the coverage
-	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" \
+	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" GOFLAGS="-buildvcs=false" CC=clang CXX=clang++ \
 	$(GOTEST) -race -coverprofile=coverage.out -covermode=atomic $(GOTESTPKGS)
 
 .PHONY: template-test
 template-test: docker-build prepare-local-clusterctl ## Run the template tests
 	$(select_container_engine)
 	GOPROXY=off \
+	CC=clang CXX=clang++ \
 	LOCAL_PROVIDER_VERSION=$(LOCAL_PROVIDER_VERSION) \
 		ginkgo --trace --v run templates
 
