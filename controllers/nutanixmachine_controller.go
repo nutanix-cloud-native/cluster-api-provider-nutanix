@@ -1079,7 +1079,9 @@ func (r *NutanixMachineReconciler) addCustomAttributes(rctx *nctx.MachineContext
 	vmName := *vm.Name
 	desiredAttr := vmCustomAttributePrefix4ProviderID + vmUUID
 
-	if slices.Contains(vm.CustomAttributes, desiredAttr) {
+	if slices.ContainsFunc(vm.CustomAttributes, func(attr string) bool {
+		return strings.HasPrefix(attr, vmCustomAttributePrefix4ProviderID)
+	}) {
 		log.V(1).Info(fmt.Sprintf("Custom attributes already present on VM %s, skipping update", vmName))
 		return nil
 	}
