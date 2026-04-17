@@ -55,6 +55,15 @@ rules:
   - list
   - watch
 - apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - machinedeployments
+  verbs:
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
   - nutanixclusters
@@ -82,7 +91,16 @@ rules:
   - nutanixfailuredomains/finalizers
   - nutanixfailuredomains/status
   - nutanixmachines/status
+  - nutanixmachinetemplates/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - nutanixmachinetemplates
+  verbs:
+  - get
+  - list
+  - watch
