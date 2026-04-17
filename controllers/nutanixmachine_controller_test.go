@@ -3039,12 +3039,6 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		createdVM.ExtId = ptr.To(vmUUID)
 		mockConvergedClient.MockVMs.EXPECT().Create(ctx, gomock.Any()).Return(createdVM, nil)
 
-		// Mock AddVmCustomAttributes for setting custom attributes after providerID is assigned
-		updatedVM := vmmModels.NewVm()
-		updatedVM.Name = ptr.To(vmName)
-		updatedVM.ExtId = ptr.To(vmUUID)
-		mockConvergedClient.MockVMs.EXPECT().AddVmCustomAttributes(ctx, vmUUID, gomock.Any()).Return(updatedVM, nil)
-
 		// Create machine context
 		rctx := &nctx.MachineContext{
 			Context:         ctx,
@@ -3311,6 +3305,124 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		assert.Nil(t, vm)
 		assert.Nil(t, ntnxMachine.Status.FailureReason)
 		assert.Nil(t, ntnxMachine.Status.FailureMessage)
+	})
+}
+
+func TestNutanixMachineReconciler_addCustomAttributes(t *testing.T) {
+	const (
+		vmName = "test-vm"
+		vmUUID = "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+	)
+
+	newVM := func(customAttrs []string) *vmmModels.Vm {
+		vm := vmmModels.NewVm()
+		vm.Name = ptr.To(vmName)
+		vm.ExtId = ptr.To(vmUUID)
+		vm.CustomAttributes = customAttrs
+		return vm
+	}
+
+	newMachineContext := func(ctrl *gomock.Controller) (*nctx.MachineContext, *MockConvergedClientWrapper) {
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		ntnxMachine := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+			},
+		}
+		return &nctx.MachineContext{
+			Context:         context.Background(),
+			NutanixMachine:  ntnxMachine,
+			ConvergedClient: mockConvergedClient.Client,
+		}, mockConvergedClient
+	}
+
+	t.Run("should skip API call when custom attribute already present", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		rctx, _ := newMachineContext(ctrl)
+		vm := newVM([]string{"providerid:" + vmUUID})
+
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.addCustomAttributes(rctx, vm)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should call API when custom attribute is missing", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		rctx, mockClient := newMachineContext(ctrl)
+		vm := newVM(nil)
+
+		expectedAttr := []string{"providerid:" + vmUUID}
+		updatedVM := newVM(expectedAttr)
+		mockClient.MockVMs.EXPECT().
+			AddVmCustomAttributes(rctx.Context, vmUUID, expectedAttr).
+			Return(updatedVM, nil)
+
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.addCustomAttributes(rctx, vm)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should call API when different custom attributes exist", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		rctx, mockClient := newMachineContext(ctrl)
+		vm := newVM([]string{"other:attribute"})
+
+		expectedAttr := []string{"providerid:" + vmUUID}
+		updatedVM := newVM(append([]string{"other:attribute"}, expectedAttr...))
+		mockClient.MockVMs.EXPECT().
+			AddVmCustomAttributes(rctx.Context, vmUUID, expectedAttr).
+			Return(updatedVM, nil)
+
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.addCustomAttributes(rctx, vm)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return error on non-retryable API failure and set failure status", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		rctx, mockClient := newMachineContext(ctrl)
+		vm := newVM(nil)
+
+		apiErr := &converged.APIError{Message: "not found"}
+		mockClient.MockVMs.EXPECT().
+			AddVmCustomAttributes(rctx.Context, vmUUID, gomock.Any()).
+			Return(nil, apiErr)
+
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.addCustomAttributes(rctx, vm)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to update custom attributes")
+		assert.NotNil(t, rctx.NutanixMachine.Status.FailureReason)
+		assert.NotNil(t, rctx.NutanixMachine.Status.FailureMessage)
+	})
+
+	t.Run("should return error on retryable API failure without setting failure status", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		rctx, mockClient := newMachineContext(ctrl)
+		vm := newVM(nil)
+
+		networkErr := fmt.Errorf("connection timeout")
+		mockClient.MockVMs.EXPECT().
+			AddVmCustomAttributes(rctx.Context, vmUUID, gomock.Any()).
+			Return(nil, networkErr)
+
+		reconciler := &NutanixMachineReconciler{}
+		err := reconciler.addCustomAttributes(rctx, vm)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to update custom attributes")
+		assert.Nil(t, rctx.NutanixMachine.Status.FailureReason)
+		assert.Nil(t, rctx.NutanixMachine.Status.FailureMessage)
 	})
 }
 

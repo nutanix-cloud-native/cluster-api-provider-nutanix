@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -491,36 +492,8 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	}
 
 	// Make sure bootstrap data is available and populated.
-	if rctx.NutanixMachine.Spec.BootstrapRef == nil {
-		if rctx.Machine.Spec.Bootstrap.DataSecretName == nil {
-			controlPlaneInitialized := rctx.Cluster.Status.Initialization.ControlPlaneInitialized != nil && *rctx.Cluster.Status.Initialization.ControlPlaneInitialized
-			if !nctx.IsControlPlaneMachine(rctx.NutanixMachine) && !controlPlaneInitialized {
-				log.Info("Waiting for the control plane to be initialized")
-				v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.ControlplaneNotInitialized, capiv1beta1.ConditionSeverityInfo, "")
-				v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
-					Type:   string(infrav1.VMProvisionedCondition),
-					Status: metav1.ConditionFalse,
-					Reason: infrav1.ControlplaneNotInitialized,
-				})
-			} else {
-				v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.BootstrapDataNotReady, capiv1beta1.ConditionSeverityInfo, "")
-				v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
-					Type:   string(infrav1.VMProvisionedCondition),
-					Status: metav1.ConditionFalse,
-					Reason: infrav1.BootstrapDataNotReady,
-				})
-				log.Info("Waiting for bootstrap data to be available")
-			}
-			return reconcile.Result{}, nil
-		}
-
-		rctx.NutanixMachine.Spec.BootstrapRef = &corev1.ObjectReference{
-			APIVersion: "v1",
-			Kind:       "Secret",
-			Name:       *rctx.Machine.Spec.Bootstrap.DataSecretName,
-			Namespace:  rctx.Machine.Namespace,
-		}
-		log.V(1).Info(fmt.Sprintf("Added the spec.bootstrapRef to NutanixMachine object: %v", rctx.NutanixMachine.Spec.BootstrapRef))
+	if ready := r.ensureBootstrapRef(rctx); !ready {
+		return reconcile.Result{}, nil
 	}
 
 	// Create or get existing VM
@@ -530,6 +503,12 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, err
 	}
 	log.V(1).Info(fmt.Sprintf("Found VM with name: %s, vmUUID: %s", rctx.Machine.Name, *vm.ExtId))
+
+	// API errors are retried on the next loop without blocking VM provisioning progress.
+	if err := r.addCustomAttributes(rctx, vm); err != nil {
+		log.Error(err, fmt.Sprintf("Failed to add custom attributes to VM %s.", rctx.Machine.Name))
+		return reconcile.Result{}, err
+	}
 
 	// Power-on is an explicit reconcile step after VM discovery/creation.
 	if vm.PowerState == nil || *vm.PowerState != vmmconfig.POWERSTATE_ON {
@@ -585,6 +564,48 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		rctx.Machine.Name, rctx.NutanixCluster.Name, rctx.NutanixMachine.Spec.ProviderID,
 		rctx.NutanixMachine, rctx.NutanixMachine.Status.VmUUID))
 	return reconcile.Result{}, nil
+}
+
+// ensureBootstrapRef checks that the bootstrap data reference is populated on
+// the NutanixMachine. Returns true when the ref is ready and reconciliation
+// can proceed, or false when the caller should return early and wait.
+func (r *NutanixMachineReconciler) ensureBootstrapRef(rctx *nctx.MachineContext) bool {
+	log := ctrl.LoggerFrom(rctx.Context)
+
+	if rctx.NutanixMachine.Spec.BootstrapRef != nil {
+		return true
+	}
+
+	if rctx.Machine.Spec.Bootstrap.DataSecretName == nil {
+		controlPlaneInitialized := rctx.Cluster.Status.Initialization.ControlPlaneInitialized != nil && *rctx.Cluster.Status.Initialization.ControlPlaneInitialized
+		if !nctx.IsControlPlaneMachine(rctx.NutanixMachine) && !controlPlaneInitialized {
+			log.Info("Waiting for the control plane to be initialized")
+			v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.ControlplaneNotInitialized, capiv1beta1.ConditionSeverityInfo, "")
+			v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+				Type:   string(infrav1.VMProvisionedCondition),
+				Status: metav1.ConditionFalse,
+				Reason: infrav1.ControlplaneNotInitialized,
+			})
+		} else {
+			v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.BootstrapDataNotReady, capiv1beta1.ConditionSeverityInfo, "")
+			v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+				Type:   string(infrav1.VMProvisionedCondition),
+				Status: metav1.ConditionFalse,
+				Reason: infrav1.BootstrapDataNotReady,
+			})
+			log.Info("Waiting for bootstrap data to be available")
+		}
+		return false
+	}
+
+	rctx.NutanixMachine.Spec.BootstrapRef = &corev1.ObjectReference{
+		APIVersion: "v1",
+		Kind:       "Secret",
+		Name:       *rctx.Machine.Spec.Bootstrap.DataSecretName,
+		Namespace:  rctx.Machine.Namespace,
+	}
+	log.V(1).Info(fmt.Sprintf("Added the spec.bootstrapRef to NutanixMachine object: %v", rctx.NutanixMachine.Spec.BootstrapRef))
+	return true
 }
 
 // syncVmUUID sets and synchronizes the NutanixMachine.Status.VmUUID with Machine.Status.NodeInfo.SystemUUID
@@ -1038,14 +1059,6 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		return nil, err
 	}
 
-	// Set custom attributes on the VM with providerID
-	customAttributes := []string{vmCustomAttributePrefix4ProviderID + vmUuid}
-	log.V(1).Info(fmt.Sprintf("Updating custom attributes on VM %s: %v", vmName, customAttributes))
-	_, err = convergedClient.VMs.AddVmCustomAttributes(ctx, vmUuid, customAttributes)
-	if err != nil {
-		log.Error(err, fmt.Sprintf("failed to update custom attributes on VM %s with UUID %s, continuing", vmName, vmUuid))
-	}
-
 	v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
 	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
 		Type:   string(infrav1.VMProvisionedCondition),
@@ -1053,6 +1066,34 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		Reason: capiv1beta1.ProvisionedV1Beta2Reason,
 	})
 	return vm, nil
+}
+
+// addCustomAttributes sets custom attributes on the VM, including the provider ID.
+// It is a no-op if the desired attributes are already present on the VM.
+func (r *NutanixMachineReconciler) addCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
+	ctx := rctx.Context
+	log := ctrl.LoggerFrom(ctx)
+	convergedClient := rctx.ConvergedClient
+
+	vmUUID := *vm.ExtId
+	vmName := *vm.Name
+	desiredAttr := vmCustomAttributePrefix4ProviderID + vmUUID
+
+	if slices.Contains(vm.CustomAttributes, desiredAttr) {
+		log.V(1).Info(fmt.Sprintf("Custom attributes already present on VM %s, skipping update", vmName))
+		return nil
+	}
+
+	log.V(1).Info(fmt.Sprintf("Updating custom attributes on VM %s: %v", vmName, []string{desiredAttr}))
+	_, err := convergedClient.VMs.AddVmCustomAttributes(ctx, vmUUID, []string{desiredAttr})
+	if err != nil {
+		errMsg := fmt.Errorf("failed to update custom attributes on VM %s with UUID %s: %w", vmName, vmUUID, err)
+		if !isRetryableAPIError(err) {
+			rctx.SetFailureStatus(createErrorFailureReason, errMsg)
+		}
+		return errMsg
+	}
+	return nil
 }
 
 // powerOnVM powers on the VM, waits for the task to complete, and returns the
