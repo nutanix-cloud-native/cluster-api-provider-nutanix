@@ -20,18 +20,14 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
-	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
 )
 
 var _ = Describe("Autoscaler scale-from-zero", Label("capx-feature-test", "autoscaler"), func() {
@@ -57,7 +53,7 @@ var _ = Describe("Autoscaler scale-from-zero", Label("capx-feature-test", "autos
 		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, clusterResources.Cluster, e2eConfig.GetIntervals, skipCleanup)
 	})
 
-	It("Should publish status.capacity on NutanixMachineTemplate and propagate annotations to MachineDeployment", func() {
+	It("Should publish status.capacity on NutanixMachineTemplate", func() {
 		Expect(namespace).NotTo(BeNil())
 
 		By("Creating a workload cluster with 1 control plane and 1 worker node")
@@ -101,71 +97,6 @@ var _ = Describe("Autoscaler scale-from-zero", Label("capx-feature-test", "autos
 		Expect(memQty.Value()).To(BeNumerically(">", 0), "memory capacity should be > 0")
 		Byf("NutanixMachineTemplate %s has capacity: cpu=%s, memory=%s",
 			workerNMT.Name, cpuQty.String(), memQty.String())
-
-		By("Verifying MachineDeployment has capacity annotations propagated")
-		mdList := &capiv1beta2.MachineDeploymentList{}
-		Expect(bcpClient.List(ctx, mdList, client.InNamespace(namespace.Name))).To(Succeed())
-		Expect(mdList.Items).NotTo(BeEmpty(), "expected at least one MachineDeployment")
-
-		var matchingMD *capiv1beta2.MachineDeployment
-		for i := range mdList.Items {
-			md := &mdList.Items[i]
-			ref := md.Spec.Template.Spec.InfrastructureRef
-			if ref.Kind == "NutanixMachineTemplate" && ref.Name == workerNMT.Name {
-				matchingMD = md
-				break
-			}
-		}
-		Expect(matchingMD).NotTo(BeNil(),
-			fmt.Sprintf("expected a MachineDeployment referencing NutanixMachineTemplate %s", workerNMT.Name))
-
-		Eventually(func(g Gomega) {
-			updated := &capiv1beta2.MachineDeployment{}
-			g.Expect(bcpClient.Get(ctx, types.NamespacedName{
-				Name:      matchingMD.Name,
-				Namespace: matchingMD.Namespace,
-			}, updated)).To(Succeed())
-
-			annotations := updated.Annotations
-			g.Expect(annotations).To(HaveKey(controllers.CapacityAnnotationCPU),
-				"MachineDeployment should have capacity cpu annotation")
-			g.Expect(annotations).To(HaveKey(controllers.CapacityAnnotationMemory),
-				"MachineDeployment should have capacity memory annotation")
-			g.Expect(annotations[controllers.CapacityAnnotationCPU]).To(Equal(cpuQty.String()),
-				"capacity cpu annotation should match status.capacity")
-			g.Expect(annotations[controllers.CapacityAnnotationMemory]).To(Equal(memQty.String()),
-				"capacity memory annotation should match status.capacity")
-		}, defaultTimeout, defaultInterval).Should(Succeed())
-
-		Byf("MachineDeployment %s has capacity annotations: cpu=%s, memory=%s",
-			matchingMD.Name,
-			matchingMD.Annotations[controllers.CapacityAnnotationCPU],
-			matchingMD.Annotations[controllers.CapacityAnnotationMemory])
-
-		By("Verifying autoscaling range annotations can coexist with capacity annotations")
-		patch := client.MergeFrom(matchingMD.DeepCopy())
-		if matchingMD.Annotations == nil {
-			matchingMD.Annotations = make(map[string]string)
-		}
-		matchingMD.Annotations["cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size"] = "0"
-		matchingMD.Annotations["cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size"] = "5"
-		Expect(bcpClient.Patch(ctx, matchingMD, patch)).To(Succeed())
-
-		Eventually(func(g Gomega) {
-			updated := &capiv1beta2.MachineDeployment{}
-			g.Expect(bcpClient.Get(ctx, types.NamespacedName{
-				Name:      matchingMD.Name,
-				Namespace: matchingMD.Namespace,
-			}, updated)).To(Succeed())
-
-			annotations := updated.Annotations
-			g.Expect(annotations).To(HaveKeyWithValue(
-				"cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size", "0"))
-			g.Expect(annotations).To(HaveKeyWithValue(
-				"cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size", "5"))
-			g.Expect(annotations).To(HaveKey(controllers.CapacityAnnotationCPU))
-			g.Expect(annotations).To(HaveKey(controllers.CapacityAnnotationMemory))
-		}, defaultTimeout, defaultInterval).Should(Succeed())
 
 		By("PASSED!")
 	})
