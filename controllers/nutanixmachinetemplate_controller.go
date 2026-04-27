@@ -90,8 +90,7 @@ func (r *NutanixMachineTemplateReconciler) Reconcile(ctx context.Context, req ct
 	}
 
 	machineSpec := nmt.Spec.Template.Spec
-	capacity := make(corev1.ResourceList)
-	computeDirectCapacity(machineSpec, capacity)
+	capacity := computeDirectCapacity(machineSpec)
 
 	if !reflect.DeepEqual(nmt.Status.Capacity, capacity) {
 		log.Info("Updating capacity", "capacity", capacity)
@@ -105,12 +104,15 @@ func (r *NutanixMachineTemplateReconciler) Reconcile(ctx context.Context, req ct
 }
 
 // computeDirectCapacity calculates capacity from the inline spec fields (CPU, memory, GPUs).
-func computeDirectCapacity(machineSpec infrav1.NutanixMachineSpec, capacity corev1.ResourceList) {
-	totalCPUs := int64(machineSpec.VCPUsPerSocket) * int64(machineSpec.VCPUSockets)
-	capacity[corev1.ResourceCPU] = *resource.NewQuantity(totalCPUs, resource.DecimalSI)
-	capacity[corev1.ResourceMemory] = machineSpec.MemorySize.DeepCopy()
+func computeDirectCapacity(machineSpec infrav1.NutanixMachineSpec) corev1.ResourceList {
+	capacity := corev1.ResourceList{
+		corev1.ResourceCPU:    *resource.NewQuantity(int64(machineSpec.VCPUsPerSocket)*int64(machineSpec.VCPUSockets), resource.DecimalSI),
+		corev1.ResourceMemory: machineSpec.MemorySize.DeepCopy(),
+	}
 
 	if len(machineSpec.GPUs) > 0 {
 		capacity[corev1.ResourceName("nvidia.com/gpu")] = *resource.NewQuantity(int64(len(machineSpec.GPUs)), resource.DecimalSI)
 	}
+
+	return capacity
 }

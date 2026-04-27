@@ -72,8 +72,7 @@ func TestComputeDirectCapacity(t *testing.T) {
 			MemorySize:     resource.MustParse("8Gi"),
 		}
 
-		capacity := make(corev1.ResourceList)
-		computeDirectCapacity(spec, capacity)
+		capacity := computeDirectCapacity(spec)
 
 		assertQuantityEqual(t, *resource.NewQuantity(8, resource.DecimalSI), capacity[corev1.ResourceCPU])
 		assertQuantityEqual(t, resource.MustParse("8Gi"), capacity[corev1.ResourceMemory])
@@ -92,8 +91,7 @@ func TestComputeDirectCapacity(t *testing.T) {
 			},
 		}
 
-		capacity := make(corev1.ResourceList)
-		computeDirectCapacity(spec, capacity)
+		capacity := computeDirectCapacity(spec)
 
 		assertQuantityEqual(t, *resource.NewQuantity(16, resource.DecimalSI), capacity[corev1.ResourceCPU])
 		assertQuantityEqual(t, resource.MustParse("64Gi"), capacity[corev1.ResourceMemory])
@@ -107,8 +105,7 @@ func TestComputeDirectCapacity(t *testing.T) {
 			MemorySize:     resource.MustParse("2Gi"),
 		}
 
-		capacity := make(corev1.ResourceList)
-		computeDirectCapacity(spec, capacity)
+		capacity := computeDirectCapacity(spec)
 
 		assertQuantityEqual(t, *resource.NewQuantity(1, resource.DecimalSI), capacity[corev1.ResourceCPU])
 		assertQuantityEqual(t, resource.MustParse("2Gi"), capacity[corev1.ResourceMemory])
