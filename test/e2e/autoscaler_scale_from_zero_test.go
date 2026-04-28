@@ -33,7 +33,6 @@ import (
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/cluster-api/util"
-	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
@@ -141,21 +140,6 @@ var _ = Describe("Autoscaler scale to and from zero", Label("scaling", "autoscal
 		Expect(memQty.Value()).To(BeNumerically(">", 0), "memory capacity should be > 0")
 		Byf("NutanixMachineTemplate %s reports capacity: cpu=%s, memory=%s",
 			workerNMT.Name, cpuQty.String(), memQty.String())
-
-		By("Adding capacity annotations to MachineDeploymentTopology for scale-from-zero")
-		patchHelper, err := patch.NewHelper(clusterResources.Cluster, bcpClient)
-		Expect(err).ToNot(HaveOccurred())
-		for i := range clusterResources.Cluster.Spec.Topology.Workers.MachineDeployments {
-			md := &clusterResources.Cluster.Spec.Topology.Workers.MachineDeployments[i]
-			if md.Metadata.Annotations == nil {
-				md.Metadata.Annotations = map[string]string{}
-			}
-			md.Metadata.Annotations["capacity.cluster-autoscaler.kubernetes.io/cpu"] = cpuQty.String()
-			md.Metadata.Annotations["capacity.cluster-autoscaler.kubernetes.io/memory"] = memQty.String()
-		}
-		Eventually(func(g Gomega) {
-			g.Expect(patchHelper.Patch(ctx, clusterResources.Cluster)).Should(Succeed())
-		}, defaultTimeout, defaultInterval).Should(Succeed())
 
 		workloadClusterProxy := bootstrapClusterProxy.GetWorkloadCluster(ctx,
 			clusterResources.Cluster.Namespace, clusterResources.Cluster.Name)
