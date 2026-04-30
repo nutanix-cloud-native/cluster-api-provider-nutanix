@@ -184,7 +184,7 @@ variables:
   NUTANIX_GPU_VIRTUAL_NAME: "NVIDIA A40-1Q"
   # NOTE: Following parameters are required for Autoscaler testing
   AUTOSCALER_WORKLOAD: "./data/infrastructure-nutanix/v1beta1/autoscaler-to-management-cluster.yaml"
-  AUTOSCALER_VERSION: "v1.31.0"
+  AUTOSCALER_VERSION: "v1.34.0"
 
 intervals:
   default/wait-controllers: ["3m", "10s"]
