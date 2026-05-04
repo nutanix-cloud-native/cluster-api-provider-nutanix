@@ -101,6 +101,7 @@ providers:
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-failure-domains-migration.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/clusterclass-nutanix-quick-start.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-topology.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-topology-autoscaler.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-image-lookup.yaml"
 
 variables:
@@ -181,6 +182,9 @@ variables:
   NUTANIX_GPU_PASSTHROUGH_NAME: "Ampere 40"
   NUTANIX_GPU_VIRTUAL_VENDOR: "NVIDIA"
   NUTANIX_GPU_VIRTUAL_NAME: "NVIDIA A40-1Q"
+  # NOTE: Following parameters are required for Autoscaler testing
+  AUTOSCALER_WORKLOAD: "./data/infrastructure-nutanix/v1beta1/autoscaler-to-management-cluster.yaml"
+  AUTOSCALER_VERSION: "v1.34.0"
 
 intervals:
   default/wait-controllers: ["3m", "10s"]
@@ -195,6 +199,13 @@ intervals:
   default/wait-machine-pool-upgrade: ["10m", "10s"]
   default/wait-nodes-ready: ["10m", "10s"]
   default/wait-machine-remediation: ["10m", "10s"]
+  autoscaler/wait-cluster: ["5m", "10s"]
+  autoscaler/wait-control-plane: ["10m", "10s"]
+  autoscaler/wait-worker-nodes: ["10m", "10s"]
+  autoscaler/wait-controllers: ["5m", "10s"]
+  autoscaler/wait-autoscaler: ["15m", "10s"]
+  autoscaler/wait-delete-cluster: ["10m", "10s"]
+  autoscaler/wait-machine-pool-nodes: ["10m", "10s"]
   node-drain/wait-deployment-available: ["3m", "10s"]
   node-drain/wait-control-plane: ["15m", "10s"]
   node-drain/wait-machine-deleted: ["5m", "10s"]

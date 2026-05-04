@@ -1,0 +1,155 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-autoscaler-cloud-config
+  namespace: ${CLUSTER_NAMESPACE}
+type: Opaque
+stringData:
+  cloud-config: |
+    apiVersion: v1
+    kind: Config
+    clusters:
+    - name: management
+      cluster:
+        server: ${MANAGEMENT_CLUSTER_ADDRESS}
+        certificate-authority-data: ${MANAGEMENT_CLUSTER_CA}
+    contexts:
+    - name: management
+      context:
+        cluster: management
+        namespace: ${CLUSTER_NAMESPACE}
+        user: management
+    current-context: management
+    users:
+    - name: management
+      user:
+        token: ${MANAGEMENT_CLUSTER_TOKEN}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-autoscaler
+  namespace: ${CLUSTER_NAMESPACE}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cluster-autoscaler
+  namespace: ${CLUSTER_NAMESPACE}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["create", "get", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cluster-autoscaler
+  namespace: ${CLUSTER_NAMESPACE}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cluster-autoscaler
+subjects:
+- kind: ServiceAccount
+  name: cluster-autoscaler
+  namespace: ${CLUSTER_NAMESPACE}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-autoscaler-${CLUSTER_NAMESPACE}
+rules:
+- apiGroups: [""]
+  resources: ["namespaces", "nodes", "pods", "pods/eviction", "services", "replicationcontrollers", "persistentvolumeclaims", "persistentvolumes"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: ["apps"]
+  resources: ["daemonsets", "replicasets", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["policy"]
+  resources: ["poddisruptionbudgets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses", "csinodes", "csidrivers", "csistoragecapacities"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["create", "get", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-autoscaler-${CLUSTER_NAMESPACE}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-autoscaler-${CLUSTER_NAMESPACE}
+subjects:
+- kind: ServiceAccount
+  name: cluster-autoscaler
+  namespace: ${CLUSTER_NAMESPACE}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-autoscaler
+  namespace: ${CLUSTER_NAMESPACE}
+  labels:
+    app: cluster-autoscaler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cluster-autoscaler
+  template:
+    metadata:
+      labels:
+        app: cluster-autoscaler
+    spec:
+      serviceAccountName: cluster-autoscaler
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: cluster-autoscaler
+        image: registry.k8s.io/autoscaling/cluster-autoscaler:${AUTOSCALER_VERSION}
+        command:
+        - /cluster-autoscaler
+        args:
+        - --cloud-provider=clusterapi
+        - --cloud-config=/mnt/cloud-config/cloud-config
+        - --kubeconfig=/mnt/workload-kubeconfig/value
+        - --node-group-auto-discovery=clusterapi:namespace=${CLUSTER_NAMESPACE},clusterName=${CLUSTER_NAME}
+        - --scale-down-delay-after-add=10s
+        - --scale-down-delay-after-delete=10s
+        - --scale-down-delay-after-failure=10s
+        - --scale-down-unneeded-time=10s
+        - --max-nodes-total=10
+        - --cordon-node-before-terminating=false
+        - --skip-nodes-with-system-pods=false
+        - --logtostderr=true
+        - --v=4
+        volumeMounts:
+        - name: cloud-config
+          mountPath: /mnt/cloud-config
+          readOnly: true
+        - name: workload-kubeconfig
+          mountPath: /mnt/workload-kubeconfig
+          readOnly: true
+      volumes:
+      - name: cloud-config
+        secret:
+          secretName: cluster-autoscaler-cloud-config
+          items:
+          - key: cloud-config
+            path: cloud-config
+      - name: workload-kubeconfig
+        secret:
+          secretName: ${CLUSTER_NAME}-kubeconfig
