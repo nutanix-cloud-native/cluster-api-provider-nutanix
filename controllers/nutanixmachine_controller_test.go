@@ -967,6 +967,96 @@ func (m FilterMatcher) String() string {
 	return fmt.Sprintf("filter contains %s", m.ContainsExtId)
 }
 
+func TestValidateSystemDiskStorageConfig(t *testing.T) {
+	testCases := []struct {
+		name          string
+		storageConfig *infrav1.NutanixMachineVMStorageConfig
+		wantErrCount  int
+		errContains   string
+	}{
+		{
+			name: "valid config with UUID",
+			storageConfig: &infrav1.NutanixMachineVMStorageConfig{
+				DiskMode: infrav1.NutanixMachineDiskModeStandard,
+				StorageContainer: &infrav1.NutanixResourceIdentifier{
+					UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+					Type: infrav1.NutanixIdentifierUUID,
+				},
+			},
+			wantErrCount: 0,
+		},
+		{
+			name: "valid config with name",
+			storageConfig: &infrav1.NutanixMachineVMStorageConfig{
+				DiskMode: infrav1.NutanixMachineDiskModeFlash,
+				StorageContainer: &infrav1.NutanixResourceIdentifier{
+					Name: ptr.To("my-storage-container"),
+					Type: infrav1.NutanixIdentifierName,
+				},
+			},
+			wantErrCount: 0,
+		},
+		{
+			name: "valid config without storage container",
+			storageConfig: &infrav1.NutanixMachineVMStorageConfig{
+				DiskMode: infrav1.NutanixMachineDiskModeStandard,
+			},
+			wantErrCount: 0,
+		},
+		{
+			name: "invalid UUID",
+			storageConfig: &infrav1.NutanixMachineVMStorageConfig{
+				DiskMode: infrav1.NutanixMachineDiskModeStandard,
+				StorageContainer: &infrav1.NutanixResourceIdentifier{
+					UUID: ptr.To("not-a-valid-uuid"),
+					Type: infrav1.NutanixIdentifierUUID,
+				},
+			},
+			wantErrCount: 1,
+			errContains:  "invalid UUID for storage container in system disk",
+		},
+		{
+			name: "UUID type with nil UUID value - IsUUID returns false, no error from UUID branch",
+			storageConfig: &infrav1.NutanixMachineVMStorageConfig{
+				DiskMode: infrav1.NutanixMachineDiskModeStandard,
+				StorageContainer: &infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierUUID,
+				},
+			},
+			wantErrCount: 0,
+		},
+		{
+			name: "name type with nil name value - IsName returns false, no error from name branch",
+			storageConfig: &infrav1.NutanixMachineVMStorageConfig{
+				DiskMode: infrav1.NutanixMachineDiskModeStandard,
+				StorageContainer: &infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierName,
+				},
+			},
+			wantErrCount: 0,
+		},
+		{
+			name: "invalid disk mode",
+			storageConfig: &infrav1.NutanixMachineVMStorageConfig{
+				DiskMode: "InvalidMode",
+			},
+			wantErrCount: 1,
+			errContains:  "invalid disk mode InvalidMode for system disk",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			errs := validateSystemDiskStorageConfig(tc.storageConfig)
+			g.Expect(errs).To(HaveLen(tc.wantErrCount))
+			if tc.wantErrCount > 0 && tc.errContains != "" {
+				g.Expect(errs[0].Error()).To(ContainSubstring(tc.errContains))
+			}
+		})
+	}
+}
+
 func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 	defaultSystemImage := &imageModels.Image{
 		ExtId: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
@@ -1077,7 +1167,8 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 
 				convergedClientMock.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return([]clustermgmtconfig.StorageContainer{
 					{
-						ContainerExtId: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+						ExtId:          ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+						ContainerExtId: ptr.To("stargate-06b1ce03"),
 						ClusterExtId:   ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
 					},
 				}, nil)
@@ -1526,7 +1617,7 @@ func TestGetSystemDisk(t *testing.T) {
 		}
 
 		// Test getSystemDisk
-		systemDisk, err := getSystemDisk(rctx)
+		systemDisk, err := getSystemDisk(rctx, "pe-uuid")
 
 		// Verify results
 		assert.NoError(t, err)
@@ -1605,7 +1696,7 @@ func TestGetSystemDisk(t *testing.T) {
 		}
 
 		// Test getSystemDisk
-		systemDisk, err := getSystemDisk(rctx)
+		systemDisk, err := getSystemDisk(rctx, "pe-uuid")
 
 		// Verify results
 		assert.Error(t, err)
@@ -1694,7 +1785,7 @@ func TestGetSystemDisk(t *testing.T) {
 		}
 
 		// Test getSystemDisk
-		systemDisk, err := getSystemDisk(rctx)
+		systemDisk, err := getSystemDisk(rctx, "pe-uuid")
 
 		// Verify results
 		assert.Error(t, err)
@@ -1757,7 +1848,7 @@ func TestGetSystemDisk(t *testing.T) {
 		}
 
 		// Test getSystemDisk
-		systemDisk, err := getSystemDisk(rctx)
+		systemDisk, err := getSystemDisk(rctx, "pe-uuid")
 
 		// Verify results
 		assert.Error(t, err)
@@ -1824,7 +1915,7 @@ func TestGetSystemDisk(t *testing.T) {
 		}
 
 		// Test getSystemDisk
-		systemDisk, err := getSystemDisk(rctx)
+		systemDisk, err := getSystemDisk(rctx, "pe-uuid")
 
 		// Verify results
 		assert.Error(t, err)
@@ -1909,7 +2000,7 @@ func TestGetSystemDisk(t *testing.T) {
 		}
 
 		// Test getSystemDisk
-		systemDisk, err := getSystemDisk(rctx)
+		systemDisk, err := getSystemDisk(rctx, "pe-uuid")
 
 		// Verify results - should return the newer image
 		assert.NoError(t, err)
@@ -1927,6 +2018,88 @@ func TestGetSystemDisk(t *testing.T) {
 		assert.Equal(t, true, ok)
 
 		assert.Equal(t, "newer-image-uuid", *imageRef.ImageExtId)
+	})
+
+	t.Run("should successfully get system disk with SystemDiskStorageConfig", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		vmName := "test-vm"
+
+		ntnxMachine := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+			},
+			Spec: infrav1.NutanixMachineSpec{
+				Image: &infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierUUID,
+					UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+				},
+				SystemDiskSize: resource.MustParse("40Gi"),
+				SystemDiskStorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+					DiskMode: infrav1.NutanixMachineDiskModeStandard,
+					StorageContainer: &infrav1.NutanixResourceIdentifier{
+						UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+						Type: infrav1.NutanixIdentifierUUID,
+					},
+				},
+			},
+		}
+
+		machine := &capiv1beta2.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: vmName,
+			},
+		}
+
+		ntnxCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-cluster",
+				Namespace: "default",
+			},
+		}
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		expectedImage := &imageModels.Image{
+			ExtId: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+			Name:  ptr.To("test-image"),
+		}
+
+		mockConvergedClient.MockImages.EXPECT().Get(gomock.Any(), *expectedImage.ExtId).Return(expectedImage, nil)
+		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
+		mockConvergedClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(
+			[]clustermgmtconfig.StorageContainer{
+				{
+					ExtId:          ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+					ContainerExtId: ptr.To("stargate-06b1ce03"),
+					ClusterExtId:   ptr.To("pe-uuid"),
+				},
+			}, nil,
+		)
+
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Machine:         machine,
+			NutanixMachine:  ntnxMachine,
+			NutanixCluster:  ntnxCluster,
+			ConvergedClient: mockConvergedClient.Client,
+		}
+
+		systemDisk, err := getSystemDisk(rctx, "pe-uuid")
+
+		assert.NoError(t, err)
+		assert.NotNil(t, systemDisk)
+
+		vmDiskIntf := systemDisk.GetBackingInfo()
+		assert.NotNil(t, vmDiskIntf)
+		vmDisk, ok := vmDiskIntf.(vmmModels.VmDisk)
+		assert.True(t, ok)
+		assert.NotNil(t, vmDisk.StorageConfig)
+		assert.Equal(t, false, *vmDisk.StorageConfig.IsFlashModeEnabled)
+		assert.NotNil(t, vmDisk.StorageContainer)
+		assert.Equal(t, "06b1ce03-f384-4488-9ba1-ae17ebcf1f91", *vmDisk.StorageContainer.ExtId)
 	})
 
 	t.Run("should handle ImageLookup with nil ImageLookup", func(t *testing.T) {
@@ -1975,7 +2148,7 @@ func TestGetSystemDisk(t *testing.T) {
 		// Test getSystemDisk - this should panic due to nil nodeOSImage
 		// The function has a bug where it doesn't handle the case where both Image and ImageLookup are nil
 		assert.Panics(t, func() {
-			_, _ = getSystemDisk(rctx)
+			_, _ = getSystemDisk(rctx, "pe-uuid")
 		})
 	})
 }

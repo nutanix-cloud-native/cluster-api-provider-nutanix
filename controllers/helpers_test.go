@@ -898,7 +898,7 @@ func TestGetPEUUID(t *testing.T) {
 				convergedClient.MockClusters.EXPECT().Get(gomock.Any(), "found-pe-uuid").Return(
 					&clusterModels.Cluster{
 						ExtId: ptr.To("found-pe-uuid"),
-						Name: ptr.To("my-cluster"),
+						Name:  ptr.To("my-cluster"),
 					}, nil)
 				return convergedClient.Client
 			},
@@ -981,7 +981,7 @@ func TestGetSubnetUUID(t *testing.T) {
 				convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), "found-subnet-uuid").Return(
 					&subnetModels.Subnet{
 						ExtId: ptr.To("found-subnet-uuid"),
-						Name: ptr.To("my-subnet"),
+						Name:  ptr.To("my-subnet"),
 					}, nil)
 				return convergedClient.Client
 			},
@@ -1011,9 +1011,9 @@ func TestGetSubnetUUID(t *testing.T) {
 				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(
 					[]subnetModels.Subnet{
 						{
-							ExtId:       ptr.To("overlay-subnet-uuid"),
-							Name:        ptr.To("my-overlay"),
-							SubnetType:  &subnetType,
+							ExtId:      ptr.To("overlay-subnet-uuid"),
+							Name:       ptr.To("my-overlay"),
+							SubnetType: &subnetType,
 						},
 					}, nil)
 				return convergedClient.Client
@@ -1032,10 +1032,10 @@ func TestGetSubnetUUID(t *testing.T) {
 				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(
 					[]subnetModels.Subnet{
 						{
-							ExtId:             ptr.To("vlan-subnet-uuid"),
-							Name:              ptr.To("my-vlan"),
-							SubnetType:        &subnetType,
-							ClusterReference:  ptr.To(peUUID),
+							ExtId:            ptr.To("vlan-subnet-uuid"),
+							Name:             ptr.To("my-vlan"),
+							SubnetType:       &subnetType,
+							ClusterReference: ptr.To(peUUID),
 						},
 					}, nil)
 				return convergedClient.Client
@@ -1132,10 +1132,395 @@ func TestGetSubnetUUIDList(t *testing.T) {
 	})
 }
 
+func TestCreateSystemDiskSpec(t *testing.T) {
+	expectedStorageContainers := []clusterModels.StorageContainer{
+		{
+			ExtId:          ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+			ContainerExtId: ptr.To("stargate-06b1ce03"),
+			ClusterExtId:   ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
+		},
+	}
+
+	tests := []struct {
+		name                string
+		convergedBuilder    func() *v4Converged.Client
+		imageUUID           string
+		systemDiskSizeBytes int64
+		storageConfig       *infrav1.NutanixMachineVMStorageConfig
+		peUUID              string
+		wantErr             bool
+		errorMessage        string
+		validateDisk        func(*testing.T, *vmmModels.Disk)
+	}{
+		{
+			name: "successful system disk without storage config",
+			convergedBuilder: func() *v4Converged.Client {
+				return NewMockConvergedClient(gomock.NewController(t)).Client
+			},
+			imageUUID:           "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+			systemDiskSizeBytes: 21474836480,
+			storageConfig:       nil,
+			peUUID:              "00062e56-b9ac-7253-1946-7cc25586eeee",
+			wantErr:             false,
+			validateDisk: func(t *testing.T, disk *vmmModels.Disk) {
+				t.Helper()
+				assert.NotNil(t, disk)
+				vmDisk := disk.GetBackingInfo().(vmmModels.VmDisk)
+				assert.Equal(t, int64(21474836480), *vmDisk.DiskSizeBytes)
+				assert.Nil(t, vmDisk.StorageConfig)
+				assert.Nil(t, vmDisk.StorageContainer)
+			},
+		},
+		{
+			name: "successful system disk with storage container by UUID",
+			convergedBuilder: func() *v4Converged.Client {
+				convergedClient := NewMockConvergedClient(gomock.NewController(t))
+				convergedClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(expectedStorageContainers, nil)
+				return convergedClient.Client
+			},
+			imageUUID:           "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+			systemDiskSizeBytes: 21474836480,
+			storageConfig: &infrav1.NutanixMachineVMStorageConfig{
+				DiskMode: infrav1.NutanixMachineDiskModeStandard,
+				StorageContainer: &infrav1.NutanixResourceIdentifier{
+					UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+					Type: infrav1.NutanixIdentifierUUID,
+				},
+			},
+			peUUID:  "00062e56-b9ac-7253-1946-7cc25586eeee",
+			wantErr: false,
+			validateDisk: func(t *testing.T, disk *vmmModels.Disk) {
+				t.Helper()
+				assert.NotNil(t, disk)
+				vmDisk := disk.GetBackingInfo().(vmmModels.VmDisk)
+				assert.Equal(t, int64(21474836480), *vmDisk.DiskSizeBytes)
+				assert.NotNil(t, vmDisk.StorageConfig)
+				assert.Equal(t, false, *vmDisk.StorageConfig.IsFlashModeEnabled)
+				assert.NotNil(t, vmDisk.StorageContainer)
+				assert.Equal(t, "06b1ce03-f384-4488-9ba1-ae17ebcf1f91", *vmDisk.StorageContainer.ExtId)
+			},
+		},
+		{
+			name: "successful system disk with flash mode",
+			convergedBuilder: func() *v4Converged.Client {
+				convergedClient := NewMockConvergedClient(gomock.NewController(t))
+				convergedClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(expectedStorageContainers, nil)
+				return convergedClient.Client
+			},
+			imageUUID:           "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+			systemDiskSizeBytes: 21474836480,
+			storageConfig: &infrav1.NutanixMachineVMStorageConfig{
+				DiskMode: infrav1.NutanixMachineDiskModeFlash,
+				StorageContainer: &infrav1.NutanixResourceIdentifier{
+					UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+					Type: infrav1.NutanixIdentifierUUID,
+				},
+			},
+			peUUID:  "00062e56-b9ac-7253-1946-7cc25586eeee",
+			wantErr: false,
+			validateDisk: func(t *testing.T, disk *vmmModels.Disk) {
+				t.Helper()
+				assert.NotNil(t, disk)
+				vmDisk := disk.GetBackingInfo().(vmmModels.VmDisk)
+				assert.NotNil(t, vmDisk.StorageConfig)
+				assert.Equal(t, true, *vmDisk.StorageConfig.IsFlashModeEnabled)
+				assert.NotNil(t, vmDisk.StorageContainer)
+				assert.Equal(t, "06b1ce03-f384-4488-9ba1-ae17ebcf1f91", *vmDisk.StorageContainer.ExtId)
+			},
+		},
+		{
+			name: "empty image UUID",
+			convergedBuilder: func() *v4Converged.Client {
+				return NewMockConvergedClient(gomock.NewController(t)).Client
+			},
+			imageUUID:           "",
+			systemDiskSizeBytes: 21474836480,
+			storageConfig:       nil,
+			peUUID:              "00062e56-b9ac-7253-1946-7cc25586eeee",
+			wantErr:             true,
+			errorMessage:        "image UUID must be set",
+		},
+		{
+			name: "invalid system disk size",
+			convergedBuilder: func() *v4Converged.Client {
+				return NewMockConvergedClient(gomock.NewController(t)).Client
+			},
+			imageUUID:           "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+			systemDiskSizeBytes: 0,
+			storageConfig:       nil,
+			peUUID:              "00062e56-b9ac-7253-1946-7cc25586eeee",
+			wantErr:             true,
+			errorMessage:        "invalid system disk size",
+		},
+		{
+			name: "storage container lookup failure",
+			convergedBuilder: func() *v4Converged.Client {
+				convergedClient := NewMockConvergedClient(gomock.NewController(t))
+				convergedClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("storage container not found"))
+				return convergedClient.Client
+			},
+			imageUUID:           "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+			systemDiskSizeBytes: 21474836480,
+			storageConfig: &infrav1.NutanixMachineVMStorageConfig{
+				DiskMode: infrav1.NutanixMachineDiskModeStandard,
+				StorageContainer: &infrav1.NutanixResourceIdentifier{
+					UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+					Type: infrav1.NutanixIdentifierUUID,
+				},
+			},
+			peUUID:       "00062e56-b9ac-7253-1946-7cc25586eeee",
+			wantErr:      true,
+			errorMessage: "storage container not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			convergedClient := tt.convergedBuilder()
+			disk, err := CreateSystemDiskSpec(context.Background(), convergedClient, tt.imageUUID, tt.systemDiskSizeBytes, tt.storageConfig, tt.peUUID)
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.errorMessage != "" {
+					assert.Contains(t, err.Error(), tt.errorMessage)
+				}
+				assert.Nil(t, disk)
+			} else {
+				require.NoError(t, err)
+				if tt.validateDisk != nil {
+					tt.validateDisk(t, disk)
+				}
+			}
+		})
+	}
+}
+
+func TestMigrateSystemDiskToStorageContainer(t *testing.T) {
+	targetSCExtId := "06b1ce03-f384-4488-9ba1-ae17ebcf1f91"
+	currentSCExtId := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+	vmUUID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+	diskExtId := "disk-1234-5678-abcd-efef"
+	peUUID := "00062e56-b9ac-7253-1946-7cc25586eeee"
+
+	expectedStorageContainers := []clusterModels.StorageContainer{
+		{
+			ExtId:          ptr.To(targetSCExtId),
+			ContainerExtId: ptr.To("stargate-06b1ce03"),
+			ClusterExtId:   ptr.To(peUUID),
+		},
+	}
+
+	t.Run("should skip when storageConfig is nil", func(t *testing.T) {
+		convergedClient := NewMockConvergedClient(gomock.NewController(t)).Client
+		vm := vmmModels.NewVm()
+		vm.ExtId = ptr.To(vmUUID)
+		err := MigrateSystemDiskToStorageContainer(context.Background(), convergedClient, vm, nil, peUUID)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should skip when storageContainer is nil", func(t *testing.T) {
+		convergedClient := NewMockConvergedClient(gomock.NewController(t)).Client
+		vm := vmmModels.NewVm()
+		vm.ExtId = ptr.To(vmUUID)
+		storageConfig := &infrav1.NutanixMachineVMStorageConfig{
+			DiskMode: infrav1.NutanixMachineDiskModeStandard,
+		}
+		err := MigrateSystemDiskToStorageContainer(context.Background(), convergedClient, vm, storageConfig, peUUID)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should skip migration when disk is already on target container", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+		mockClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(expectedStorageContainers, nil)
+
+		vm := vmmModels.NewVm()
+		vm.ExtId = ptr.To(vmUUID)
+		systemDisk := vmmModels.NewDisk()
+		systemDisk.ExtId = ptr.To(diskExtId)
+		vmDisk := vmmModels.NewVmDisk()
+		vmDisk.StorageContainer = vmmModels.NewVmDiskContainerReference()
+		vmDisk.StorageContainer.ExtId = ptr.To(targetSCExtId)
+		_ = systemDisk.SetBackingInfo(*vmDisk)
+		vm.Disks = []vmmModels.Disk{*systemDisk}
+
+		storageConfig := &infrav1.NutanixMachineVMStorageConfig{
+			DiskMode: infrav1.NutanixMachineDiskModeStandard,
+			StorageContainer: &infrav1.NutanixResourceIdentifier{
+				UUID: ptr.To(targetSCExtId),
+				Type: infrav1.NutanixIdentifierUUID,
+			},
+		}
+		err := MigrateSystemDiskToStorageContainer(context.Background(), mockClient.Client, vm, storageConfig, peUUID)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should migrate disk when on different container", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+		mockClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(expectedStorageContainers, nil)
+		mockClient.MockVMs.EXPECT().MigrateVmDisks(gomock.Any(), vmUUID, gomock.Any()).Return(nil)
+
+		vm := vmmModels.NewVm()
+		vm.ExtId = ptr.To(vmUUID)
+		systemDisk := vmmModels.NewDisk()
+		systemDisk.ExtId = ptr.To(diskExtId)
+		vmDisk := vmmModels.NewVmDisk()
+		vmDisk.StorageContainer = vmmModels.NewVmDiskContainerReference()
+		vmDisk.StorageContainer.ExtId = ptr.To(currentSCExtId)
+		_ = systemDisk.SetBackingInfo(*vmDisk)
+		vm.Disks = []vmmModels.Disk{*systemDisk}
+
+		storageConfig := &infrav1.NutanixMachineVMStorageConfig{
+			DiskMode: infrav1.NutanixMachineDiskModeStandard,
+			StorageContainer: &infrav1.NutanixResourceIdentifier{
+				UUID: ptr.To(targetSCExtId),
+				Type: infrav1.NutanixIdentifierUUID,
+			},
+		}
+		err := MigrateSystemDiskToStorageContainer(context.Background(), mockClient.Client, vm, storageConfig, peUUID)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return error when migration fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+		mockClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(expectedStorageContainers, nil)
+		mockClient.MockVMs.EXPECT().MigrateVmDisks(gomock.Any(), vmUUID, gomock.Any()).Return(fmt.Errorf("migration failed"))
+
+		vm := vmmModels.NewVm()
+		vm.ExtId = ptr.To(vmUUID)
+		systemDisk := vmmModels.NewDisk()
+		systemDisk.ExtId = ptr.To(diskExtId)
+		vmDisk := vmmModels.NewVmDisk()
+		vmDisk.StorageContainer = vmmModels.NewVmDiskContainerReference()
+		vmDisk.StorageContainer.ExtId = ptr.To(currentSCExtId)
+		_ = systemDisk.SetBackingInfo(*vmDisk)
+		vm.Disks = []vmmModels.Disk{*systemDisk}
+
+		storageConfig := &infrav1.NutanixMachineVMStorageConfig{
+			DiskMode: infrav1.NutanixMachineDiskModeStandard,
+			StorageContainer: &infrav1.NutanixResourceIdentifier{
+				UUID: ptr.To(targetSCExtId),
+				Type: infrav1.NutanixIdentifierUUID,
+			},
+		}
+		err := MigrateSystemDiskToStorageContainer(context.Background(), mockClient.Client, vm, storageConfig, peUUID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to migrate system disk to storage container")
+	})
+
+	t.Run("should return error when VM has no disks", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+		mockClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(expectedStorageContainers, nil)
+
+		vm := vmmModels.NewVm()
+		vm.ExtId = ptr.To(vmUUID)
+		vm.Disks = []vmmModels.Disk{}
+
+		storageConfig := &infrav1.NutanixMachineVMStorageConfig{
+			DiskMode: infrav1.NutanixMachineDiskModeStandard,
+			StorageContainer: &infrav1.NutanixResourceIdentifier{
+				UUID: ptr.To(targetSCExtId),
+				Type: infrav1.NutanixIdentifierUUID,
+			},
+		}
+		err := MigrateSystemDiskToStorageContainer(context.Background(), mockClient.Client, vm, storageConfig, peUUID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "VM has no disks")
+	})
+
+	t.Run("should return error when storage container lookup fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+		mockClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("API error"))
+
+		vm := vmmModels.NewVm()
+		vm.ExtId = ptr.To(vmUUID)
+		vm.Disks = []vmmModels.Disk{*vmmModels.NewDisk()}
+
+		storageConfig := &infrav1.NutanixMachineVMStorageConfig{
+			DiskMode: infrav1.NutanixMachineDiskModeStandard,
+			StorageContainer: &infrav1.NutanixResourceIdentifier{
+				UUID: ptr.To(targetSCExtId),
+				Type: infrav1.NutanixIdentifierUUID,
+			},
+		}
+		err := MigrateSystemDiskToStorageContainer(context.Background(), mockClient.Client, vm, storageConfig, peUUID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get target storage container")
+	})
+
+	t.Run("should use ContainerExtId when ExtId is nil", func(t *testing.T) {
+		containerExtId := "stargate-06b1ce03"
+		scWithoutExtId := []clusterModels.StorageContainer{
+			{
+				ContainerExtId: ptr.To(containerExtId),
+				ClusterExtId:   ptr.To(peUUID),
+			},
+		}
+
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+		mockClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(scWithoutExtId, nil)
+		mockClient.MockVMs.EXPECT().MigrateVmDisks(gomock.Any(), vmUUID, gomock.Any()).Return(nil)
+
+		vm := vmmModels.NewVm()
+		vm.ExtId = ptr.To(vmUUID)
+		systemDisk := vmmModels.NewDisk()
+		systemDisk.ExtId = ptr.To(diskExtId)
+		vmDisk := vmmModels.NewVmDisk()
+		vmDisk.StorageContainer = vmmModels.NewVmDiskContainerReference()
+		vmDisk.StorageContainer.ExtId = ptr.To(currentSCExtId)
+		_ = systemDisk.SetBackingInfo(*vmDisk)
+		vm.Disks = []vmmModels.Disk{*systemDisk}
+
+		storageConfig := &infrav1.NutanixMachineVMStorageConfig{
+			DiskMode: infrav1.NutanixMachineDiskModeStandard,
+			StorageContainer: &infrav1.NutanixResourceIdentifier{
+				UUID: ptr.To(targetSCExtId),
+				Type: infrav1.NutanixIdentifierUUID,
+			},
+		}
+		err := MigrateSystemDiskToStorageContainer(context.Background(), mockClient.Client, vm, storageConfig, peUUID)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return error when both ExtId and ContainerExtId are nil", func(t *testing.T) {
+		scWithoutIds := []clusterModels.StorageContainer{
+			{
+				ClusterExtId: ptr.To(peUUID),
+			},
+		}
+
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+		mockClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(scWithoutIds, nil)
+
+		vm := vmmModels.NewVm()
+		vm.ExtId = ptr.To(vmUUID)
+		systemDisk := vmmModels.NewDisk()
+		systemDisk.ExtId = ptr.To(diskExtId)
+		vm.Disks = []vmmModels.Disk{*systemDisk}
+
+		storageConfig := &infrav1.NutanixMachineVMStorageConfig{
+			DiskMode: infrav1.NutanixMachineDiskModeStandard,
+			StorageContainer: &infrav1.NutanixResourceIdentifier{
+				UUID: ptr.To(targetSCExtId),
+				Type: infrav1.NutanixIdentifierUUID,
+			},
+		}
+		err := MigrateSystemDiskToStorageContainer(context.Background(), mockClient.Client, vm, storageConfig, peUUID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "has no ExtId or ContainerExtId")
+	})
+}
+
 func TestCreateDataDiskList(t *testing.T) {
 	expectedStorageContainers := []clusterModels.StorageContainer{
 		{
-			ContainerExtId: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+			ExtId:          ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
+			ContainerExtId: ptr.To("stargate-06b1ce03"),
 			ClusterExtId:   ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
 		},
 	}
@@ -1955,7 +2340,8 @@ func TestGetStorageContainerInCluster(t *testing.T) {
 			ClusterName:    ptr.To("pe_cluster"),
 			ClusterExtId:   ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
 			Name:           ptr.To("SelfServiceContainer"),
-			ContainerExtId: ptr.To("2a61b02a-54a6-475e-93b9-5efc895b48e3"),
+			ExtId:          ptr.To("2a61b02a-54a6-475e-93b9-5efc895b48e3"),
+			ContainerExtId: ptr.To("stargate-2a61b02a"),
 		},
 	}
 

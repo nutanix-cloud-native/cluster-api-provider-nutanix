@@ -49,6 +49,7 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
+	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	vmmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 )
 
@@ -70,7 +71,8 @@ const (
 
 	nameType = "name"
 
-	nutanixProjectNameEnv = "NUTANIX_PROJECT_NAME"
+	nutanixProjectNameEnv         = "NUTANIX_PROJECT_NAME"
+	nutanixStorageContainerVarKey = "NUTANIX_STORAGE_CONTAINER"
 
 	flavorTopology = "topology"
 )
@@ -131,6 +133,7 @@ type testHelperInterface interface {
 	createUUIDNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate
 	createUUIDProjectNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate
 	createDefaultNMTwithDataDisks(clusterName, namespace string, params withDataDisksParams) *infrav1.NutanixMachineTemplate
+	createDefaultNMTwithSystemDiskStorageConfig(clusterName, namespace string, params withSystemDiskStorageConfigParams) *infrav1.NutanixMachineTemplate
 	deployCluster(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult)
 	deployClusterAndWait(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult)
 	deleteSecret(params deleteSecretParams)
@@ -156,6 +159,7 @@ type testHelperInterface interface {
 	verifyConditionOnNutanixCluster(params verifyConditionParams)
 	verifyConditionOnNutanixMachines(params verifyConditionParams)
 	verifyDisksOnNutanixMachines(ctx context.Context, params verifyDisksOnNutanixMachinesParams)
+	verifySystemDiskStorageContainerOnNutanixMachines(ctx context.Context, params verifySystemDiskStorageContainerParams)
 	verifyLegacyFailureDomainsOnClusterMachines(ctx context.Context, params verifyFailureDomainsOnClusterMachinesParams)
 	verifyNewFailureDomainsOnClusterMachines(ctx context.Context, params verifyFailureDomainsOnClusterMachinesParams)
 	verifyFailureMessageOnClusterMachines(ctx context.Context, params verifyFailureMessageOnClusterMachinesParams)
@@ -367,6 +371,49 @@ func (t testHelper) createDefaultNMTwithDataDisks(clusterName, namespace string,
 	defNmt.Spec.Template.Spec.DataDisks = params.DataDisks
 
 	return defNmt
+}
+
+type withSystemDiskStorageConfigParams struct {
+	SystemDiskStorageConfig *infrav1.NutanixMachineVMStorageConfig
+}
+
+func (t testHelper) createDefaultNMTwithSystemDiskStorageConfig(clusterName, namespace string, params withSystemDiskStorageConfigParams) *infrav1.NutanixMachineTemplate {
+	defNmt := t.createDefaultNMT(clusterName, namespace)
+	defNmt.Spec.Template.Spec.SystemDiskStorageConfig = params.SystemDiskStorageConfig
+
+	return defNmt
+}
+
+type verifySystemDiskStorageContainerParams struct {
+	clusterName           string
+	namespace             string
+	bootstrapClusterProxy framework.ClusterProxy
+	storageContainerUUID  string
+}
+
+func (t testHelper) verifySystemDiskStorageContainerOnNutanixMachines(ctx context.Context, params verifySystemDiskStorageContainerParams) {
+	Eventually(
+		func(g Gomega) {
+			nutanixMachines := t.getNutanixMachinesForCluster(ctx, params.clusterName, params.namespace, params.bootstrapClusterProxy)
+			for _, nm := range nutanixMachines.Items {
+				machineVmUUID := nm.Status.VmUUID
+				g.Expect(machineVmUUID).NotTo(BeEmpty(), "expected NutanixMachine %s to have Status.VmUUID set", nm.Name)
+				vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
+				g.Expect(err).ShouldNot(HaveOccurred())
+				disks := vm.Status.Resources.DiskList
+				g.Expect(disks).ToNot(BeEmpty(), "expected VM %s to have disks", *vm.Spec.Name)
+				systemDisk := disks[0]
+				g.Expect(systemDisk.StorageConfig).ToNot(BeNil(), "expected system disk to have storage config")
+				g.Expect(systemDisk.StorageConfig.StorageContainerReference).ToNot(BeNil(), "expected system disk to have storage container reference")
+				g.Expect(systemDisk.StorageConfig.StorageContainerReference.UUID).To(Equal(params.storageContainerUUID),
+					"expected system disk storage container UUID to be %s but got %s",
+					params.storageContainerUUID,
+					systemDisk.StorageConfig.StorageContainerReference.UUID)
+			}
+		},
+		defaultTimeout,
+		defaultInterval,
+	).Should(Succeed())
 }
 
 func (t testHelper) createDefaultNutanixCluster(clusterName, namespace, controlPlaneEndpointIP string, controlPlanePort int32) *infrav1.NutanixCluster {
@@ -601,20 +648,49 @@ func (t testHelper) getVariableFromE2eConfig(variableKey string) string {
 }
 
 func (t testHelper) getDefaultStorageContainerNameAndUuid(ctx context.Context) (string, string, error) {
-	peName := t.getVariableFromE2eConfig(clusterVarKey)
+	if t.e2eConfig.HasVariable(nutanixStorageContainerVarKey) {
+		scName := t.e2eConfig.MustGetVariable(nutanixStorageContainerVarKey)
+		if scName != "" {
+			scResponse, err := t.convergedClient.StorageContainers.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", scName)))
+			if err != nil {
+				return "", "", err
+			}
+			for _, sc := range scResponse {
+				if sc.Name != nil && *sc.Name == scName {
+					if uuid := storageContainerUUID(&sc); uuid != "" {
+						return *sc.Name, uuid, nil
+					}
+				}
+			}
+			return "", "", fmt.Errorf("no storage container found with name %q", scName)
+		}
+	}
 
+	peName := t.getVariableFromE2eConfig(clusterVarKey)
 	scResponse, err := t.convergedClient.StorageContainers.List(ctx, converged.WithFilter(fmt.Sprintf("clusterName eq '%s'", peName)))
 	if err != nil {
 		return "", "", err
 	}
 
 	for _, sc := range scResponse {
-		if sc.Name != nil && sc.ContainerExtId != nil && strings.Contains(*sc.Name, "default") {
-			return *sc.Name, *sc.ContainerExtId, nil
+		if sc.Name != nil && strings.Contains(*sc.Name, "default") {
+			if uuid := storageContainerUUID(&sc); uuid != "" {
+				return *sc.Name, uuid, nil
+			}
 		}
 	}
 
 	return "", "", fmt.Errorf("no default storage container found")
+}
+
+func storageContainerUUID(sc *clusterModels.StorageContainer) string {
+	if sc.ExtId != nil {
+		return *sc.ExtId
+	}
+	if sc.ContainerExtId != nil {
+		return *sc.ContainerExtId
+	}
+	return ""
 }
 
 func (t testHelper) updateVariableInE2eConfig(variableKey string, variableValue string) {

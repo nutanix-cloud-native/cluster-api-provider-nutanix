@@ -474,6 +474,53 @@ spec:
                   The minimum systemDiskSize is 20Gi bytes
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
+              systemDiskStorageConfig:
+                description: systemDiskStorageConfig are the storage configuration
+                  parameters of the system disk.
+                properties:
+                  diskMode:
+                    default: Standard
+                    description: |-
+                      diskMode specifies the disk mode.
+                      The valid values are Standard and Flash, and the default is Standard.
+                    enum:
+                    - Standard
+                    - Flash
+                    type: string
+                  storageContainer:
+                    description: storageContainer refers to the storage_container
+                      used by the VM disk.
+                    properties:
+                      name:
+                        description: name is the resource name in the PC
+                        minLength: 1
+                        type: string
+                      type:
+                        description: Type is the identifier type to use for this resource.
+                        enum:
+                        - uuid
+                        - name
+                        type: string
+                      uuid:
+                        description: uuid is the UUID of the resource in the PC.
+                        format: uuid
+                        maxLength: 36
+                        minLength: 36
+                        type: string
+                    required:
+                    - type
+                    type: object
+                    x-kubernetes-validations:
+                    - message: '''name'' must be set when type is ''name'', and forbidden
+                        otherwise'
+                      rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
+                    - message: '''uuid'' must be set when type is ''uuid'', and forbidden
+                        otherwise'
+                      rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
+                        : !has(self.uuid)'
+                required:
+                - diskMode
+                type: object
               vcpuSockets:
                 description: vcpuSockets is the number of vCPU sockets of the VM
                 format: int32

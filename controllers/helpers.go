@@ -280,7 +280,7 @@ func GetMibValueOfQuantity(quantity resource.Quantity) int64 {
 	return quantity.Value() / (1024 * 1024)
 }
 
-func CreateSystemDiskSpec(imageUUID string, systemDiskSizeInBytes int64) (*vmmconfig.Disk, error) {
+func CreateSystemDiskSpec(ctx context.Context, convergedClient *v4Converged.Client, imageUUID string, systemDiskSizeInBytes int64, storageConfig *infrav1.NutanixMachineVMStorageConfig, peUUID string) (*vmmconfig.Disk, error) {
 	if imageUUID == "" {
 		return nil, fmt.Errorf("image UUID must be set when creating system disk")
 	}
@@ -289,7 +289,12 @@ func CreateSystemDiskSpec(imageUUID string, systemDiskSizeInBytes int64) (*vmmco
 	}
 
 	disk := vmmconfig.NewDisk()
-	err := disk.SetBackingInfo(*newVmDiskWithImageRef(&imageUUID, systemDiskSizeInBytes))
+	vmDisk := newVmDiskWithImageRef(&imageUUID, systemDiskSizeInBytes)
+	err := addStorageConfigAndContainerToVmDisk(ctx, convergedClient, vmDisk, storageConfig, peUUID)
+	if err != nil {
+		return nil, err
+	}
+	err = disk.SetBackingInfo(*vmDisk)
 	if err != nil {
 		return nil, err
 	}
@@ -422,9 +427,93 @@ func addStorageConfigAndContainerToVmDisk(ctx context.Context, convergedClient *
 		}
 
 		vmDisk.StorageContainer = vmmconfig.NewVmDiskContainerReference()
-		vmDisk.StorageContainer.ExtId = sc.ContainerExtId
+		vmDisk.StorageContainer.ExtId = sc.ExtId
 	}
 
+	return nil
+}
+
+// storageContainerExtId returns the best available identifier for a storage container.
+// It prefers ExtId (Prism Central entity ID), falling back to ContainerExtId
+// (ADSF/Stargate container ID) when ExtId is not populated by the listing API.
+func storageContainerExtId(sc *clusterModels.StorageContainer) *string {
+	if sc.ExtId != nil {
+		return sc.ExtId
+	}
+	return sc.ContainerExtId
+}
+
+// MigrateSystemDiskToStorageContainer migrates the system disk of a VM to the
+// specified storage container. This is needed because the V4 API silently ignores
+// storage container placement for image-backed (cloned) disks during VM creation.
+func MigrateSystemDiskToStorageContainer(ctx context.Context, convergedClient *v4Converged.Client, vm *vmmconfig.Vm, storageConfig *infrav1.NutanixMachineVMStorageConfig, peUUID string) error {
+	log := ctrl.LoggerFrom(ctx)
+
+	if storageConfig == nil || storageConfig.StorageContainer == nil {
+		return nil
+	}
+
+	if vm.ExtId == nil {
+		return fmt.Errorf("VM ExtId is nil, cannot migrate system disk")
+	}
+
+	peID := infrav1.NutanixResourceIdentifier{
+		UUID: &peUUID,
+		Type: infrav1.NutanixIdentifierUUID,
+	}
+	targetSC, err := GetStorageContainerInCluster(ctx, convergedClient, *storageConfig.StorageContainer, peID)
+	if err != nil {
+		return fmt.Errorf("failed to get target storage container: %w", err)
+	}
+	targetSCExtId := storageContainerExtId(targetSC)
+	if targetSCExtId == nil {
+		return fmt.Errorf("target storage container has no ExtId or ContainerExtId")
+	}
+
+	if len(vm.Disks) == 0 {
+		return fmt.Errorf("VM has no disks, cannot migrate system disk")
+	}
+
+	systemDisk := vm.Disks[0]
+	if systemDisk.ExtId == nil {
+		return fmt.Errorf("system disk ExtId is nil, cannot migrate")
+	}
+
+	// Check if the system disk is already on the target storage container
+	if backingInfo := systemDisk.GetBackingInfo(); backingInfo != nil {
+		if vmDisk, ok := backingInfo.(vmmconfig.VmDisk); ok {
+			if vmDisk.StorageContainer != nil && vmDisk.StorageContainer.ExtId != nil {
+				if *vmDisk.StorageContainer.ExtId == *targetSCExtId {
+					log.Info("System disk is already on the target storage container, skipping migration")
+					return nil
+				}
+			}
+		}
+	}
+
+	log.Info(fmt.Sprintf("Migrating system disk %s to storage container %s", *systemDisk.ExtId, *targetSCExtId))
+
+	migrationPlan := vmmconfig.NewADSFDiskMigrationPlan()
+	migrationPlan.StorageContainer = vmmconfig.NewVmDiskContainerReference()
+	migrationPlan.StorageContainer.ExtId = targetSCExtId
+
+	diskRef := vmmconfig.NewMigrateDiskReference()
+	diskRef.DiskExtId = systemDisk.ExtId
+	migrationPlan.VmDisks = []vmmconfig.MigrateDiskReference{*diskRef}
+
+	migrationPlans := vmmconfig.NewMigrationPlans()
+	migrationPlans.Plans = []vmmconfig.ADSFDiskMigrationPlan{*migrationPlan}
+
+	migrationParams := vmmconfig.NewDiskMigrationParams()
+	if err := migrationParams.SetMigrateDisks(*migrationPlans); err != nil {
+		return fmt.Errorf("failed to set migration plans: %w", err)
+	}
+
+	if err := convergedClient.VMs.MigrateVmDisks(ctx, *vm.ExtId, migrationParams); err != nil {
+		return fmt.Errorf("failed to migrate system disk to storage container: %w", err)
+	}
+
+	log.Info(fmt.Sprintf("Successfully migrated system disk %s to storage container %s", *systemDisk.ExtId, *targetSCExtId))
 	return nil
 }
 

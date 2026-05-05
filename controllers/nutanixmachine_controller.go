@@ -787,6 +787,12 @@ func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineConte
 		return fmt.Errorf("minimum vcpu sockets is %v but given %v", minVCPUSockets, vcpuSockets)
 	}
 
+	if rctx.NutanixMachine.Spec.SystemDiskStorageConfig != nil {
+		if errs := validateSystemDiskStorageConfig(rctx.NutanixMachine.Spec.SystemDiskStorageConfig); len(errs) > 0 {
+			return fmt.Errorf("system disk storage config validation errors: %v", errs)
+		}
+	}
+
 	dataDisks := rctx.NutanixMachine.Spec.DataDisks
 	if dataDisks != nil {
 		if err := r.validateDataDisks(dataDisks); err != nil {
@@ -863,6 +869,30 @@ func validateDataDiskStorageConfig(disk infrav1.NutanixMachineVMDisk, errors []e
 		errors = append(errors, fmt.Errorf("invalid disk mode %s for data disk", disk.StorageConfig.DiskMode))
 	}
 	return errors
+}
+
+func validateSystemDiskStorageConfig(storageConfig *infrav1.NutanixMachineVMStorageConfig) []error {
+	var errs []error
+
+	if storageConfig.StorageContainer != nil && storageConfig.StorageContainer.IsUUID() {
+		if storageConfig.StorageContainer.UUID == nil {
+			errs = append(errs, fmt.Errorf("name or uuid is required for storage container in system disk"))
+		} else if _, err := uuid.Parse(*storageConfig.StorageContainer.UUID); err != nil {
+			errs = append(errs, fmt.Errorf("invalid UUID for storage container in system disk: %v", err))
+		}
+	}
+
+	if storageConfig.StorageContainer != nil &&
+		storageConfig.StorageContainer.IsName() &&
+		storageConfig.StorageContainer.Name == nil {
+		errs = append(errs, fmt.Errorf("name or uuid is required for storage container in system disk"))
+	}
+
+	if storageConfig.DiskMode != infrav1.NutanixMachineDiskModeFlash && storageConfig.DiskMode != infrav1.NutanixMachineDiskModeStandard {
+		errs = append(errs, fmt.Errorf("invalid disk mode %s for system disk", storageConfig.DiskMode))
+	}
+
+	return errs
 }
 
 func validateDataDiskDataSource(disk infrav1.NutanixMachineVMDisk, errors []error) []error {
@@ -1049,7 +1079,9 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	}
 	log.V(1).Info(fmt.Sprintf("Created VM %s. Got the vm UUID: %s, power state: %s", vmName, vmUuid, powerState))
 
-	// set the VM UUID on the nutanix machine as soon as it is available. VM UUID can be used for cleanup in case of failure
+	// Set the VM UUID on the nutanix machine as soon as it is available.
+	// This must happen before any post-creation steps (like disk migration) so
+	// that on retry the controller can find the existing VM via VmUUID.
 	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUuid)
 	rctx.NutanixMachine.Status.VmUUID = vmUuid
 
@@ -1057,6 +1089,19 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	if err != nil {
 		log.Error(err, "failed to patch NutanixMachine after setting VmUUID")
 		return nil, err
+	}
+
+	// Migrate system disk to the desired storage container if specified.
+	// The V4 API silently ignores storage container placement for image-backed disks
+	// during VM creation, so we perform a post-creation disk migration.
+	// MigrateSystemDiskToStorageContainer is a no-op when no storage container is configured.
+	if err := MigrateSystemDiskToStorageContainer(ctx, convergedClient, vm,
+		rctx.NutanixMachine.Spec.SystemDiskStorageConfig, peUUID); err != nil {
+		errorMsg := fmt.Errorf("failed to migrate system disk to storage container for VM %s: %w", vmName, err)
+		if !isRetryableAPIError(err) {
+			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		}
+		return nil, errorMsg
 	}
 
 	v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
@@ -1187,7 +1232,7 @@ func getDiskList(rctx *nctx.MachineContext, peUUID string) ([]vmmconfig.Disk, []
 	disks := make([]vmmconfig.Disk, 0)
 	cdRoms := make([]vmmconfig.CdRom, 0)
 
-	systemDisk, err := getSystemDisk(rctx)
+	systemDisk, err := getSystemDisk(rctx, peUUID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1213,7 +1258,7 @@ func getDiskList(rctx *nctx.MachineContext, peUUID string) ([]vmmconfig.Disk, []
 	return disks, cdRoms, nil
 }
 
-func getSystemDisk(rctx *nctx.MachineContext) (*vmmconfig.Disk, error) {
+func getSystemDisk(rctx *nctx.MachineContext, peUUID string) (*vmmconfig.Disk, error) {
 	var nodeOSImage *imageModels.Image
 	var err error
 	if rctx.NutanixMachine.Spec.Image != nil {
@@ -1253,7 +1298,7 @@ func getSystemDisk(rctx *nctx.MachineContext) (*vmmconfig.Disk, error) {
 	}
 
 	systemDiskSizeInBytes := rctx.NutanixMachine.Spec.SystemDiskSize.Value()
-	systemDisk, err := CreateSystemDiskSpec(*nodeOSImage.ExtId, systemDiskSizeInBytes)
+	systemDisk, err := CreateSystemDiskSpec(rctx.Context, rctx.ConvergedClient, *nodeOSImage.ExtId, systemDiskSizeInBytes, rctx.NutanixMachine.Spec.SystemDiskStorageConfig, peUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating system disk spec: %w", err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)

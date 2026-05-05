@@ -224,6 +224,35 @@ func (mr *MockVMsMockRecorder[VM]) List(ctx any, opts ...any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockVMs[VM])(nil).List), varargs...)
 }
 
+// MigrateVmDisks mocks base method.
+func (m *MockVMs[VM]) MigrateVmDisks(ctx context.Context, vmUUID string, migrationParams any) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MigrateVmDisks", ctx, vmUUID, migrationParams)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MigrateVmDisks indicates an expected call of MigrateVmDisks.
+func (mr *MockVMsMockRecorder[VM]) MigrateVmDisks(ctx, vmUUID, migrationParams any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MigrateVmDisks", reflect.TypeOf((*MockVMs[VM])(nil).MigrateVmDisks), ctx, vmUUID, migrationParams)
+}
+
+// MigrateVmDisksAsync mocks base method.
+func (m *MockVMs[VM]) MigrateVmDisksAsync(vmUUID string, migrationParams any) (converged.Operation[converged.NoEntity], error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MigrateVmDisksAsync", vmUUID, migrationParams)
+	ret0, _ := ret[0].(converged.Operation[converged.NoEntity])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MigrateVmDisksAsync indicates an expected call of MigrateVmDisksAsync.
+func (mr *MockVMsMockRecorder[VM]) MigrateVmDisksAsync(vmUUID, migrationParams any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MigrateVmDisksAsync", reflect.TypeOf((*MockVMs[VM])(nil).MigrateVmDisksAsync), vmUUID, migrationParams)
+}
+
 // NewIterator mocks base method.
 func (m *MockVMs[VM]) NewIterator(ctx context.Context, opts ...converged.ODataOption) converged.Iterator[VM] {
 	m.ctrl.T.Helper()

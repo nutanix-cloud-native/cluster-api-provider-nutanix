@@ -155,6 +155,11 @@ type NutanixMachineSpec struct {
 	// +kubebuilder:validation:Required
 	SystemDiskSize resource.Quantity `json:"systemDiskSize"`
 
+	// systemDiskStorageConfig are the storage configuration parameters of the system disk.
+	// +optional
+	// +kubebuilder:validation:Optional
+	SystemDiskStorageConfig *NutanixMachineVMStorageConfig `json:"systemDiskStorageConfig,omitempty"`
+
 	// dataDisks hold the list of data disks to be attached to the VM
 	// +kubebuilder:validation:Optional
 	DataDisks []NutanixMachineVMDisk `json:"dataDisks,omitempty"`

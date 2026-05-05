@@ -582,6 +582,11 @@ func (in *NutanixMachineSpec) DeepCopyInto(out *NutanixMachineSpec) {
 		(*in).DeepCopyInto(*out)
 	}
 	out.SystemDiskSize = in.SystemDiskSize.DeepCopy()
+	if in.SystemDiskStorageConfig != nil {
+		in, out := &in.SystemDiskStorageConfig, &out.SystemDiskStorageConfig
+		*out = new(NutanixMachineVMStorageConfig)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.DataDisks != nil {
 		in, out := &in.DataDisks, &out.DataDisks
 		*out = make([]NutanixMachineVMDisk, len(*in))

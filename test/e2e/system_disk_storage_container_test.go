@@ -1,0 +1,253 @@
+//go:build e2e
+
+/*
+Copyright 2025 Nutanix
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package e2e
+
+import (
+	"context"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/utils/ptr"
+	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
+
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+)
+
+var _ = Describe("Nutanix machine system disk storage container", Label("storageContainer", "system-disk-storage-container"), func() {
+	const specName = "cluster-system-disk-storage-container"
+
+	var (
+		namespace        *corev1.Namespace
+		clusterName      string
+		clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult
+		cancelWatches    context.CancelFunc
+		testHelper       testHelperInterface
+	)
+
+	BeforeEach(func() {
+		testHelper = newTestHelper(e2eConfig)
+		clusterName = testHelper.generateTestClusterName(specName)
+		clusterResources = new(clusterctl.ApplyClusterTemplateAndWaitResult)
+		Expect(bootstrapClusterProxy).NotTo(BeNil(), "BootstrapClusterProxy can't be nil")
+		namespace, cancelWatches = setupSpecNamespace(ctx, specName, bootstrapClusterProxy, artifactFolder)
+	})
+
+	AfterEach(func() {
+		dumpSpecResourcesAndCleanup(ctx,
+			specName, bootstrapClusterProxy,
+			artifactFolder, namespace,
+			cancelWatches, clusterResources.Cluster,
+			e2eConfig.GetIntervals, skipCleanup)
+	})
+
+	It("Should create a cluster with system disk storage container by name", func() {
+		const flavor = "no-nmt"
+
+		Expect(namespace).NotTo(BeNil(), "Namespace can't be nil")
+
+		scName, scUUID, err := testHelper.getDefaultStorageContainerNameAndUuid(ctx)
+		Expect(err).To(BeNil(), "Failed to get default storage container")
+		Expect(scName).NotTo(BeEmpty(), "Storage container name can't be empty")
+		Expect(scUUID).NotTo(BeEmpty(), "Storage container UUID can't be empty")
+
+		By("Creating a Nutanix Machine Config with system disk storage container by name", func() {
+			nmt := testHelper.createDefaultNMTwithSystemDiskStorageConfig(clusterName, namespace.Name, withSystemDiskStorageConfigParams{
+				SystemDiskStorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+					DiskMode: infrav1.NutanixMachineDiskModeStandard,
+					StorageContainer: &infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierName,
+						Name: ptr.To(scName),
+					},
+				},
+			})
+
+			testHelper.createCapiObject(ctx, createCapiObjectParams{
+				creator:    bootstrapClusterProxy.GetClient(),
+				capiObject: nmt,
+			})
+		})
+
+		By("Creating a workload cluster", func() {
+			testHelper.deployClusterAndWait(deployClusterParams{
+				clusterName:           clusterName,
+				namespace:             namespace,
+				flavor:                flavor,
+				clusterctlConfigPath:  clusterctlConfigPath,
+				artifactFolder:        artifactFolder,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+			}, clusterResources)
+		})
+
+		By("Checking the system disk has the correct storage container", func() {
+			testHelper.verifySystemDiskStorageContainerOnNutanixMachines(ctx, verifySystemDiskStorageContainerParams{
+				clusterName:           clusterName,
+				namespace:             namespace.Name,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+				storageContainerUUID:  scUUID,
+			})
+		})
+
+		By("PASSED!")
+	})
+
+	It("Should create a cluster with system disk storage container by UUID", func() {
+		const flavor = "no-nmt"
+
+		Expect(namespace).NotTo(BeNil(), "Namespace can't be nil")
+
+		scName, scUUID, err := testHelper.getDefaultStorageContainerNameAndUuid(ctx)
+		Expect(err).To(BeNil(), "Failed to get default storage container")
+		Expect(scName).NotTo(BeEmpty(), "Storage container name can't be empty")
+		Expect(scUUID).NotTo(BeEmpty(), "Storage container UUID can't be empty")
+
+		By("Creating a Nutanix Machine Config with system disk storage container by UUID", func() {
+			nmt := testHelper.createDefaultNMTwithSystemDiskStorageConfig(clusterName, namespace.Name, withSystemDiskStorageConfigParams{
+				SystemDiskStorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+					DiskMode: infrav1.NutanixMachineDiskModeStandard,
+					StorageContainer: &infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierUUID,
+						UUID: ptr.To(scUUID),
+					},
+				},
+			})
+
+			testHelper.createCapiObject(ctx, createCapiObjectParams{
+				creator:    bootstrapClusterProxy.GetClient(),
+				capiObject: nmt,
+			})
+		})
+
+		By("Creating a workload cluster", func() {
+			testHelper.deployClusterAndWait(deployClusterParams{
+				clusterName:           clusterName,
+				namespace:             namespace,
+				flavor:                flavor,
+				clusterctlConfigPath:  clusterctlConfigPath,
+				artifactFolder:        artifactFolder,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+			}, clusterResources)
+		})
+
+		By("Checking the system disk has the correct storage container", func() {
+			testHelper.verifySystemDiskStorageContainerOnNutanixMachines(ctx, verifySystemDiskStorageContainerParams{
+				clusterName:           clusterName,
+				namespace:             namespace.Name,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+				storageContainerUUID:  scUUID,
+			})
+		})
+
+		By("PASSED!")
+	})
+
+	It("Should fail to create a cluster with wrong system disk storage container", func() {
+		const flavor = "no-nmt"
+
+		Expect(namespace).NotTo(BeNil(), "Namespace can't be nil")
+
+		By("Creating a Nutanix Machine Config with invalid system disk storage container", func() {
+			nmt := testHelper.createDefaultNMTwithSystemDiskStorageConfig(clusterName, namespace.Name, withSystemDiskStorageConfigParams{
+				SystemDiskStorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+					DiskMode: infrav1.NutanixMachineDiskModeStandard,
+					StorageContainer: &infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierUUID,
+						UUID: ptr.To("01010101-0101-0101-0101-010101010101"),
+					},
+				},
+			})
+
+			testHelper.createCapiObject(ctx, createCapiObjectParams{
+				creator:    bootstrapClusterProxy.GetClient(),
+				capiObject: nmt,
+			})
+		})
+
+		By("Creating a workload cluster", func() {
+			testHelper.deployCluster(deployClusterParams{
+				clusterName:           clusterName,
+				namespace:             namespace,
+				flavor:                flavor,
+				clusterctlConfigPath:  clusterctlConfigPath,
+				artifactFolder:        artifactFolder,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+			}, clusterResources)
+		})
+
+		By("Checking machine status is 'Failed' and failure message is set", func() {
+			testHelper.verifyFailureMessageOnClusterMachines(ctx, verifyFailureMessageOnClusterMachinesParams{
+				clusterName:            clusterName,
+				namespace:              namespace,
+				expectedFailureMessage: "found no storage container",
+				bootstrapClusterProxy:  bootstrapClusterProxy,
+			})
+		})
+
+		By("PASSED!")
+	})
+
+	It("Should create a cluster with system disk in flash mode", func() {
+		const flavor = "no-nmt"
+
+		Expect(namespace).NotTo(BeNil(), "Namespace can't be nil")
+
+		scName, _, err := testHelper.getDefaultStorageContainerNameAndUuid(ctx)
+		Expect(err).To(BeNil(), "Failed to get default storage container")
+		Expect(scName).NotTo(BeEmpty(), "Storage container name can't be empty")
+
+		By("Creating a Nutanix Machine Config with system disk in flash mode", func() {
+			nmt := testHelper.createDefaultNMTwithSystemDiskStorageConfig(clusterName, namespace.Name, withSystemDiskStorageConfigParams{
+				SystemDiskStorageConfig: &infrav1.NutanixMachineVMStorageConfig{
+					DiskMode: infrav1.NutanixMachineDiskModeFlash,
+					StorageContainer: &infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierName,
+						Name: ptr.To(scName),
+					},
+				},
+			})
+
+			testHelper.createCapiObject(ctx, createCapiObjectParams{
+				creator:    bootstrapClusterProxy.GetClient(),
+				capiObject: nmt,
+			})
+		})
+
+		By("Creating a workload cluster", func() {
+			testHelper.deployClusterAndWait(deployClusterParams{
+				clusterName:           clusterName,
+				namespace:             namespace,
+				flavor:                flavor,
+				clusterctlConfigPath:  clusterctlConfigPath,
+				artifactFolder:        artifactFolder,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+			}, clusterResources)
+		})
+
+		By("Checking the disks are attached to the VMs", func() {
+			testHelper.verifyDisksOnNutanixMachines(ctx, verifyDisksOnNutanixMachinesParams{
+				clusterName:           clusterName,
+				namespace:             namespace.Name,
+				bootstrapClusterProxy: bootstrapClusterProxy,
+				diskCount:             2,
+			})
+		})
+
+		By("PASSED!")
+	})
+})
