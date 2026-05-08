@@ -18,12 +18,10 @@ package v1beta1
 
 import (
 	"context"
-	"fmt"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/feature"
 )
@@ -65,28 +63,22 @@ const (
 // +kubebuilder:object:generate=false
 type NutanixMachineTemplateDefaulter struct{}
 
-var _ webhook.CustomDefaulter = &NutanixMachineTemplateDefaulter{}
+var _ admission.Defaulter[*NutanixMachineTemplate] = &NutanixMachineTemplateDefaulter{}
 
 // SetupWebhookWithManager registers the defaulting webhook for NutanixMachineTemplate.
 //
 // +kubebuilder:webhook:path=/mutate-infrastructure-cluster-x-k8s-io-v1beta1-nutanixmachinetemplate,mutating=true,failurePolicy=fail,sideEffects=None,groups=infrastructure.cluster.x-k8s.io,resources=nutanixmachinetemplates,verbs=create;update,versions=v1beta1,name=default.nutanixmachinetemplate.infrastructure.cluster.x-k8s.io,admissionReviewVersions=v1
 func (d *NutanixMachineTemplateDefaulter) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(&NutanixMachineTemplate{}).
+	return ctrl.NewWebhookManagedBy(mgr, &NutanixMachineTemplate{}).
 		WithDefaulter(d).
 		Complete()
 }
 
-// Default implements webhook.CustomDefaulter.
+// Default implements admission.Defaulter.
 // It normalizes spec.template.spec.image for brownfield NutanixMachineTemplate objects
 // that have the image type set but the corresponding identifier value missing.
 // Each defaulting behavior is controlled by its respective feature gate.
-func (d *NutanixMachineTemplateDefaulter) Default(_ context.Context, obj runtime.Object) error {
-	nmt, ok := obj.(*NutanixMachineTemplate)
-	if !ok {
-		return fmt.Errorf("expected *NutanixMachineTemplate, got %T", obj)
-	}
-
+func (d *NutanixMachineTemplateDefaulter) Default(_ context.Context, nmt *NutanixMachineTemplate) error {
 	defaultNutanixMachineTemplateImage(nmt,
 		feature.Gates.Enabled(feature.DefaultToPlaceholderImageName),
 		feature.Gates.Enabled(feature.DefaultToPlaceholderImageUUID),
