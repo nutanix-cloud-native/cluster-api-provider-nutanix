@@ -202,7 +202,7 @@ func (t testHelper) createClusterFromConfig(ctx context.Context, input clusterct
 	})
 	Expect(clusterTemplate).ToNot(BeNil())
 
-	Expect(input.ClusterProxy.CreateOrUpdate(ctx, clusterTemplate, input.CreateOrUpdateOpts...)).To(Succeed())
+	Expect(input.ClusterProxy.CreateOrUpdate(ctx, clusterTemplate)).To(Succeed())
 
 	result.Cluster = framework.GetClusterByName(ctx, framework.GetClusterByNameInput{
 		Getter:    input.ClusterProxy.GetClient(),
