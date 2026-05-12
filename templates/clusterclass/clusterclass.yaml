@@ -354,8 +354,10 @@ spec:
             controlPlane: true
         jsonPatches:
           - op: add
-            path: /spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs/cloud-provider
-            value: external
+            path: /spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs/-
+            value:
+              name: cloud-provider
+              value: external
   variables:
   - name: sshKey
     required: true

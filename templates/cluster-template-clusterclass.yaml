@@ -334,8 +334,10 @@ spec:
   - definitions:
     - jsonPatches:
       - op: add
-        path: /spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs/cloud-provider
-        value: external
+        path: /spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs/-
+        value:
+          name: cloud-provider
+          value: external
       selector:
         apiVersion: controlplane.cluster.x-k8s.io/v1beta2
         kind: KubeadmControlPlaneTemplate
