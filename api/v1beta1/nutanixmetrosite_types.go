@@ -47,7 +47,7 @@ type NutanixMetroSiteSpec struct {
 
 // NutanixMetroSiteStatus defines the state of the NutanixMetroSite resource.
 type NutanixMetroSiteStatus struct {
-	// conditions represent the latest states of the metro,
+	// conditions represent the latest states of the metro site,
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
@@ -57,8 +57,8 @@ type NutanixMetroSiteStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:metadata:labels=clusterctl.cluster.x-k8s.io/move=
-// +kubebuilder:printcolumn:name="PreferredFailureDomain",type="string",JSONPath=".spec.preferredFailureDomain",description="Reference of the preferred NutnaixFailureDomain object"
-// +kubebuilder:printcolumn:name="Metro",type="string",JSONPath=".spec.metroRef",description="Reference of NutnaixMetro object this site belongs to"
+// +kubebuilder:printcolumn:name="PreferredFailureDomain",type="string",JSONPath=".spec.preferredFailureDomain",description="Reference of the preferred NutanixFailureDomain object"
+// +kubebuilder:printcolumn:name="Metro",type="string",JSONPath=".spec.metroRef",description="Reference of NutanixMetro object this site belongs to"
 
 // NutanixMetroSite is the Schema for the NutanixMetroSite API.
 type NutanixMetroSite struct {

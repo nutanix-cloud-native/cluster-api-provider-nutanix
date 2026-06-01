@@ -19,11 +19,11 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: Reference of the preferred NutnaixFailureDomain object
+    - description: Reference of the preferred NutanixFailureDomain object
       jsonPath: .spec.preferredFailureDomain
       name: PreferredFailureDomain
       type: string
-    - description: Reference of NutnaixMetro object this site belongs to
+    - description: Reference of NutanixMetro object this site belongs to
       jsonPath: .spec.metroRef
       name: Metro
       type: string
@@ -95,7 +95,7 @@ spec:
               resource.
             properties:
               conditions:
-                description: conditions represent the latest states of the metro,
+                description: conditions represent the latest states of the metro site,
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.

@@ -20,7 +20,7 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: References of NutnaixFailureDomain objects
+    - description: References of NutanixFailureDomain objects
       jsonPath: .spec.failureDomains
       name: FailureDomains
       type: string
