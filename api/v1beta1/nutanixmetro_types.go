@@ -53,7 +53,7 @@ type NutanixMetroStatus struct {
 // +kubebuilder:storageversion
 // +kubebuilder:metadata:annotations="clusterctl.cluster.x-k8s.io/skip-crd-name-preflight-check=true"
 // +kubebuilder:metadata:labels=clusterctl.cluster.x-k8s.io/move=
-// +kubebuilder:printcolumn:name="FailureDomains",type="string",JSONPath=".spec.failureDomains",description="References of NutnaixFailureDomain objects"
+// +kubebuilder:printcolumn:name="FailureDomains",type="string",JSONPath=".spec.failureDomains",description="References of NutanixFailureDomain objects"
 
 // NutanixMetro is the Schema for the NutanixMetro API.
 type NutanixMetro struct {
