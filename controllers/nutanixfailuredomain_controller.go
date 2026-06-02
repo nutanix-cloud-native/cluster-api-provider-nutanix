@@ -113,6 +113,9 @@ func (r *NutanixFailureDomainReconciler) mapMachineToNutanixFailureDomain() hand
 		if fdName == "" {
 			return reqs
 		}
+		if isNutanixMetroFailureDomain(fdName) || isNutanixMetroSiteFailureDomain(fdName) {
+			return reqs
+		}
 
 		objKey := client.ObjectKey{Name: fdName, Namespace: machine.Namespace}
 		reqs = append(reqs, ctrl.Request{NamespacedName: objKey})
