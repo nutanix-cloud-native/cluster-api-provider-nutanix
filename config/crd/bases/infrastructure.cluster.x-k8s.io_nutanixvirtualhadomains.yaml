@@ -21,7 +21,7 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: Reference of NutnaixMetro object
+    - description: Reference to the NutanixMetro object
       jsonPath: .spec.metroRef
       name: Metro
       type: string

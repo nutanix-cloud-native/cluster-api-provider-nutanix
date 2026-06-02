@@ -79,7 +79,7 @@ type NutanixClusterSpec struct {
 	// +optional
 	ControlPlaneFailureDomains []corev1.LocalObjectReference `json:"controlPlaneFailureDomains,omitempty"`
 
-	// metroRefs holds references to the NutanixVMetro objects when the cluster is provisioned with metro (vHADomain) enabled.
+	// metroRefs holds references to the NutanixMetro objects when the cluster is provisioned with metro (vHADomain) enabled.
 	// +listType=map
 	// +listMapKey=name
 	// +optional
