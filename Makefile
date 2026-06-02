@@ -387,6 +387,8 @@ mocks: ## Generate mocks for the project
 	mockgen -destination=mocks/converged/users.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Users
 	mockgen -destination=mocks/converged/templates.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Templates
 	mockgen -destination=mocks/converged/ovas.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Ovas
+	mockgen -destination=mocks/converged/protection_policies.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged ProtectionPolicies
+	mockgen -destination=mocks/converged/recovery_plans.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged RecoveryPlans
 
 # Disable VCS stamping for `go list` / `go test` so unit tests run in partial checkouts and CI sandboxes.
 GOTESTPKGS = $(shell GOFLAGS=-buildvcs=false go list ./... | grep -v /mocks | grep -v /templates)
