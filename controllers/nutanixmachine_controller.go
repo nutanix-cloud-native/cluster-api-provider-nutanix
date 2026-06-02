@@ -1072,13 +1072,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	// if VM exists
 	if vmFound != nil {
 		log.Info(fmt.Sprintf("vm %s found with UUID %s", *vmFound.Name, rctx.NutanixMachine.Status.VmUUID))
-
-		v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
-		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
-			Type:   string(infrav1.VMProvisionedCondition),
-			Status: metav1.ConditionTrue,
-			Reason: capiv1beta1.ProvisionedV1Beta2Reason,
-		})
+		setVMProvisionedCondition(rctx.NutanixMachine)
 		return vmFound, nil
 	}
 
@@ -1104,20 +1098,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		return nil, err
 	}
 
-	// Set the "metro-preferred-pe:" customAttribute to VM for Metro
-	if isNutanixMetroFailureDomain(rctx.Machine.Spec.FailureDomain) || isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
-		if preferredPE := rctx.Datastore[nctx.MetroPreferredPE]; preferredPE != nil {
-			vm.CustomAttributes = []string{
-				vmCustomAttributePrefix4MetroPreferredPE + *preferredPE,
-			}
-		}
-	}
-	if isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
-		if groupNameLabel := rctx.Datastore[nctx.MetroNodeGroupNameLabel]; groupNameLabel != nil {
-			// Set the "metro-node-group-name:" customAttribute to VM for the MetroSite's goupNameLabel value
-			vm.CustomAttributes = append(vm.CustomAttributes, vmCustomAttributePrefix4MetroNodeGroupNameLabel+*groupNameLabel)
-		}
-	}
+	setMetroVMCustomAttributes(rctx, vm)
 
 	// Set cluster reference
 	vm.Cluster = vmmconfig.NewClusterReference()
@@ -1219,13 +1200,34 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		return nil, err
 	}
 
-	v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
-	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+	setVMProvisionedCondition(rctx.NutanixMachine)
+	return vm, nil
+}
+
+func setVMProvisionedCondition(machine *infrav1.NutanixMachine) {
+	v1beta1conditions.MarkTrue(machine, infrav1.VMProvisionedCondition)
+	v1beta2conditions.Set(machine, metav1.Condition{
 		Type:   string(infrav1.VMProvisionedCondition),
 		Status: metav1.ConditionTrue,
 		Reason: capiv1beta1.ProvisionedV1Beta2Reason,
 	})
-	return vm, nil
+}
+
+func setMetroVMCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) {
+	if isNutanixMetroFailureDomain(rctx.Machine.Spec.FailureDomain) || isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
+		if preferredPE := rctx.Datastore[nctx.MetroPreferredPE]; preferredPE != nil {
+			// Set the "metro-preferred-pe:" customAttribute to VM for Metro.
+			vm.CustomAttributes = []string{
+				vmCustomAttributePrefix4MetroPreferredPE + *preferredPE,
+			}
+		}
+	}
+	if isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
+		if groupNameLabel := rctx.Datastore[nctx.MetroNodeGroupNameLabel]; groupNameLabel != nil {
+			// Set the "metro-node-group-name:" customAttribute to VM for the MetroSite groupNameLabel value.
+			vm.CustomAttributes = append(vm.CustomAttributes, vmCustomAttributePrefix4MetroNodeGroupNameLabel+*groupNameLabel)
+		}
+	}
 }
 
 // addCustomAttributes sets custom attributes on the VM, including the provider ID.
