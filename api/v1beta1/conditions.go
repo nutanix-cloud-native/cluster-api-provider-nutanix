@@ -59,7 +59,7 @@ const (
 	// MetroInUseReason indicates that the NutanixMetro is used by other objects.
 	MetroInUseReason = "metroInUse"
 
-	// MetroNotInUseReason indicates that the NutanixMetro is used by other objects.
+	// MetroNotInUseReason indicates that the NutanixMetro is not used by other objects.
 	MetroNotInUseReason = "metroNotInUse"
 
 	// MetroValidatedCondition indicates whether the NutanixMetro spec is configured correctly or not.
@@ -78,16 +78,16 @@ const (
 	// MetroSiteInUseReason indicates that the NutanixMetroSite is used by other objects.
 	MetroSiteInUseReason = "metroSiteInUse"
 
-	// MetroSiteNotInUseReason indicates that the NutanixMetroSite is not used by other objects.
+	// MetroSiteNotInUseReason indicates that the NutanixMetroSite is not used by any objects.
 	MetroSiteNotInUseReason = "metroSiteNotInUse"
 
-	// MetroSiteValidatedCondition indicates whether the NutanixMetro spec is configured correctly or not.
+	// MetroSiteValidatedCondition indicates whether the NutanixMetroSite spec is configured correctly or not.
 	MetroSiteValidatedCondition = "metroSiteValidated"
 
-	// MetroSiteMisconfiguredReason indicates that the NutanixMetro spec is misconfigured.
+	// MetroSiteMisconfiguredReason indicates that the NutanixMetroSite spec is misconfigured.
 	MetroSiteMisconfiguredReason = "metroSiteMisconfigured"
 
-	// MetroSiteSpecValidReason indicates that the NutanixMetroSite spec is valid.
+	// MetroSiteSpecValidReason indicates that the NutanixMetroSite spec is configured correctly.
 	MetroSiteSpecValidReason = "metroSiteSpecValid"
 )
 

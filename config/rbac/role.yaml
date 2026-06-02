@@ -97,7 +97,6 @@ rules:
   - infrastructure.cluster.x-k8s.io
   resources:
   - nutanixmachinetemplates
-  - nutanixmatrosites
   verbs:
   - get
   - list
