@@ -72,6 +72,7 @@ spec:
                       type: string
                   type: object
                 maxItems: 2
+                minItems: 2
                 type: array
                 x-kubernetes-list-map-keys:
                 - value
@@ -164,6 +165,7 @@ spec:
                     rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
                       : !has(self.uuid)'
                 maxItems: 2
+                minItems: 2
                 type: array
             required:
             - metroRef

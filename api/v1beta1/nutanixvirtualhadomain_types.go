@@ -48,6 +48,7 @@ type NutanixVirtualHADomainSpec struct {
 	// categories are the identifiers (key/value pairs) of the Category PC resources of the vHA domain.
 	// This field is not set at CR creation time and the reconciler will create the Category PC resources
 	// and set this field with the resources' identifiers (key/value pairs).
+	// +kubebuilder:validation:MinItems=2
 	// +kubebuilder:validation:MaxItems=2
 	// +listType=map
 	// +listMapKey=value
@@ -57,6 +58,7 @@ type NutanixVirtualHADomainSpec struct {
 	// recoveryPlans are the identifiers (name or uuid) of the RecoveryPlan PC resources of the vHA domain.
 	// This field is not set at CR creation time and the reconciler will create the RecoveryPlan PC resources
 	// and set this field with the resources' identifiers (name or uuid).
+	// +kubebuilder:validation:MinItems=2
 	// +kubebuilder:validation:MaxItems=2
 	// +optional
 	RecoveryPlans []NutanixResourceIdentifier `json:"recoveryPlans,omitempty"`
