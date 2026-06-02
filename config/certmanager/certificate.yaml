@@ -18,4 +18,4 @@ spec:
   issuerRef:
     kind: Issuer
     name: selfsigned-issuer
-  secretName: webhook-server-cert
+  secretName: capx-webhook-service-cert
