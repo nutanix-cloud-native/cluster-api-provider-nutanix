@@ -26,7 +26,7 @@ const (
 	VolumeGroupDetachFailed = "VolumeGroupDetachFailed"
 )
 
-// Conditions and Reasons releated to failure domain
+// Conditions and Reasons related to failure domain
 const (
 	// FailureDomainSafeForDeletionCondition indicates whether the failure domain object is safe for deletion,
 	// ie., when it is not used or referenced by other resources
@@ -50,7 +50,7 @@ const (
 	FailureDomainsValidationInProgressReason = "FailureDomainsValidationInProgress"
 )
 
-// Conditions and Reasons releated to NutanixMetro and NuanixMetroSite
+// Conditions and Reasons related to NutanixMetro and NutanixMetroSite
 const (
 	// MetroSafeForDeletionCondition indicates whether the NutanixMetro object is safe for deletion,
 	// ie., when it is not used or referenced by other resources
