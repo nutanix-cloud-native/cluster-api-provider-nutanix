@@ -41,6 +41,7 @@ import (
 	prismNetworkingModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/prism/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	prismErrors "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/error"
+	dataPoliciesModels "github.com/nutanix/ntnx-api-golang-clients/datapolicies-go-client/v4/models/datapolicies/v4/config"
 	vmmModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 	policyModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/policies"
 	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
@@ -3006,6 +3007,8 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 	mockUsers := mockconverged.NewMockUsers[iamModels.User](ctrl)
 	mockTemplates := mockconverged.NewMockTemplates[imageModels.Template](ctrl)
 	mockOvas := mockconverged.NewMockOvas[imageModels.Ova, imageModels.FileDetail](ctrl)
+	mockProtectionPolicies := mockconverged.NewMockProtectionPolicies[dataPoliciesModels.ProtectionPolicy](ctrl)
+	mockRecoveryPlans := mockconverged.NewMockRecoveryPlans[dataPoliciesModels.RecoveryPlan](ctrl)
 
 	realClient := &v4Converged.Client{
 		Client: converged.Client[
@@ -3030,6 +3033,8 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			imageModels.Template,
 			imageModels.Ova,
 			imageModels.FileDetail,
+			dataPoliciesModels.ProtectionPolicy,
+			dataPoliciesModels.RecoveryPlan,
 		]{
 			AntiAffinityPolicies: mockAntiAffinityPolicies,
 			Clusters:             mockClusters,
@@ -3044,6 +3049,10 @@ func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper
 			Users:                mockUsers,
 			Templates:            mockTemplates,
 			Ovas:                 mockOvas,
+			DataPolicies: converged.DataPolicies[dataPoliciesModels.ProtectionPolicy, dataPoliciesModels.RecoveryPlan]{
+				ProtectionPolicies: mockProtectionPolicies,
+				RecoveryPlans:      mockRecoveryPlans,
+			},
 		},
 	}
 
