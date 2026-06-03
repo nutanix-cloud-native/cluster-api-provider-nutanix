@@ -206,7 +206,7 @@ spec:
                         - name
                         x-kubernetes-list-type: map
                       metroRefs:
-                        description: metroRefs holds references to the NutanixVMetro
+                        description: metroRefs holds references to the NutanixMetro
                           objects when the cluster is provisioned with metro (vHADomain)
                           enabled.
                         items:
