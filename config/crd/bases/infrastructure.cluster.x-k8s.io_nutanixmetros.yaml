@@ -4,7 +4,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     clusterctl.cluster.x-k8s.io/skip-crd-name-preflight-check: "true"
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   labels:
     clusterctl.cluster.x-k8s.io/move: ""
   name: nutanixmetros.infrastructure.cluster.x-k8s.io
