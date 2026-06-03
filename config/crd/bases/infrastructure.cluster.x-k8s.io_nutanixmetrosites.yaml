@@ -23,7 +23,7 @@ spec:
       jsonPath: .spec.preferredFailureDomain
       name: PreferredFailureDomain
       type: string
-    - description: Reference of NutanixMetro object this site belongs to
+    - description: Reference to the NutanixMetro object this site belongs to
       jsonPath: .spec.metroRef
       name: Metro
       type: string
