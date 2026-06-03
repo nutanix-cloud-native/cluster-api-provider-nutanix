@@ -189,7 +189,7 @@ func (r *NutanixMetroReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	patchHelper, err := patch.NewHelper(metro, r.Client)
 	if err != nil {
 		log.Error(err, "Failed to configure the patch helper")
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{}, err
 	}
 
 	defer func() {

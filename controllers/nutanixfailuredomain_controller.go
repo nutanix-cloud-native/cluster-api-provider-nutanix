@@ -253,8 +253,8 @@ func (r *NutanixFailureDomainReconciler) reconcileDelete(ctx context.Context, fd
 	log := ctrl.LoggerFrom(ctx)
 	log.Info("Handling NutanixFailureDomain deletion")
 
-	// Check if there are other objects reference this object in the same namespace.
-	// usedItems is to hold the names of these machine objects using this Metro.
+	// Check if other resources in the same namespace reference this failure domain.
+	// usedItems holds references from machines, metros, and metro sites.
 	usedItems := []string{}
 
 	for _, m := range machines {
