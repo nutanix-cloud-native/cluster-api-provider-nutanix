@@ -326,6 +326,25 @@ func setupNutanixFailureDomainController(ctx context.Context, mgr manager.Manage
 	return nil
 }
 
+func setupNutanixMachineTemplateController(ctx context.Context, mgr manager.Manager,
+	opts ...controllers.ControllerConfigOpts,
+) error {
+	templateCtrl, err := controllers.NewNutanixMachineTemplateReconciler(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		opts...,
+	)
+	if err != nil {
+		return fmt.Errorf("unable to create NutanixMachineTemplate controller: %w", err)
+	}
+
+	if err := templateCtrl.SetupWithManager(ctx, mgr); err != nil {
+		return fmt.Errorf("unable to setup NutanixMachineTemplate controller with manager: %w", err)
+	}
+
+	return nil
+}
+
 func setupNutanixMachineTemplateWebhook(mgr manager.Manager) error {
 	defaulter := &infrav1.NutanixMachineTemplateDefaulter{}
 	if err := defaulter.SetupWebhookWithManager(mgr); err != nil {
@@ -376,6 +395,10 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 
 	// Use the same opts for failure domain controller as machine controller
 	if err := setupNutanixFailureDomainController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
+		return fmt.Errorf("unable to setup controllers: %w", err)
+	}
+
+	if err := setupNutanixMachineTemplateController(ctx, mgr, machineControllerOpts...); err != nil {
 		return fmt.Errorf("unable to setup controllers: %w", err)
 	}
 

@@ -899,7 +899,7 @@ func TestGetPEUUID(t *testing.T) {
 				convergedClient.MockClusters.EXPECT().Get(gomock.Any(), "found-pe-uuid").Return(
 					&clusterModels.Cluster{
 						ExtId: ptr.To("found-pe-uuid"),
-						Name: ptr.To("my-cluster"),
+						Name:  ptr.To("my-cluster"),
 					}, nil)
 				return convergedClient.Client
 			},
@@ -982,7 +982,7 @@ func TestGetSubnetUUID(t *testing.T) {
 				convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), "found-subnet-uuid").Return(
 					&subnetModels.Subnet{
 						ExtId: ptr.To("found-subnet-uuid"),
-						Name: ptr.To("my-subnet"),
+						Name:  ptr.To("my-subnet"),
 					}, nil)
 				return convergedClient.Client
 			},
@@ -1012,9 +1012,9 @@ func TestGetSubnetUUID(t *testing.T) {
 				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(
 					[]subnetModels.Subnet{
 						{
-							ExtId:       ptr.To("overlay-subnet-uuid"),
-							Name:        ptr.To("my-overlay"),
-							SubnetType:  &subnetType,
+							ExtId:      ptr.To("overlay-subnet-uuid"),
+							Name:       ptr.To("my-overlay"),
+							SubnetType: &subnetType,
 						},
 					}, nil)
 				return convergedClient.Client
@@ -1033,10 +1033,10 @@ func TestGetSubnetUUID(t *testing.T) {
 				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(
 					[]subnetModels.Subnet{
 						{
-							ExtId:             ptr.To("vlan-subnet-uuid"),
-							Name:              ptr.To("my-vlan"),
-							SubnetType:        &subnetType,
-							ClusterReference:  ptr.To(peUUID),
+							ExtId:            ptr.To("vlan-subnet-uuid"),
+							Name:             ptr.To("my-vlan"),
+							SubnetType:       &subnetType,
+							ClusterReference: ptr.To(peUUID),
 						},
 					}, nil)
 				return convergedClient.Client
