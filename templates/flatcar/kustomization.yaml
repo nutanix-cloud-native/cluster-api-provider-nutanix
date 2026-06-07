@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ${NAMESPACE}
+
+resources:
+- ../base
+
+patches:
+# SMP: Ignition format, kubeadm.service drop-in, Flatcar {pre,post}KubeadmCommands.
+- path: ./kcp-flatcar-patch.yaml
+- path: ./kct-flatcar-patch.yaml
+
+# JSON6902:
+#   1) Drop useExperimentalRetryJoin (webhook rejects it with format: ignition).
+#   2) Set permissions on the kube-vip file (Ignition rejects files without a mode).
+- target:
+    kind: KubeadmControlPlane
+    name: .*
+  patch: |-
+    - op: remove
+      path: /spec/kubeadmConfigSpec/useExperimentalRetryJoin
+    - op: add
+      path: /spec/kubeadmConfigSpec/files/0/permissions
+      value: "0644"
