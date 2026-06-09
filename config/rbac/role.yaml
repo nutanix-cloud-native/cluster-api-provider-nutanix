@@ -48,6 +48,7 @@ rules:
   - cluster.x-k8s.io
   resources:
   - clusters/status
+  - machinedeployments
   - machines
   - machines/status
   verbs:

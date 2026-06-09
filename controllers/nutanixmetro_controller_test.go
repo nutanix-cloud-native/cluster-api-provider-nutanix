@@ -156,11 +156,36 @@ var _ = Describe("NutanixMetroReconciler", func() {
 	})
 
 	Context("Test reconcileDelete", func() {
-		It("should prevent deletion when referenced by NutanixCluster", func() {
+		It("should prevent deletion when referenced directly by NutanixCluster ControlPlaneFailureDomains (NutanixMetro/* ref)", func() {
 			Expect(k8sClient.Create(ctx, metroObj)).To(Succeed())
 
-			ntnxCluster.Spec.MetroRefs = []corev1.LocalObjectReference{{Name: metroObj.Name}}
-			err := reconciler.reconcileDelete(ctx, metroObj, []capiv1beta2.Machine{}, []infrav1.NutanixCluster{*ntnxCluster}, []infrav1.NutanixMetroSite{})
+			ntnxCluster.Spec.ControlPlaneFailureDomains = []corev1.LocalObjectReference{
+				{Name: metroFailureDomainPrefix + metroObj.Name},
+			}
+			err := reconciler.reconcileDelete(ctx, metroObj, []capiv1beta2.Machine{}, []infrav1.NutanixCluster{*ntnxCluster}, []infrav1.NutanixMetroSite{}, []capiv1beta2.MachineDeployment{})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("is not safe for deletion since it is in use"))
+			cond := conditions.Get(metroObj, infrav1.MetroSafeForDeletionCondition)
+			Expect(cond).NotTo(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+			Expect(cond.Reason).To(Equal(infrav1.MetroInUseReason))
+			Expect(cond.Message).To(ContainSubstring("nutanixCluster:" + ntnxCluster.Name))
+		})
+
+		It("should prevent deletion when referenced transitively by NutanixCluster via NutanixMetroSite", func() {
+			Expect(k8sClient.Create(ctx, metroObj)).To(Succeed())
+
+			site := &infrav1.NutanixMetroSite{
+				ObjectMeta: metav1.ObjectMeta{Name: "site-a", Namespace: "default"},
+				Spec: infrav1.NutanixMetroSiteSpec{
+					MetroRef:               corev1.LocalObjectReference{Name: metroObj.Name},
+					PreferredFailureDomain: corev1.LocalObjectReference{Name: "fd1"},
+				},
+			}
+			ntnxCluster.Spec.ControlPlaneFailureDomains = []corev1.LocalObjectReference{
+				{Name: metroSiteFailureDomainPrefix + site.Name},
+			}
+			err := reconciler.reconcileDelete(ctx, metroObj, []capiv1beta2.Machine{}, []infrav1.NutanixCluster{*ntnxCluster}, []infrav1.NutanixMetroSite{*site}, []capiv1beta2.MachineDeployment{})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("is not safe for deletion since it is in use"))
 			cond := conditions.Get(metroObj, infrav1.MetroSafeForDeletionCondition)
@@ -174,7 +199,7 @@ var _ = Describe("NutanixMetroReconciler", func() {
 			Expect(k8sClient.Create(ctx, metroObj)).To(Succeed())
 
 			machine.Spec.FailureDomain = metroFailureDomainPrefix + metroObj.Name
-			err := reconciler.reconcileDelete(ctx, metroObj, []capiv1beta2.Machine{*machine}, []infrav1.NutanixCluster{}, []infrav1.NutanixMetroSite{})
+			err := reconciler.reconcileDelete(ctx, metroObj, []capiv1beta2.Machine{*machine}, []infrav1.NutanixCluster{}, []infrav1.NutanixMetroSite{}, []capiv1beta2.MachineDeployment{})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("is not safe for deletion since it is in use"))
 			cond := conditions.Get(metroObj, infrav1.MetroSafeForDeletionCondition)
@@ -188,7 +213,7 @@ var _ = Describe("NutanixMetroReconciler", func() {
 			Expect(k8sClient.Create(ctx, metroObj)).To(Succeed())
 
 			metroSiteObj.Spec.MetroRef = corev1.LocalObjectReference{Name: metroObj.Name}
-			err := reconciler.reconcileDelete(ctx, metroObj, []capiv1beta2.Machine{}, []infrav1.NutanixCluster{}, []infrav1.NutanixMetroSite{*metroSiteObj})
+			err := reconciler.reconcileDelete(ctx, metroObj, []capiv1beta2.Machine{}, []infrav1.NutanixCluster{}, []infrav1.NutanixMetroSite{*metroSiteObj}, []capiv1beta2.MachineDeployment{})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("is not safe for deletion since it is in use"))
 			cond := conditions.Get(metroObj, infrav1.MetroSafeForDeletionCondition)
@@ -198,13 +223,76 @@ var _ = Describe("NutanixMetroReconciler", func() {
 			Expect(cond.Message).To(ContainSubstring("metroSite:" + metroSiteObj.Name))
 		})
 
+		It("should prevent deletion when referenced by a scaled-to-zero MachineDeployment (direct NutanixMetro/* ref)", func() {
+			Expect(k8sClient.Create(ctx, metroObj)).To(Succeed())
+
+			md := &capiv1beta2.MachineDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "worker-md",
+					Namespace: "default",
+				},
+				Spec: capiv1beta2.MachineDeploymentSpec{
+					ClusterName: "test-cluster",
+					Template: capiv1beta2.MachineTemplateSpec{
+						Spec: capiv1beta2.MachineSpec{
+							ClusterName:   "test-cluster",
+							FailureDomain: metroFailureDomainPrefix + metroObj.Name,
+						},
+					},
+				},
+			}
+			err := reconciler.reconcileDelete(ctx, metroObj, []capiv1beta2.Machine{}, []infrav1.NutanixCluster{}, []infrav1.NutanixMetroSite{}, []capiv1beta2.MachineDeployment{*md})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("is not safe for deletion since it is in use"))
+			cond := conditions.Get(metroObj, infrav1.MetroSafeForDeletionCondition)
+			Expect(cond).NotTo(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+			Expect(cond.Reason).To(Equal(infrav1.MetroInUseReason))
+			Expect(cond.Message).To(ContainSubstring(fmt.Sprintf("machineDeployment:%s,cluster:%s", md.Name, md.Spec.ClusterName)))
+		})
+
+		It("should prevent deletion when referenced by a MachineDeployment via NutanixMetroSite (transitive ref)", func() {
+			Expect(k8sClient.Create(ctx, metroObj)).To(Succeed())
+
+			site := &infrav1.NutanixMetroSite{
+				ObjectMeta: metav1.ObjectMeta{Name: "worker-site", Namespace: "default"},
+				Spec: infrav1.NutanixMetroSiteSpec{
+					MetroRef:               corev1.LocalObjectReference{Name: metroObj.Name},
+					PreferredFailureDomain: corev1.LocalObjectReference{Name: "fd1"},
+				},
+			}
+			md := &capiv1beta2.MachineDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "worker-md-site",
+					Namespace: "default",
+				},
+				Spec: capiv1beta2.MachineDeploymentSpec{
+					ClusterName: "test-cluster",
+					Template: capiv1beta2.MachineTemplateSpec{
+						Spec: capiv1beta2.MachineSpec{
+							ClusterName:   "test-cluster",
+							FailureDomain: metroSiteFailureDomainPrefix + site.Name,
+						},
+					},
+				},
+			}
+			err := reconciler.reconcileDelete(ctx, metroObj, []capiv1beta2.Machine{}, []infrav1.NutanixCluster{}, []infrav1.NutanixMetroSite{*site}, []capiv1beta2.MachineDeployment{*md})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("is not safe for deletion since it is in use"))
+			cond := conditions.Get(metroObj, infrav1.MetroSafeForDeletionCondition)
+			Expect(cond).NotTo(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+			Expect(cond.Reason).To(Equal(infrav1.MetroInUseReason))
+			Expect(cond.Message).To(ContainSubstring(fmt.Sprintf("machineDeployment:%s,cluster:%s", md.Name, md.Spec.ClusterName)))
+		})
+
 		It("should allow deletion when not referenced by other objects", func() {
 			Expect(k8sClient.Create(ctx, metroObj)).To(Succeed())
 
 			machine.Spec.FailureDomain = ""
-			ntnxCluster.Spec.MetroRefs = []corev1.LocalObjectReference{}
+			ntnxCluster.Spec.ControlPlaneFailureDomains = []corev1.LocalObjectReference{}
 			metroSiteObj.Spec.MetroRef.Name = "other"
-			err := reconciler.reconcileDelete(ctx, metroObj, []capiv1beta2.Machine{*machine}, []infrav1.NutanixCluster{*ntnxCluster}, []infrav1.NutanixMetroSite{*metroSiteObj})
+			err := reconciler.reconcileDelete(ctx, metroObj, []capiv1beta2.Machine{*machine}, []infrav1.NutanixCluster{*ntnxCluster}, []infrav1.NutanixMetroSite{*metroSiteObj}, []capiv1beta2.MachineDeployment{})
 			Expect(err).NotTo(HaveOccurred())
 
 			cond := conditions.Get(metroObj, infrav1.MetroSafeForDeletionCondition)
