@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -146,7 +147,7 @@ var _ = Describe("NutanixMetroSiteReconciler", func() {
 			Expect(k8sClient.Create(ctx, metroSiteObj)).To(Succeed())
 
 			machine.Spec.FailureDomain = metroSiteFailureDomainPrefix + metroSiteObj.Name
-			err := reconciler.reconcileDelete(ctx, metroSiteObj, []capiv1beta2.Machine{*machine})
+			err := reconciler.reconcileDelete(ctx, metroSiteObj, []capiv1beta2.Machine{*machine}, []capiv1beta2.MachineDeployment{}, []infrav1.NutanixCluster{})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("is not safe for deletion since it is in use"))
 			cond := conditions.Get(metroSiteObj, infrav1.MetroSiteSafeForDeletionCondition)
@@ -156,11 +157,58 @@ var _ = Describe("NutanixMetroSiteReconciler", func() {
 			Expect(cond.Message).To(ContainSubstring(fmt.Sprintf("machine:%s,cluster:%s", machine.Name, machine.Spec.ClusterName)))
 		})
 
-		It("should allow deletion when not referenced by other resources", func() {
+		It("should prevent deletion when referenced by a scaled-to-zero MachineDeployment", func() {
+			Expect(k8sClient.Create(ctx, metroSiteObj)).To(Succeed())
+
+			md := &capiv1beta2.MachineDeployment{
+				ObjectMeta: metav1.ObjectMeta{Name: "worker-md", Namespace: "default"},
+				Spec: capiv1beta2.MachineDeploymentSpec{
+					ClusterName: "cl-test",
+					Template: capiv1beta2.MachineTemplateSpec{
+						Spec: capiv1beta2.MachineSpec{
+							ClusterName:   "cl-test",
+							FailureDomain: metroSiteFailureDomainPrefix + metroSiteObj.Name,
+						},
+					},
+				},
+			}
+			err := reconciler.reconcileDelete(ctx, metroSiteObj, []capiv1beta2.Machine{}, []capiv1beta2.MachineDeployment{*md}, []infrav1.NutanixCluster{})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("is not safe for deletion since it is in use"))
+			cond := conditions.Get(metroSiteObj, infrav1.MetroSiteSafeForDeletionCondition)
+			Expect(cond).NotTo(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+			Expect(cond.Reason).To(Equal(infrav1.MetroSiteInUseReason))
+			Expect(cond.Message).To(ContainSubstring(fmt.Sprintf("machineDeployment:%s,cluster:%s", md.Name, md.Spec.ClusterName)))
+		})
+
+		It("should prevent deletion when referenced by NutanixCluster ControlPlaneFailureDomains", func() {
+			Expect(k8sClient.Create(ctx, metroSiteObj)).To(Succeed())
+
+			ntnxCluster := &infrav1.NutanixCluster{
+				ObjectMeta: metav1.ObjectMeta{Name: "cl-test", Namespace: "default"},
+				Spec: infrav1.NutanixClusterSpec{
+					PrismCentral: &credentialTypes.NutanixPrismEndpoint{Address: "metro.test", Port: 9440},
+					ControlPlaneFailureDomains: []corev1.LocalObjectReference{
+						{Name: metroSiteFailureDomainPrefix + metroSiteObj.Name},
+					},
+				},
+			}
+			err := reconciler.reconcileDelete(ctx, metroSiteObj, []capiv1beta2.Machine{}, []capiv1beta2.MachineDeployment{}, []infrav1.NutanixCluster{*ntnxCluster})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("is not safe for deletion since it is in use"))
+			cond := conditions.Get(metroSiteObj, infrav1.MetroSiteSafeForDeletionCondition)
+			Expect(cond).NotTo(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+			Expect(cond.Reason).To(Equal(infrav1.MetroSiteInUseReason))
+			Expect(cond.Message).To(ContainSubstring("nutanixCluster:" + ntnxCluster.Name))
+		})
+
+		It("should allow deletion when not referenced by any resource", func() {
 			Expect(k8sClient.Create(ctx, metroSiteObj)).To(Succeed())
 
 			machine.Spec.FailureDomain = "other"
-			err := reconciler.reconcileDelete(ctx, metroSiteObj, []capiv1beta2.Machine{*machine})
+			err := reconciler.reconcileDelete(ctx, metroSiteObj, []capiv1beta2.Machine{*machine}, []capiv1beta2.MachineDeployment{}, []infrav1.NutanixCluster{})
 			Expect(err).NotTo(HaveOccurred())
 
 			cond := conditions.Get(metroSiteObj, infrav1.MetroSiteSafeForDeletionCondition)

@@ -81,6 +81,18 @@ func (r *NutanixMetroSiteReconciler) SetupWithManager(ctx context.Context, mgr c
 				r.mapMachineToNutanixMetroSite(),
 			),
 		).
+		Watches(
+			&capiv1beta2.MachineDeployment{},
+			handler.EnqueueRequestsFromMapFunc(
+				r.mapMachineDeploymentToNutanixMetroSite(),
+			),
+		).
+		Watches(
+			&infrav1.NutanixCluster{},
+			handler.EnqueueRequestsFromMapFunc(
+				r.mapNutanixClusterToNutanixMetroSite(),
+			),
+		).
 		WithOptions(copts).
 		Complete(r)
 }
@@ -94,15 +106,82 @@ func (r *NutanixMetroSiteReconciler) mapMachineToNutanixMetroSite() handler.MapF
 			return nil
 		}
 
-		reqs := make([]ctrl.Request, 0)
-		// Fetch the NutanixMetroSite object in the local namespace
+		reqs := make([]ctrl.Request, 0, 1)
 		fdStr := machine.Spec.FailureDomain
 		if !isNutanixMetroSiteFailureDomain(fdStr) {
 			return reqs
 		}
 
-		objKey := client.ObjectKey{Name: fdStr[len(metroSiteFailureDomainPrefix):], Namespace: machine.Namespace}
-		reqs = append(reqs, ctrl.Request{NamespacedName: objKey})
+		reqs = append(reqs, ctrl.Request{
+			NamespacedName: client.ObjectKey{Name: fdStr[len(metroSiteFailureDomainPrefix):], Namespace: machine.Namespace},
+		})
+		return reqs
+	}
+}
+
+// mapMachineDeploymentToNutanixMetroSite enqueues reconcile requests for any NutanixMetroSite
+// referenced by a MachineDeployment's spec.template.spec.failureDomain. This ensures that
+// sites used only by worker nodepools are reconciled when a MachineDeployment changes, and
+// that a scaled-to-zero MD still prevents site deletion.
+func (r *NutanixMetroSiteReconciler) mapMachineDeploymentToNutanixMetroSite() handler.MapFunc {
+	return func(ctx context.Context, o client.Object) []ctrl.Request {
+		log := ctrl.LoggerFrom(ctx)
+		md, ok := o.(*capiv1beta2.MachineDeployment)
+		if !ok {
+			log.Error(fmt.Errorf("expected a MachineDeployment but got %T", o), "unexpected type")
+			return nil
+		}
+
+		fdStr := md.Spec.Template.Spec.FailureDomain
+		if !isNutanixMetroSiteFailureDomain(fdStr) {
+			return nil
+		}
+
+		return []ctrl.Request{{
+			NamespacedName: client.ObjectKey{Name: fdStr[len(metroSiteFailureDomainPrefix):], Namespace: md.Namespace},
+		}}
+	}
+}
+
+// mapNutanixClusterToNutanixMetroSite enqueues reconcile requests for any NutanixMetroSite
+// referenced by a NutanixCluster's ControlPlaneFailureDomains or by its MachineDeployments.
+func (r *NutanixMetroSiteReconciler) mapNutanixClusterToNutanixMetroSite() handler.MapFunc {
+	return func(ctx context.Context, o client.Object) []ctrl.Request {
+		log := ctrl.LoggerFrom(ctx)
+		ntnxCluster, ok := o.(*infrav1.NutanixCluster)
+		if !ok {
+			log.Error(fmt.Errorf("expected a NutanixCluster but got %T", o), "unexpected type")
+			return nil
+		}
+
+		seen := map[string]struct{}{}
+		for _, fdRef := range ntnxCluster.Spec.ControlPlaneFailureDomains {
+			if isNutanixMetroSiteFailureDomain(fdRef.Name) {
+				seen[fdRef.Name[len(metroSiteFailureDomainPrefix):]] = struct{}{}
+			}
+		}
+
+		mdList := &capiv1beta2.MachineDeploymentList{}
+		if err := r.Client.List(ctx, mdList,
+			client.InNamespace(ntnxCluster.Namespace),
+			client.MatchingLabels{capiv1beta2.ClusterNameLabel: ntnxCluster.Name},
+		); err != nil {
+			log.Error(err, "failed to list MachineDeployments while mapping NutanixCluster to MetroSite")
+		} else {
+			for _, md := range mdList.Items {
+				fdStr := md.Spec.Template.Spec.FailureDomain
+				if isNutanixMetroSiteFailureDomain(fdStr) {
+					seen[fdStr[len(metroSiteFailureDomainPrefix):]] = struct{}{}
+				}
+			}
+		}
+
+		reqs := make([]ctrl.Request, 0, len(seen))
+		for siteName := range seen {
+			reqs = append(reqs, ctrl.Request{
+				NamespacedName: client.ObjectKey{Name: siteName, Namespace: ntnxCluster.Namespace},
+			})
+		}
 		return reqs
 	}
 }
@@ -110,6 +189,8 @@ func (r *NutanixMetroSiteReconciler) mapMachineToNutanixMetroSite() handler.MapF
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machines;machines/status,verbs=get;list;watch
+// +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machinedeployments,verbs=get;list;watch
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters,verbs=get;list;watch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixmetrosites,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixmetrosites/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixmetrosites/finalizers,verbs=get;update;patch
@@ -160,13 +241,22 @@ func (r *NutanixMetroSiteReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// Handle deletion
 	if !metroSite.DeletionTimestamp.IsZero() {
-		// List the Machines in the same namespace.
 		machineList := &capiv1beta2.MachineList{}
 		if err := r.List(ctx, machineList, client.InNamespace(metroSite.Namespace)); err != nil {
 			return ctrl.Result{}, err
 		}
 
-		err = r.reconcileDelete(ctx, metroSite, machineList.Items)
+		mdList := &capiv1beta2.MachineDeploymentList{}
+		if err := r.List(ctx, mdList, client.InNamespace(metroSite.Namespace)); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		nclList := &infrav1.NutanixClusterList{}
+		if err := r.List(ctx, nclList, client.InNamespace(metroSite.Namespace)); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		err = r.reconcileDelete(ctx, metroSite, machineList.Items, mdList.Items, nclList.Items)
 		return ctrl.Result{}, err
 	}
 
@@ -174,12 +264,10 @@ func (r *NutanixMetroSiteReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	return ctrl.Result{}, err
 }
 
-func (r *NutanixMetroSiteReconciler) reconcileDelete(ctx context.Context, metroSite *infrav1.NutanixMetroSite, machines []capiv1beta2.Machine) error {
+func (r *NutanixMetroSiteReconciler) reconcileDelete(ctx context.Context, metroSite *infrav1.NutanixMetroSite, machines []capiv1beta2.Machine, machineDeployments []capiv1beta2.MachineDeployment, ntxClusters []infrav1.NutanixCluster) error {
 	log := ctrl.LoggerFrom(ctx)
 	log.Info("Handling NutanixMetroSite deletion")
 
-	// Check if there are Machine objects reference this object in the same namespace.
-	// usedItems is to hold the names of the machines using this metroSite.
 	usedItems := []string{}
 
 	for _, m := range machines {
@@ -189,6 +277,32 @@ func (r *NutanixMetroSiteReconciler) reconcileDelete(ctx context.Context, metroS
 		if isNutanixMetroSiteFailureDomain(m.Spec.FailureDomain) &&
 			m.Spec.FailureDomain[len(metroSiteFailureDomainPrefix):] == metroSite.Name {
 			usedItems = append(usedItems, fmt.Sprintf("machine:%s,cluster:%s", m.Name, m.Spec.ClusterName))
+		}
+	}
+
+	// A scaled-to-zero MD still declares its intent via spec.template.spec.failureDomain
+	// and should block site deletion.
+	for _, md := range machineDeployments {
+		if !md.DeletionTimestamp.IsZero() {
+			continue
+		}
+		if isNutanixMetroSiteFailureDomain(md.Spec.Template.Spec.FailureDomain) &&
+			md.Spec.Template.Spec.FailureDomain[len(metroSiteFailureDomainPrefix):] == metroSite.Name {
+			usedItems = append(usedItems, fmt.Sprintf("machineDeployment:%s,cluster:%s", md.Name, md.Spec.ClusterName))
+		}
+	}
+
+	// A NutanixCluster that lists this site in ControlPlaneFailureDomains must also block deletion.
+	for _, ncl := range ntxClusters {
+		if !ncl.DeletionTimestamp.IsZero() {
+			continue
+		}
+		for _, fdRef := range ncl.Spec.ControlPlaneFailureDomains {
+			if isNutanixMetroSiteFailureDomain(fdRef.Name) &&
+				fdRef.Name[len(metroSiteFailureDomainPrefix):] == metroSite.Name {
+				usedItems = append(usedItems, fmt.Sprintf("nutanixCluster:%s", ncl.Name))
+				break
+			}
 		}
 	}
 
