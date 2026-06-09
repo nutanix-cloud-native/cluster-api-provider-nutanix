@@ -2,7 +2,7 @@ module github.com/nutanix-cloud-native/cluster-api-provider-nutanix
 
 go 1.25.0
 
-toolchain go1.26.3
+toolchain go1.26.4
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
