@@ -78,7 +78,6 @@ type NutanixClusterSpec struct {
 	// +listMapKey=name
 	// +optional
 	ControlPlaneFailureDomains []corev1.LocalObjectReference `json:"controlPlaneFailureDomains,omitempty"`
-
 }
 
 // NutanixClusterStatus defines the observed state of NutanixCluster

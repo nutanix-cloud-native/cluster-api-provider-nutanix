@@ -162,7 +162,7 @@ func (r *NutanixMetroSiteReconciler) mapNutanixClusterToNutanixMetroSite() handl
 		}
 
 		mdList := &capiv1beta2.MachineDeploymentList{}
-		if err := r.Client.List(ctx, mdList,
+		if err := r.List(ctx, mdList,
 			client.InNamespace(ntnxCluster.Namespace),
 			client.MatchingLabels{capiv1beta2.ClusterNameLabel: ntnxCluster.Name},
 		); err != nil {

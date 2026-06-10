@@ -122,7 +122,7 @@ func (r *NutanixMetroReconciler) mapMachineToNutanixMetro() handler.MapFunc {
 		case isNutanixMetroSiteFailureDomain(fdStr):
 			siteName := fdStr[len(metroSiteFailureDomainPrefix):]
 			site := &infrav1.NutanixMetroSite{}
-			if err := r.Client.Get(ctx, client.ObjectKey{Name: siteName, Namespace: machine.Namespace}, site); err != nil {
+			if err := r.Get(ctx, client.ObjectKey{Name: siteName, Namespace: machine.Namespace}, site); err != nil {
 				log.Error(err, "failed to fetch NutanixMetroSite while mapping Machine to metro", "site", siteName)
 				return nil
 			}
@@ -155,7 +155,7 @@ func (r *NutanixMetroReconciler) mapNutanixClusterToNutanixMetro() handler.MapFu
 			case isNutanixMetroSiteFailureDomain(fdStr):
 				siteName := fdStr[len(metroSiteFailureDomainPrefix):]
 				site := &infrav1.NutanixMetroSite{}
-				if err := r.Client.Get(ctx, client.ObjectKey{Name: siteName, Namespace: ntnxCluster.Namespace}, site); err != nil {
+				if err := r.Get(ctx, client.ObjectKey{Name: siteName, Namespace: ntnxCluster.Namespace}, site); err != nil {
 					log.Error(err, "failed to fetch NutanixMetroSite while mapping cluster to metro", "site", siteName)
 					return
 				}
@@ -169,7 +169,7 @@ func (r *NutanixMetroReconciler) mapNutanixClusterToNutanixMetro() handler.MapFu
 
 		// Also scan MachineDeployments owned by this cluster for worker metros.
 		mdList := &capiv1beta2.MachineDeploymentList{}
-		if err := r.Client.List(ctx, mdList,
+		if err := r.List(ctx, mdList,
 			client.InNamespace(ntnxCluster.Namespace),
 			client.MatchingLabels{capiv1beta2.ClusterNameLabel: ntnxCluster.Name},
 		); err != nil {
@@ -215,7 +215,7 @@ func (r *NutanixMetroReconciler) mapMachineDeploymentToNutanixMetro() handler.Ma
 		case isNutanixMetroSiteFailureDomain(fdStr):
 			siteName := fdStr[len(metroSiteFailureDomainPrefix):]
 			site := &infrav1.NutanixMetroSite{}
-			if err := r.Client.Get(ctx, client.ObjectKey{Name: siteName, Namespace: md.Namespace}, site); err != nil {
+			if err := r.Get(ctx, client.ObjectKey{Name: siteName, Namespace: md.Namespace}, site); err != nil {
 				log.Error(err, "failed to fetch NutanixMetroSite while mapping MachineDeployment to metro", "site", siteName)
 				return nil
 			}
@@ -364,46 +364,17 @@ func (r *NutanixMetroReconciler) reconcileDelete(ctx context.Context, metro *inf
 		if !m.DeletionTimestamp.IsZero() {
 			continue
 		}
-		fdStr := m.Spec.FailureDomain
-		referencesMetro := false
-		switch {
-		case isNutanixMetroFailureDomain(fdStr) && fdStr[len(metroFailureDomainPrefix):] == metro.Name:
-			referencesMetro = true
-		case isNutanixMetroSiteFailureDomain(fdStr):
-			siteName := fdStr[len(metroSiteFailureDomainPrefix):]
-			for _, site := range metroSites {
-				if site.Name == siteName && site.Spec.MetroRef.Name == metro.Name {
-					referencesMetro = true
-					break
-				}
-			}
-		}
-		if referencesMetro {
+		if failureDomainReferencesMetro(m.Spec.FailureDomain, metro.Name, metroSites) {
 			usedItems = append(usedItems, fmt.Sprintf("machine:%s,cluster:%s", m.Name, m.Spec.ClusterName))
 		}
 	}
 
-	// Also check MachineDeployments — a scaled-to-zero MD still declares its failure domain
-	// intent and should block metro deletion.
+	// A scaled-to-zero MD still declares its failure domain intent and should block metro deletion.
 	for _, md := range machineDeployments {
 		if !md.DeletionTimestamp.IsZero() {
 			continue
 		}
-		fdStr := md.Spec.Template.Spec.FailureDomain
-		referencesMetro := false
-		switch {
-		case isNutanixMetroFailureDomain(fdStr) && fdStr[len(metroFailureDomainPrefix):] == metro.Name:
-			referencesMetro = true
-		case isNutanixMetroSiteFailureDomain(fdStr):
-			siteName := fdStr[len(metroSiteFailureDomainPrefix):]
-			for _, site := range metroSites {
-				if site.Name == siteName && site.Spec.MetroRef.Name == metro.Name {
-					referencesMetro = true
-					break
-				}
-			}
-		}
-		if referencesMetro {
+		if failureDomainReferencesMetro(md.Spec.Template.Spec.FailureDomain, metro.Name, metroSites) {
 			usedItems = append(usedItems, fmt.Sprintf("machineDeployment:%s,cluster:%s", md.Name, md.Spec.ClusterName))
 		}
 	}
@@ -431,6 +402,24 @@ func (r *NutanixMetroReconciler) reconcileDelete(ctx context.Context, metro *inf
 	reterr := fmt.Errorf("the NutanixMetro %s is not safe for deletion since it is in use", metro.Name)
 	log.Error(reterr, errMsg)
 	return reterr
+}
+
+// failureDomainReferencesMetro returns true if the given failure domain string resolves to the
+// given metro name — either directly ("NutanixMetro/<name>") or transitively via a
+// NutanixMetroSite whose spec.metroRef.name matches.
+func failureDomainReferencesMetro(fdStr, metroName string, metroSites []infrav1.NutanixMetroSite) bool {
+	switch {
+	case isNutanixMetroFailureDomain(fdStr):
+		return fdStr[len(metroFailureDomainPrefix):] == metroName
+	case isNutanixMetroSiteFailureDomain(fdStr):
+		siteName := fdStr[len(metroSiteFailureDomainPrefix):]
+		for _, site := range metroSites {
+			if site.Name == siteName && site.Spec.MetroRef.Name == metroName {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // nutanixClusterReferencesMetro returns true if any ControlPlaneFailureDomains entry on the
