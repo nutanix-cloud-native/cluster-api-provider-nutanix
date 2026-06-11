@@ -37,20 +37,31 @@ type NutanixVirtualHADomainSpec struct {
 	// +kubebuilder:validation:Required
 	MetroRef corev1.LocalObjectReference `json:"metroRef"`
 
-	// protectionPolicy identifies the protection policy applied to this virtual HA domain.
+	// protectionGroup identifies the protection policy and category applied to this virtual HA domain.
 	// +optional
-	ProtectionPolicy *NutanixResourceIdentifier `json:"protectionPolicy,omitempty"`
+	ProtectionGroup *NutanixProtectionGroup `json:"protectionGroup,omitempty"`
 
 	// movementGroups defines the named groups of entities that move together within this
 	// virtual HA domain. Each key is a user-defined group name (for example "default") and
 	// the value describes the entities belonging to that group.
 	// +optional
-	MovementGroups map[string]MovementGroup `json:"movementGroups,omitempty"`
+	MovementGroups map[string]NutanixMovementGroup `json:"movementGroups,omitempty"`
 }
 
-// MovementGroup defines a group of entities that are moved together as part of a
+// NutanixProtectionGroup defines the protection policy and category that protect a virtual HA domain.
+type NutanixProtectionGroup struct {
+	// protectionPolicy identifies the protection policy applied to this virtual HA domain.
+	// +required
+	ProtectionPolicy *NutanixResourceIdentifier `json:"protectionPolicy,omitempty"`
+
+	// category is the category (key/value) used for the protection group.
+	// +required
+	Category *NutanixCategoryIdentifier `json:"category,omitempty"`
+}
+
+// NutanixMovementGroup defines a group of entities that are moved together as part of a
 // virtual HA domain failover or migration.
-type MovementGroup struct {
+type NutanixMovementGroup struct {
 	// categories is the list of category key/value pairs whose member entities
 	// belong to this movement group.
 	// +optional
@@ -65,8 +76,8 @@ type MovementGroup struct {
 	RecoveryPlans []NutanixResourceIdentifier `json:"recoveryPlans,omitempty"`
 }
 
-// MovementGroupStatus captures the observed state of a movement group within a virtual HA domain.
-type MovementGroupStatus struct {
+// NutanixMovementGroupStatus captures the observed state of a movement group within a virtual HA domain.
+type NutanixMovementGroupStatus struct {
 	// ready is set to true when the movement group PC resources (categories, recovery plans) are valid and ready.
 	// +kubebuilder:default=false
 	Ready bool `json:"ready"`
@@ -90,7 +101,7 @@ type NutanixVirtualHADomainStatus struct {
 	// movementGroups captures the observed state of each movement group defined in the
 	// spec, keyed by the movement group name.
 	// +optional
-	MovementGroups map[string]MovementGroupStatus `json:"movementGroups,omitempty"`
+	MovementGroups map[string]NutanixMovementGroupStatus `json:"movementGroups,omitempty"`
 }
 
 // +kubebuilder:object:root=true

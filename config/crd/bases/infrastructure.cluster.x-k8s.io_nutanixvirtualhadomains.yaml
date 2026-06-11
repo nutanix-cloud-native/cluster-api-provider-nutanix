@@ -76,7 +76,7 @@ spec:
               movementGroups:
                 additionalProperties:
                   description: |-
-                    MovementGroup defines a group of entities that are moved together as part of a
+                    NutanixMovementGroup defines a group of entities that are moved together as part of a
                     virtual HA domain failover or migration.
                   properties:
                     categories:
@@ -140,37 +140,57 @@ spec:
                   virtual HA domain. Each key is a user-defined group name (for example "default") and
                   the value describes the entities belonging to that group.
                 type: object
-              protectionPolicy:
-                description: protectionPolicy identifies the protection policy applied
-                  to this virtual HA domain.
+              protectionGroup:
+                description: protectionGroup identifies the protection policy and
+                  category applied to this virtual HA domain.
                 properties:
-                  name:
-                    description: name is the resource name in the PC
-                    minLength: 1
-                    type: string
-                  type:
-                    description: Type is the identifier type to use for this resource.
-                    enum:
-                    - uuid
-                    - name
-                    type: string
-                  uuid:
-                    description: uuid is the UUID of the resource in the PC.
-                    format: uuid
-                    maxLength: 36
-                    minLength: 36
-                    type: string
+                  category:
+                    description: category is the category (key/value) used for the
+                      protection group.
+                    properties:
+                      key:
+                        description: key is the Key of category in PC.
+                        type: string
+                      value:
+                        description: value is the category value linked to the category
+                          key in PC
+                        type: string
+                    type: object
+                  protectionPolicy:
+                    description: protectionPolicy identifies the protection policy
+                      applied to this virtual HA domain.
+                    properties:
+                      name:
+                        description: name is the resource name in the PC
+                        minLength: 1
+                        type: string
+                      type:
+                        description: Type is the identifier type to use for this resource.
+                        enum:
+                        - uuid
+                        - name
+                        type: string
+                      uuid:
+                        description: uuid is the UUID of the resource in the PC.
+                        format: uuid
+                        maxLength: 36
+                        minLength: 36
+                        type: string
+                    required:
+                    - type
+                    type: object
+                    x-kubernetes-validations:
+                    - message: '''name'' must be set when type is ''name'', and forbidden
+                        otherwise'
+                      rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
+                    - message: '''uuid'' must be set when type is ''uuid'', and forbidden
+                        otherwise'
+                      rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
+                        : !has(self.uuid)'
                 required:
-                - type
+                - category
+                - protectionPolicy
                 type: object
-                x-kubernetes-validations:
-                - message: '''name'' must be set when type is ''name'', and forbidden
-                    otherwise'
-                  rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                - message: '''uuid'' must be set when type is ''uuid'', and forbidden
-                    otherwise'
-                  rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                    : !has(self.uuid)'
             required:
             - metroRef
             type: object
@@ -238,8 +258,8 @@ spec:
                 type: array
               movementGroups:
                 additionalProperties:
-                  description: MovementGroupStatus captures the observed state of
-                    a movement group within a virtual HA domain.
+                  description: NutanixMovementGroupStatus captures the observed state
+                    of a movement group within a virtual HA domain.
                   properties:
                     metroSite:
                       description: metroSite represents the vHA resources associated
