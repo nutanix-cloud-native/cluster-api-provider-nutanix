@@ -202,7 +202,7 @@ func (t testHelper) createClusterFromConfig(ctx context.Context, input clusterct
 	})
 	Expect(clusterTemplate).ToNot(BeNil())
 
-	Expect(input.ClusterProxy.CreateOrUpdate(ctx, clusterTemplate, input.CreateOrUpdateOpts...)).To(Succeed())
+	Expect(input.ClusterProxy.CreateOrUpdate(ctx, clusterTemplate)).To(Succeed())
 
 	result.Cluster = framework.GetClusterByName(ctx, framework.GetClusterByNameInput{
 		Getter:    input.ClusterProxy.GetClient(),
@@ -867,7 +867,8 @@ func (t testHelper) verifyFailureMessageOnClusterMachines(ctx context.Context, p
 		nutanixMachines := t.getMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
 		for _, m := range nutanixMachines.Items {
 			machineStatus := m.Status
-			if machineStatus.Deprecated.V1Beta1.FailureMessage != nil && strings.Contains(*machineStatus.Deprecated.V1Beta1.FailureMessage, params.expectedFailureMessage) { //nolint:staticcheck // deprecated field needed for compatibility
+			//nolint:staticcheck // deprecated field needed for compatibility
+			if machineStatus.Deprecated.V1Beta1.FailureMessage != nil && strings.Contains(*machineStatus.Deprecated.V1Beta1.FailureMessage, params.expectedFailureMessage) {
 				return true
 			}
 		}

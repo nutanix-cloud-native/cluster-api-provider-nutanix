@@ -180,6 +180,7 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 
 			waitForMachineUpgrade := e2eConfig.GetIntervals("", "wait-machine-upgrade")
 			Eventually(
+				//nolint:staticcheck // deprecated field needed for compatibility
 				func() []capiv1beta2.Condition {
 					err := bootstrapClient.Get(ctx, client.ObjectKeyFromObject(kcp), kcp)
 					Expect(err).To(BeNil())

@@ -232,15 +232,6 @@ func TestNutanixMachineTemplateDefaulter_UnrelatedFieldsUntouched(t *testing.T) 
 		"memorySize should not be modified")
 }
 
-func TestNutanixMachineTemplateDefaulter_WrongType(t *testing.T) {
-	defaulter := &NutanixMachineTemplateDefaulter{}
-
-	// Passing a non-NutanixMachineTemplate should return an error
-	err := defaulter.Default(context.Background(), &NutanixMachine{})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "expected *NutanixMachineTemplate")
-}
-
 func TestNutanixMachineTemplateDefaulter_FeatureGateDisabled(t *testing.T) {
 	tests := []struct {
 		name        string

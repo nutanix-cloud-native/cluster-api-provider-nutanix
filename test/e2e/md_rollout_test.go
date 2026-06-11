@@ -25,8 +25,8 @@ import (
 )
 
 var _ = Describe("When testing MachineDeployment rolling upgrades", Label("scaling", "md-rolling-upgrades"), func() {
-	capi_e2e.MachineDeploymentRolloutSpec(ctx, func() capi_e2e.MachineDeploymentRolloutSpecInput {
-		return capi_e2e.MachineDeploymentRolloutSpecInput{
+	capi_e2e.KCPAndMachineDeploymentRolloutSpec(ctx, func() capi_e2e.KCPAndMachineDeploymentRolloutSpecInput {
+		return capi_e2e.KCPAndMachineDeploymentRolloutSpecInput{
 			E2EConfig:             e2eConfig,
 			ClusterctlConfigPath:  clusterctlConfigPath,
 			BootstrapClusterProxy: bootstrapClusterProxy,
