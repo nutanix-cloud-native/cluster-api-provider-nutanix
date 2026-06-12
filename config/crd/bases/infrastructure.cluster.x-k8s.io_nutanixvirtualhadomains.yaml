@@ -77,63 +77,92 @@ spec:
                 additionalProperties:
                   description: |-
                     NutanixMovementGroup defines a group of entities that are moved together as part of a
-                    virtual HA domain failover or migration.
+                    virtual HA domain failover or migration. It maps each category to the recovery plan
+                    that protects the entities belonging to that category.
                   properties:
-                    categories:
+                    categoryRecoveryPlans:
                       description: |-
-                        categories is the list of category key/value pairs whose member entities
-                        belong to this movement group.
+                        categoryRecoveryPlans is the list of category-to-recovery-plan mappings whose
+                        member entities belong to this movement group.
                       items:
+                        description: |-
+                          NutanixCategoryRecoveryPlan maps a category to the recovery plan that protects the
+                          entities belonging to that category within a movement group, on a given Prism Element.
                         properties:
-                          key:
-                            description: key is the Key of category in PC.
-                            type: string
-                          value:
-                            description: value is the category value linked to the
-                              category key in PC
-                            type: string
-                        type: object
-                      minItems: 1
-                      type: array
-                      x-kubernetes-list-type: atomic
-                    recoveryPlans:
-                      description: recoveryPlans is the list of recovery plans associated
-                        with this movement group.
-                      items:
-                        description: NutanixResourceIdentifier holds the identity
-                          of a Nutanix PC resource (cluster, image, subnet, etc.)
-                        properties:
-                          name:
-                            description: name is the resource name in the PC
-                            minLength: 1
-                            type: string
-                          type:
-                            description: Type is the identifier type to use for this
-                              resource.
-                            enum:
-                            - uuid
-                            - name
-                            type: string
-                          uuid:
-                            description: uuid is the UUID of the resource in the PC.
-                            format: uuid
-                            maxLength: 36
-                            minLength: 36
-                            type: string
+                          category:
+                            description: category is the category (key/value) whose
+                              member entities are protected.
+                            properties:
+                              key:
+                                description: key is the Key of category in PC.
+                                type: string
+                              value:
+                                description: value is the category value linked to
+                                  the category key in PC
+                                type: string
+                            type: object
+                          failureDomainRef:
+                            description: |-
+                              failureDomainRef is a reference to the NutanixFailureDomain object that identifies the
+                              Prism Element cluster for this category-to-recovery-plan mapping.
+                            properties:
+                              name:
+                                default: ""
+                                description: |-
+                                  Name of the referent.
+                                  This field is effectively required, but due to backwards compatibility is
+                                  allowed to be empty. Instances of this type with an empty value here are
+                                  almost certainly wrong.
+                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                type: string
+                            type: object
+                            x-kubernetes-map-type: atomic
+                            x-kubernetes-validations:
+                            - message: failureDomainRef.name must not be empty
+                              rule: self.name != ""
+                          recoveryPlan:
+                            description: recoveryPlan is the recovery plan associated
+                              with the category.
+                            properties:
+                              name:
+                                description: name is the resource name in the PC
+                                minLength: 1
+                                type: string
+                              type:
+                                description: Type is the identifier type to use for
+                                  this resource.
+                                enum:
+                                - uuid
+                                - name
+                                type: string
+                              uuid:
+                                description: uuid is the UUID of the resource in the
+                                  PC.
+                                format: uuid
+                                maxLength: 36
+                                minLength: 36
+                                type: string
+                            required:
+                            - type
+                            type: object
+                            x-kubernetes-validations:
+                            - message: '''name'' must be set when type is ''name'',
+                                and forbidden otherwise'
+                              rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
+                            - message: '''uuid'' must be set when type is ''uuid'',
+                                and forbidden otherwise'
+                              rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
+                                : !has(self.uuid)'
                         required:
-                        - type
+                        - category
+                        - failureDomainRef
+                        - recoveryPlan
                         type: object
-                        x-kubernetes-validations:
-                        - message: '''name'' must be set when type is ''name'', and
-                            forbidden otherwise'
-                          rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                        - message: '''uuid'' must be set when type is ''uuid'', and
-                            forbidden otherwise'
-                          rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                            : !has(self.uuid)'
                       minItems: 1
                       type: array
                       x-kubernetes-list-type: atomic
+                  required:
+                  - categoryRecoveryPlans
                   type: object
                 description: |-
                   movementGroups defines the named groups of entities that move together within this
@@ -141,21 +170,9 @@ spec:
                   the value describes the entities belonging to that group.
                 type: object
               protectionGroup:
-                description: protectionGroup identifies the protection policy and
-                  category applied to this virtual HA domain.
+                description: protectionGroup identifies the protection policy applied
+                  to this virtual HA domain.
                 properties:
-                  category:
-                    description: category is the category (key/value) used for the
-                      protection group.
-                    properties:
-                      key:
-                        description: key is the Key of category in PC.
-                        type: string
-                      value:
-                        description: value is the category value linked to the category
-                          key in PC
-                        type: string
-                    type: object
                   protectionPolicy:
                     description: protectionPolicy identifies the protection policy
                       applied to this virtual HA domain.
@@ -188,7 +205,6 @@ spec:
                       rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
                         : !has(self.uuid)'
                 required:
-                - category
                 - protectionPolicy
                 type: object
             required:
@@ -261,32 +277,6 @@ spec:
                   description: NutanixMovementGroupStatus captures the observed state
                     of a movement group within a virtual HA domain.
                   properties:
-                    metroSite:
-                      description: metroSite represents the vHA resources associated
-                        with each metro site.
-                      properties:
-                        failureDomains:
-                          additionalProperties:
-                            description: NutanixVHADomainMetroSiteResourceStatus describes
-                              vHA resources for one metro site.
-                            properties:
-                              category:
-                                description: category is the category (key/value)
-                                  used for the site.
-                                type: string
-                              pe:
-                                description: pe is the Prism Element cluster identifier
-                                  used for the site.
-                                type: string
-                              recoveryPlan:
-                                description: recoveryPlan is the recovery plan identifier
-                                  for the site.
-                                type: string
-                            type: object
-                          description: failureDomains captures vHA resources keyed
-                            by NutanixFailureDomain name.
-                          type: object
-                      type: object
                     ready:
                       default: false
                       description: ready is set to true when the movement group PC

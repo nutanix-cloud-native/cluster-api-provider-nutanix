@@ -37,7 +37,7 @@ type NutanixVirtualHADomainSpec struct {
 	// +kubebuilder:validation:Required
 	MetroRef corev1.LocalObjectReference `json:"metroRef"`
 
-	// protectionGroup identifies the protection policy and category applied to this virtual HA domain.
+	// protectionGroup identifies the protection policy applied to this virtual HA domain.
 	// +optional
 	ProtectionGroup *NutanixProtectionGroup `json:"protectionGroup,omitempty"`
 
@@ -48,32 +48,42 @@ type NutanixVirtualHADomainSpec struct {
 	MovementGroups map[string]NutanixMovementGroup `json:"movementGroups,omitempty"`
 }
 
-// NutanixProtectionGroup defines the protection policy and category that protect a virtual HA domain.
+// NutanixProtectionGroup defines the protection policy that protects a virtual HA domain.
+// The protection policy applies to the union of all categories across the movement groups.
 type NutanixProtectionGroup struct {
 	// protectionPolicy identifies the protection policy applied to this virtual HA domain.
-	// +required
-	ProtectionPolicy *NutanixResourceIdentifier `json:"protectionPolicy,omitempty"`
-
-	// category is the category (key/value) used for the protection group.
-	// +required
-	Category *NutanixCategoryIdentifier `json:"category,omitempty"`
+	// +kubebuilder:validation:Required
+	ProtectionPolicy NutanixResourceIdentifier `json:"protectionPolicy"`
 }
 
 // NutanixMovementGroup defines a group of entities that are moved together as part of a
-// virtual HA domain failover or migration.
+// virtual HA domain failover or migration. It maps each category to the recovery plan
+// that protects the entities belonging to that category.
 type NutanixMovementGroup struct {
-	// categories is the list of category key/value pairs whose member entities
-	// belong to this movement group.
-	// +optional
+	// categoryRecoveryPlans is the list of category-to-recovery-plan mappings whose
+	// member entities belong to this movement group.
+	// +kubebuilder:validation:Required
 	// +listType=atomic
 	// +kubebuilder:validation:MinItems=1
-	Categories []NutanixCategoryIdentifier `json:"categories,omitempty"`
+	CategoryRecoveryPlans []NutanixCategoryRecoveryPlan `json:"categoryRecoveryPlans"`
+}
 
-	// recoveryPlans is the list of recovery plans associated with this movement group.
-	// +optional
-	// +listType=atomic
-	// +kubebuilder:validation:MinItems=1
-	RecoveryPlans []NutanixResourceIdentifier `json:"recoveryPlans,omitempty"`
+// NutanixCategoryRecoveryPlan maps a category to the recovery plan that protects the
+// entities belonging to that category within a movement group, on a given Prism Element.
+type NutanixCategoryRecoveryPlan struct {
+	// category is the category (key/value) whose member entities are protected.
+	// +kubebuilder:validation:Required
+	Category NutanixCategoryIdentifier `json:"category"`
+
+	// recoveryPlan is the recovery plan associated with the category.
+	// +kubebuilder:validation:Required
+	RecoveryPlan NutanixResourceIdentifier `json:"recoveryPlan"`
+
+	// failureDomainRef is a reference to the NutanixFailureDomain object that identifies the
+	// Prism Element cluster for this category-to-recovery-plan mapping.
+	// +kubebuilder:validation:XValidation:rule=`self.name != ""`,message="failureDomainRef.name must not be empty"
+	// +kubebuilder:validation:Required
+	FailureDomainRef corev1.LocalObjectReference `json:"failureDomainRef"`
 }
 
 // NutanixMovementGroupStatus captures the observed state of a movement group within a virtual HA domain.
@@ -81,10 +91,6 @@ type NutanixMovementGroupStatus struct {
 	// ready is set to true when the movement group PC resources (categories, recovery plans) are valid and ready.
 	// +kubebuilder:default=false
 	Ready bool `json:"ready"`
-
-	// metroSite represents the vHA resources associated with each metro site.
-	// +optional
-	MetroSite *NutanixVHADomainMetroSiteStatus `json:"metroSite,omitempty"`
 }
 
 // NutanixVirtualHADomainStatus defines the observed state of NutanixVirtualHADomain.
@@ -138,28 +144,6 @@ type NutanixVirtualHADomainList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []NutanixVirtualHADomain `json:"items"`
-}
-
-// NutanixVHADomainMetroSiteStatus captures per-site resources in a vHA domain.
-type NutanixVHADomainMetroSiteStatus struct {
-	// failureDomains captures vHA resources keyed by NutanixFailureDomain name.
-	// +optional
-	FailureDomains map[string]*NutanixVHADomainMetroSiteResourceStatus `json:"failureDomains,omitempty"`
-}
-
-// NutanixVHADomainMetroSiteResourceStatus describes vHA resources for one metro site.
-type NutanixVHADomainMetroSiteResourceStatus struct {
-	// recoveryPlan is the recovery plan identifier for the site.
-	// +optional
-	RecoveryPlan string `json:"recoveryPlan,omitempty"`
-
-	// category is the category (key/value) used for the site.
-	// +optional
-	Category string `json:"category,omitempty"`
-
-	// pe is the Prism Element cluster identifier used for the site.
-	// +optional
-	PE string `json:"pe,omitempty"`
 }
 
 func init() {
