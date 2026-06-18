@@ -11,7 +11,7 @@ spec:
       containers:
       - name: manager
         args:
-        - "--health-probe-bind-address=:8081"
+        - "--health-addr=:8081"
         - "--diagnostics-address=:8443"
         - "--leader-elect"
         - "--feature-gates=DefaultToPlaceholderImageName=true,DefaultToPlaceholderImageUUID=true"
