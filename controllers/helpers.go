@@ -77,6 +77,11 @@ const (
 	metroNativeFailureDomainLabelKey = "metro.nutanix.com/native-failuredomain"
 	metroNativePELabelKey            = "metro.nutanix.com/native-pe"
 
+	// clusterScopeMovementGroupName is the well-known key of the cluster-scope movement group within
+	// a NutanixVirtualHADomain's MovementGroups. Only this scope is supported for now; nodepool-scope
+	// movement groups are not yet handled.
+	clusterScopeMovementGroupName = "default"
+
 	vmCustomAttributePrefix4MetroPreferredPE        = "metro-preferred-pe:"
 	vmCustomAttributePrefix4MetroNodeGroupNameLabel = "metro-node-group-name:"
 )
@@ -300,6 +305,37 @@ func GetPECluster(ctx context.Context, client *v4Converged.Client, peUUID string
 	}
 
 	return peCluster, nil
+}
+
+// GetPEClusterByIdentifier resolves a Prism Element cluster by UUID or name and returns the full
+// cluster object in a single API call. Callers that need the cluster object (for example to read
+// Config.IsAvailable) should prefer this over GetPEUUID followed by GetPECluster, which performs a
+// redundant List+Get round trip.
+func GetPEClusterByIdentifier(ctx context.Context, client *v4Converged.Client, peName, peUUID *string) (*clusterModels.Cluster, error) {
+	if peUUID != nil && *peUUID != "" {
+		return GetPECluster(ctx, client, *peUUID)
+	}
+	if peName != nil && *peName != "" {
+		responsePEs, err := client.Clusters.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", *peName)))
+		if err != nil {
+			return nil, err
+		}
+		foundPEs := make([]clusterModels.Cluster, 0)
+		for _, s := range responsePEs {
+			if strings.EqualFold(*s.Name, *peName) && hasPEClusterServiceEnabled(&s) {
+				foundPEs = append(foundPEs, s)
+			}
+		}
+		switch len(foundPEs) {
+		case 1:
+			return &foundPEs[0], nil
+		case 0:
+			return nil, &terminalError{message: fmt.Sprintf("failed to retrieve Prism Element cluster by name %s", *peName)}
+		default:
+			return nil, fmt.Errorf("more than one Prism Element cluster found with name %s", *peName)
+		}
+	}
+	return nil, fmt.Errorf("failed to retrieve Prism Element cluster by name or uuid. Verify input parameters")
 }
 
 // IsPEAvailable returns whether the Prism Element cluster with the given UUID is currently available.
@@ -1317,6 +1353,13 @@ func getNutanixMetroSiteObject(ctx context.Context, ctlclient client.Client, obj
 	return metroSiteObj, nil
 }
 
+// vHADomainName builds the NutanixVirtualHADomain object name for a (cluster, metro) pair. The name
+// is scoped to the cluster so that distinct clusters referencing the same NutanixMetro do not collide
+// on a single object.
+func vHADomainName(clusterName, metroName string) string {
+	return fmt.Sprintf("%s-%s", clusterName, metroName)
+}
+
 func getNutanixVHADomainObject(ctx context.Context, ctlclient client.Client, objectName, namespace string) (*infrav1.NutanixVirtualHADomain, error) {
 	vhaDomain := &infrav1.NutanixVirtualHADomain{}
 	objKey := client.ObjectKey{Name: objectName, Namespace: namespace}
@@ -1398,23 +1441,26 @@ func getVHADomainCategory(mctx *nctx.MachineContext, ctlclient client.Client) (*
 			return nil, fmt.Errorf("the vHADomain %s is not ready", vhaDomain.Name)
 		}
 
-		// Find the category-recovery-plan mapping for the preferred failure domain across
-		// all movement groups.
-		for _, movementGroup := range vhaDomain.Spec.MovementGroups {
-			for i := range movementGroup.CategoryRecoveryPlans {
-				crp := movementGroup.CategoryRecoveryPlans[i]
-				if crp.FailureDomainRef.Name != *preferredFailureDomain {
-					continue
-				}
-
-				preferredCategory := crp.Category
-				// validate the preferredCategory exists in PC
-				if _, err := getCategory(mctx.Context, mctx.ConvergedClient, preferredCategory.Key, preferredCategory.Value); err != nil {
-					return nil, fmt.Errorf("HADomain: %s, NutanixMetro: %s, failed to fetch Category (key:%s, value:%s) from PC: %w", vhaDomain.Name, metroName, preferredCategory.Key, preferredCategory.Value, err)
-				}
-
-				return &preferredCategory, nil
+		// Find the category-recovery-plan mapping for the preferred failure domain. Only the
+		// cluster-scope movement group is supported for now; nodepool-scope movement groups are not
+		// yet handled, so we restrict the lookup to the well-known cluster-scope group.
+		movementGroup, ok := vhaDomain.Spec.MovementGroups[clusterScopeMovementGroupName]
+		if !ok {
+			return nil, fmt.Errorf("vHADomain %s has no %q (cluster-scope) movement group", vhaDomain.Name, clusterScopeMovementGroupName)
+		}
+		for i := range movementGroup.CategoryRecoveryPlans {
+			crp := movementGroup.CategoryRecoveryPlans[i]
+			if crp.FailureDomainRef.Name != *preferredFailureDomain {
+				continue
 			}
+
+			preferredCategory := crp.Category
+			// validate the preferredCategory exists in PC
+			if _, err := getCategory(mctx.Context, mctx.ConvergedClient, preferredCategory.Key, preferredCategory.Value); err != nil {
+				return nil, fmt.Errorf("HADomain: %s, NutanixMetro: %s, failed to fetch Category (key:%s, value:%s) from PC: %w", vhaDomain.Name, metroName, preferredCategory.Key, preferredCategory.Value, err)
+			}
+
+			return &preferredCategory, nil
 		}
 
 		return nil, fmt.Errorf("vHADomain %s has no category mapping for the preferred failureDomain %s", vhaDomain.Name, *preferredFailureDomain)

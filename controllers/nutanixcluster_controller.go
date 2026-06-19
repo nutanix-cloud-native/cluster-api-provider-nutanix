@@ -420,7 +420,9 @@ func (r *NutanixClusterReconciler) reconcileVHADomains(rctx *nctx.ClusterContext
 				Kind:       infrav1.NutanixVirtualHADomainKind,
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      metroName,
+				// Scope the name to the owning cluster so two clusters referencing the same
+				// NutanixMetro do not collide on a single NutanixVirtualHADomain object.
+				Name:      vHADomainName(r.clusterName(rctx), metroName),
 				Namespace: namespace,
 				OwnerReferences: []metav1.OwnerReference{
 					*metav1.NewControllerRef(rctx.NutanixCluster, infrav1.GroupVersion.WithKind(infrav1.NutanixClusterKind)),

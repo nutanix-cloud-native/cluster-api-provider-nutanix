@@ -735,17 +735,14 @@ func (r *NutanixMachineReconciler) getFailureDomainSpec(rctx *nctx.MachineContex
 }
 
 func (r *NutanixMachineReconciler) validateFailureDomainSpec(rctx *nctx.MachineContext, fdSpec *infrav1.NutanixFailureDomainSpec) error {
-	// Validate the failure domain configuration
+	// Validate the failure domain configuration. Resolve the PE in a single call so we avoid a
+	// redundant List(by name)+Get(by UUID) round trip when only the PE name is provided.
 	pe := fdSpec.PrismElementCluster
-	peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
+	peCluster, err := GetPEClusterByIdentifier(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
 	if err != nil {
 		return err
 	}
-
-	peCluster, err := GetPECluster(rctx.Context, rctx.ConvergedClient, peUUID)
-	if err != nil {
-		return err
-	}
+	peUUID := ptr.Deref(peCluster.ExtId, "")
 	if peCluster.Config == nil || peCluster.Config.IsAvailable == nil || !*peCluster.Config.IsAvailable {
 		return fmt.Errorf("the PE cluster %s is not available", ptr.Deref(peCluster.Name, peUUID))
 	}
@@ -760,7 +757,8 @@ func (r *NutanixMachineReconciler) validateFailureDomainSpec(rctx *nctx.MachineC
 }
 
 // getMetroFailureDomainSpec resolves a NutanixMetro failure domain to one of its two referenced
-// NutanixFailureDomains, validating PE availability and randomly selecting the preferred one.
+// NutanixFailureDomains, validating PE availability and deterministically selecting the preferred one
+// via computeMetroPlacementIndex (greedy least-count, per-nodepool balancing).
 func (r *NutanixMachineReconciler) getMetroFailureDomainSpec(rctx *nctx.MachineContext, metroName string) (*infrav1.NutanixFailureDomainSpec, error) {
 	log := ctrl.LoggerFrom(rctx.Context)
 	namespace := rctx.Machine.Namespace
@@ -944,6 +942,9 @@ func (r *NutanixMachineReconciler) computeMetroPlacementIndex(rctx *nctx.Machine
 		return 0, err
 	}
 
+	// NutanixMachines do not carry CAPI's nodepool labels (those live on the owning CAPI Machine),
+	// so we cannot filter them server-side by nodepool. We list them cluster-scoped and restrict to
+	// the current nodepool in-memory via nmGroupKeys (already filtered to the nodepool above).
 	machineList := &infrav1.NutanixMachineList{}
 	if err := reader.List(rctx.Context, machineList,
 		client.InNamespace(rctx.NutanixCluster.Namespace),
@@ -1018,15 +1019,44 @@ func metroPlacementGroupKey(labels map[string]string) string {
 	return ""
 }
 
-// metroMachineGroupKeys maps each NutanixMachine name in the cluster to its nodepool key, resolved via
-// the owning CAPI Machine (which carries the nodepool labels). The NutanixMachine name equals the
-// Machine's infrastructureRef name.
+// metroPlacementGroupSelector returns the single label that scopes a List to the machine's nodepool,
+// mirroring metroPlacementGroupKey's precedence (MachineDeployment, then MachineSet, then MachinePool,
+// then control plane). The second return value is false when the machine cannot be attributed to a
+// nodepool, in which case callers should fall back to a cluster-wide List.
+func metroPlacementGroupSelector(labels map[string]string) (client.MatchingLabels, bool) {
+	for _, key := range []string{
+		capiv1beta2.MachineDeploymentNameLabel,
+		capiv1beta2.MachineSetNameLabel,
+		capiv1beta2.MachinePoolNameLabel,
+	} {
+		if v, ok := labels[key]; ok && v != "" {
+			return client.MatchingLabels{key: v}, true
+		}
+	}
+	if v, ok := labels[capiv1beta2.MachineControlPlaneLabel]; ok {
+		return client.MatchingLabels{capiv1beta2.MachineControlPlaneLabel: v}, true
+	}
+	return nil, false
+}
+
+// metroMachineGroupKeys maps each NutanixMachine name to its nodepool key, resolved via the owning
+// CAPI Machine (which carries the nodepool labels). The NutanixMachine name equals the Machine's
+// infrastructureRef name. When the machine being reconciled is attributed to a nodepool, the CAPI
+// Machine List is filtered server-side to that nodepool so we only fetch the siblings we actually
+// balance against; otherwise we fall back to listing the whole cluster.
 func (r *NutanixMachineReconciler) metroMachineGroupKeys(rctx *nctx.MachineContext, reader client.Reader) (map[string]string, error) {
-	machineList := &capiv1beta2.MachineList{}
-	if err := reader.List(rctx.Context, machineList,
+	listOpts := []client.ListOption{
 		client.InNamespace(rctx.NutanixCluster.Namespace),
 		client.MatchingLabels{capiv1beta2.ClusterNameLabel: rctx.Cluster.Name},
-	); err != nil {
+	}
+	if rctx.Machine != nil {
+		if selector, ok := metroPlacementGroupSelector(rctx.Machine.Labels); ok {
+			listOpts = append(listOpts, selector)
+		}
+	}
+
+	machineList := &capiv1beta2.MachineList{}
+	if err := reader.List(rctx.Context, machineList, listOpts...); err != nil {
 		return nil, err
 	}
 
