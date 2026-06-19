@@ -58,12 +58,60 @@ func TestInitializeFlags(t *testing.T) {
 				enableLeaderElection:    true,
 				maxConcurrentReconciles: 5,
 				healthProbeAddr:         ":8081",
+				webhookPort:             defaultWebhookPort,
+				webhookCertDir:          defaultWebhookCertDir,
 				rateLimiterBaseDelay:    500 * time.Millisecond,
 				rateLimiterMaxDelay:     10 * time.Second,
 				rateLimiterBucketSize:   1000,
 				rateLimiterQPS:          50,
 			},
 			cmpOpt: cmpopts.IgnoreFields(options{},
+				"managerOptions",
+				"zapOptions",
+			),
+		},
+		{
+			name: "webhook and health flags",
+			args: []string{
+				"cmd",
+				"--health-addr=:9091",
+				"--webhook-port=8443",
+				"--webhook-cert-dir=/etc/certs",
+			},
+			want: &options{
+				healthProbeAddr: ":9091",
+				webhookPort:     8443,
+				webhookCertDir:  "/etc/certs",
+			},
+			cmpOpt: cmpopts.IgnoreFields(options{},
+				"enableLeaderElection",
+				"maxConcurrentReconciles",
+				"rateLimiterBaseDelay",
+				"rateLimiterMaxDelay",
+				"rateLimiterBucketSize",
+				"rateLimiterQPS",
+				"managerOptions",
+				"zapOptions",
+			),
+		},
+		{
+			name: "deprecated health-probe-bind-address alias",
+			args: []string{
+				"cmd",
+				"--health-probe-bind-address=:9092",
+			},
+			want: &options{
+				healthProbeAddr: ":9092",
+				webhookPort:     defaultWebhookPort,
+				webhookCertDir:  defaultWebhookCertDir,
+			},
+			cmpOpt: cmpopts.IgnoreFields(options{},
+				"enableLeaderElection",
+				"maxConcurrentReconciles",
+				"rateLimiterBaseDelay",
+				"rateLimiterMaxDelay",
+				"rateLimiterBucketSize",
+				"rateLimiterQPS",
 				"managerOptions",
 				"zapOptions",
 			),
@@ -80,6 +128,8 @@ func TestInitializeFlags(t *testing.T) {
 					DiagnosticsAddress:  ":9999",
 					InsecureDiagnostics: true,
 				},
+				webhookPort:    defaultWebhookPort,
+				webhookCertDir: defaultWebhookCertDir,
 			},
 			cmpOpt: cmpopts.IgnoreFields(options{},
 				"enableLeaderElection",
@@ -137,6 +187,8 @@ func TestInitializeConfig(t *testing.T) {
 				"--rate-limiter-bucket-size=1000",
 				"--rate-limiter-qps=50",
 				"--feature-gates=DefaultToPlaceholderImageName=true,DefaultToPlaceholderImageUUID=true",
+				"--webhook-port=8443",
+				"--webhook-cert-dir=/etc/certs",
 				// Cluster API options.
 				"--insecure-diagnostics=true",
 				"--diagnostics-address=:9999",
@@ -177,6 +229,8 @@ func TestInitializeConfig(t *testing.T) {
 
 			assert.Equal(t, got.enableLeaderElection, opts.enableLeaderElection)
 			assert.Equal(t, got.healthProbeAddr, opts.healthProbeAddr)
+			assert.Equal(t, got.webhookPort, opts.webhookPort)
+			assert.Equal(t, got.webhookCertDir, opts.webhookCertDir)
 			assert.Equal(t, got.concurrentReconcilesNutanixCluster, opts.maxConcurrentReconciles)
 			assert.Equal(t, got.concurrentReconcilesNutanixMachine, opts.maxConcurrentReconciles)
 			assert.Equal(t, got.metricsServerOpts.BindAddress, opts.managerOptions.DiagnosticsAddress)
