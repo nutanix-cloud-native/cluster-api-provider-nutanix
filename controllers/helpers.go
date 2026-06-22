@@ -253,45 +253,13 @@ func FindVMByName(ctx context.Context, client *v4Converged.Client, vmName string
 	return FindVMByUUID(ctx, client, *vms[0].ExtId)
 }
 
-// GetPEUUID returns the UUID of the Prism Element cluster with the given name
+// GetPEUUID returns the UUID of the Prism Element cluster with the given name or UUID.
 func GetPEUUID(ctx context.Context, client *v4Converged.Client, peName, peUUID *string) (string, error) {
-	if client == nil {
-		return "", fmt.Errorf("cannot retrieve Prism Element UUID if nutanix client is nil")
+	peCluster, err := GetPEClusterByIdentifier(ctx, client, peName, peUUID)
+	if err != nil {
+		return "", err
 	}
-	if peUUID == nil && peName == nil {
-		return "", fmt.Errorf("cluster name or uuid must be passed in order to retrieve the Prism Element UUID")
-	}
-	if peUUID != nil && *peUUID != "" {
-		peIntentResponse, err := client.Clusters.Get(ctx, *peUUID)
-		if err != nil {
-			if converged.IsNotFound(err) {
-				return "", fmt.Errorf("failed to find Prism Element cluster with UUID %s: %w", *peUUID, err)
-			}
-			return "", fmt.Errorf("failed to get Prism Element cluster with UUID %s: %w", *peUUID, err)
-		}
-		return *peIntentResponse.ExtId, nil
-	} else if peName != nil && *peName != "" {
-		responsePEs, err := client.Clusters.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", *peName)))
-		if err != nil {
-			return "", err
-		}
-		// Validate filtered PEs
-		foundPEs := make([]clusterModels.Cluster, 0)
-		for _, s := range responsePEs {
-			if strings.EqualFold(*s.Name, *peName) && hasPEClusterServiceEnabled(&s) {
-				foundPEs = append(foundPEs, s)
-			}
-		}
-		if len(foundPEs) == 1 {
-			return *foundPEs[0].ExtId, nil
-		}
-		if len(foundPEs) == 0 {
-			return "", &terminalError{message: fmt.Sprintf("failed to retrieve Prism Element cluster by name %s", *peName)}
-		} else {
-			return "", fmt.Errorf("more than one Prism Element cluster found with name %s", *peName)
-		}
-	}
-	return "", fmt.Errorf("failed to retrieve Prism Element cluster by name or uuid. Verify input parameters")
+	return ptr.Deref(peCluster.ExtId, ""), nil
 }
 
 // GetPECluster returns the Prism Element cluster with the given UUID.
@@ -308,10 +276,13 @@ func GetPECluster(ctx context.Context, client *v4Converged.Client, peUUID string
 }
 
 // GetPEClusterByIdentifier resolves a Prism Element cluster by UUID or name and returns the full
-// cluster object in a single API call. Callers that need the cluster object (for example to read
-// Config.IsAvailable) should prefer this over GetPEUUID followed by GetPECluster, which performs a
-// redundant List+Get round trip.
+// cluster object in a single API call. Callers that only need the UUID can use GetPEUUID; callers
+// that need the cluster object (for example to read Config.IsAvailable) should prefer this over
+// GetPEUUID followed by GetPECluster, which performs a redundant List+Get round trip.
 func GetPEClusterByIdentifier(ctx context.Context, client *v4Converged.Client, peName, peUUID *string) (*clusterModels.Cluster, error) {
+	if client == nil {
+		return nil, fmt.Errorf("cannot retrieve Prism Element cluster if nutanix client is nil")
+	}
 	if peUUID != nil && *peUUID != "" {
 		return GetPECluster(ctx, client, *peUUID)
 	}

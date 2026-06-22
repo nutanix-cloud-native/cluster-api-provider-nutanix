@@ -94,6 +94,15 @@ func placementMachine(name, infraName, deployment string) *capiv1beta2.Machine {
 	}
 }
 
+// placementMachineInSet builds a CAPI Machine attributed to both a MachineDeployment and a specific
+// MachineSet, mirroring how CAPI labels worker machines. This is used to exercise rolling upgrades,
+// where the old and new generations share a MachineDeployment but live in different MachineSets.
+func placementMachineInSet(name, infraName, deployment, set string) *capiv1beta2.Machine {
+	m := placementMachine(name, infraName, deployment)
+	m.Labels[capiv1beta2.MachineSetNameLabel] = set
+	return m
+}
+
 // newPlacementReconciler wires a reconciler whose Client and APIReader both point at a fake client
 // preloaded with objs, plus the MachineContext needed by the placement helpers.
 func newPlacementReconciler(g *WithT, objs ...client.Object) (*NutanixMachineReconciler, *nctx.MachineContext) {
@@ -155,10 +164,20 @@ func TestMetroPlacementGroupKey(t *testing.T) {
 			want:   capiv1beta2.MachineControlPlaneLabel,
 		},
 		{
-			name: "MachineDeployment takes precedence over MachineSet",
+			// MachineSet is preferred over MachineDeployment so each rollout generation (a distinct
+			// MachineSet) balances independently of the old one being torn down.
+			name: "MachineSet takes precedence over MachineDeployment",
 			labels: map[string]string{
 				capiv1beta2.MachineDeploymentNameLabel: "wmd",
 				capiv1beta2.MachineSetNameLabel:        "ms-1",
+				capiv1beta2.MachinePoolNameLabel:       "mp-1",
+			},
+			want: capiv1beta2.MachineSetNameLabel + "=ms-1",
+		},
+		{
+			name: "MachineDeployment used when MachineSet is absent",
+			labels: map[string]string{
+				capiv1beta2.MachineDeploymentNameLabel: "wmd",
 				capiv1beta2.MachinePoolNameLabel:       "mp-1",
 			},
 			want: capiv1beta2.MachineDeploymentNameLabel + "=wmd",
@@ -418,5 +437,54 @@ func TestComputeMetroPlacementIndex(t *testing.T) {
 		idx, err := reconciler.computeMetroPlacementIndex(rctx, []*infrav1.NutanixFailureDomain{fdA, fdB})
 		g.Expect(err).ToNot(HaveOccurred())
 		g.Expect(idx).To(Equal(1))
+	})
+
+	t.Run("rolling upgrade balances the new MachineSet independently of the old one", func(t *testing.T) {
+		g := NewWithT(t)
+		// Regression test for the surge-first rollout skew: the new generation must not inherit the
+		// old generation's placement (which would skew it, e.g. 3-1). We make the old MachineSet
+		// maximally adversarial by placing all of its (still-live) machines on fd-a; balancing by
+		// MachineDeployment would push the whole new generation onto fd-b. Scoping to MachineSet
+		// isolates the new generation, which must split 2-2.
+		const (
+			md    = "wmd"
+			msOld = "wmd-old"
+			msNew = "wmd-new"
+		)
+
+		objs := []client.Object{
+			// Old generation: 4 live, already-placed machines, all on fd-a.
+			placementNM("nm-o1", "fd-a", false), placementMachineInSet("nm-o1", "nm-o1", md, msOld),
+			placementNM("nm-o2", "fd-a", false), placementMachineInSet("nm-o2", "nm-o2", md, msOld),
+			placementNM("nm-o3", "fd-a", false), placementMachineInSet("nm-o3", "nm-o3", md, msOld),
+			placementNM("nm-o4", "fd-a", false), placementMachineInSet("nm-o4", "nm-o4", md, msOld),
+			// New generation: 4 pending machines in the new MachineSet.
+			placementNM("nm-n1", "", false), placementMachineInSet("nm-n1", "nm-n1", md, msNew),
+			placementNM("nm-n2", "", false), placementMachineInSet("nm-n2", "nm-n2", md, msNew),
+			placementNM("nm-n3", "", false), placementMachineInSet("nm-n3", "nm-n3", md, msNew),
+			placementNM("nm-n4", "", false), placementMachineInSet("nm-n4", "nm-n4", md, msNew),
+		}
+
+		reconciler, base := newPlacementReconciler(g, objs...)
+		fds := []*infrav1.NutanixFailureDomain{fdA, fdB}
+
+		newNames := []string{"nm-n1", "nm-n2", "nm-n3", "nm-n4"}
+		perFD := make([]int, len(fds))
+		for _, name := range newNames {
+			rctx := &nctx.MachineContext{
+				Context:        base.Context,
+				Cluster:        base.Cluster,
+				NutanixCluster: base.NutanixCluster,
+				NutanixMachine: placementNM(name, "", false),
+				Machine:        placementMachineInSet(name, name, md, msNew),
+				Datastore:      map[string]*string{},
+			}
+			idx, err := reconciler.computeMetroPlacementIndex(rctx, fds)
+			g.Expect(err).ToNot(HaveOccurred())
+			perFD[idx]++
+		}
+
+		// The new MachineSet splits evenly despite the old generation being skewed onto fd-a.
+		g.Expect(perFD).To(Equal([]int{2, 2}))
 	})
 }

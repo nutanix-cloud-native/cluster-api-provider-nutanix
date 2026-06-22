@@ -909,9 +909,11 @@ func (r *NutanixMachineReconciler) getMetroSiteFailureDomainSpec(rctx *nctx.Mach
 // not-yet-placed ("pending") machines by name, and run the identical greedy least-count simulation.
 // Each machine therefore lands in a distinct, balanced slot regardless of reconcile interleaving.
 //
-//   - balancing is scoped to the machine's nodepool (MachineDeployment / MachineSet / MachinePool, or
-//     the control plane), so each nodepool is spread evenly across the metro's failureDomains
-//     independently of the others.
+//   - balancing is scoped to the machine's group (MachineSet, then MachineDeployment, then
+//     MachinePool, or the control plane; see metroPlacementGroupKey), so each group is spread evenly
+//     across the metro's failureDomains independently of the others. MachineSet is preferred over
+//     MachineDeployment so a surge-first rolling upgrade balances the new generation independently of
+//     the old one still being torn down (otherwise ties skew the new generation, e.g. 3-1).
 //   - already-placed machines (carry the native-failuredomain label) seed per-FD counts, so the
 //     result self-heals after uneven scale-downs.
 //   - terminating machines are skipped so in-flight scale-downs free up their slot.
@@ -998,45 +1000,64 @@ func (r *NutanixMachineReconciler) computeMetroPlacementIndex(rctx *nctx.Machine
 	return 0, nil
 }
 
-// metroPlacementGroupKey returns a stable key identifying the nodepool a machine belongs to, derived
-// from CAPI's well-known owner labels (MachineDeployment, then MachineSet, then MachinePool, then the
-// control plane). Metro placement balances within a nodepool rather than across the whole cluster. An
-// empty string means the machine could not be attributed to a nodepool (it is then balanced
-// cluster-wide, preserving prior behavior).
-func metroPlacementGroupKey(labels map[string]string) string {
-	for _, key := range []string{
-		capiv1beta2.MachineDeploymentNameLabel,
-		capiv1beta2.MachineSetNameLabel,
-		capiv1beta2.MachinePoolNameLabel,
-	} {
-		if v, ok := labels[key]; ok && v != "" {
-			return key + "=" + v
-		}
-	}
-	if _, ok := labels[capiv1beta2.MachineControlPlaneLabel]; ok {
-		return capiv1beta2.MachineControlPlaneLabel
-	}
-	return ""
+// metroPlacementGroupOwnerLabels is the ordered list of CAPI owner labels used to attribute a machine
+// to a balancing group, most specific first.
+//
+// MachineSet is intentionally preferred over MachineDeployment: during a surge-first rolling upgrade
+// (the default MachineDeployment strategy, maxSurge=1/maxUnavailable=0) the replacement machine is
+// created before the machine it supersedes is deleted. If we balanced by MachineDeployment, the
+// not-yet-deleted old machines would keep the per-FD counts looking balanced and ties would keep
+// resolving to the first FD, skewing the new generation (e.g. 3-1 instead of 2-2). Each rollout
+// generation is its own MachineSet (distinct name), so scoping to MachineSet lets the new generation
+// balance independently of the old one being torn down. In steady state a MachineDeployment has
+// exactly one MachineSet, so this is equivalent to MachineDeployment scoping.
+var metroPlacementGroupOwnerLabels = []string{
+	capiv1beta2.MachineSetNameLabel,
+	capiv1beta2.MachineDeploymentNameLabel,
+	capiv1beta2.MachinePoolNameLabel,
 }
 
-// metroPlacementGroupSelector returns the single label that scopes a List to the machine's nodepool,
-// mirroring metroPlacementGroupKey's precedence (MachineDeployment, then MachineSet, then MachinePool,
-// then control plane). The second return value is false when the machine cannot be attributed to a
-// nodepool, in which case callers should fall back to a cluster-wide List.
-func metroPlacementGroupSelector(labels map[string]string) (client.MatchingLabels, bool) {
-	for _, key := range []string{
-		capiv1beta2.MachineDeploymentNameLabel,
-		capiv1beta2.MachineSetNameLabel,
-		capiv1beta2.MachinePoolNameLabel,
-	} {
-		if v, ok := labels[key]; ok && v != "" {
-			return client.MatchingLabels{key: v}, true
+// metroPlacementGroupLabel returns the single owner label (key, value) that identifies the balancing
+// group a machine belongs to, most specific first (see metroPlacementGroupOwnerLabels), falling back
+// to the control-plane label (whose value is conventionally empty). ok is false when the machine
+// cannot be attributed to any group.
+func metroPlacementGroupLabel(labels map[string]string) (key, value string, ok bool) {
+	for _, k := range metroPlacementGroupOwnerLabels {
+		if v, present := labels[k]; present && v != "" {
+			return k, v, true
 		}
 	}
-	if v, ok := labels[capiv1beta2.MachineControlPlaneLabel]; ok {
-		return client.MatchingLabels{capiv1beta2.MachineControlPlaneLabel: v}, true
+	if v, present := labels[capiv1beta2.MachineControlPlaneLabel]; present {
+		return capiv1beta2.MachineControlPlaneLabel, v, true
 	}
-	return nil, false
+	return "", "", false
+}
+
+// metroPlacementGroupKey returns a stable string key identifying the machine's balancing group. Metro
+// placement balances within a group rather than across the whole cluster. An empty string means the
+// machine could not be attributed to a group (it is then balanced cluster-wide, preserving prior
+// behavior).
+func metroPlacementGroupKey(labels map[string]string) string {
+	key, value, ok := metroPlacementGroupLabel(labels)
+	switch {
+	case !ok:
+		return ""
+	case value == "": // e.g. the control-plane label carries no value
+		return key
+	default:
+		return key + "=" + value
+	}
+}
+
+// metroPlacementGroupSelector returns the single label that scopes a List to the machine's balancing
+// group. The second return value is false when the machine cannot be attributed to a group, in which
+// case callers should fall back to a cluster-wide List.
+func metroPlacementGroupSelector(labels map[string]string) (client.MatchingLabels, bool) {
+	key, value, ok := metroPlacementGroupLabel(labels)
+	if !ok {
+		return nil, false
+	}
+	return client.MatchingLabels{key: value}, true
 }
 
 // metroMachineGroupKeys maps each NutanixMachine name to its nodepool key, resolved via the owning
