@@ -1285,6 +1285,23 @@ func validateDataDiskDeviceProperties(disk infrav1.NutanixMachineVMDisk, errors 
 }
 
 // GetOrCreateVM creates a VM and is invoked by the NutanixMachineReconciler
+// setMetroCustomAttributes sets the metro placement customAttributes on the VM
+// for Metro/MetroSite failure domains.
+func setMetroCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) {
+	if isNutanixMetroFailureDomain(rctx.Machine.Spec.FailureDomain) || isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
+		if preferredPE := rctx.Datastore[nctx.MetroPreferredPE]; preferredPE != nil {
+			vm.CustomAttributes = []string{
+				vmCustomAttributePrefix4MetroPreferredPE + *preferredPE,
+			}
+		}
+	}
+	if isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
+		if groupNameLabel := rctx.Datastore[nctx.MetroNodeGroupNameLabel]; groupNameLabel != nil {
+			vm.CustomAttributes = append(vm.CustomAttributes, vmCustomAttributePrefix4MetroNodeGroupNameLabel+*groupNameLabel)
+		}
+	}
+}
+
 func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vmmconfig.Vm, error) {
 	var err error
 	ctx := rctx.Context
@@ -1335,18 +1352,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	}
 
 	// Set the metro placement customAttributes on the VM for Metro/MetroSite failure domains.
-	if isNutanixMetroFailureDomain(rctx.Machine.Spec.FailureDomain) || isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
-		if preferredPE := rctx.Datastore[nctx.MetroPreferredPE]; preferredPE != nil {
-			vm.CustomAttributes = []string{
-				vmCustomAttributePrefix4MetroPreferredPE + *preferredPE,
-			}
-		}
-	}
-	if isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
-		if groupNameLabel := rctx.Datastore[nctx.MetroNodeGroupNameLabel]; groupNameLabel != nil {
-			vm.CustomAttributes = append(vm.CustomAttributes, vmCustomAttributePrefix4MetroNodeGroupNameLabel+*groupNameLabel)
-		}
-	}
+	setMetroCustomAttributes(rctx, vm)
 
 	// Set cluster reference
 	vm.Cluster = vmmconfig.NewClusterReference()
@@ -1364,7 +1370,16 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	vm.Nics = nics
 
 	// Set categories on VM
-	categoryReferences, err := GetPrismReferencesOfCategoryIdentifiers(ctx, rctx.ConvergedClient, r.getMachineCategoryIdentifiers(rctx))
+	categoryIdentifiers, err := r.getMachineCategoryIdentifiers(rctx)
+	if err != nil {
+		errorMsg := fmt.Errorf("error occurred while getting category identifiers for vm %s: %w", vmName, err)
+		if !isRetryableAPIError(err) {
+			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		}
+		return nil, errorMsg
+	}
+
+	categoryReferences, err := GetPrismReferencesOfCategoryIdentifiers(ctx, rctx.ConvergedClient, categoryIdentifiers)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %w", vmName, err)
 		if !isRetryableAPIError(err) {
@@ -1818,7 +1833,7 @@ func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineCo
 	return nil
 }
 
-func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.MachineContext) []*infrav1.NutanixCategoryIdentifier {
+func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.MachineContext) ([]*infrav1.NutanixCategoryIdentifier, error) {
 	log := ctrl.LoggerFrom(rctx.Context)
 	categoryIdentifiers := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
 	// Only try to create default categories. ignoring error so that we can return all including
@@ -1841,14 +1856,13 @@ func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.Mach
 		isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
 		vhaCategory, err := getVHADomainCategory(rctx, r.Client)
 		if err != nil {
-			log.Error(err, fmt.Sprintf("Failed to get vHADomain category corresponding to the Machine's spec.failureDomain: %s", rctx.Machine.Spec.FailureDomain))
-		} else {
-			categoryIdentifiers = append(categoryIdentifiers, vhaCategory)
-			log.Info(fmt.Sprintf("Adding the vHADomain category (key: %s, value %s) to VM", vhaCategory.Key, vhaCategory.Value))
+			return nil, err
 		}
+		categoryIdentifiers = append(categoryIdentifiers, vhaCategory)
+		log.Info(fmt.Sprintf("Adding the vHADomain category (key: %s, value %s) to VM", vhaCategory.Key, vhaCategory.Value))
 	}
 
-	return categoryIdentifiers
+	return categoryIdentifiers, nil
 }
 
 func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
