@@ -81,6 +81,10 @@ func init() {
 // NutanixMachineReconciler reconciles a NutanixMachine object
 type NutanixMachineReconciler struct {
 	client.Client
+	// APIReader reads directly from the API server (bypassing the cache). Metro VM placement uses it
+	// to enumerate sibling NutanixMachines so concurrent reconciles all observe the same set and
+	// compute the same balanced placement, instead of racing on a stale informer cache.
+	APIReader         client.Reader
 	SecretInformer    coreinformers.SecretInformer
 	ConfigMapInformer coreinformers.ConfigMapInformer
 	Scheme            *runtime.Scheme
@@ -106,6 +110,9 @@ func NewNutanixMachineReconciler(client client.Client, secretInformer coreinform
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *NutanixMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+	if r.APIReader == nil {
+		r.APIReader = mgr.GetAPIReader()
+	}
 	copts := controller.Options{
 		MaxConcurrentReconciles: r.controllerConfig.MaxConcurrentReconciles,
 		RateLimiter:             r.controllerConfig.RateLimiter,
@@ -284,6 +291,7 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		NutanixMachine:  ntxMachine,
 		NutanixClient:   v3Client,
 		ConvergedClient: convergedClient,
+		Datastore:       map[string]*string{},
 	}
 
 	defer func() {
@@ -689,10 +697,21 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 }
 
 func (r *NutanixMachineReconciler) getFailureDomainSpec(rctx *nctx.MachineContext, fdName string) (*infrav1.NutanixFailureDomainSpec, error) {
+	failureDomainName := rctx.Machine.Spec.FailureDomain
+
+	// handling the NutanixMetro failure domain
+	if isNutanixMetroFailureDomain(failureDomainName) {
+		return r.getMetroFailureDomainSpec(rctx, failureDomainName[len(metroFailureDomainPrefix):])
+	}
+
+	// handling the NutanixMetroSite failure domain
+	if isNutanixMetroSiteFailureDomain(failureDomainName) {
+		return r.getMetroSiteFailureDomainSpec(rctx, failureDomainName[len(metroSiteFailureDomainPrefix):])
+	}
+
 	// TODO: @faiq -- to handle the legacy failure domains this function checks to see if fdName
 	// is present in the legacy embedded field. if it is, we return a "dummy" spec for the new failure domain
 	// CR with the subnets and cluster info
-	failureDomainName := rctx.Machine.Spec.FailureDomain
 	if rctx.NutanixCluster != nil && len(rctx.NutanixCluster.Spec.FailureDomains) > 0 { //nolint:staticcheck // this handles old field
 		failureDomain := GetLegacyFailureDomainFromNutanixCluster(failureDomainName, rctx.NutanixCluster)
 		if failureDomain != nil {
@@ -716,11 +735,16 @@ func (r *NutanixMachineReconciler) getFailureDomainSpec(rctx *nctx.MachineContex
 }
 
 func (r *NutanixMachineReconciler) validateFailureDomainSpec(rctx *nctx.MachineContext, fdSpec *infrav1.NutanixFailureDomainSpec) error {
-	// Validate the failure domain configuration
+	// Validate the failure domain configuration. Resolve the PE in a single call so we avoid a
+	// redundant List(by name)+Get(by UUID) round trip when only the PE name is provided.
 	pe := fdSpec.PrismElementCluster
-	peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
+	peCluster, err := GetPEClusterByIdentifier(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
 	if err != nil {
 		return err
+	}
+	peUUID := ptr.Deref(peCluster.ExtId, "")
+	if peCluster.Config == nil || peCluster.Config.IsAvailable == nil || !*peCluster.Config.IsAvailable {
+		return fmt.Errorf("the PE cluster %s is not available", ptr.Deref(peCluster.Name, peUUID))
 	}
 
 	subnets := fdSpec.Subnets
@@ -730,6 +754,357 @@ func (r *NutanixMachineReconciler) validateFailureDomainSpec(rctx *nctx.MachineC
 	}
 
 	return nil
+}
+
+// getMetroFailureDomainSpec resolves a NutanixMetro failure domain to one of its two referenced
+// NutanixFailureDomains, validating PE availability and deterministically selecting the preferred one
+// via computeMetroPlacementIndex (greedy least-count, per-nodepool balancing).
+func (r *NutanixMachineReconciler) getMetroFailureDomainSpec(rctx *nctx.MachineContext, metroName string) (*infrav1.NutanixFailureDomainSpec, error) {
+	log := ctrl.LoggerFrom(rctx.Context)
+	namespace := rctx.Machine.Namespace
+
+	// Fetch the NutanixMetro and its referenced NutanixFailureDomain CRs
+	metroObj, err := getNutanixMetroObject(rctx.Context, r.Client, metroName, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	// When the NutanixMachine's label "metro.nutanix.com/native-failuredomain" is set
+	nativeFdName := ""
+	if nativeFd, ok := rctx.NutanixMachine.Labels[metroNativeFailureDomainLabelKey]; ok {
+		nativeFdName = nativeFd
+	}
+
+	fdCount := len(metroObj.Spec.FailureDomains)
+	fdObjs := make([]*infrav1.NutanixFailureDomain, fdCount)
+	for i, fdRef := range metroObj.Spec.FailureDomains {
+		fdObj, err := getNutanixFailureDomainObject(rctx.Context, r.Client, fdRef.Name, namespace)
+		if err != nil {
+			return nil, err
+		}
+
+		// return the failureDomain spec if it is the native-failuredomain
+		if nativeFdName == fdObj.Name {
+			return &fdObj.Spec, nil
+		}
+
+		fdObjs[i] = fdObj
+	}
+
+	if fdCount == 0 {
+		return nil, fmt.Errorf("the NutanixMetro %s has no failureDomains", metroName)
+	}
+
+	// Round-robin: deterministically select the failureDomain for this machine, the other is the
+	// remaining. The selection balances placement across failureDomains and is concurrency-safe
+	// without serializing reconciles (see computeMetroPlacementIndex).
+	idx, err := r.computeMetroPlacementIndex(rctx, fdObjs)
+	if err != nil {
+		return nil, err
+	}
+
+	var selectedFd, remainingFd *infrav1.NutanixFailureDomain
+	for i, fdObj := range fdObjs {
+		if i == idx {
+			selectedFd = fdObj
+		} else {
+			remainingFd = fdObj
+		}
+	}
+
+	if err = r.validateFailureDomainSpec(rctx, &selectedFd.Spec); err != nil {
+		log.Error(err, fmt.Sprintf("The selected failureDomain %s failed at validation. Try with the other failureDomain.", selectedFd.Name))
+
+		if remainingFd == nil {
+			return nil, err
+		}
+		if err = r.validateFailureDomainSpec(rctx, &remainingFd.Spec); err != nil {
+			log.Error(err, fmt.Sprintf("Both failureDomains of the NutanixMetro %s failed at validation.", metroName))
+			return nil, err
+		}
+		selectedFd = remainingFd
+	}
+
+	r.storeMetroPlacementSelection(rctx, selectedFd)
+
+	return &selectedFd.Spec, nil
+}
+
+// getMetroSiteFailureDomainSpec resolves a NutanixMetroSite failure domain to its preferred
+// NutanixFailureDomain (falling back to the other on validation failure).
+func (r *NutanixMachineReconciler) getMetroSiteFailureDomainSpec(rctx *nctx.MachineContext, metrositeName string) (*infrav1.NutanixFailureDomainSpec, error) {
+	log := ctrl.LoggerFrom(rctx.Context)
+	namespace := rctx.Machine.Namespace
+
+	// Fetch the NutanixMetroSite and its referenced NutanixMetro and NutanixFailureDomain CRs
+	metrositeObj, err := getNutanixMetroSiteObject(rctx.Context, r.Client, metrositeName, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	metroObj, err := getNutanixMetroObject(rctx.Context, r.Client, metrositeObj.Spec.MetroRef.Name, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	// When the NutanixMachine's label "metro.nutanix.com/native-failuredomain" is set
+	nativeFdName := ""
+	if nativeFd, ok := rctx.NutanixMachine.Labels[metroNativeFailureDomainLabelKey]; ok {
+		nativeFdName = nativeFd
+	}
+
+	var selectedFd, remainingFd *infrav1.NutanixFailureDomain
+	for _, fdRef := range metroObj.Spec.FailureDomains {
+		fdObj, err := getNutanixFailureDomainObject(rctx.Context, r.Client, fdRef.Name, namespace)
+		if err != nil {
+			return nil, err
+		}
+
+		// return the failureDomain spec if it is the native-failuredomain
+		if nativeFdName == fdObj.Name {
+			return &fdObj.Spec, nil
+		}
+
+		if fdObj.Name == metrositeObj.Spec.PreferredFailureDomain.Name {
+			selectedFd = fdObj
+		} else {
+			remainingFd = fdObj
+		}
+	}
+
+	if selectedFd == nil {
+		return nil, fmt.Errorf("the NutanixMetroSite %s preferredFailureDomain %s is not in the NutanixMetro %s failureDomains", metrositeName, metrositeObj.Spec.PreferredFailureDomain.Name, metroObj.Name)
+	}
+
+	// Keep the MetroSite's groupNameLabel in the context Datastore
+	if metrositeObj.Spec.GroupNameLabel != nil && *metrositeObj.Spec.GroupNameLabel != "" {
+		rctx.Datastore[nctx.MetroNodeGroupNameLabel] = metrositeObj.Spec.GroupNameLabel
+	}
+
+	// The selected is the preferred failureDomain. Only when it failed at validation, try the remaining one.
+	if err = r.validateFailureDomainSpec(rctx, &selectedFd.Spec); err != nil {
+		log.Error(err, fmt.Sprintf("The preferred failureDomain %s failed at validation. Try with the other failureDomain.", selectedFd.Name))
+
+		if remainingFd == nil {
+			return nil, err
+		}
+		if err = r.validateFailureDomainSpec(rctx, &remainingFd.Spec); err != nil {
+			log.Error(err, fmt.Sprintf("Both failureDomains of the NutanixMetro %s failed at validation.", metroObj.Name))
+			return nil, err
+		}
+		selectedFd = remainingFd
+	}
+
+	r.storeMetroPlacementSelection(rctx, selectedFd)
+
+	return &selectedFd.Spec, nil
+}
+
+// computeMetroPlacementIndex deterministically selects, for the machine being reconciled, the index
+// into fdObjs (the metro's failureDomains) on which it should be placed. It balances placement
+// without serializing reconciles (no concurrentReconciles=1) and without a name hash.
+//
+// Why it is concurrency-safe: every machine's NutanixMachine object already exists before its
+// reconcile runs, so all concurrent reconciles enumerate the same set of siblings, sort the
+// not-yet-placed ("pending") machines by name, and run the identical greedy least-count simulation.
+// Each machine therefore lands in a distinct, balanced slot regardless of reconcile interleaving.
+//
+//   - balancing is scoped to the machine's group (MachineSet, then MachineDeployment, then
+//     MachinePool, or the control plane; see metroPlacementGroupKey), so each group is spread evenly
+//     across the metro's failureDomains independently of the others. MachineSet is preferred over
+//     MachineDeployment so a surge-first rolling upgrade balances the new generation independently of
+//     the old one still being torn down (otherwise ties skew the new generation, e.g. 3-1).
+//   - already-placed machines (carry the native-failuredomain label) seed per-FD counts, so the
+//     result self-heals after uneven scale-downs.
+//   - terminating machines are skipped so in-flight scale-downs free up their slot.
+//   - the sibling list is read uncached (APIReader) so a lagging informer cache cannot make two
+//     machines pick the same slot.
+//
+// Ties (equal counts) are broken by failureDomain order in fdObjs.
+func (r *NutanixMachineReconciler) computeMetroPlacementIndex(rctx *nctx.MachineContext, fdObjs []*infrav1.NutanixFailureDomain) (int, error) {
+	fdIndex := make(map[string]int, len(fdObjs))
+	for i, fdObj := range fdObjs {
+		fdIndex[fdObj.Name] = i
+	}
+	counts := make([]int, len(fdObjs))
+
+	reader := client.Reader(r.Client)
+	if r.APIReader != nil {
+		reader = r.APIReader
+	}
+
+	// Resolve the nodepool of the machine being reconciled and map every sibling NutanixMachine to
+	// its nodepool via the owning CAPI Machine (the authoritative carrier of the nodepool labels).
+	groupKey := ""
+	if rctx.Machine != nil {
+		groupKey = metroPlacementGroupKey(rctx.Machine.Labels)
+	}
+	nmGroupKeys, err := r.metroMachineGroupKeys(rctx, reader)
+	if err != nil {
+		return 0, err
+	}
+
+	// NutanixMachines do not carry CAPI's nodepool labels (those live on the owning CAPI Machine),
+	// so we cannot filter them server-side by nodepool. We list them cluster-scoped and restrict to
+	// the current nodepool in-memory via nmGroupKeys (already filtered to the nodepool above).
+	machineList := &infrav1.NutanixMachineList{}
+	if err := reader.List(rctx.Context, machineList,
+		client.InNamespace(rctx.NutanixCluster.Namespace),
+		client.MatchingLabels{capiv1beta2.ClusterNameLabel: rctx.Cluster.Name},
+	); err != nil {
+		return 0, err
+	}
+
+	pending := make([]string, 0, len(machineList.Items))
+	for i := range machineList.Items {
+		nm := &machineList.Items[i]
+		// only balance within the same nodepool (when the current machine's nodepool is known)
+		if groupKey != "" && nm.Name != rctx.NutanixMachine.Name && nmGroupKeys[nm.Name] != groupKey {
+			continue
+		}
+		// skip machines being deleted so the balancer reacts to in-flight scale-downs
+		if !nm.DeletionTimestamp.IsZero() && nm.Name != rctx.NutanixMachine.Name {
+			continue
+		}
+		if fdName, ok := nm.Labels[metroNativeFailureDomainLabelKey]; ok {
+			if idx, tracked := fdIndex[fdName]; tracked {
+				counts[idx]++
+			}
+			continue
+		}
+		pending = append(pending, nm.Name)
+	}
+	// Ensure the machine being reconciled participates even if the list does not include it yet.
+	if !slices.Contains(pending, rctx.NutanixMachine.Name) {
+		pending = append(pending, rctx.NutanixMachine.Name)
+	}
+	slices.Sort(pending)
+
+	// Greedy least-count assignment over pending machines in name order; the slot computed when we
+	// reach this machine is its placement. Ties resolve to the lowest failureDomain index.
+	for _, name := range pending {
+		idx := 0
+		minCount := -1
+		for i, c := range counts {
+			if minCount < 0 || c < minCount {
+				minCount = c
+				idx = i
+			}
+		}
+		if name == rctx.NutanixMachine.Name {
+			return idx, nil
+		}
+		counts[idx]++
+	}
+
+	return 0, nil
+}
+
+// metroPlacementGroupOwnerLabels is the ordered list of CAPI owner labels used to attribute a machine
+// to a balancing group, most specific first.
+//
+// MachineSet is intentionally preferred over MachineDeployment: during a surge-first rolling upgrade
+// (the default MachineDeployment strategy, maxSurge=1/maxUnavailable=0) the replacement machine is
+// created before the machine it supersedes is deleted. If we balanced by MachineDeployment, the
+// not-yet-deleted old machines would keep the per-FD counts looking balanced and ties would keep
+// resolving to the first FD, skewing the new generation (e.g. 3-1 instead of 2-2). Each rollout
+// generation is its own MachineSet (distinct name), so scoping to MachineSet lets the new generation
+// balance independently of the old one being torn down. In steady state a MachineDeployment has
+// exactly one MachineSet, so this is equivalent to MachineDeployment scoping.
+var metroPlacementGroupOwnerLabels = []string{
+	capiv1beta2.MachineSetNameLabel,
+	capiv1beta2.MachineDeploymentNameLabel,
+	capiv1beta2.MachinePoolNameLabel,
+}
+
+// metroPlacementGroupLabel returns the single owner label (key, value) that identifies the balancing
+// group a machine belongs to, most specific first (see metroPlacementGroupOwnerLabels), falling back
+// to the control-plane label (whose value is conventionally empty). ok is false when the machine
+// cannot be attributed to any group.
+func metroPlacementGroupLabel(labels map[string]string) (key, value string, ok bool) {
+	for _, k := range metroPlacementGroupOwnerLabels {
+		if v, present := labels[k]; present && v != "" {
+			return k, v, true
+		}
+	}
+	if v, present := labels[capiv1beta2.MachineControlPlaneLabel]; present {
+		return capiv1beta2.MachineControlPlaneLabel, v, true
+	}
+	return "", "", false
+}
+
+// metroPlacementGroupKey returns a stable string key identifying the machine's balancing group. Metro
+// placement balances within a group rather than across the whole cluster. An empty string means the
+// machine could not be attributed to a group (it is then balanced cluster-wide, preserving prior
+// behavior).
+func metroPlacementGroupKey(labels map[string]string) string {
+	key, value, ok := metroPlacementGroupLabel(labels)
+	switch {
+	case !ok:
+		return ""
+	case value == "": // e.g. the control-plane label carries no value
+		return key
+	default:
+		return key + "=" + value
+	}
+}
+
+// metroPlacementGroupSelector returns the single label that scopes a List to the machine's balancing
+// group. The second return value is false when the machine cannot be attributed to a group, in which
+// case callers should fall back to a cluster-wide List.
+func metroPlacementGroupSelector(labels map[string]string) (client.MatchingLabels, bool) {
+	key, value, ok := metroPlacementGroupLabel(labels)
+	if !ok {
+		return nil, false
+	}
+	return client.MatchingLabels{key: value}, true
+}
+
+// metroMachineGroupKeys maps each NutanixMachine name to its nodepool key, resolved via the owning
+// CAPI Machine (which carries the nodepool labels). The NutanixMachine name equals the Machine's
+// infrastructureRef name. When the machine being reconciled is attributed to a nodepool, the CAPI
+// Machine List is filtered server-side to that nodepool so we only fetch the siblings we actually
+// balance against; otherwise we fall back to listing the whole cluster.
+func (r *NutanixMachineReconciler) metroMachineGroupKeys(rctx *nctx.MachineContext, reader client.Reader) (map[string]string, error) {
+	listOpts := []client.ListOption{
+		client.InNamespace(rctx.NutanixCluster.Namespace),
+		client.MatchingLabels{capiv1beta2.ClusterNameLabel: rctx.Cluster.Name},
+	}
+	if rctx.Machine != nil {
+		if selector, ok := metroPlacementGroupSelector(rctx.Machine.Labels); ok {
+			listOpts = append(listOpts, selector)
+		}
+	}
+
+	machineList := &capiv1beta2.MachineList{}
+	if err := reader.List(rctx.Context, machineList, listOpts...); err != nil {
+		return nil, err
+	}
+
+	keys := make(map[string]string, len(machineList.Items))
+	for i := range machineList.Items {
+		m := &machineList.Items[i]
+		if name := m.Spec.InfrastructureRef.Name; name != "" {
+			keys[name] = metroPlacementGroupKey(m.Labels)
+		}
+	}
+	return keys, nil
+}
+
+// storeMetroPlacementSelection records the selected preferred failureDomain and its PE in the
+// reconcile Datastore and on the NutanixMachine labels for Metro/MetroSite VM placement.
+func (r *NutanixMachineReconciler) storeMetroPlacementSelection(rctx *nctx.MachineContext, selectedFd *infrav1.NutanixFailureDomain) {
+	if rctx.Datastore == nil {
+		rctx.Datastore = map[string]*string{}
+	}
+	rctx.Datastore[nctx.MetroPreferredFailureDomainName] = ptr.To(selectedFd.Name)
+	rctx.Datastore[nctx.MetroPreferredPE] = ptr.To(selectedFd.Spec.PrismElementCluster.String())
+
+	if rctx.NutanixMachine.Labels == nil {
+		rctx.NutanixMachine.Labels = map[string]string{}
+	}
+	rctx.NutanixMachine.Labels[metroNativeFailureDomainLabelKey] = selectedFd.Name
+	rctx.NutanixMachine.Labels[metroNativePELabelKey] = selectedFd.Spec.PrismElementCluster.String()
 }
 
 func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineContext) error {
@@ -910,6 +1285,23 @@ func validateDataDiskDeviceProperties(disk infrav1.NutanixMachineVMDisk, errors 
 }
 
 // GetOrCreateVM creates a VM and is invoked by the NutanixMachineReconciler
+// setMetroCustomAttributes sets the metro placement customAttributes on the VM
+// for Metro/MetroSite failure domains.
+func setMetroCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) {
+	if isNutanixMetroFailureDomain(rctx.Machine.Spec.FailureDomain) || isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
+		if preferredPE := rctx.Datastore[nctx.MetroPreferredPE]; preferredPE != nil {
+			vm.CustomAttributes = []string{
+				vmCustomAttributePrefix4MetroPreferredPE + *preferredPE,
+			}
+		}
+	}
+	if isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
+		if groupNameLabel := rctx.Datastore[nctx.MetroNodeGroupNameLabel]; groupNameLabel != nil {
+			vm.CustomAttributes = append(vm.CustomAttributes, vmCustomAttributePrefix4MetroNodeGroupNameLabel+*groupNameLabel)
+		}
+	}
+}
+
 func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vmmconfig.Vm, error) {
 	var err error
 	ctx := rctx.Context
@@ -959,6 +1351,9 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		return nil, err
 	}
 
+	// Set the metro placement customAttributes on the VM for Metro/MetroSite failure domains.
+	setMetroCustomAttributes(rctx, vm)
+
 	// Set cluster reference
 	vm.Cluster = vmmconfig.NewClusterReference()
 	vm.Cluster.ExtId = &peUUID
@@ -975,7 +1370,16 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	vm.Nics = nics
 
 	// Set categories on VM
-	categoryReferences, err := GetPrismReferencesOfCategoryIdentifiers(ctx, rctx.ConvergedClient, r.getMachineCategoryIdentifiers(rctx))
+	categoryIdentifiers, err := r.getMachineCategoryIdentifiers(rctx)
+	if err != nil {
+		errorMsg := fmt.Errorf("error occurred while getting category identifiers for vm %s: %w", vmName, err)
+		if !isRetryableAPIError(err) {
+			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		}
+		return nil, errorMsg
+	}
+
+	categoryReferences, err := GetPrismReferencesOfCategoryIdentifiers(ctx, rctx.ConvergedClient, categoryIdentifiers)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %w", vmName, err)
 		if !isRetryableAPIError(err) {
@@ -1429,7 +1833,7 @@ func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineCo
 	return nil
 }
 
-func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.MachineContext) []*infrav1.NutanixCategoryIdentifier {
+func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.MachineContext) ([]*infrav1.NutanixCategoryIdentifier, error) {
 	log := ctrl.LoggerFrom(rctx.Context)
 	categoryIdentifiers := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
 	// Only try to create default categories. ignoring error so that we can return all including
@@ -1447,7 +1851,18 @@ func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.Mach
 		}
 	}
 
-	return categoryIdentifiers
+	// Add the vHADomain category if the machine is configured with a NutanixMetro/NutanixMetroSite failureDomain.
+	if isNutanixMetroFailureDomain(rctx.Machine.Spec.FailureDomain) ||
+		isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
+		vhaCategory, err := getVHADomainCategory(rctx, r.Client)
+		if err != nil {
+			return nil, err
+		}
+		categoryIdentifiers = append(categoryIdentifiers, vhaCategory)
+		log.Info(fmt.Sprintf("Adding the vHADomain category (key: %s, value %s) to VM", vhaCategory.Key, vhaCategory.Value))
+	}
+
+	return categoryIdentifiers, nil
 }
 
 func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {

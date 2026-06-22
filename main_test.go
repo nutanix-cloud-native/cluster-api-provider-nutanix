@@ -356,6 +356,7 @@ func testRunManagerCommon(t *testing.T, ctrl *gomock.Controller) (*mockctlclient
 	mgr.EXPECT().GetConfig().Return(cfg).AnyTimes()
 	mgr.EXPECT().GetClient().Return(client).AnyTimes()
 	mgr.EXPECT().GetScheme().Return(scheme).AnyTimes()
+	mgr.EXPECT().GetAPIReader().Return(nil).AnyTimes()
 	mgr.EXPECT().GetLogger().Return(config.logger).AnyTimes()
 	mgr.EXPECT().GetControllerOptions().Return(ctrlconfig.Controller{
 		MaxConcurrentReconciles: config.concurrentReconcilesNutanixCluster,
@@ -461,6 +462,7 @@ func TestSetupControllersFailedAddToManager(t *testing.T) {
 	mgr.EXPECT().GetClient().Return(client).AnyTimes()
 	mgr.EXPECT().GetCache().Return(cache).AnyTimes()
 	mgr.EXPECT().GetScheme().Return(scheme).AnyTimes()
+	mgr.EXPECT().GetAPIReader().Return(nil).AnyTimes()
 	mgr.EXPECT().GetLogger().Return(setupLogger()).AnyTimes()
 	mgr.EXPECT().GetControllerOptions().Return(ctrlconfig.Controller{
 		MaxConcurrentReconciles: 1,

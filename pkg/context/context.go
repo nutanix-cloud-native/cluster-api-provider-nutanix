@@ -32,6 +32,20 @@ import (
 	ctlclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	// MetroPreferredFailureDomainName is the Datastore key used to pass the preferred
+	// NutanixFailureDomain name selected for a Metro/MetroSite machine within a reconcile cycle.
+	MetroPreferredFailureDomainName = "metro-preferred-failuredomain"
+
+	// MetroPreferredPE is the Datastore key used to pass the preferred Prism Element identifier
+	// selected for a Metro/MetroSite machine within a reconcile cycle.
+	MetroPreferredPE = "metro-preferred-pe"
+
+	// MetroNodeGroupNameLabel is the Datastore key used to pass the MetroSite's groupNameLabel
+	// value within a reconcile cycle.
+	MetroNodeGroupNameLabel = "metro-node-group-name-label"
+)
+
 var (
 	RemoteClientCache = map[ctlclient.ObjectKey]ctlclient.Client{}
 	cacheLock         = &sync.Mutex{}
@@ -60,6 +74,20 @@ type MachineContext struct {
 
 	// The VM ip address
 	IP string
+
+	// Datastore is used to pass data among functions in the same reconciling cycle.
+	Datastore map[string]*string
+}
+
+// VHADomainContext is a context used with a NutanixVirtualHADomain reconciler
+type VHADomainContext struct {
+	Context         context.Context
+	NutanixClient   *prismclientv3.Client
+	ConvergedClient *v4Converged.Client
+
+	Cluster        *capiv1beta2.Cluster
+	NutanixCluster *infrav1.NutanixCluster
+	VHADomain      *infrav1.NutanixVirtualHADomain
 }
 
 // IsControlPlaneMachine returns true if the provided resource is
