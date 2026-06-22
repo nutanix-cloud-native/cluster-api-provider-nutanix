@@ -893,6 +893,11 @@ func (r *NutanixMachineReconciler) getMetroSiteFailureDomainSpec(rctx *nctx.Mach
 		return nil, fmt.Errorf("the NutanixMetroSite %s preferredFailureDomain %s is not in the NutanixMetro %s failureDomains", metrositeName, metrositeObj.Spec.PreferredFailureDomain.Name, metroObj.Name)
 	}
 
+	// Keep the MetroSite's groupNameLabel in the context Datastore
+	if metrositeObj.Spec.GroupNameLabel != nil && *metrositeObj.Spec.GroupNameLabel != "" {
+		rctx.Datastore[nctx.MetroNodeGroupNameLabel] = metrositeObj.Spec.GroupNameLabel
+	}
+
 	// The selected is the preferred failureDomain. Only when it failed at validation, try the remaining one.
 	if err = r.validateFailureDomainSpec(rctx, &selectedFd.Spec); err != nil {
 		log.Error(err, fmt.Sprintf("The preferred failureDomain %s failed at validation. Try with the other failureDomain.", selectedFd.Name))
