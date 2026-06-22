@@ -284,6 +284,31 @@ func (r *NutanixClusterReconciler) reconcileDelete(rctx *nctx.ClusterContext) (r
 
 	log.V(1).Info("no existing nutanixMachine resources found. Continuing with deleting cluster")
 
+	// Delete the NutanixVirtualHADomain CRs owned by this cluster and wait for them to be removed
+	// before continuing. A vHADomain's own deletion cleans up its Prism Central resources (protection
+	// policy, recovery plans, categories), which requires the owning NutanixCluster (and its PC
+	// credentials) to still exist. If the NutanixCluster finalizer were removed first, the vHADomains
+	// would be garbage-collected after their owner is gone and would skip PC cleanup, leaking those
+	// resources.
+	ownedVHADomains, err := getOwnedVHADomains(rctx.Context, r.Client, rctx.NutanixCluster)
+	if err != nil {
+		log.Error(err, "error occurred while listing owned NutanixVirtualHADomains during cluster deletion")
+		return reconcile.Result{}, err
+	}
+	if len(ownedVHADomains) > 0 {
+		for _, vHADomain := range ownedVHADomains {
+			if !vHADomain.DeletionTimestamp.IsZero() {
+				continue
+			}
+			if err := r.Client.Delete(rctx.Context, vHADomain); err != nil && !kapierrors.IsNotFound(err) {
+				log.Error(err, "failed to delete owned NutanixVirtualHADomain", "vHADomain", vHADomain.Name)
+				return reconcile.Result{}, err
+			}
+		}
+		log.Info(fmt.Sprintf("waiting for %d NutanixVirtualHADomains to be deleted before removing the NutanixCluster finalizer", len(ownedVHADomains)))
+		return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+	}
+
 	err = r.reconcileCategoriesDelete(rctx)
 	if err != nil {
 		log.Error(err, "error occurred while running deletion of categories")

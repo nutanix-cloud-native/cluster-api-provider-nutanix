@@ -393,6 +393,7 @@ func TestNutanixMachineReconciler_SetupWithManager(t *testing.T) {
 	mockClient := mockctlclient.NewMockClient(mockCtrl)
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockClient.EXPECT().RESTMapper().Return(restMapper).AnyTimes()
+	mgr.EXPECT().GetAPIReader().Return(mockClient).AnyTimes()
 
 	reconciler := &NutanixMachineReconciler{
 		Client: mockClient,
@@ -438,6 +439,7 @@ func TestNutanixMachineReconciler_SetupWithManager_BuildError(t *testing.T) {
 	mockClient := mockctlclient.NewMockClient(mockCtrl)
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockClient.EXPECT().RESTMapper().Return(restMapper).AnyTimes()
+	mgr.EXPECT().GetAPIReader().Return(mockClient).AnyTimes()
 
 	reconciler := &NutanixMachineReconciler{
 		Client: mockClient,
@@ -482,6 +484,7 @@ func TestNutanixMachineReconciler_SetupWithManager_ClusterToTypedObjectsMapperEr
 	mockClient := mockctlclient.NewMockClient(mockCtrl)
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockClient.EXPECT().RESTMapper().Return(restMapper).AnyTimes()
+	mgr.EXPECT().GetAPIReader().Return(mockClient).AnyTimes()
 
 	reconciler := &NutanixMachineReconciler{
 		Client: mockClient,

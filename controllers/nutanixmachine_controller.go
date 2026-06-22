@@ -783,8 +783,12 @@ func (r *NutanixMachineReconciler) getMetroFailureDomainSpec(rctx *nctx.MachineC
 			return nil, err
 		}
 
-		// return the failureDomain spec if it is the native-failuredomain
+		// return the failureDomain spec if it is the native-failuredomain. The placement was already
+		// decided on a previous reconcile, but we must still repopulate the reconcile Datastore
+		// (preferred failureDomain + PE) so a VM (re)created on this reconcile still receives its
+		// vHADomain category and metro custom attributes.
 		if nativeFdName == fdObj.Name {
+			r.storeMetroPlacementSelection(rctx, fdObj)
 			return &fdObj.Spec, nil
 		}
 
@@ -847,6 +851,16 @@ func (r *NutanixMachineReconciler) getMetroSiteFailureDomainSpec(rctx *nctx.Mach
 		return nil, err
 	}
 
+	// Keep the MetroSite's groupNameLabel in the context Datastore. This must happen before the
+	// native-failuredomain early-return below so a VM (re)created on a later reconcile still gets the
+	// metro node-group custom attribute.
+	if metrositeObj.Spec.GroupNameLabel != nil && *metrositeObj.Spec.GroupNameLabel != "" {
+		if rctx.Datastore == nil {
+			rctx.Datastore = map[string]*string{}
+		}
+		rctx.Datastore[nctx.MetroNodeGroupNameLabel] = metrositeObj.Spec.GroupNameLabel
+	}
+
 	// When the NutanixMachine's label "metro.nutanix.com/native-failuredomain" is set
 	nativeFdName := ""
 	if nativeFd, ok := rctx.NutanixMachine.Labels[metroNativeFailureDomainLabelKey]; ok {
@@ -860,8 +874,11 @@ func (r *NutanixMachineReconciler) getMetroSiteFailureDomainSpec(rctx *nctx.Mach
 			return nil, err
 		}
 
-		// return the failureDomain spec if it is the native-failuredomain
+		// return the failureDomain spec if it is the native-failuredomain. The placement was already
+		// decided previously, but we must still repopulate the reconcile Datastore so a VM (re)created
+		// on this reconcile still receives its vHADomain category and metro custom attributes.
 		if nativeFdName == fdObj.Name {
+			r.storeMetroPlacementSelection(rctx, fdObj)
 			return &fdObj.Spec, nil
 		}
 
@@ -874,11 +891,6 @@ func (r *NutanixMachineReconciler) getMetroSiteFailureDomainSpec(rctx *nctx.Mach
 
 	if selectedFd == nil {
 		return nil, fmt.Errorf("the NutanixMetroSite %s preferredFailureDomain %s is not in the NutanixMetro %s failureDomains", metrositeName, metrositeObj.Spec.PreferredFailureDomain.Name, metroObj.Name)
-	}
-
-	// Keep the MetroSite's groupNameLabel in the context Datastore
-	if metrositeObj.Spec.GroupNameLabel != nil && *metrositeObj.Spec.GroupNameLabel != "" {
-		rctx.Datastore[nctx.MetroNodeGroupNameLabel] = metrositeObj.Spec.GroupNameLabel
 	}
 
 	// The selected is the preferred failureDomain. Only when it failed at validation, try the remaining one.
@@ -1851,7 +1863,12 @@ func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.Mach
 		}
 	}
 
-	// Add the vHADomain category if the machine is configured with a NutanixMetro/NutanixMetroSite failureDomain.
+	// Add the vHADomain category if the machine is configured with a NutanixMetro/NutanixMetroSite
+	// failureDomain. The vHADomain category is applied only at VM creation and is never re-synced onto
+	// an already-created VM, so this must succeed before the VM is created. Returning the error (rather
+	// than swallowing it) requeues the reconcile until the vHADomain and its Prism Central category are
+	// ready; otherwise a VM created before the vHADomain is ready (e.g. the first control-plane node on
+	// a fresh metro cluster) would be permanently left out of its metro protection policy/recovery plan.
 	if isNutanixMetroFailureDomain(rctx.Machine.Spec.FailureDomain) ||
 		isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
 		vhaCategory, err := getVHADomainCategory(rctx, r.Client)
