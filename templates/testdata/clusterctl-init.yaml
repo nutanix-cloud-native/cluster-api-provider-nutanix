@@ -4,6 +4,7 @@ CLUSTER_TOPOLOGY: 'true'
 NUTANIX_ENDPOINT: ''  # IP or FQDN of Prism Central
 NUTANIX_USER: ''  # Prism Central user
 NUTANIX_PASSWORD: ''  # Prism Central password
+NUTANIX_API_KEY: ''  # Prism Central API key (auto-selects api_key auth when set)
 providers:
   # add a custom provider
   - name: "nutanix"

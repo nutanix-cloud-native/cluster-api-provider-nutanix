@@ -83,6 +83,8 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
     export NUTANIX_ENDPOINT='pc.nutanix.com'
     export NUTANIX_USER='username'
     export NUTANIX_PASSWORD='password'
+    # Optional: set API key instead of username/password.
+    # export NUTANIX_API_KEY='your-api-key'
     export NUTANIX_INSECURE='false'
     export NUTANIX_PORT='9440'
     
@@ -236,6 +238,8 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
     export NUTANIX_ENDPOINT='pc.nutanix.com'
     export NUTANIX_USER='username'
     export NUTANIX_PASSWORD='password'
+    # Optional: set API key instead of username/password.
+    # export NUTANIX_API_KEY='your-api-key'
     export NUTANIX_INSECURE='false'
     export NUTANIX_PORT='9440'
     

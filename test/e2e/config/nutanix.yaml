@@ -115,8 +115,11 @@ variables:
   CLUSTER_CLASS_NAME: "nutanix-quick-start"
   NUTANIX_PROVIDER: "true"
   NUTANIX_ENDPOINT: ""
+  # Auto-derived by Makefile from NUTANIX_API_KEY. If API Key is set, it will be set to "api_key", otherwise "basic_auth".
+  NUTANIX_CREDENTIALS_TYPE: ""
   NUTANIX_USER: ""
   NUTANIX_PASSWORD: ""
+  NUTANIX_API_KEY: ""
   NUTANIX_PORT: "9440"
   IMAGE_LOOKUP_BASE_OS: "rockylinux-9"
   IMAGE_LOOKUP_FORMAT: "\"{{.BaseOS}}-kube-v{{.K8sVersion}}.*\""

@@ -8,6 +8,7 @@
     "gnumake@latest",
     "ginkgo@latest",
     "go@latest",
+    "git@latest",
     "golangci-lint@latest",
     "gotestsum@latest",
     "kubernetes-helm@latest",

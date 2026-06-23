@@ -196,6 +196,7 @@ For development and testing, set these variables (see `docs/developer_workflow.m
 - `NUTANIX_ENDPOINT` - Prism Central endpoint
 - `NUTANIX_USER` - Nutanix username
 - `NUTANIX_PASSWORD` - Nutanix password
+- `NUTANIX_API_KEY` - Prism Central API key; when set, auth type is auto-selected as `api_key`, otherwise `basic_auth`
 - `NUTANIX_INSECURE` - Whether to skip TLS verification: usually if the Prism Central certificate is not from publicly trusted CA (`true`/`false`)
 - `NUTANIX_PORT` - Prism Central API port (typically `9440`)
 - `CONTROL_PLANE_ENDPOINT_IP` - Cluster endpoint IP

@@ -39,6 +39,7 @@ const (
 	nutanixInsecureVarKey              = "NUTANIX_INSECURE"
 	nutanixUsernameVarKey              = "NUTANIX_USER"
 	nutanixPasswordVarKey              = "NUTANIX_PASSWORD"
+	nutanixAPIKeyVarKey                = "NUTANIX_API_KEY"
 	nutanixAdditionalTrustBundleVarKey = "NUTANIX_ADDITIONAL_TRUST_BUNDLE"
 )
 
@@ -77,13 +78,14 @@ type baseAuthCredentials struct {
 
 func getBaseAuthCredentials(e2eConfig clusterctl.E2EConfig) baseAuthCredentials {
 	return baseAuthCredentials{
-		username: fetchCredentialParameter(nutanixUsernameVarKey, e2eConfig, false),
-		password: fetchCredentialParameter(nutanixPasswordVarKey, e2eConfig, false),
+		username: fetchCredentialParameter(nutanixUsernameVarKey, e2eConfig, true),
+		password: fetchCredentialParameter(nutanixPasswordVarKey, e2eConfig, true),
 	}
 }
 
 func getNutanixCredentials(e2eConfig clusterctl.E2EConfig) (prismGoClient.Credentials, error) {
 	up := getBaseAuthCredentials(e2eConfig)
+	apiKey := fetchCredentialParameter(nutanixAPIKeyVarKey, e2eConfig, true)
 	if nutanixEndpoint == "" {
 		nutanixEndpoint = fetchCredentialParameter(nutanixEndpointVarKey, e2eConfig, false)
 	}
@@ -97,13 +99,26 @@ func getNutanixCredentials(e2eConfig clusterctl.E2EConfig) (prismGoClient.Creden
 		nutanixAdditionalTrustBundle = fetchCredentialParameter(nutanixAdditionalTrustBundleVarKey, e2eConfig, true)
 	}
 
-	creds := prismGoClient.Credentials{
-		Port:     nutanixPort,
-		Endpoint: nutanixEndpoint,
+	// Validate API credentials first to avoid creating invalid credentials object.
+	apiCreds := prismGoClientTypes.ApiCredentials{
+		APIKey:   apiKey,
 		Username: up.username,
 		Password: up.password,
+	}
+
+	if err := apiCreds.Validate(); err != nil {
+		return prismGoClient.Credentials{}, err
+	}
+
+	creds := prismGoClient.Credentials{
+		APIKey:   apiCreds.APIKey,
+		Username: apiCreds.Username,
+		Password: apiCreds.Password,
+		Port:     nutanixPort,
+		Endpoint: nutanixEndpoint,
 		URL:      fmt.Sprintf("https://%s:%s", nutanixEndpoint, nutanixPort),
 	}
+
 	if nutanixInsecure != "" {
 		insecureBool, err := strconv.ParseBool(nutanixInsecure)
 		if err != nil {

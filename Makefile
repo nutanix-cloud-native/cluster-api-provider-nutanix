@@ -82,6 +82,9 @@ CNI_PATH_CILIUM_NO_KUBEPROXY ?= "${E2E_DIR}/data/cni/cilium/cilium-no-kubeproxy.
 CNI_PATH_FLANNEL ?= "${E2E_DIR}/data/cni/flannel/flannel.yaml"
 CNI_PATH_KINDNET ?= "${E2E_DIR}/data/cni/kindnet/kindnet.yaml"
 CCM_VERSION ?= 0.7.0-alpha.1
+# Auto-select credential type: API key takes precedence when set.
+NUTANIX_CREDENTIALS_TYPE ?= $(if $(strip $(NUTANIX_API_KEY)),api_key,basic_auth)
+export NUTANIX_CREDENTIALS_TYPE
 
 # CRD_OPTIONS define options to add to the CONTROLLER_GEN
 CRD_OPTIONS ?= "crd:crdVersions=v1"
