@@ -1003,6 +1003,25 @@ func (r *NutanixVirtualHADomainReconciler) getOrCreateVHADomainRecoveryPlan(
 func (r *NutanixVirtualHADomainReconciler) deleteVHADomainPCResources(rctx *nctx.VHADomainContext) error {
 	log := ctrl.LoggerFrom(rctx.Context)
 
+	if err := r.deleteVHADomainRecoveryPlans(rctx); err != nil {
+		return err
+	}
+	if err := r.deleteVHADomainProtectionPolicy(rctx); err != nil {
+		return err
+	}
+	if err := r.deleteVHADomainCategories(rctx); err != nil {
+		return err
+	}
+
+	log.Info("Successfully cleaned up vHADomain PC resources")
+	return nil
+}
+
+// deleteVHADomainRecoveryPlans deletes every recovery plan referenced by the vHA
+// domain's movement groups, tolerating plans that are already gone.
+func (r *NutanixVirtualHADomainReconciler) deleteVHADomainRecoveryPlans(rctx *nctx.VHADomainContext) error {
+	log := ctrl.LoggerFrom(rctx.Context)
+
 	for groupName, movementGroup := range rctx.VHADomain.Spec.MovementGroups {
 		for i := range movementGroup.CategoryRecoveryPlans {
 			rp := movementGroup.CategoryRecoveryPlans[i].RecoveryPlan
@@ -1019,20 +1038,36 @@ func (r *NutanixVirtualHADomainReconciler) deleteVHADomainPCResources(rctx *nctx
 			}
 		}
 	}
+	return nil
+}
 
-	if rctx.VHADomain.Spec.ProtectionGroup != nil {
-		pp := rctx.VHADomain.Spec.ProtectionGroup.ProtectionPolicy
-		ppUUID := pp.String()
-		if ppUUID != "" {
-			log.Info("Deleting protection policy", "identifier", pp.DisplayString())
-			if err := rctx.ConvergedClient.DataPolicies.ProtectionPolicies.Delete(rctx.Context, ppUUID); err != nil {
-				if !converged.IsNotFound(err) {
-					return fmt.Errorf("failed to delete protection policy %s: %w", pp.DisplayString(), err)
-				}
-				log.V(1).Info("Protection policy already deleted", "identifier", pp.DisplayString())
-			}
-		}
+// deleteVHADomainProtectionPolicy deletes the vHA domain's protection policy,
+// tolerating a policy that is already gone.
+func (r *NutanixVirtualHADomainReconciler) deleteVHADomainProtectionPolicy(rctx *nctx.VHADomainContext) error {
+	log := ctrl.LoggerFrom(rctx.Context)
+
+	if rctx.VHADomain.Spec.ProtectionGroup == nil {
+		return nil
 	}
+	pp := rctx.VHADomain.Spec.ProtectionGroup.ProtectionPolicy
+	ppUUID := pp.String()
+	if ppUUID == "" {
+		return nil
+	}
+	log.Info("Deleting protection policy", "identifier", pp.DisplayString())
+	if err := rctx.ConvergedClient.DataPolicies.ProtectionPolicies.Delete(rctx.Context, ppUUID); err != nil {
+		if !converged.IsNotFound(err) {
+			return fmt.Errorf("failed to delete protection policy %s: %w", pp.DisplayString(), err)
+		}
+		log.V(1).Info("Protection policy already deleted", "identifier", pp.DisplayString())
+	}
+	return nil
+}
+
+// deleteVHADomainCategories deletes the de-duplicated set of categories
+// referenced by the vHA domain's movement groups.
+func (r *NutanixVirtualHADomainReconciler) deleteVHADomainCategories(rctx *nctx.VHADomainContext) error {
+	log := ctrl.LoggerFrom(rctx.Context)
 
 	categoryIdentifiers := make([]*infrav1.NutanixCategoryIdentifier, 0)
 	seen := make(map[string]struct{})
@@ -1056,8 +1091,6 @@ func (r *NutanixVirtualHADomainReconciler) deleteVHADomainPCResources(rctx *nctx
 			return fmt.Errorf("failed to delete vHA domain categories: %w", err)
 		}
 	}
-
-	log.Info("Successfully cleaned up vHADomain PC resources")
 	return nil
 }
 
