@@ -30,12 +30,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
-	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
-	"github.com/nutanix-cloud-native/prism-go-client/converged"
-	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
-	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
@@ -52,8 +46,14 @@ import (
 	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"         //nolint:staticcheck // suppress complaining on Deprecated package
 	v1beta2conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions/v1beta2" //nolint:staticcheck // suppress complaining on Deprecated package
 	ctrl "sigs.k8s.io/controller-runtime"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	"github.com/nutanix-cloud-native/prism-go-client/converged"
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
+	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 )
 
 const (
@@ -1415,10 +1415,18 @@ func getVHADomainCategory(mctx *nctx.MachineContext, ctlclient client.Client) (*
 		// Find the category-recovery-plan mapping for the preferred failure domain. Only the
 		// cluster-scope movement group is supported for now; nodepool-scope movement groups are not
 		// yet handled, so we restrict the lookup to the well-known cluster-scope group.
-		movementGroup, ok := vhaDomain.Spec.MovementGroups[clusterScopeMovementGroupName]
-		if !ok {
+		mgIdx := -1
+		for i, mg := range vhaDomain.Spec.MovementGroups {
+			if mg.Name == clusterScopeMovementGroupName {
+				mgIdx = i
+				break
+			}
+		}
+		if mgIdx < 0 {
 			return nil, fmt.Errorf("vHADomain %s has no %q (cluster-scope) movement group", vhaDomain.Name, clusterScopeMovementGroupName)
 		}
+		movementGroup := vhaDomain.Spec.MovementGroups[mgIdx]
+
 		for i := range movementGroup.CategoryRecoveryPlans {
 			crp := movementGroup.CategoryRecoveryPlans[i]
 			if crp.FailureDomainRef.Name != *preferredFailureDomain {

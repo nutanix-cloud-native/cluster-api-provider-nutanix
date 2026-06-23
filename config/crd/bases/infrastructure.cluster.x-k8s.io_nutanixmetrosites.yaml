@@ -71,6 +71,9 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+                x-kubernetes-validations:
+                - message: metroRef.name must not be empty
+                  rule: self.name != ""
               preferredFailureDomain:
                 description: preferredFailureDomain holds reference to the preferred
                   NutanixFailureDomain object of the NutanixMetroSite.
@@ -86,6 +89,9 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+                x-kubernetes-validations:
+                - message: preferredFailureDomain.name must not be empty
+                  rule: self.name != ""
             required:
             - metroRef
             - preferredFailureDomain
