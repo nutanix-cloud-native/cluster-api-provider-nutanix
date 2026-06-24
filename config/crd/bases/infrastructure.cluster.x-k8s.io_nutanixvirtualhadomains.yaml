@@ -71,6 +71,8 @@ spec:
                 type: object
                 x-kubernetes-map-type: atomic
                 x-kubernetes-validations:
+                - message: metroRef is immutable once set
+                  rule: self == oldSelf
                 - message: metroRef.name must not be empty
                   rule: self.name != ""
               movementGroups:
@@ -165,7 +167,7 @@ spec:
                       type: array
                       x-kubernetes-list-type: atomic
                     name:
-                      description: name is the name of the group
+                      description: name is the name of the movement group
                       maxLength: 64
                       minLength: 1
                       pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
@@ -179,8 +181,8 @@ spec:
                 - name
                 x-kubernetes-list-type: map
               protectionPolicy:
-                description: protectionPolicy identifies the protection policy applied
-                  to this virtual HA domain.
+                description: protectionPolicy identifies the protection policy PC
+                  resource applied to this virtual HA domain.
                 properties:
                   name:
                     description: name is the resource name in the PC

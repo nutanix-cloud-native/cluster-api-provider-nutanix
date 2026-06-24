@@ -33,11 +33,12 @@ const (
 // NutanixVirtualHADomainSpec defines the desired state of NutanixVirtualHADomain.
 type NutanixVirtualHADomainSpec struct {
 	// metroRef is a reference to the NutanixMetro object that this virtual HA domain belongs to.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="metroRef is immutable once set"
 	// +kubebuilder:validation:XValidation:rule=`self.name != ""`,message="metroRef.name must not be empty"
 	// +kubebuilder:validation:Required
 	MetroRef corev1.LocalObjectReference `json:"metroRef"`
 
-	// protectionPolicy identifies the protection policy applied to this virtual HA domain.
+	// protectionPolicy identifies the protection policy PC resource applied to this virtual HA domain.
 	// +optional
 	ProtectionPolicy *NutanixResourceIdentifier `json:"protectionPolicy"`
 
@@ -52,7 +53,7 @@ type NutanixVirtualHADomainSpec struct {
 // virtual HA domain failover or migration. It maps each category to the recovery plan
 // that protects the entities associated with that category.
 type NutanixMovementGroup struct {
-	// name is the name of the group
+	// name is the name of the movement group
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=64
