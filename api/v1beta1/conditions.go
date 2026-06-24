@@ -153,6 +153,10 @@ const (
 
 	// VHADomainFailedCleanup indicates that cleaning up the vHA domain's PC resources failed.
 	VHADomainFailedCleanup = "VHADomainFailedCleanup"
+
+	// VHADomainCleanupSucceeded indicates that the vHA domain's owning Cluster/NutanixCluster is in
+	// deletion and its PC resources have been cleaned up, so the object is safe for deletion.
+	VHADomainCleanupSucceeded = "VHADomainCleanupSucceeded"
 )
 
 const (

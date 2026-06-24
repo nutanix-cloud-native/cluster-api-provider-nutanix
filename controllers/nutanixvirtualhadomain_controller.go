@@ -46,9 +46,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
 const (
@@ -319,6 +316,14 @@ func (r *NutanixVirtualHADomainReconciler) reconcileDelete(ctx context.Context, 
 		log.Info("Owning NutanixCluster is not available, skipping PC resource cleanup")
 	}
 
+	// The owning Cluster/NutanixCluster is in deletion (or already gone) and the PC resources have
+	// been cleaned up, so the object is now safe for deletion.
+	conditions.Set(vHADomain, metav1.Condition{
+		Type:   infrav1.VHADomainSafeForDeletionCondition,
+		Status: metav1.ConditionTrue,
+		Reason: infrav1.VHADomainCleanupSucceeded,
+	})
+
 	// Remove the finalizer from the NutanixVirtualHADomain object
 	ctrlutil.RemoveFinalizer(vHADomain, infrav1.NutanixVirtualHADomainFinalizer)
 	log.Info("Removed finalizer from the vHADomain object", "finalizer", infrav1.NutanixVirtualHADomainFinalizer)
@@ -382,28 +387,24 @@ func (r *NutanixVirtualHADomainReconciler) reconcileNormal(rctx *nctx.VHADomainC
 	}
 
 	// Compute readiness from the (now resolved) spec.
-	movementGroupStatuses := map[string]infrav1.NutanixMovementGroupStatus{}
 	allGroupsReady := len(rctx.VHADomain.Spec.MovementGroups) > 0
-	for name, movementGroup := range rctx.VHADomain.Spec.MovementGroups {
+	for i := range rctx.VHADomain.Spec.MovementGroups {
+		movementGroup := rctx.VHADomain.Spec.MovementGroups[i]
 		groupReady := len(movementGroup.CategoryRecoveryPlans) > 0
-		for i := range movementGroup.CategoryRecoveryPlans {
-			if movementGroup.CategoryRecoveryPlans[i].RecoveryPlan.String() == "" {
+		for j := range movementGroup.CategoryRecoveryPlans {
+			if movementGroup.CategoryRecoveryPlans[j].RecoveryPlan.String() == "" {
 				groupReady = false
 			}
 		}
-		movementGroupStatuses[name] = infrav1.NutanixMovementGroupStatus{Ready: groupReady}
 		if !groupReady {
 			allGroupsReady = false
 		}
 	}
-	rctx.VHADomain.Status.MovementGroups = movementGroupStatuses
 
-	rctx.VHADomain.Status.Ready = rctx.VHADomain.Spec.ProtectionGroup != nil &&
-		rctx.VHADomain.Spec.ProtectionGroup.ProtectionPolicy.String() != "" &&
+	rctx.VHADomain.Status.Ready = rctx.VHADomain.Spec.ProtectionPolicy != nil &&
+		rctx.VHADomain.Spec.ProtectionPolicy.String() != "" &&
 		allGroupsReady
 
-		rctx.VHADomain.Status.Ready = rctx.VHADomain.Spec.ProtectionGroup != nil && allGroupsReady
-	*/
 	return nil
 }
 
@@ -464,8 +465,8 @@ func (r *NutanixVirtualHADomainReconciler) ensureVHADomainPCResources(
 	// preserved (their contents are regenerated); when none are provided a single
 	// "default" group is synthesized. Names are sorted for deterministic ordering.
 	groupNames := make([]string, 0, len(rctx.VHADomain.Spec.MovementGroups))
-	for name := range rctx.VHADomain.Spec.MovementGroups {
-		groupNames = append(groupNames, name)
+	for i := range rctx.VHADomain.Spec.MovementGroups {
+		groupNames = append(groupNames, rctx.VHADomain.Spec.MovementGroups[i].Name)
 	}
 	if len(groupNames) == 0 {
 		groupNames = append(groupNames, vhaDefaultMovementGroup)
@@ -474,7 +475,7 @@ func (r *NutanixVirtualHADomainReconciler) ensureVHADomainPCResources(
 
 	// Generate one category and one recovery plan per failure domain, per group.
 	// All categories are collected so the protection policy can tag them.
-	movementGroups := make(map[string]infrav1.NutanixMovementGroup, len(groupNames))
+	movementGroups := make([]infrav1.NutanixMovementGroup, 0, len(groupNames))
 	allCategories := make([]infrav1.NutanixCategoryIdentifier, 0, len(groupNames)*len(failureDomains))
 	for _, group := range groupNames {
 		categories, err := r.getOrCreateVHADomainGroupCategories(rctx, group, failureDomains)
@@ -490,7 +491,10 @@ func (r *NutanixVirtualHADomainReconciler) ensureVHADomainPCResources(
 				FailureDomainRef: corev1.LocalObjectReference{Name: fd.Name},
 			}
 		}
-		movementGroups[group] = infrav1.NutanixMovementGroup{CategoryRecoveryPlans: categoryRecoveryPlans}
+		movementGroups = append(movementGroups, infrav1.NutanixMovementGroup{
+			Name:                  group,
+			CategoryRecoveryPlans: categoryRecoveryPlans,
+		})
 	}
 
 	// Generate and ensure the protection policy (synchronous replication, RPO=0)
@@ -503,23 +507,21 @@ func (r *NutanixVirtualHADomainReconciler) ensureVHADomainPCResources(
 	// Generate and ensure one recovery plan per failure domain, per group, and
 	// store the resolved UUID back into the corresponding mapping.
 	recoveryPlanCount := 0
-	for _, group := range groupNames {
-		movementGroup := movementGroups[group]
-		for i := range movementGroup.CategoryRecoveryPlans {
+	for gi := range movementGroups {
+		group := movementGroups[gi].Name
+		for i := range movementGroups[gi].CategoryRecoveryPlans {
 			recoveryPlan, err := r.getOrCreateVHADomainRecoveryPlan(rctx, group, peUUIDs, peNames, subnetNames, i, azURL)
 			if err != nil {
 				return err
 			}
-			movementGroup.CategoryRecoveryPlans[i].RecoveryPlan = *recoveryPlan
+			movementGroups[gi].CategoryRecoveryPlans[i].RecoveryPlan = *recoveryPlan
 			recoveryPlanCount++
 		}
 	}
 
 	// Persist the generated resources back into the spec.
 	rctx.VHADomain.Spec.MovementGroups = movementGroups
-	rctx.VHADomain.Spec.ProtectionGroup = &infrav1.NutanixProtectionGroup{
-		ProtectionPolicy: *protectionPolicy,
-	}
+	rctx.VHADomain.Spec.ProtectionPolicy = protectionPolicy
 
 	conditions.Set(rctx.VHADomain, metav1.Condition{
 		Type:   infrav1.VHADomainPCResourcesValidatedCondition,
@@ -574,13 +576,14 @@ func (r *NutanixVirtualHADomainReconciler) validateVHADomainPCResources(
 		}
 	}
 
-	if pg := rctx.VHADomain.Spec.ProtectionGroup; pg != nil {
-		if err := r.validateProtectionPolicyExists(rctx, &pg.ProtectionPolicy); err != nil {
+	if pp := rctx.VHADomain.Spec.ProtectionPolicy; pp != nil {
+		if err := r.validateProtectionPolicyExists(rctx, pp); err != nil {
 			validationErrors = append(validationErrors, err)
 		}
 	}
 
-	for groupName, movementGroup := range rctx.VHADomain.Spec.MovementGroups {
+	for _, movementGroup := range rctx.VHADomain.Spec.MovementGroups {
+		groupName := movementGroup.Name
 		for i := range movementGroup.CategoryRecoveryPlans {
 			crp := movementGroup.CategoryRecoveryPlans[i]
 			idx, ok := fdIndexByName[crp.FailureDomainRef.Name]
@@ -1022,7 +1025,8 @@ func (r *NutanixVirtualHADomainReconciler) deleteVHADomainPCResources(rctx *nctx
 func (r *NutanixVirtualHADomainReconciler) deleteVHADomainRecoveryPlans(rctx *nctx.VHADomainContext) error {
 	log := ctrl.LoggerFrom(rctx.Context)
 
-	for groupName, movementGroup := range rctx.VHADomain.Spec.MovementGroups {
+	for _, movementGroup := range rctx.VHADomain.Spec.MovementGroups {
+		groupName := movementGroup.Name
 		for i := range movementGroup.CategoryRecoveryPlans {
 			rp := movementGroup.CategoryRecoveryPlans[i].RecoveryPlan
 			rpUUID := rp.String()
@@ -1030,11 +1034,28 @@ func (r *NutanixVirtualHADomainReconciler) deleteVHADomainRecoveryPlans(rctx *nc
 				continue
 			}
 			log.Info("Deleting recovery plan", "movementGroup", groupName, "identifier", rp.DisplayString())
-			if _, err := rctx.NutanixClient.V3.DeleteRecoveryPlan(rctx.Context, rpUUID); err != nil {
+			resp, err := rctx.NutanixClient.V3.DeleteRecoveryPlan(rctx.Context, rpUUID)
+			if err != nil {
 				if !strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
 					return fmt.Errorf("failed to delete recovery plan %s: %w", rp.DisplayString(), err)
 				}
 				log.V(1).Info("Recovery plan already deleted", "identifier", rp.DisplayString())
+				continue
+			}
+
+			// Wait for the deletion task to complete before proceeding. Recovery plan
+			// deletion is asynchronous and, until it finishes, the plan still references
+			// the vHA categories. Deleting those categories next (deleteVHADomainCategories)
+			// would otherwise race the in-flight deletion and fail with the category still
+			// in use, which is then silently swallowed and leaks the category in Prism Central.
+			if resp != nil && resp.Status != nil && resp.Status.ExecutionContext != nil && resp.Status.ExecutionContext.TaskUUID != nil {
+				taskUUID, ok := resp.Status.ExecutionContext.TaskUUID.(string)
+				if ok && taskUUID != "" {
+					log.V(1).Info("Waiting for recovery plan deletion task", "identifier", rp.DisplayString(), "taskUUID", taskUUID)
+					if err := nutanixclient.WaitForTaskToSucceed(rctx.Context, rctx.NutanixClient, taskUUID); err != nil {
+						return fmt.Errorf("recovery plan %s deletion task failed: %w", rp.DisplayString(), err)
+					}
+				}
 			}
 		}
 	}
@@ -1046,10 +1067,10 @@ func (r *NutanixVirtualHADomainReconciler) deleteVHADomainRecoveryPlans(rctx *nc
 func (r *NutanixVirtualHADomainReconciler) deleteVHADomainProtectionPolicy(rctx *nctx.VHADomainContext) error {
 	log := ctrl.LoggerFrom(rctx.Context)
 
-	if rctx.VHADomain.Spec.ProtectionGroup == nil {
+	if rctx.VHADomain.Spec.ProtectionPolicy == nil {
 		return nil
 	}
-	pp := rctx.VHADomain.Spec.ProtectionGroup.ProtectionPolicy
+	pp := rctx.VHADomain.Spec.ProtectionPolicy
 	ppUUID := pp.String()
 	if ppUUID == "" {
 		return nil
