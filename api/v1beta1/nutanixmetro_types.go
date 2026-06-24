@@ -33,6 +33,8 @@ const (
 // NutanixMetroSpec defines the desired state of NutanixMetro
 type NutanixMetroSpec struct {
 	// failureDomains holds references to the two NutanixFailureDomain objects of the NutanixMetro.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="failureDomains is immutable once set"
+	// +kubebuilder:validation:XValidation:rule=`self.all(x, x.name != "")`,message="each failureDomain reference name must not be empty"
 	// +kubebuilder:validation:MinItems=2
 	// +kubebuilder:validation:MaxItems=2
 	// +listType=map
@@ -42,7 +44,7 @@ type NutanixMetroSpec struct {
 
 // NutanixMetroStatus defines the state of the NutanixMetro resource.
 type NutanixMetroStatus struct {
-	// conditions represent the latest states of the metro,
+	// conditions represent the latest states of the metro
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }

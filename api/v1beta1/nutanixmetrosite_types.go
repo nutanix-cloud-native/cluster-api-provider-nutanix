@@ -33,10 +33,14 @@ const (
 // NutanixMetroSiteSpec defines the desired state of NutanixMetroSite
 type NutanixMetroSiteSpec struct {
 	// preferredFailureDomain holds reference to the preferred NutanixFailureDomain object of the NutanixMetroSite.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="preferredFailureDomain is immutable once set"
+	// +kubebuilder:validation:XValidation:rule=`self.name != ""`,message="preferredFailureDomain.name must not be empty"
 	// +kubebuilder:validation:Required
 	PreferredFailureDomain corev1.LocalObjectReference `json:"preferredFailureDomain"`
 
 	// metroRef holds reference to the NutanixMetro object this site belongs to.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="metroRef is immutable once set"
+	// +kubebuilder:validation:XValidation:rule=`self.name != ""`,message="metroRef.name must not be empty"
 	// +kubebuilder:validation:Required
 	MetroRef corev1.LocalObjectReference `json:"metroRef"`
 
