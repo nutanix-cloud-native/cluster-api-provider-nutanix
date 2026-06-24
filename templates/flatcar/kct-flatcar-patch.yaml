@@ -1,0 +1,29 @@
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: "${CLUSTER_NAME}-kcfg-0"
+spec:
+  template:
+    spec:
+      format: ignition
+      ignition:
+        # Order kubeadm after containerd and oem-cloudinit.service.
+        containerLinuxConfig:
+          additionalConfig: |
+            systemd:
+              units:
+              - name: kubeadm.service
+                enabled: true
+                dropins:
+                - name: 10-flatcar.conf
+                  contents: |
+                    [Unit]
+                    Requires=containerd.service oem-cloudinit.service
+                    After=containerd.service oem-cloudinit.service
+      # Drop base's `hostnamectl ... {{ ds.meta_data.hostname }}` (cloud-init
+      # jinja Flatcar can't expand); add envsubst for the Ignition kubeadm config.
+      preKubeadmCommands:
+        - echo "before kubeadm call" > /var/log/prekubeadm.log
+        - |
+          envsubst < /etc/kubeadm.yml > /etc/kubeadm.yml.tmp
+          mv /etc/kubeadm.yml.tmp /etc/kubeadm.yml
