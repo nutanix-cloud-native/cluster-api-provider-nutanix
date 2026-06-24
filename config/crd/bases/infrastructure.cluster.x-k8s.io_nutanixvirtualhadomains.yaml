@@ -71,14 +71,18 @@ spec:
                 type: object
                 x-kubernetes-map-type: atomic
                 x-kubernetes-validations:
+                - message: metroRef is immutable once set
+                  rule: self == oldSelf
                 - message: metroRef.name must not be empty
                   rule: self.name != ""
               movementGroups:
-                additionalProperties:
+                description: movementGroups defines the named groups of entities that
+                  move together within this virtual HA domain.
+                items:
                   description: |-
-                    NutanixMovementGroup defines a group of entities that are moved together as part of a
+                    NutanixMovementGroup defines a named group of entities that are moved together as part of a
                     virtual HA domain failover or migration. It maps each category to the recovery plan
-                    that protects the entities belonging to that category.
+                    that protects the entities associated with that category.
                   properties:
                     categoryRecoveryPlans:
                       description: |-
@@ -158,55 +162,55 @@ spec:
                         - failureDomainRef
                         - recoveryPlan
                         type: object
-                      minItems: 1
+                      maxItems: 2
+                      minItems: 2
                       type: array
                       x-kubernetes-list-type: atomic
+                    name:
+                      description: name is the name of the movement group
+                      maxLength: 64
+                      minLength: 1
+                      pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                      type: string
                   required:
                   - categoryRecoveryPlans
+                  - name
                   type: object
-                description: |-
-                  movementGroups defines the named groups of entities that move together within this
-                  virtual HA domain. Each key is a user-defined group name (for example "default") and
-                  the value describes the entities belonging to that group.
-                type: object
-              protectionGroup:
-                description: protectionGroup identifies the protection policy applied
-                  to this virtual HA domain.
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
+              protectionPolicy:
+                description: protectionPolicy identifies the protection policy PC
+                  resource applied to this virtual HA domain.
                 properties:
-                  protectionPolicy:
-                    description: protectionPolicy identifies the protection policy
-                      applied to this virtual HA domain.
-                    properties:
-                      name:
-                        description: name is the resource name in the PC
-                        minLength: 1
-                        type: string
-                      type:
-                        description: Type is the identifier type to use for this resource.
-                        enum:
-                        - uuid
-                        - name
-                        type: string
-                      uuid:
-                        description: uuid is the UUID of the resource in the PC.
-                        format: uuid
-                        maxLength: 36
-                        minLength: 36
-                        type: string
-                    required:
-                    - type
-                    type: object
-                    x-kubernetes-validations:
-                    - message: '''name'' must be set when type is ''name'', and forbidden
-                        otherwise'
-                      rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
-                    - message: '''uuid'' must be set when type is ''uuid'', and forbidden
-                        otherwise'
-                      rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
-                        : !has(self.uuid)'
+                  name:
+                    description: name is the resource name in the PC
+                    minLength: 1
+                    type: string
+                  type:
+                    description: Type is the identifier type to use for this resource.
+                    enum:
+                    - uuid
+                    - name
+                    type: string
+                  uuid:
+                    description: uuid is the UUID of the resource in the PC.
+                    format: uuid
+                    maxLength: 36
+                    minLength: 36
+                    type: string
                 required:
-                - protectionPolicy
+                - type
                 type: object
+                x-kubernetes-validations:
+                - message: '''name'' must be set when type is ''name'', and forbidden
+                    otherwise'
+                  rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
+                - message: '''uuid'' must be set when type is ''uuid'', and forbidden
+                    otherwise'
+                  rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
+                    : !has(self.uuid)'
             required:
             - metroRef
             type: object
@@ -272,23 +276,6 @@ spec:
                   - type
                   type: object
                 type: array
-              movementGroups:
-                additionalProperties:
-                  description: NutanixMovementGroupStatus captures the observed state
-                    of a movement group within a virtual HA domain.
-                  properties:
-                    ready:
-                      default: false
-                      description: ready is set to true when the movement group PC
-                        resources (categories, recovery plans) are valid and ready.
-                      type: boolean
-                  required:
-                  - ready
-                  type: object
-                description: |-
-                  movementGroups captures the observed state of each movement group defined in the
-                  spec, keyed by the movement group name.
-                type: object
               ready:
                 default: false
                 description: |-

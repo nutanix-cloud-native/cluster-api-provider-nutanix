@@ -74,6 +74,11 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
+                x-kubernetes-validations:
+                - message: failureDomains is immutable once set
+                  rule: self == oldSelf
+                - message: each failureDomain reference name must not be empty
+                  rule: self.all(x, x.name != "")
             required:
             - failureDomains
             type: object
@@ -82,7 +87,7 @@ spec:
               resource.
             properties:
               conditions:
-                description: conditions represent the latest states of the metro,
+                description: conditions represent the latest states of the metro
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.

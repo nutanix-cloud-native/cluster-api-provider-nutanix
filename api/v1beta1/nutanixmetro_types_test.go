@@ -17,11 +17,12 @@ limitations under the License.
 package v1beta1_test
 
 import (
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
 var _ = Describe("NutanixMetro CEL Validation", func() {
@@ -53,7 +54,7 @@ var _ = Describe("NutanixMetro CEL Validation", func() {
 		})
 	})
 
-	Context("failureDomains name uniqueness validation", func() {
+	Context("failureDomains name validation", func() {
 		It("should reject failureDomains with duplicate name", func() {
 			metroZone := defaultNutanixMetroObject()
 			metroZone.Spec.FailureDomains[1].Name = metroZone.Spec.FailureDomains[0].Name
@@ -61,6 +62,29 @@ var _ = Describe("NutanixMetro CEL Validation", func() {
 			err := k8sClient.Create(ctx, metroZone)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("spec.failureDomains[1]: Duplicate value"))
+		})
+
+		It("should reject failureDomains with empty name", func() {
+			metroZone := defaultNutanixMetroObject()
+			metroZone.Spec.FailureDomains[1].Name = ""
+
+			err := k8sClient.Create(ctx, metroZone)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("each failureDomain reference name must not be empty"))
+		})
+	})
+
+	Context("failureDomains immutable validation", func() {
+		It("should reject update to failureDomains", func() {
+			metro := defaultNutanixMetroObject()
+			Expect(k8sClient.Create(ctx, metro)).To(Succeed())
+
+			metro.Spec.FailureDomains[1].Name = "fd-bogus"
+			err := k8sClient.Update(ctx, metro)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failureDomains is immutable once set"))
+
+			_ = k8sClient.Delete(ctx, metro)
 		})
 	})
 })

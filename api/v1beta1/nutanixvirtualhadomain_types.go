@@ -33,38 +33,38 @@ const (
 // NutanixVirtualHADomainSpec defines the desired state of NutanixVirtualHADomain.
 type NutanixVirtualHADomainSpec struct {
 	// metroRef is a reference to the NutanixMetro object that this virtual HA domain belongs to.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="metroRef is immutable once set"
 	// +kubebuilder:validation:XValidation:rule=`self.name != ""`,message="metroRef.name must not be empty"
 	// +kubebuilder:validation:Required
 	MetroRef corev1.LocalObjectReference `json:"metroRef"`
 
-	// protectionGroup identifies the protection policy applied to this virtual HA domain.
+	// protectionPolicy identifies the protection policy PC resource applied to this virtual HA domain.
 	// +optional
-	ProtectionGroup *NutanixProtectionGroup `json:"protectionGroup,omitempty"`
+	ProtectionPolicy *NutanixResourceIdentifier `json:"protectionPolicy"`
 
-	// movementGroups defines the named groups of entities that move together within this
-	// virtual HA domain. Each key is a user-defined group name (for example "default") and
-	// the value describes the entities belonging to that group.
+	// movementGroups defines the named groups of entities that move together within this virtual HA domain.
+	// +listType=map
+	// +listMapKey=name
 	// +optional
-	MovementGroups map[string]NutanixMovementGroup `json:"movementGroups,omitempty"`
+	MovementGroups []NutanixMovementGroup `json:"movementGroups"`
 }
 
-// NutanixProtectionGroup defines the protection policy that protects a virtual HA domain.
-// The protection policy applies to the union of all categories across the movement groups.
-type NutanixProtectionGroup struct {
-	// protectionPolicy identifies the protection policy applied to this virtual HA domain.
-	// +kubebuilder:validation:Required
-	ProtectionPolicy NutanixResourceIdentifier `json:"protectionPolicy"`
-}
-
-// NutanixMovementGroup defines a group of entities that are moved together as part of a
+// NutanixMovementGroup defines a named group of entities that are moved together as part of a
 // virtual HA domain failover or migration. It maps each category to the recovery plan
-// that protects the entities belonging to that category.
+// that protects the entities associated with that category.
 type NutanixMovementGroup struct {
+	// name is the name of the movement group
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=64
+	// +kubebuilder:validation:Pattern=`[a-z0-9]([-a-z0-9]*[a-z0-9])?`
+	Name string `json:"name"`
+
 	// categoryRecoveryPlans is the list of category-to-recovery-plan mappings whose
 	// member entities belong to this movement group.
-	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems=2
+	// +kubebuilder:validation:MaxItems=2
 	// +listType=atomic
-	// +kubebuilder:validation:MinItems=1
 	CategoryRecoveryPlans []NutanixCategoryRecoveryPlan `json:"categoryRecoveryPlans"`
 }
 
@@ -86,13 +86,6 @@ type NutanixCategoryRecoveryPlan struct {
 	FailureDomainRef corev1.LocalObjectReference `json:"failureDomainRef"`
 }
 
-// NutanixMovementGroupStatus captures the observed state of a movement group within a virtual HA domain.
-type NutanixMovementGroupStatus struct {
-	// ready is set to true when the movement group PC resources (categories, recovery plans) are valid and ready.
-	// +kubebuilder:default=false
-	Ready bool `json:"ready"`
-}
-
 // NutanixVirtualHADomainStatus defines the observed state of NutanixVirtualHADomain.
 type NutanixVirtualHADomainStatus struct {
 	// conditions represent the latest states of the virtual HA domain.
@@ -103,11 +96,6 @@ type NutanixVirtualHADomainStatus struct {
 	// policy, and recovery plan) are valid and ready.
 	// +kubebuilder:default=false
 	Ready bool `json:"ready"`
-
-	// movementGroups captures the observed state of each movement group defined in the
-	// spec, keyed by the movement group name.
-	// +optional
-	MovementGroups map[string]NutanixMovementGroupStatus `json:"movementGroups,omitempty"`
 }
 
 // +kubebuilder:object:root=true

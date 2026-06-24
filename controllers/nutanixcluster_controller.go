@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"time"
 
-	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	corev1 "k8s.io/api/core/v1"
 	kapierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +38,6 @@ import (
 	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"         //nolint:staticcheck // suppress complaining on Deprecated package
 	v1beta2conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions/v1beta2" //nolint:staticcheck // suppress complaining on Deprecated package
 	v1beta1patch "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/patch"                   //nolint:staticcheck // suppress complaining on Deprecated package
-
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -52,6 +50,7 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 )
 
 // NutanixClusterReconciler reconciles a NutanixCluster object
@@ -439,7 +438,7 @@ func (r *NutanixClusterReconciler) reconcileVHADomains(rctx *nctx.ClusterContext
 		if err = r.Client.Create(rctx.Context, vHADomain); err != nil {
 			return fmt.Errorf("failed to create the NutanixVirtualHADomain CR corresponding to metro %q: %w", metroName, err)
 		}
-		log.Info(fmt.Sprintf("Created the NutanixVirtualHADomain CR corresponding to metro %q", metroName))
+		log.Info(fmt.Sprintf("Created the NutanixVirtualHADomain CR %q corresponding to metro %q", vHADomain.Name, metroName))
 	}
 
 	return nil

@@ -20,8 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 	"k8s.io/apimachinery/pkg/runtime"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
@@ -33,6 +31,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 )
 
 // NutanixVirtualHADomainReconciler reconciles a NutanixVirtualHADomain object
@@ -226,28 +227,28 @@ func (r *NutanixVirtualHADomainReconciler) reconcileNormal(rctx *nctx.VHADomainC
 	}
 
 	// FIXME: create the PC resources of the vHA domain and set the UUIDs in the spec
-
-	// Validate each movement group's categories exist in PC and compute readiness.
-	movementGroupStatuses := map[string]infrav1.NutanixMovementGroupStatus{}
-	allGroupsReady := len(rctx.VHADomain.Spec.MovementGroups) > 0
-	for name, movementGroup := range rctx.VHADomain.Spec.MovementGroups {
-		groupReady := len(movementGroup.CategoryRecoveryPlans) > 0
-		for i := range movementGroup.CategoryRecoveryPlans {
-			category := movementGroup.CategoryRecoveryPlans[i].Category
-			cat, err := getCategory(rctx.Context, rctx.ConvergedClient, category.Key, category.Value)
-			if err != nil || cat == nil {
-				log.Error(err, fmt.Sprintf("vHADomain %s movementGroup %s category (key:%s, value:%s) is not available in PC", rctx.VHADomain.Name, name, category.Key, category.Value))
-				groupReady = false
+	/*
+		// Validate each movement group's categories exist in PC and compute readiness.
+		movementGroupStatuses := map[string]infrav1.NutanixMovementGroupStatus{}
+		allGroupsReady := len(rctx.VHADomain.Spec.MovementGroups) > 0
+		for name, movementGroup := range rctx.VHADomain.Spec.MovementGroups {
+			groupReady := len(movementGroup.CategoryRecoveryPlans) > 0
+			for i := range movementGroup.CategoryRecoveryPlans {
+				category := movementGroup.CategoryRecoveryPlans[i].Category
+				cat, err := getCategory(rctx.Context, rctx.ConvergedClient, category.Key, category.Value)
+				if err != nil || cat == nil {
+					log.Error(err, fmt.Sprintf("vHADomain %s movementGroup %s category (key:%s, value:%s) is not available in PC", rctx.VHADomain.Name, name, category.Key, category.Value))
+					groupReady = false
+				}
+			}
+			movementGroupStatuses[name] = infrav1.NutanixMovementGroupStatus{Ready: groupReady}
+			if !groupReady {
+				allGroupsReady = false
 			}
 		}
-		movementGroupStatuses[name] = infrav1.NutanixMovementGroupStatus{Ready: groupReady}
-		if !groupReady {
-			allGroupsReady = false
-		}
-	}
-	rctx.VHADomain.Status.MovementGroups = movementGroupStatuses
+		rctx.VHADomain.Status.MovementGroups = movementGroupStatuses
 
-	rctx.VHADomain.Status.Ready = rctx.VHADomain.Spec.ProtectionGroup != nil && allGroupsReady
-
+		rctx.VHADomain.Status.Ready = rctx.VHADomain.Spec.ProtectionGroup != nil && allGroupsReady
+	*/
 	return nil
 }
