@@ -130,6 +130,35 @@ const (
 	ProjectAssignationFailed = "ProjectAssignationFailed"
 )
 
+// Conditions and Reasons related to NutanixVirtualHADomain.
+const (
+	// VHADomainPCResourcesValidatedCondition indicates whether the vHA domain PC resources
+	// (categories, protection policy, and recovery plans) are valid and present in Prism Central.
+	VHADomainPCResourcesValidatedCondition = "VHADomainPCResourcesValidated"
+
+	// VHADomainPCResourcesValidReason indicates that the vHA domain PC resources are valid and present.
+	VHADomainPCResourcesValidReason = "VHADomainPCResourcesValid"
+
+	// VHADomainPCResourcesValidationFailedReason indicates that one or more vHA domain PC resources
+	// are missing or could not be validated in Prism Central.
+	VHADomainPCResourcesValidationFailedReason = "VHADomainPCResourcesValidationFailed"
+
+	// VHADomainSafeForDeletionCondition indicates whether the NutanixVirtualHADomain object is safe
+	// for deletion, ie., its owning Cluster/NutanixCluster are in deletion and its PC resources are cleaned up.
+	VHADomainSafeForDeletionCondition = "VHADomainSafeForDeletion"
+
+	// VHADomainOwnerNotInDeletion indicates that the vHA domain's owning Cluster/NutanixCluster
+	// is not in deletion, so the vHA domain cannot be deleted yet.
+	VHADomainOwnerNotInDeletion = "VHADomainOwnerNotInDeletion"
+
+	// VHADomainFailedCleanup indicates that cleaning up the vHA domain's PC resources failed.
+	VHADomainFailedCleanup = "VHADomainFailedCleanup"
+
+	// VHADomainCleanupSucceeded indicates that the vHA domain's owning Cluster/NutanixCluster is in
+	// deletion and its PC resources have been cleaned up, so the object is safe for deletion.
+	VHADomainCleanupSucceeded = "VHADomainCleanupSucceeded"
+)
+
 const (
 	// CredentialRefSecretOwnerSetCondition shows the status of setting the Owner
 	CredentialRefSecretOwnerSetCondition capiv1beta1.ConditionType = "CredentialRefSecretOwnerSet"
