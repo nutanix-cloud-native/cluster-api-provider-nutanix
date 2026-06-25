@@ -275,9 +275,16 @@ func (r *NutanixVirtualHADomainReconciler) reconcileDelete(rctx *nctx.VHADomainC
 	return nil
 }
 
-func (r *NutanixVirtualHADomainReconciler) reconcileNormal(rctx *nctx.VHADomainContext) error {
+func (r *NutanixVirtualHADomainReconciler) reconcileNormal(rctx *nctx.VHADomainContext) (reterr error) {
 	log := ctrl.LoggerFrom(rctx.Context)
 	log.Info("Handling NutanixVirtualHADomain reconciling")
+
+	// Any error from reconciliation means the domain is not ready.
+	defer func() {
+		if reterr != nil {
+			rctx.VHADomain.Status.Ready = false
+		}
+	}()
 
 	// Add finalizer first if not present to avoid a race between init and delete.
 	if !ctrlutil.ContainsFinalizer(rctx.VHADomain, infrav1.NutanixVirtualHADomainFinalizer) {
@@ -292,7 +299,6 @@ func (r *NutanixVirtualHADomainReconciler) reconcileNormal(rctx *nctx.VHADomainC
 	// fetch NutanixMetro and its failureDomain CRs
 	metroObj, err := getNutanixMetroObject(rctx.Context, r.Client, rctx.VHADomain.Spec.MetroRef.Name, namespace)
 	if err != nil {
-		rctx.VHADomain.Status.Ready = false
 		return err
 	}
 
@@ -300,7 +306,6 @@ func (r *NutanixVirtualHADomainReconciler) reconcileNormal(rctx *nctx.VHADomainC
 	for _, fdRef := range metroObj.Spec.FailureDomains {
 		fd, err := getNutanixFailureDomainObject(rctx.Context, r.Client, fdRef.Name, namespace)
 		if err != nil {
-			rctx.VHADomain.Status.Ready = false
 			return err
 		}
 		failureDomains = append(failureDomains, fd)
@@ -308,7 +313,6 @@ func (r *NutanixVirtualHADomainReconciler) reconcileNormal(rctx *nctx.VHADomainC
 
 	// Get or create the PC resources of the vHA domain and persist their UUIDs in the spec.
 	if err := r.ensureVHADomainPCResources(rctx, failureDomains); err != nil {
-		rctx.VHADomain.Status.Ready = false
 		return err
 	}
 
