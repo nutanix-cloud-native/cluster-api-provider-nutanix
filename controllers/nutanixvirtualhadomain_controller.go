@@ -145,25 +145,6 @@ func (r *NutanixVirtualHADomainReconciler) Reconcile(ctx context.Context, req ct
 		}
 	}()
 
-	// Handle deletion first, before resolving the owning Cluster/NutanixCluster or
-	// the Prism Central clients. Those owners may already be garbage-collected; if
-	// we required them here, the lookup would error and we would never reach the
-	// deletion handler, trapping the finalizer and blocking deletion forever.
-	if !vHADomain.DeletionTimestamp.IsZero() {
-		if err = r.reconcileDelete(ctx, vHADomain); err != nil {
-			log.Error(err, "failed at deletion reconciling")
-		}
-		return ctrl.Result{}, err
-	}
-
-	// Add finalizer if not set yet.
-	if !ctrlutil.ContainsFinalizer(vHADomain, infrav1.NutanixVirtualHADomainFinalizer) {
-		if ctrlutil.AddFinalizer(vHADomain, infrav1.NutanixVirtualHADomainFinalizer) {
-			log.Info("Added the finalizer to the object", "finalizers", vHADomain.Finalizers)
-			return reconcile.Result{}, nil
-		}
-	}
-
 	// Fetch the CAPI Cluster.
 	cluster, err := capiutil.GetClusterFromMetadata(ctx, r.Client, vHADomain.ObjectMeta)
 	if err != nil {
@@ -214,6 +195,18 @@ func (r *NutanixVirtualHADomainReconciler) Reconcile(ctx context.Context, req ct
 		ConvergedClient: convergedClient,
 	}
 
+	// Handle deletion once the owning Cluster/NutanixCluster and the Prism Central
+	// clients have been resolved, mirroring the NutanixCluster/NutanixMachine
+	// reconcilers. The owners (and their PC credentials) are guaranteed to still
+	// exist here: the NutanixCluster reconciler blocks removal of its own finalizer
+	// until all owned vHADomains have been deleted.
+	if !vHADomain.DeletionTimestamp.IsZero() {
+		if err = r.reconcileDelete(rctx); err != nil {
+			log.Error(err, "failed at deletion reconciling")
+		}
+		return ctrl.Result{}, err
+	}
+
 	if err = r.reconcileNormal(rctx); err != nil {
 		log.Error(err, "failed at normal reconciling, restore to original spec.")
 		vHADomain.Spec = vHADomainOrig.Spec
@@ -225,66 +218,23 @@ func (r *NutanixVirtualHADomainReconciler) Reconcile(ctx context.Context, req ct
 	return ctrl.Result{RequeueAfter: vhaResyncInterval}, nil
 }
 
-func (r *NutanixVirtualHADomainReconciler) reconcileDelete(ctx context.Context, vHADomain *infrav1.NutanixVirtualHADomain) error {
-	log := ctrl.LoggerFrom(ctx)
+func (r *NutanixVirtualHADomainReconciler) reconcileDelete(rctx *nctx.VHADomainContext) error {
+	log := ctrl.LoggerFrom(rctx.Context)
 	log.Info("Handling NutanixVirtualHADomain deletion")
 
-	// Resolve the owning Cluster and NutanixCluster tolerantly. A NotFound means the
-	// owner has already been garbage-collected, which is the terminal state of its
-	// deletion and therefore safe for the vHADomain to be cleaned up.
+	// A vHADomain may only be deleted once its owning Cluster and NutanixCluster are
+	// themselves in deletion. This prevents a stray vHADomain deletion from tearing
+	// down the Prism Central resources still protecting a live cluster's VMs.
 	var blockingErrs []error
-
-	cluster, err := capiutil.GetClusterFromMetadata(ctx, r.Client, vHADomain.ObjectMeta)
-	switch {
-	case err == nil:
-		if cluster.DeletionTimestamp.IsZero() {
-			blockingErrs = append(blockingErrs, fmt.Errorf("cluster %s is not in deletion", cluster.Name))
-		}
-	case kapierrors.IsNotFound(err):
-		log.V(1).Info("Owning Cluster already deleted, treating as safe for deletion")
-		cluster = nil
-	default:
-		// Missing cluster label or a transient lookup error. We cannot resolve the
-		// owner, so proceed with best-effort cleanup rather than trapping the
-		// finalizer forever.
-		log.V(1).Info("Could not resolve owning Cluster, proceeding with best-effort deletion", "error", err.Error())
-		cluster = nil
+	if rctx.Cluster != nil && rctx.Cluster.DeletionTimestamp.IsZero() {
+		blockingErrs = append(blockingErrs, fmt.Errorf("cluster %s is not in deletion", rctx.Cluster.Name))
 	}
-
-	// Determine the NutanixCluster name from the resolved Cluster's infrastructureRef
-	// when available, otherwise fall back to the controller owner reference.
-	ntnxClusterName := ""
-	if cluster != nil {
-		ntnxClusterName = cluster.Spec.InfrastructureRef.Name
-	} else {
-		for _, ref := range vHADomain.OwnerReferences {
-			if ref.Kind == infrav1.NutanixClusterKind {
-				ntnxClusterName = ref.Name
-				break
-			}
-		}
+	if rctx.NutanixCluster != nil && rctx.NutanixCluster.DeletionTimestamp.IsZero() {
+		blockingErrs = append(blockingErrs, fmt.Errorf("NutanixCluster %s is not in deletion", rctx.NutanixCluster.Name))
 	}
-
-	var ntnxCluster *infrav1.NutanixCluster
-	if ntnxClusterName != "" {
-		nc := &infrav1.NutanixCluster{}
-		nclKey := client.ObjectKey{Namespace: vHADomain.Namespace, Name: ntnxClusterName}
-		switch err := r.Get(ctx, nclKey, nc); {
-		case err == nil:
-			ntnxCluster = nc
-			if ntnxCluster.DeletionTimestamp.IsZero() {
-				blockingErrs = append(blockingErrs, fmt.Errorf("NutanixCluster %s is not in deletion", ntnxCluster.Name))
-			}
-		case kapierrors.IsNotFound(err):
-			log.V(1).Info("Owning NutanixCluster already deleted, skipping PC resource cleanup")
-		default:
-			return fmt.Errorf("failed to fetch the NutanixCluster %s: %w", ntnxClusterName, err)
-		}
-	}
-
 	if len(blockingErrs) > 0 {
 		err := errors.Join(blockingErrs...)
-		conditions.Set(vHADomain, metav1.Condition{
+		conditions.Set(rctx.VHADomain, metav1.Condition{
 			Type:    infrav1.VHADomainSafeForDeletionCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  infrav1.VHADomainOwnerNotInDeletion,
@@ -295,71 +245,47 @@ func (r *NutanixVirtualHADomainReconciler) reconcileDelete(ctx context.Context, 
 		return err
 	}
 
-	// Best-effort cleanup of the PC resources. This is only possible while the
-	// NutanixCluster (and therefore its Prism Central credentials) still exists. If
-	// it is already gone, the PC resources are re-adopted by name on recreate, so
-	// skipping cleanup here does not cause duplication.
-	if ntnxCluster != nil {
-		if err := r.cleanupVHADomainPCResources(ctx, vHADomain, ntnxCluster); err != nil {
-			e1 := fmt.Errorf("failed to clean up vHADomain PC resources: %w", err)
-			conditions.Set(vHADomain, metav1.Condition{
-				Type:    infrav1.VHADomainSafeForDeletionCondition,
-				Status:  metav1.ConditionFalse,
-				Reason:  infrav1.VHADomainFailedCleanup,
-				Message: e1.Error(),
-			})
+	// Clean up the Prism Central resources (recovery plans, protection policy,
+	// categories) backing this vHADomain.
+	if err := r.deleteVHADomainPCResources(rctx); err != nil {
+		e1 := fmt.Errorf("failed to clean up vHADomain PC resources: %w", err)
+		conditions.Set(rctx.VHADomain, metav1.Condition{
+			Type:    infrav1.VHADomainSafeForDeletionCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.VHADomainFailedCleanup,
+			Message: e1.Error(),
+		})
 
-			log.Error(e1, "cannot delete the vHADomain")
-			return e1
-		}
-	} else {
-		log.Info("Owning NutanixCluster is not available, skipping PC resource cleanup")
+		log.Error(e1, "cannot delete the vHADomain")
+		return e1
 	}
 
-	// The owning Cluster/NutanixCluster is in deletion (or already gone) and the PC resources have
+	// The owning Cluster/NutanixCluster is in deletion and the PC resources have
 	// been cleaned up, so the object is now safe for deletion.
-	conditions.Set(vHADomain, metav1.Condition{
+	conditions.Set(rctx.VHADomain, metav1.Condition{
 		Type:   infrav1.VHADomainSafeForDeletionCondition,
 		Status: metav1.ConditionTrue,
 		Reason: infrav1.VHADomainCleanupSucceeded,
 	})
 
 	// Remove the finalizer from the NutanixVirtualHADomain object
-	ctrlutil.RemoveFinalizer(vHADomain, infrav1.NutanixVirtualHADomainFinalizer)
+	ctrlutil.RemoveFinalizer(rctx.VHADomain, infrav1.NutanixVirtualHADomainFinalizer)
 	log.Info("Removed finalizer from the vHADomain object", "finalizer", infrav1.NutanixVirtualHADomainFinalizer)
 
 	return nil
 }
 
-// cleanupVHADomainPCResources builds the Prism Central clients for the given
-// NutanixCluster and removes the vHADomain's PC resources.
-func (r *NutanixVirtualHADomainReconciler) cleanupVHADomainPCResources(
-	ctx context.Context,
-	vHADomain *infrav1.NutanixVirtualHADomain,
-	ntnxCluster *infrav1.NutanixCluster,
-) error {
-	v3Client, err := getPrismCentralClientForCluster(ctx, ntnxCluster, r.SecretInformer, r.ConfigMapInformer)
-	if err != nil {
-		return fmt.Errorf("error occurred while fetching prism central client: %w", err)
-	}
-	convergedClient, err := getPrismCentralConvergedV4ClientForCluster(ctx, ntnxCluster, r.SecretInformer, r.ConfigMapInformer)
-	if err != nil {
-		return fmt.Errorf("error occurred while fetching prism central converged client: %w", err)
-	}
-
-	rctx := &nctx.VHADomainContext{
-		Context:         ctx,
-		NutanixCluster:  ntnxCluster,
-		VHADomain:       vHADomain,
-		NutanixClient:   v3Client,
-		ConvergedClient: convergedClient,
-	}
-	return r.deleteVHADomainPCResources(rctx)
-}
-
 func (r *NutanixVirtualHADomainReconciler) reconcileNormal(rctx *nctx.VHADomainContext) error {
 	log := ctrl.LoggerFrom(rctx.Context)
 	log.Info("Handling NutanixVirtualHADomain reconciling")
+
+	// Add finalizer first if not present to avoid a race between init and delete.
+	if !ctrlutil.ContainsFinalizer(rctx.VHADomain, infrav1.NutanixVirtualHADomainFinalizer) {
+		if ctrlutil.AddFinalizer(rctx.VHADomain, infrav1.NutanixVirtualHADomainFinalizer) {
+			log.Info("Added the finalizer to the object", "finalizers", rctx.VHADomain.Finalizers)
+			return nil
+		}
+	}
 
 	namespace := rctx.VHADomain.Namespace
 
