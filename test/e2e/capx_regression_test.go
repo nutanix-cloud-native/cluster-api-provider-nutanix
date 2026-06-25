@@ -98,16 +98,6 @@ var _ = Describe("Nutanix regression tests", Label("capx-feature-test", "regress
 		Expect(namespace).ToNot(BeNil(), "Namespace can't be nil")
 		Expect(clusterName).ToNot(BeNil(), "ClusterName can't be nil")
 
-		By("Create and deploy secret using e2e credentials", func() {
-			up := getBaseAuthCredentials(*e2eConfig)
-			testHelper.createSecret(createSecretParams{
-				username:    up.username,
-				password:    up.password,
-				namespace:   namespace,
-				clusterName: clusterName,
-			})
-		})
-
 		By("Create and deploy Nutanix cluster", func() {
 			flavor := clusterctl.DefaultFlavor
 
