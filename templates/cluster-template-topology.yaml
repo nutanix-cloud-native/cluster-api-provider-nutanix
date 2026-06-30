@@ -235,14 +235,12 @@ stringData:
   credentials: |
     [
       {
-        "type": "${NUTANIX_CREDENTIALS_TYPE}",
+        "type": "basic_auth",
         "data": {
           "prismCentral":{
             "username": "${NUTANIX_USER}",
-            "password": "${NUTANIX_PASSWORD}",
-            "apiKey": "${NUTANIX_API_KEY}"
-          },
-          "prismElements": null
+            "password": "${NUTANIX_PASSWORD}"
+          }
         }
       }
     ]

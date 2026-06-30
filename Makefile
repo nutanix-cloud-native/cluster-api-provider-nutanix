@@ -84,7 +84,9 @@ CNI_PATH_KINDNET ?= "${E2E_DIR}/data/cni/kindnet/kindnet.yaml"
 CCM_VERSION ?= 0.7.0-alpha.1
 # Auto-select credential type: API key takes precedence when set.
 NUTANIX_CREDENTIALS_TYPE ?= $(if $(strip $(NUTANIX_API_KEY)),api_key,basic_auth)
+NUTANIX_CREDENTIALS_OVERLAY ?= $(subst _,-,$(NUTANIX_CREDENTIALS_TYPE))
 export NUTANIX_CREDENTIALS_TYPE
+export NUTANIX_CREDENTIALS_OVERLAY
 
 # CRD_OPTIONS define options to add to the CONTROLLER_GEN
 CRD_OPTIONS ?= "crd:crdVersions=v1"
@@ -158,7 +160,7 @@ manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefin
 .PHONY: release-manifests
 release-manifests: manifests cluster-templates
 	mkdir -p $(RELEASE_DIR)
-	kustomize build config/default > $(RELEASE_DIR)/infrastructure-components.yaml
+	kustomize build config/overlays/default/$(NUTANIX_CREDENTIALS_OVERLAY) > $(RELEASE_DIR)/infrastructure-components.yaml
 	cp $(TEMPLATES_DIR)/cluster-template*.yaml $(RELEASE_DIR)
 	cp $(REPO_ROOT)/metadata.yaml $(RELEASE_DIR)/metadata.yaml
 
@@ -338,12 +340,12 @@ cluster-e2e-templates-no-kubeproxy: ##Generate cluster templates without kubepro
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/no-kubeproxy/cluster-template-topology --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-topology.yaml
 
 cluster-templates: ## Generate cluster templates for all flavors
-	kustomize build $(TEMPLATES_DIR)/base > $(TEMPLATES_DIR)/cluster-template.yaml
-	kustomize build $(TEMPLATES_DIR)/csi3 > $(TEMPLATES_DIR)/cluster-template-csi3.yaml
+	kustomize build $(TEMPLATES_DIR)/overlays/base/$(NUTANIX_CREDENTIALS_OVERLAY) > $(TEMPLATES_DIR)/cluster-template.yaml
+	kustomize build $(TEMPLATES_DIR)/overlays/csi3/$(NUTANIX_CREDENTIALS_OVERLAY) > $(TEMPLATES_DIR)/cluster-template-csi3.yaml
 	kustomize build $(TEMPLATES_DIR)/clusterclass > $(TEMPLATES_DIR)/cluster-template-clusterclass.yaml
-	kustomize build $(TEMPLATES_DIR)/topology > $(TEMPLATES_DIR)/cluster-template-topology.yaml
-	kustomize build $(TEMPLATES_DIR)/image-lookup/ > $(TEMPLATES_DIR)/cluster-template-image-lookup.yaml
-	kustomize build $(TEMPLATES_DIR)/failure-domains/ > $(TEMPLATES_DIR)/cluster-template-failure-domains.yaml
+	kustomize build $(TEMPLATES_DIR)/overlays/topology/$(NUTANIX_CREDENTIALS_OVERLAY) > $(TEMPLATES_DIR)/cluster-template-topology.yaml
+	kustomize build $(TEMPLATES_DIR)/overlays/image-lookup/$(NUTANIX_CREDENTIALS_OVERLAY) > $(TEMPLATES_DIR)/cluster-template-image-lookup.yaml
+	kustomize build $(TEMPLATES_DIR)/overlays/failure-domains/$(NUTANIX_CREDENTIALS_OVERLAY) > $(TEMPLATES_DIR)/cluster-template-failure-domains.yaml
 
 ##@ Testing
 
@@ -358,7 +360,7 @@ docker-build-e2e: ## Build docker image with the manager with e2e tag.
 prepare-local-clusterctl: manifests cluster-templates  ## Prepare overide file for local clusterctl.
 	mkdir -p ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}
 	cd config/manager && kustomize edit set image controller=${MANAGER_IMAGE}
-	kustomize build config/default > ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/infrastructure-components.yaml
+	kustomize build config/overlays/default/$(NUTANIX_CREDENTIALS_OVERLAY) > ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/infrastructure-components.yaml
 	cp ./metadata.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/
 	cp ./templates/cluster-template*.yaml ~/.cluster-api/overrides/infrastructure-nutanix/${LOCAL_PROVIDER_VERSION}/
 	cp ./clusterctl.yaml.tmpl ./clusterctl.yaml
