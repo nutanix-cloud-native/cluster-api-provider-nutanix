@@ -10,7 +10,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
-	github.com/nutanix-cloud-native/prism-go-client v0.7.3
+	github.com/nutanix-cloud-native/prism-go-client v0.8.0
 	github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4 v4.2.1
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
@@ -36,9 +36,10 @@ require (
 )
 
 require (
-	github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4 v4.2.1
+	github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4 v4.2.2
 	github.com/nutanix/ntnx-api-golang-clients/datapolicies-go-client/v4 v4.2.1
 	github.com/nutanix/ntnx-api-golang-clients/iam-go-client/v4 v4.0.1
+	github.com/nutanix/ntnx-api-golang-clients/monitoring-go-client/v4 v4.2.2
 	github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.2.1
 	github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4 v4.2.1
 	github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4 v4.2.1
