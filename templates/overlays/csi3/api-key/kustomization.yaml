@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- ../../../csi3
+
+patches:
+- target:
+    kind: Secret
+    name: '\$\{CLUSTER_NAME\}'
+  patch: |-
+    - op: replace
+      path: /stringData/credentials
+      value: |
+        [
+          {
+            "type": "api_key",
+            "data": {
+              "prismCentral":{
+                "apiKey": "${NUTANIX_API_KEY}"
+              },
+              "prismElements": null
+            }
+          }
+        ]
