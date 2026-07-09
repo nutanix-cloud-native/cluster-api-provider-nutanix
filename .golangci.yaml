@@ -1,6 +1,9 @@
 version: "2"
 run:
   concurrency: 4
+  # Devbox currently provides golangci-lint built with Go 1.24.
+  # Keep lint parsing aligned until the packaged binary is rebuilt with Go 1.25+.
+  go: "1.24"
   build-tags:
     - e2e
 linters:

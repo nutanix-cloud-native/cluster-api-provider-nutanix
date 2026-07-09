@@ -85,7 +85,7 @@ jobs:
         echo "|CAPX|[$NEW_IMG](https://$NEW_IMG)|" >> ${{ github.workspace }}-CHANGELOG.txt
 
     - name: create release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         draft: false
         prerelease: false

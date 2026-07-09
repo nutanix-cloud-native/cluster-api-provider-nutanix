@@ -189,3 +189,13 @@ intervals:
   node-drain/wait-deployment-available: ["3m", "10s"]
   node-drain/wait-control-plane: ["15m", "10s"]
   node-drain/wait-machine-deleted: ["5m", "10s"]
+  # The clusterctl-upgrade scenario can take longer on shared ARC runners
+  # while provisioning first control-plane and worker machines.
+  clusterctl-upgrade/wait-cluster: ["15m", "10s"]
+  clusterctl-upgrade/wait-control-plane: ["20m", "10s"]
+  clusterctl-upgrade/wait-worker-nodes: ["20m", "10s"]
+  # ClusterClass mutation tests can also take longer to bring up the initial
+  # workload control plane on busy self-hosted environments.
+  clusterclass-changes/wait-cluster: ["15m", "10s"]
+  clusterclass-changes/wait-control-plane: ["20m", "10s"]
+  clusterclass-changes/wait-worker-nodes: ["20m", "10s"]

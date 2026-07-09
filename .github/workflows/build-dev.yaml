@@ -48,7 +48,7 @@ jobs:
           ref: "${{ github.event.pull_request.head.sha }}"
 
       - name: Install devbox
-        uses: jetify-com/devbox-install-action@v0.11.0
+        uses: jetify-com/devbox-install-action@v0.15.0
         with:
           enable-cache: "true"
 
@@ -92,7 +92,7 @@ jobs:
           fail_ci_if_error: true
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.16.1
+        uses: aquasecurity/trivy-action@v0.16.1
         with:
           scan-type: "fs"
           ignore-unfixed: true

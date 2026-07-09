@@ -12,26 +12,23 @@ on:
 jobs:
   e2e-test:
     runs-on:
-      - self-hosted-ncn-dind
+      - self-hosted-nutanix-docker-medium
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: "${{ github.event.pull_request.head.sha }}"
 
-      # Install nix using DeterminateSystems/nix-installer-action if running on ARC runners
-      # This can be removed once jetify-com/devbox-install-action has a release that includes
-      # at least `DeterminateSystems/nix-installer-action@v19` which includes the fix in
-      # https://github.com/DeterminateSystems/nix-installer-action/issues/68
+      # Install nix explicitly on ARC runners.
       - name: Install Nix on self-hosted ARC runners
-        uses: DeterminateSystems/nix-installer-action@v20
+        uses: DeterminateSystems/nix-installer-action@v22
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           logger: pretty
           extra-conf: experimental-features = ca-derivations fetch-closure
 
       - name: Install devbox
-        uses: jetify-com/devbox-install-action@v0.13.0
+        uses: jetify-com/devbox-install-action@v0.15.0
         with:
           enable-cache: "false"
           skip-nix-installation: "true"
