@@ -690,6 +690,28 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 		)
 	}
 
+	// For NutanixMetro failure domains, try to refine status.failureDomain to the specific
+	// NutanixMetroSite that corresponds to the native failure domain the VM was placed on.
+	// This makes it possible to observe which site (and therefore which AHV side) each
+	// worker node is running on without having to inspect the metro.nutanix.com/native-failuredomain
+	// label directly.
+	if isNutanixMetroFailureDomain(fd) {
+		metroName := fd[len(metroFailureDomainPrefix):]
+		if nativeFDName, ok := rctx.NutanixMachine.Labels[metroNativeFailureDomainLabelKey]; ok && nativeFDName != "" {
+			siteName, lookupErr := findMetroSiteForNativeFD(
+				rctx.Context, r.Client, rctx.NutanixMachine.Namespace, metroName, nativeFDName,
+			)
+			if lookupErr != nil {
+				ctrl.LoggerFrom(rctx.Context).V(1).Info(
+					"Could not resolve NutanixMetroSite for native failure domain; keeping metro-level failure domain name",
+					"metro", metroName, "nativeFD", nativeFDName, "error", lookupErr,
+				)
+			} else if siteName != "" {
+				fd = metroSiteFailureDomainPrefix + siteName
+			}
+		}
+	}
+
 	// Set the NutanixMachine.status.failureDomain
 	rctx.NutanixMachine.Status.FailureDomain = &fd
 

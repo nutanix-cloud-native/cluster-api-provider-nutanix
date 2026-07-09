@@ -1324,6 +1324,23 @@ func getNutanixMetroSiteObject(ctx context.Context, ctlclient client.Client, obj
 	return metroSiteObj, nil
 }
 
+// findMetroSiteForNativeFD returns the name of the NutanixMetroSite in namespace whose
+// spec.metroRef.name matches metroName and spec.preferredFailureDomain.name matches nativeFDName.
+// An empty string is returned (without error) when no match is found; the caller should fall back
+// to the metro-level failure domain name.
+func findMetroSiteForNativeFD(ctx context.Context, ctlclient client.Client, namespace, metroName, nativeFDName string) (string, error) {
+	siteList := &infrav1.NutanixMetroSiteList{}
+	if err := ctlclient.List(ctx, siteList, client.InNamespace(namespace)); err != nil {
+		return "", fmt.Errorf("failed to list NutanixMetroSites in namespace %q: %w", namespace, err)
+	}
+	for _, site := range siteList.Items {
+		if site.Spec.MetroRef.Name == metroName && site.Spec.PreferredFailureDomain.Name == nativeFDName {
+			return site.Name, nil
+		}
+	}
+	return "", nil
+}
+
 // vHADomainName builds the NutanixVirtualHADomain object name for a (cluster, metro) pair. The name
 // is scoped to the cluster so that distinct clusters referencing the same NutanixMetro do not collide
 // on a single object.
