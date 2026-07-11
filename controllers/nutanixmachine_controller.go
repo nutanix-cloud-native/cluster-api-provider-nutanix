@@ -479,7 +479,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 
 	// Make sure Cluster.Status.InfrastructureReady is true
 	log.Info("Checking if cluster infrastructure is ready")
-	infraReady := rctx.Cluster.Status.Initialization.InfrastructureProvisioned != nil || *rctx.Cluster.Status.Initialization.InfrastructureProvisioned
+	infraReady := rctx.Cluster.Status.Initialization.InfrastructureProvisioned != nil && *rctx.Cluster.Status.Initialization.InfrastructureProvisioned
 	if !infraReady {
 		log.Info("The cluster infrastructure is not ready yet")
 		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.ClusterInfrastructureNotReady, capiv1beta1.ConditionSeverityInfo, "")
