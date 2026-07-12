@@ -252,7 +252,7 @@ func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta
 		// otherwise search via name
 	} else {
 		log.Info(fmt.Sprintf("Searching for VM %s using name", vmName))
-		vm, err := FindVMByName(ctx, client, vmName)
+		vm, err := FindVMByName(ctx, client, nutanixMachine, vmName)
 		if err != nil {
 			log.Error(err, fmt.Sprintf("error occurred finding VM %s by name", vmName))
 			return nil, err
@@ -370,8 +370,13 @@ func isPCVersionAtLeast76(version string) bool {
 	return minor >= 6
 }
 
-// FindVMByName retrieves the VM with the given vm name
-func FindVMByName(ctx context.Context, client *v4Converged.Client, vmName string) (*vmmconfig.Vm, error) {
+// FindVMByName retrieves the VM with the given vm name. When more than one VM
+// shares the name - for example because a duplicate was created by an earlier
+// idempotency gap - it disambiguates instead of dead-locking: it prefers the VM
+// carrying this machine's provider-id custom attribute, and otherwise adopts the
+// oldest matching VM (the VM name is unique per CAPI Machine, so all matches
+// belong to this machine and the duplicate can then be reaped).
+func FindVMByName(ctx context.Context, client *v4Converged.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.Info(fmt.Sprintf("Checking if VM with name %s exists.", vmName))
 
@@ -380,15 +385,49 @@ func FindVMByName(ctx context.Context, client *v4Converged.Client, vmName string
 		return nil, err
 	}
 
-	if len(vms) > 1 {
-		return nil, fmt.Errorf("error: found more than one (%v) vms with name %s", len(vms), vmName)
-	}
-
 	if len(vms) == 0 {
 		return nil, nil
 	}
 
-	return FindVMByUUID(ctx, client, *vms[0].ExtId)
+	if len(vms) == 1 {
+		return FindVMByUUID(ctx, client, *vms[0].ExtId)
+	}
+
+	// More than one VM matched the name. Historically this returned an error,
+	// which permanently wedged the machine whenever a duplicate VM existed - the
+	// exact situation we want to be able to recover from.
+	log.Info(fmt.Sprintf("found %d VMs with name %s; disambiguating instead of failing", len(vms), vmName))
+
+	// Prefer the VM that carries this machine's provider-id custom attribute.
+	if nutanixMachine != nil && nutanixMachine.Spec.ProviderID != "" {
+		recoveryKey := strings.TrimPrefix(nutanixMachine.Spec.ProviderID, providerIdPrefix)
+		if vm := matchVMByProviderIDCustomAttribute(vms, recoveryKey); vm != nil {
+			return FindVMByUUID(ctx, client, *vm.ExtId)
+		}
+	}
+
+	// No identity to match against: adopt the oldest VM deterministically so the
+	// machine can make progress; the extra VM(s) can be cleaned up afterwards.
+	oldest := oldestVM(vms)
+	log.Info(fmt.Sprintf("adopting oldest VM (ExtId %s) among %d name matches for %s", *oldest.ExtId, len(vms), vmName))
+	return FindVMByUUID(ctx, client, *oldest.ExtId)
+}
+
+// oldestVM returns the VM with the earliest CreateTime. VMs without a CreateTime
+// are considered newest so a VM with a known creation time is always preferred.
+func oldestVM(vms []vmmconfig.Vm) *vmmconfig.Vm {
+	oldest := &vms[0]
+	for i := 1; i < len(vms); i++ {
+		switch {
+		case vms[i].CreateTime == nil:
+			continue
+		case oldest.CreateTime == nil:
+			oldest = &vms[i]
+		case vms[i].CreateTime.Before(*oldest.CreateTime):
+			oldest = &vms[i]
+		}
+	}
+	return oldest
 }
 
 // GetPEUUID returns the UUID of the Prism Element cluster with the given name or UUID.
