@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -223,7 +224,21 @@ func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta
 			return nil, err
 		}
 		if vm == nil {
-			return nil, fmt.Errorf("no vm %s found with UUID %s but was expected to be present", vmName, vmUUID)
+			// The last-known UUID no longer resolves. This is expected when the
+			// VM's backing Prism Element cluster failed over and the VM was
+			// assigned a new ExtId (PC 7.5), or when we are looking up by the
+			// node's biosUUID which never equals the current ExtId post-failover.
+			// Attempt to rediscover the VM by identifiers that survive failover
+			// before concluding it is gone.
+			log.Info(fmt.Sprintf("VM %s not found by UUID %s; attempting rediscovery by stable identifiers", vmName, vmUUID))
+			recovered, rerr := findVMByStableIdentifier(ctx, client, nutanixMachine, vmName)
+			if rerr != nil {
+				return nil, rerr
+			}
+			if recovered == nil {
+				return nil, fmt.Errorf("no vm %s found with UUID %s but was expected to be present", vmName, vmUUID)
+			}
+			return recovered, nil
 		}
 		// Check if the VM name matches the Machine name or the NutanixMachine name.
 		// Earlier, we were creating VMs with the same name as the NutanixMachine name.
@@ -244,6 +259,115 @@ func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta
 		}
 		return vm, nil
 	}
+}
+
+// findVMByStableIdentifier rediscovers a VM whose ExtId has changed - for
+// example after an unplanned Prism Element failover - using identifiers that
+// survive the failover. The recovery key is the VM's original ExtId, which is
+// encoded in Spec.ProviderID and is also the value CAPX stamps in the
+// provider-id custom attribute (providerid:<ExtId>).
+//
+// Two strategies are combined to cover both supported PC versions:
+//   - PC 7.6+: biosUUID is stable across unplanned failover and is server-side
+//     filterable, so it is used as a cheap, precise lookup. The PC version is
+//     fetched here because it is not otherwise available on this path.
+//   - PC 7.5 (and as a universal fallback): biosUUID is neither stable nor
+//     filterable, but the VM name is unchanged across failover and the
+//     provider-id custom attribute survives it. List by name and disambiguate
+//     by that custom attribute.
+//
+// Returns (nil, nil) when no VM could be rediscovered so the caller can decide
+// how to proceed (the create-guard in getOrCreateVM ensures this never results
+// in a duplicate VM once an identity has been established).
+func findVMByStableIdentifier(ctx context.Context, client *v4Converged.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	if nutanixMachine.Spec.ProviderID == "" {
+		return nil, nil
+	}
+	recoveryKey := strings.TrimPrefix(nutanixMachine.Spec.ProviderID, providerIdPrefix)
+	if recoveryKey == "" {
+		return nil, nil
+	}
+
+	// PC 7.6+ exposes a server-side filter on biosUuid, which is stable across
+	// unplanned failovers. Prefer it when available. A failure to determine the
+	// PC version is non-fatal: fall through to the version-independent path.
+	if pcVersion, verr := client.DomainManager.GetPrismCentralVersion(ctx); verr != nil {
+		log.Error(verr, "failed to get PC version while rediscovering VM; skipping biosUuid lookup")
+	} else if isPCVersionAtLeast76(pcVersion) {
+		vms, err := client.VMs.List(ctx, converged.WithFilter(fmt.Sprintf("biosUuid eq '%s'", recoveryKey)))
+		if err != nil {
+			return nil, fmt.Errorf("failed to list VMs by biosUuid %s while rediscovering VM %s: %w", recoveryKey, vmName, err)
+		}
+		if vm := matchVMByProviderIDCustomAttribute(vms, recoveryKey); vm != nil {
+			log.Info(fmt.Sprintf("Rediscovered VM %s by biosUuid %s with new ExtId %s", vmName, recoveryKey, *vm.ExtId))
+			return vm, nil
+		}
+		if len(vms) == 1 {
+			log.Info(fmt.Sprintf("Rediscovered VM %s by biosUuid %s with new ExtId %s", vmName, recoveryKey, *vms[0].ExtId))
+			return &vms[0], nil
+		}
+	}
+
+	// Universal fallback (and the only option on PC 7.5): the VM name does not
+	// change across failover, so list by name and disambiguate by the
+	// provider-id custom attribute which carries the original ExtId.
+	vms, err := client.VMs.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", vmName)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list VMs by name %s while rediscovering VM: %w", vmName, err)
+	}
+	if vm := matchVMByProviderIDCustomAttribute(vms, recoveryKey); vm != nil {
+		log.Info(fmt.Sprintf("Rediscovered VM %s by provider-id custom attribute %s with ExtId %s", vmName, recoveryKey, *vm.ExtId))
+		return vm, nil
+	}
+
+	return nil, nil
+}
+
+// matchVMByProviderIDCustomAttribute returns the VM carrying the
+// providerid:<recoveryKey> custom attribute, or nil if none match.
+func matchVMByProviderIDCustomAttribute(vms []vmmconfig.Vm, recoveryKey string) *vmmconfig.Vm {
+	want := vmCustomAttributePrefix4ProviderID + recoveryKey
+	for i := range vms {
+		if slices.Contains(vms[i].CustomAttributes, want) {
+			return &vms[i]
+		}
+	}
+	return nil
+}
+
+// isPCVersionAtLeast76 reports whether the given PC version string is 7.6 or
+// newer. PC 7.6 is the first release where biosUUID is stable across unplanned
+// failover and is server-side filterable. Calendar-style releases (202x.x)
+// predate the 7.x line, and unparseable/empty versions return false so callers
+// fall back to version-independent behaviour.
+func isPCVersionAtLeast76(version string) bool {
+	v := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(version)), "pc.")
+	if v == "" {
+		return false
+	}
+	parts := strings.Split(v, ".")
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return false
+	}
+	if major >= 2000 {
+		// Calendar-based release (e.g. 2024.x) - older than the 7.x line.
+		return false
+	}
+	if major != 7 {
+		return major > 7
+	}
+	if len(parts) < 2 {
+		// "7" with no minor is treated as < "7.6".
+		return false
+	}
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return false
+	}
+	return minor >= 6
 }
 
 // FindVMByName retrieves the VM with the given vm name
