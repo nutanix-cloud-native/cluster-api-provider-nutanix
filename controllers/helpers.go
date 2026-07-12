@@ -191,6 +191,20 @@ func GetVMUUID(machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMach
 		}
 		return vmUUID, nil
 	}
+	// Fall back to the provider ID. Status.VmUUID is derived state that can be
+	// lost (for example, after a clusterctl move where the object is recreated
+	// on the target cluster before its status is repopulated), whereas
+	// Spec.ProviderID is set once at creation and persists with the object. It
+	// encodes the VM's original ExtId, so it is a reliable identity anchor when
+	// status is empty. Without this fallback, a status-less reconcile drops to
+	// name-based lookup, which is what allows duplicate VMs to be created.
+	if nutanixMachine.Spec.ProviderID != "" {
+		providerUUID := strings.TrimPrefix(nutanixMachine.Spec.ProviderID, providerIdPrefix)
+		if _, err := uuid.Parse(providerUUID); err != nil {
+			return "", fmt.Errorf("NutanixMachine.Spec.ProviderID was set but did not contain a valid UUID: %s err: %w", nutanixMachine.Spec.ProviderID, err)
+		}
+		return providerUUID, nil
+	}
 	return "", nil
 }
 
