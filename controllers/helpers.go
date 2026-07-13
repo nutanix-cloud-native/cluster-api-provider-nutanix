@@ -188,15 +188,16 @@ func GenerateProviderID(uuid string) string {
 //     even after the live ExtId later changes.
 //
 // It intentionally does NOT consult Machine.Status.NodeInfo.SystemUUID. That
-// field is the guest-reported (current) biosUUID, which equals the ExtId only at
-// creation time by coincidence: after an unplanned Prism Element failover the
-// ExtId changes (both versions) while the biosUUID either changes (PC 7.5) or
-// stays put (PC 7.6) - in every post-failover case it is not the current ExtId,
-// so feeding it to VMs.Get would miss. The biosUUID still matters for recovery,
-// but note that providerID is itself pinned to the original biosUUID value, so
-// that value doubles as the biosUUID filter during rediscovery (see
-// findVMByStableIdentifier) - which is why SystemUUID is never needed as a direct
-// lookup key here.
+// field is the guest-reported biosUUID, and its relationship to the live ExtId is
+// version-dependent, which makes it an unreliable VMs.Get key: after an unplanned
+// Prism Element failover PC 7.6 keeps the biosUUID pinned to the original value
+// (so it diverges from the new ExtId), while PC 7.5 re-syncs the biosUUID to the
+// new ExtId (so it happens to equal the current ExtId). On top of that it is only
+// populated once the node has registered, so it is absent during initial
+// provisioning. providerID is the better anchor: it is always present once set,
+// stable per the CAPI contract, and its value (the original biosUUID) doubles as
+// the biosUUID filter during rediscovery (see findVMByStableIdentifier) - so
+// SystemUUID is never needed as a direct lookup key here.
 func GetVMUUID(nutanixMachine *infrav1.NutanixMachine) (string, error) {
 	vmUUID := nutanixMachine.Status.VmUUID
 	if vmUUID != "" {
