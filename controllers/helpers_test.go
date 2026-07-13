@@ -27,6 +27,7 @@ import (
 	"time"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 	mockconverged "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/converged"
 	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
 	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
@@ -866,6 +867,166 @@ func TestFindVMByUUID(t *testing.T) {
 		require.Nil(t, vm)
 		assert.ErrorIs(t, err, apiErr)
 	})
+}
+
+func TestFindVMByName(t *testing.T) {
+	ctx := context.Background()
+	vmName := "test-machine"
+
+	t.Run("returns nil when no VM matches the name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		cc := NewMockConvergedClient(ctrl)
+		cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{}, nil)
+
+		vm, err := FindVMByName(ctx, cc.Client, &infrav1.NutanixMachine{}, vmName)
+		require.NoError(t, err)
+		assert.Nil(t, vm)
+	})
+
+	t.Run("returns the VM when exactly one matches", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		cc := NewMockConvergedClient(ctrl)
+		ext := "550e8400-e29b-41d4-a716-446655440000"
+		cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).
+			Return([]vmmModels.Vm{{ExtId: ptr.To(ext), Name: ptr.To(vmName)}}, nil)
+		cc.MockVMs.EXPECT().Get(gomock.Any(), ext).
+			Return(&vmmModels.Vm{ExtId: ptr.To(ext), Name: ptr.To(vmName)}, nil)
+
+		vm, err := FindVMByName(ctx, cc.Client, &infrav1.NutanixMachine{}, vmName)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, ext, *vm.ExtId)
+	})
+
+	t.Run("on duplicates, prefers the VM carrying this machine's provider-id attribute", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		cc := NewMockConvergedClient(ctrl)
+		key := "550e8400-e29b-41d4-a716-446655440000"
+		otherExt := "111e8400-e29b-41d4-a716-446655440111"
+		mineExt := "222e8400-e29b-41d4-a716-446655440222"
+		cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{
+			{ExtId: ptr.To(otherExt), Name: ptr.To(vmName)},
+			{ExtId: ptr.To(mineExt), Name: ptr.To(vmName), CustomAttributes: []string{"providerid:" + key}},
+		}, nil)
+		cc.MockVMs.EXPECT().Get(gomock.Any(), mineExt).
+			Return(&vmmModels.Vm{ExtId: ptr.To(mineExt), Name: ptr.To(vmName)}, nil)
+
+		nm := &infrav1.NutanixMachine{Spec: infrav1.NutanixMachineSpec{ProviderID: "nutanix://" + key}}
+		vm, err := FindVMByName(ctx, cc.Client, nm, vmName)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, mineExt, *vm.ExtId)
+	})
+
+	t.Run("on duplicates without an identity, adopts the oldest VM", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		cc := NewMockConvergedClient(ctrl)
+		newExt := "111e8400-e29b-41d4-a716-446655440111"
+		oldExt := "222e8400-e29b-41d4-a716-446655440222"
+		older := time.Now().Add(-2 * time.Hour)
+		newer := time.Now()
+		cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{
+			{ExtId: ptr.To(newExt), Name: ptr.To(vmName), CreateTime: ptr.To(newer)},
+			{ExtId: ptr.To(oldExt), Name: ptr.To(vmName), CreateTime: ptr.To(older)},
+		}, nil)
+		cc.MockVMs.EXPECT().Get(gomock.Any(), oldExt).
+			Return(&vmmModels.Vm{ExtId: ptr.To(oldExt), Name: ptr.To(vmName)}, nil)
+
+		vm, err := FindVMByName(ctx, cc.Client, &infrav1.NutanixMachine{}, vmName)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, oldExt, *vm.ExtId)
+	})
+}
+
+func TestFindVMRediscoversVMAfterFailover(t *testing.T) {
+	ctx := context.Background()
+	vmName := "test-machine"
+	originalUUID := "550e8400-e29b-41d4-a716-446655440000"
+	newExtID := "660e8400-e29b-41d4-a716-446655440001"
+	notFound := &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")}
+
+	newNutanixMachine := func() *infrav1.NutanixMachine {
+		return &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{Name: vmName},
+			Spec:       infrav1.NutanixMachineSpec{ProviderID: "nutanix://" + originalUUID},
+		}
+	}
+
+	t.Run("PC 7.6+ rediscovers by biosUUID after ExtId changed", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		cc := NewMockConvergedClient(ctrl)
+		// Last-known UUID (the original ExtId) no longer resolves.
+		cc.MockVMs.EXPECT().Get(gomock.Any(), originalUUID).Return(nil, notFound)
+		cc.MockDomainManager.EXPECT().GetPrismCentralVersion(gomock.Any()).Return("pc.7.6.0", nil)
+		// biosUuid filter returns the VM under its new ExtId.
+		cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{
+			{ExtId: ptr.To(newExtID), Name: ptr.To(vmName), CustomAttributes: []string{"providerid:" + originalUUID}},
+		}, nil)
+
+		vm, err := FindVM(ctx, cc.Client, &capiv1beta2.Machine{}, newNutanixMachine(), vmName)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, newExtID, *vm.ExtId)
+	})
+
+	t.Run("PC 7.5 rediscovers by provider-id custom attribute via name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		cc := NewMockConvergedClient(ctrl)
+		cc.MockVMs.EXPECT().Get(gomock.Any(), originalUUID).Return(nil, notFound)
+		cc.MockDomainManager.EXPECT().GetPrismCentralVersion(gomock.Any()).Return("pc.7.5.0", nil)
+		// biosUuid path is skipped on 7.5; recovery lists by name and matches attr.
+		cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{
+			{ExtId: ptr.To(newExtID), Name: ptr.To(vmName), CustomAttributes: []string{"providerid:" + originalUUID}},
+		}, nil)
+
+		vm, err := FindVM(ctx, cc.Client, &capiv1beta2.Machine{}, newNutanixMachine(), vmName)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, newExtID, *vm.ExtId)
+	})
+
+	t.Run("returns an error when the VM cannot be rediscovered", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		cc := NewMockConvergedClient(ctrl)
+		cc.MockVMs.EXPECT().Get(gomock.Any(), originalUUID).Return(nil, notFound)
+		cc.MockDomainManager.EXPECT().GetPrismCentralVersion(gomock.Any()).Return("pc.7.5.0", nil)
+		cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{}, nil)
+
+		vm, err := FindVM(ctx, cc.Client, &capiv1beta2.Machine{}, newNutanixMachine(), vmName)
+		require.Error(t, err)
+		assert.Nil(t, vm)
+		assert.Contains(t, err.Error(), "expected to be present")
+	})
+}
+
+func TestGetOrCreateVMDoesNotDuplicateWhenProviderIDSet(t *testing.T) {
+	ctx := context.Background()
+	vmName := "test-machine"
+	originalUUID := "550e8400-e29b-41d4-a716-446655440000"
+	notFound := &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")}
+
+	ctrl := gomock.NewController(t)
+	cc := NewMockConvergedClient(ctrl)
+	// The VM is unresolvable: the last-known ExtId misses and no stable
+	// identifier rediscovers it. With an identity already established, the
+	// reconciler must NOT create a second VM. gomock fails the test if
+	// VMs.Create is ever called (no expectation is registered for it).
+	cc.MockVMs.EXPECT().Get(gomock.Any(), originalUUID).Return(nil, notFound)
+	cc.MockDomainManager.EXPECT().GetPrismCentralVersion(gomock.Any()).Return("pc.7.5.0", nil)
+	cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{}, nil)
+
+	r := &NutanixMachineReconciler{}
+	rctx := &nctx.MachineContext{
+		Context:         ctx,
+		Machine:         &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}},
+		NutanixMachine:  &infrav1.NutanixMachine{ObjectMeta: metav1.ObjectMeta{Name: vmName}, Spec: infrav1.NutanixMachineSpec{ProviderID: "nutanix://" + originalUUID}},
+		ConvergedClient: cc.Client,
+	}
+
+	vm, err := r.getOrCreateVM(rctx)
+	require.Error(t, err)
+	assert.Nil(t, vm)
 }
 
 func TestGetPEUUID(t *testing.T) {
@@ -3345,6 +3506,43 @@ func TestGetVMUUID(t *testing.T) {
 			},
 			want:    validUUID,
 			wantErr: false,
+		},
+		{
+			name:    "should fall back to Spec.ProviderID when status UUIDs are empty",
+			machine: &capiv1beta2.Machine{Status: capiv1beta2.MachineStatus{}},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Spec: infrav1.NutanixMachineSpec{
+					ProviderID: "nutanix://" + validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name:    "should prioritize status VmUUID over Spec.ProviderID",
+			machine: &capiv1beta2.Machine{Status: capiv1beta2.MachineStatus{}},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Spec: infrav1.NutanixMachineSpec{
+					ProviderID: "nutanix://" + anotherValidUUID,
+				},
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name:    "should return error when Spec.ProviderID does not contain a valid UUID",
+			machine: &capiv1beta2.Machine{Status: capiv1beta2.MachineStatus{}},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Spec: infrav1.NutanixMachineSpec{
+					ProviderID: "nutanix://" + invalidUUID,
+				},
+			},
+			want:         "",
+			wantErr:      true,
+			errorMessage: "NutanixMachine.Spec.ProviderID was set but did not contain a valid UUID",
 		},
 	}
 
