@@ -964,7 +964,7 @@ func TestFindVMRediscoversVMAfterFailover(t *testing.T) {
 			{ExtId: ptr.To(newExtID), Name: ptr.To(vmName), CustomAttributes: []string{"providerid:" + originalUUID}},
 		}, nil)
 
-		vm, err := FindVM(ctx, cc.Client, &capiv1beta2.Machine{}, newNutanixMachine(), vmName)
+		vm, err := FindVM(ctx, cc.Client, newNutanixMachine(), vmName)
 		require.NoError(t, err)
 		require.NotNil(t, vm)
 		assert.Equal(t, newExtID, *vm.ExtId)
@@ -980,7 +980,7 @@ func TestFindVMRediscoversVMAfterFailover(t *testing.T) {
 			{ExtId: ptr.To(newExtID), Name: ptr.To(vmName), CustomAttributes: []string{"providerid:" + originalUUID}},
 		}, nil)
 
-		vm, err := FindVM(ctx, cc.Client, &capiv1beta2.Machine{}, newNutanixMachine(), vmName)
+		vm, err := FindVM(ctx, cc.Client, newNutanixMachine(), vmName)
 		require.NoError(t, err)
 		require.NotNil(t, vm)
 		assert.Equal(t, newExtID, *vm.ExtId)
@@ -993,7 +993,7 @@ func TestFindVMRediscoversVMAfterFailover(t *testing.T) {
 		cc.MockDomainManager.EXPECT().GetPrismCentralVersion(gomock.Any()).Return("pc.7.5.0", nil)
 		cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{}, nil)
 
-		vm, err := FindVM(ctx, cc.Client, &capiv1beta2.Machine{}, newNutanixMachine(), vmName)
+		vm, err := FindVM(ctx, cc.Client, newNutanixMachine(), vmName)
 		require.Error(t, err)
 		assert.Nil(t, vm)
 		assert.Contains(t, err.Error(), "expected to be present")
@@ -3345,202 +3345,51 @@ func TestGetVMUUID(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		machine        *capiv1beta2.Machine
 		nutanixMachine *infrav1.NutanixMachine
 		want           string
 		wantErr        bool
 		errorMessage   string
 	}{
 		{
-			name: "should return systemUUID from Machine.Status.NodeInfo when available",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: &corev1.NodeSystemInfo{
-						SystemUUID: validUUID,
-					},
-				},
-			},
+			name: "returns status VmUUID when set",
 			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: anotherValidUUID,
-				},
+				Status: infrav1.NutanixMachineStatus{VmUUID: validUUID},
 			},
-			want:    validUUID,
-			wantErr: false,
+			want: validUUID,
 		},
 		{
-			name: "should fall back to VmUUID when Machine.Status.NodeInfo is nil",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: nil,
-				},
-			},
+			name: "falls back to Spec.ProviderID when status UUID is empty",
 			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
+				Spec: infrav1.NutanixMachineSpec{ProviderID: "nutanix://" + validUUID},
 			},
-			want:    validUUID,
-			wantErr: false,
+			want: validUUID,
 		},
 		{
-			name: "should fall back to VmUUID when Machine.Status.NodeInfo.SystemUUID is empty",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: &corev1.NodeSystemInfo{
-						SystemUUID: "",
-					},
-				},
-			},
+			name: "prioritizes status VmUUID over Spec.ProviderID",
 			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
+				Spec:   infrav1.NutanixMachineSpec{ProviderID: "nutanix://" + anotherValidUUID},
+				Status: infrav1.NutanixMachineStatus{VmUUID: validUUID},
 			},
-			want:    validUUID,
-			wantErr: false,
+			want: validUUID,
 		},
 		{
-			name:    "should fall back to VmUUID when machine is nil",
-			machine: nil,
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
+			name:           "returns empty string when neither status UUID nor ProviderID is set",
+			nutanixMachine: &infrav1.NutanixMachine{},
+			want:           "",
 		},
 		{
-			name: "should return empty string when both systemUUID and VmUUID are not available",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: nil,
-				},
-			},
+			name: "returns error when status VmUUID is not a valid UUID",
 			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: "",
-				},
+				Status: infrav1.NutanixMachineStatus{VmUUID: invalidUUID},
 			},
-			want:    "",
-			wantErr: false,
-		},
-		{
-			name: "should return error when systemUUID is not a valid UUID",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: &corev1.NodeSystemInfo{
-						SystemUUID: invalidUUID,
-					},
-				},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: "",
-				},
-			},
-			want:         "",
-			wantErr:      true,
-			errorMessage: "Machine.Status.NodeInfo.SystemUUID was set but was not a valid UUID",
-		},
-		{
-			name: "should return error when VmUUID is not a valid UUID",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: nil,
-				},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: invalidUUID,
-				},
-			},
-			want:         "",
 			wantErr:      true,
 			errorMessage: "VMUUID was set but was not a valid UUID",
 		},
 		{
-			name: "should prioritize systemUUID even when VmUUID has different UUID",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: &corev1.NodeSystemInfo{
-						SystemUUID: validUUID,
-					},
-				},
-			},
+			name: "returns error when Spec.ProviderID does not contain a valid UUID",
 			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: anotherValidUUID,
-				},
+				Spec: infrav1.NutanixMachineSpec{ProviderID: "nutanix://" + invalidUUID},
 			},
-			want:    validUUID,
-			wantErr: false,
-		},
-		{
-			name: "should use VmUUID when SystemUUID is empty",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: &corev1.NodeSystemInfo{
-						SystemUUID: "",
-					},
-				},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
-		},
-		{
-			name: "should handle Machine with empty Status",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
-		},
-		{
-			name:    "should fall back to Spec.ProviderID when status UUIDs are empty",
-			machine: &capiv1beta2.Machine{Status: capiv1beta2.MachineStatus{}},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Spec: infrav1.NutanixMachineSpec{
-					ProviderID: "nutanix://" + validUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
-		},
-		{
-			name:    "should prioritize status VmUUID over Spec.ProviderID",
-			machine: &capiv1beta2.Machine{Status: capiv1beta2.MachineStatus{}},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Spec: infrav1.NutanixMachineSpec{
-					ProviderID: "nutanix://" + anotherValidUUID,
-				},
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
-		},
-		{
-			name:    "should return error when Spec.ProviderID does not contain a valid UUID",
-			machine: &capiv1beta2.Machine{Status: capiv1beta2.MachineStatus{}},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Spec: infrav1.NutanixMachineSpec{
-					ProviderID: "nutanix://" + invalidUUID,
-				},
-			},
-			want:         "",
 			wantErr:      true,
 			errorMessage: "NutanixMachine.Spec.ProviderID was set but did not contain a valid UUID",
 		},
@@ -3549,7 +3398,7 @@ func TestGetVMUUID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Log("Running test case ", tt.name)
-			got, err := GetVMUUID(tt.machine, tt.nutanixMachine)
+			got, err := GetVMUUID(tt.nutanixMachine)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetVMUUID() error = %v, wantErr %v", err, tt.wantErr)
 				return
