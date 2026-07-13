@@ -10,7 +10,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
-	github.com/nutanix-cloud-native/prism-go-client v0.8.0
+	github.com/nutanix-cloud-native/prism-go-client v0.8.1-0.20260713151526-8bc03703d391
 	github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4 v4.2.1
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
