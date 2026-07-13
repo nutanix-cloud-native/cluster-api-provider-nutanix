@@ -308,7 +308,7 @@ func findVMByStableIdentifier(ctx context.Context, client *v4Converged.Client, n
 	// version-independent path.
 	if pcVersion, verr := client.DomainManager.GetPrismCentralVersion(ctx); verr != nil {
 		log.Error(verr, "failed to get PC version while rediscovering VM; skipping biosUuid lookup")
-	} else if isPCVersionAtLeast76(pcVersion) {
+	} else if isPCVersionHigherThan75(pcVersion) {
 		vms, err := client.VMs.List(ctx, converged.WithFilter(fmt.Sprintf("biosUuid eq '%s'", recoveryKey)))
 		if err != nil {
 			return nil, fmt.Errorf("failed to list VMs by biosUuid %s while rediscovering VM %s: %w", recoveryKey, vmName, err)
@@ -350,37 +350,71 @@ func matchVMByProviderIDCustomAttribute(vms []vmmconfig.Vm, recoveryKey string) 
 	return nil
 }
 
-// isPCVersionAtLeast76 reports whether the given PC version string is 7.6 or
-// newer. PC 7.6 is the first release where biosUUID is stable across unplanned
-// failover and is server-side filterable. Calendar-style releases (202x.x)
-// predate the 7.x line, and unparseable/empty versions return false so callers
-// fall back to version-independent behaviour.
-func isPCVersionAtLeast76(version string) bool {
-	v := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(version)), "pc.")
-	if v == "" {
-		return false
+// CleanPCVersion normalizes a Prism Central version string by trimming whitespace,
+// lower-casing it, and removing the optional "pc." prefix.
+func CleanPCVersion(version string) string {
+	lowerVersion := strings.ToLower(strings.TrimSpace(version))
+	return strings.TrimPrefix(lowerVersion, "pc.")
+}
+
+func convertStringToIntList(str string) []int {
+	strList := strings.Split(str, ".")
+	var intList []int
+	for _, x := range strList {
+		if val, err := strconv.Atoi(x); err != nil {
+			return []int{9999}
+		} else {
+			intList = append(intList, val)
+		}
 	}
-	parts := strings.Split(v, ".")
-	major, err := strconv.Atoi(parts[0])
-	if err != nil {
-		return false
+	return intList
+}
+
+// CompareVersions compares version numbers of the format '3.5.2.1'.
+// Returns 0 : if v1 == v2
+// Returns 1 : if v1 > v2
+// Returns -1: if v1 < v2
+//
+// If either version is not in the correct format, they will be the greater,
+// unless neither can be parsed in which case they are equal. The case where a
+// branch can't be parsed is if the cluster is running master, or some other
+// non-release branch, or empty string. This is only expected in a test/debug
+// situation and is the motivation for making an unparseable format greater.
+func CompareVersions(v1, v2 string) int {
+	if strings.EqualFold(v1, "master") {
+		v1 = "9999"
 	}
-	if major >= 2000 {
-		// Calendar-based release (e.g. 2024.x) - older than the 7.x line.
-		return false
+	if strings.EqualFold(v2, "master") {
+		v2 = "9999"
 	}
-	if major != 7 {
-		return major > 7
+
+	v1IntList := convertStringToIntList(v1)
+	v2IntList := convertStringToIntList(v2)
+
+	maxLen := max(len(v1IntList), len(v2IntList))
+
+	v1NormIntList := make([]int, maxLen)
+	v2NormIntList := make([]int, maxLen)
+	copy(v1NormIntList, v1IntList)
+	copy(v2NormIntList, v2IntList)
+
+	for i, e := range v1NormIntList {
+		if e > v2NormIntList[i] {
+			return 1
+		} else if e < v2NormIntList[i] {
+			return -1
+		}
 	}
-	if len(parts) < 2 {
-		// "7" with no minor is treated as < "7.6".
-		return false
-	}
-	minor, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return false
-	}
-	return minor >= 6
+	return 0
+}
+
+// isPCVersionHigherThan75 reports whether the given PC version is 7.6 or newer.
+// PC 7.6 is the first release where the biosUUID is stable across an unplanned
+// failover and is server-side filterable. The version may include a "pc." prefix
+// (e.g. "pc.7.6.0.5").
+func isPCVersionHigherThan75(version string) bool {
+	v := CleanPCVersion(version)
+	return CompareVersions(v, "7.6") >= 0
 }
 
 // FindVMByName retrieves the VM with the given vm name. When more than one VM
