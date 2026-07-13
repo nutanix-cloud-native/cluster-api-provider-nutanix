@@ -182,16 +182,21 @@ func GenerateProviderID(uuid string) string {
 //     CAPX.
 //   - NutanixMachine.Spec.ProviderID: set once at creation and persisted with
 //     the object, so it survives a clusterctl move where status is recreated
-//     empty on the target cluster. It encodes the VM's original ExtId.
+//     empty on the target cluster. Its value is the VM's original ExtId, which
+//     at creation is identical to the VM's biosUUID; because the CAPI contract
+//     requires providerID to be immutable, it stays pinned to that original UUID
+//     even after the live ExtId later changes.
 //
 // It intentionally does NOT consult Machine.Status.NodeInfo.SystemUUID. That
-// field is the guest-reported biosUUID, which equals the ExtId only at creation
-// time by coincidence: after an unplanned Prism Element failover the ExtId
-// changes (both versions) while the biosUUID either changes (PC 7.5) or stays
-// put (PC 7.6) - in every post-failover case it is not the current ExtId, so
-// feeding it to VMs.Get would miss. The biosUUID is still useful, but only as a
-// server-side filter during rediscovery (see findVMByStableIdentifier), never as
-// a lookup key here.
+// field is the guest-reported (current) biosUUID, which equals the ExtId only at
+// creation time by coincidence: after an unplanned Prism Element failover the
+// ExtId changes (both versions) while the biosUUID either changes (PC 7.5) or
+// stays put (PC 7.6) - in every post-failover case it is not the current ExtId,
+// so feeding it to VMs.Get would miss. The biosUUID still matters for recovery,
+// but note that providerID is itself pinned to the original biosUUID value, so
+// that value doubles as the biosUUID filter during rediscovery (see
+// findVMByStableIdentifier) - which is why SystemUUID is never needed as a direct
+// lookup key here.
 func GetVMUUID(nutanixMachine *infrav1.NutanixMachine) (string, error) {
 	vmUUID := nutanixMachine.Status.VmUUID
 	if vmUUID != "" {
@@ -262,9 +267,12 @@ func FindVM(ctx context.Context, client *v4Converged.Client, nutanixMachine *inf
 
 // findVMByStableIdentifier rediscovers a VM whose ExtId has changed - for
 // example after an unplanned Prism Element failover - using identifiers that
-// survive the failover. The recovery key is the VM's original ExtId, which is
-// encoded in Spec.ProviderID and is also the value CAPX stamps in the
-// provider-id custom attribute (providerid:<ExtId>).
+// survive the failover. The recovery key is Spec.ProviderID's value: the VM's
+// original ExtId, which at creation equals the VM's biosUUID and, being an
+// immutable providerID, stays pinned to that original UUID. That dual identity
+// is what makes the two strategies below work - the same key is both the biosUUID
+// (stable on PC 7.6) and the value CAPX stamps into the provider-id custom
+// attribute (providerid:<original-ExtId>).
 //
 // Two strategies are combined to cover both supported PC versions:
 //   - PC 7.6+: biosUUID is stable across unplanned failover and is server-side
@@ -290,8 +298,11 @@ func findVMByStableIdentifier(ctx context.Context, client *v4Converged.Client, n
 	}
 
 	// PC 7.6+ exposes a server-side filter on biosUuid, which is stable across
-	// unplanned failovers. Prefer it when available. A failure to determine the
-	// PC version is non-fatal: fall through to the version-independent path.
+	// unplanned failovers. Since recoveryKey is the original biosUUID and the
+	// biosUUID does not change on 7.6, "biosUuid eq recoveryKey" still matches the
+	// failed-over VM under its new ExtId. Prefer it when available. A failure to
+	// determine the PC version is non-fatal: fall through to the
+	// version-independent path.
 	if pcVersion, verr := client.DomainManager.GetPrismCentralVersion(ctx); verr != nil {
 		log.Error(verr, "failed to get PC version while rediscovering VM; skipping biosUuid lookup")
 	} else if isPCVersionAtLeast76(pcVersion) {
