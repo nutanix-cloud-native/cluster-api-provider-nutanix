@@ -1369,17 +1369,27 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		return vmFound, nil
 	}
 
-	// Create-guard: never create a VM for a NutanixMachine that already carries an
-	// identity. Spec.ProviderID is set exactly once, right after the VM is created
-	// (see below), and is persisted on the NutanixMachine object. If it is already
-	// set but FindVM could not locate the VM, the VM is temporarily unresolvable
-	// (for example: status lost after a clusterctl pivot, the backing PE cluster
+	// Create-guard: never create a VM for a NutanixMachine that already carries a
+	// real VM identity (a valid UUID in Status.VmUUID or Spec.ProviderID). CAPX
+	// records that identity once the VM is created and persists it on the object,
+	// so it survives a clusterctl pivot where status is recreated empty. If an
+	// identity is present but FindVM could not locate the VM, the VM is
+	// temporarily unresolvable (status lost after a pivot, the backing PE cluster
 	// failed over and the VM was assigned a new ExtId, or the caller's List was
 	// transiently filtered by ABAC and returned zero rows). In all of these cases
 	// the correct action is to requeue and retry the lookup, not to create a second
 	// VM. Returning a plain (retryable) error triggers a backoff requeue.
-	if rctx.NutanixMachine.Spec.ProviderID != "" {
-		return nil, fmt.Errorf("VM for machine %s has providerID %s but could not be found; requeueing instead of creating a duplicate VM", vmName, rctx.NutanixMachine.Spec.ProviderID)
+	//
+	// NOTE: this deliberately checks for a valid UUID via GetVMUUID rather than a
+	// non-empty Spec.ProviderID. Cluster templates pre-seed Spec.ProviderID with a
+	// non-UUID placeholder ("nutanix://${CLUSTER_NAME}-m1") before the VM exists;
+	// that placeholder must NOT block the initial creation.
+	existingVMUUID, err := GetVMUUID(rctx.NutanixMachine)
+	if err != nil {
+		return nil, err
+	}
+	if existingVMUUID != "" {
+		return nil, fmt.Errorf("VM for machine %s has UUID %s but could not be found; requeueing instead of creating a duplicate VM", vmName, existingVMUUID)
 	}
 
 	log.Info(fmt.Sprintf("No existing VM found. Starting creation process of VM %s.", vmName))

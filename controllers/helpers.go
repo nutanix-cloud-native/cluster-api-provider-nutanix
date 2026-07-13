@@ -208,10 +208,16 @@ func GetVMUUID(nutanixMachine *infrav1.NutanixMachine) (string, error) {
 	}
 	if nutanixMachine.Spec.ProviderID != "" {
 		providerUUID := strings.TrimPrefix(nutanixMachine.Spec.ProviderID, providerIdPrefix)
-		if _, err := uuid.Parse(providerUUID); err != nil {
-			return "", fmt.Errorf("NutanixMachine.Spec.ProviderID was set but did not contain a valid UUID: %s err: %w", nutanixMachine.Spec.ProviderID, err)
+		// Spec.ProviderID may be pre-seeded by a cluster template with a
+		// non-UUID placeholder (the shipped templates set
+		// "nutanix://${CLUSTER_NAME}-m1") before the VM exists. Only treat it
+		// as a VM identity when it parses as a real UUID; otherwise ignore it
+		// and fall through so the machine is resolved by name / created. CAPX
+		// overwrites the placeholder with the real "nutanix://<uuid>" once the
+		// VM is created.
+		if _, err := uuid.Parse(providerUUID); err == nil {
+			return providerUUID, nil
 		}
-		return providerUUID, nil
 	}
 	return "", nil
 }

@@ -3469,12 +3469,18 @@ func TestGetVMUUID(t *testing.T) {
 			errorMessage: "VMUUID was set but was not a valid UUID",
 		},
 		{
-			name: "returns error when Spec.ProviderID does not contain a valid UUID",
+			name: "ignores non-UUID Spec.ProviderID and returns empty",
 			nutanixMachine: &infrav1.NutanixMachine{
 				Spec: infrav1.NutanixMachineSpec{ProviderID: "nutanix://" + invalidUUID},
 			},
-			wantErr:      true,
-			errorMessage: "NutanixMachine.Spec.ProviderID was set but did not contain a valid UUID",
+			want: "",
+		},
+		{
+			name: "ignores template placeholder Spec.ProviderID and returns empty",
+			nutanixMachine: &infrav1.NutanixMachine{
+				Spec: infrav1.NutanixMachineSpec{ProviderID: "nutanix://my-cluster-m1"},
+			},
+			want: "",
 		},
 	}
 
