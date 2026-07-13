@@ -1066,6 +1066,51 @@ func TestReconcileDeleteRediscoversVMAfterFailover(t *testing.T) {
 	assert.Contains(t, err.Error(), "delete boom")
 }
 
+func TestCompareVersions(t *testing.T) {
+	tests := []struct {
+		name   string
+		v1, v2 string
+		want   int
+	}{
+		{name: "equal", v1: "7.6", v2: "7.6", want: 0},
+		{name: "equal with trailing zero", v1: "7.6.0", v2: "7.6", want: 0},
+		{name: "greater minor", v1: "7.6", v2: "7.5", want: 1},
+		{name: "lesser minor", v1: "7.5", v2: "7.6", want: -1},
+		{name: "greater patch", v1: "7.6.1", v2: "7.6", want: 1},
+		{name: "master is greatest", v1: "master", v2: "7.6", want: 1},
+		{name: "unparseable is treated as greater", v1: "not-a-version", v2: "7.6", want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, CompareVersions(tt.v1, tt.v2))
+		})
+	}
+}
+
+func TestIsPCVersionHigherThan75(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+		want    bool
+	}{
+		{name: "7.6 is >= 7.6", version: "7.6", want: true},
+		{name: "pc-prefixed 7.6.0 is >= 7.6", version: "pc.7.6.0", want: true},
+		{name: "pc-prefixed 7.6.0.5 is >= 7.6", version: "pc.7.6.0.5", want: true},
+		{name: "7.7 is >= 7.6", version: "7.7", want: true},
+		{name: "8.0 is >= 7.6", version: "8.0", want: true},
+		{name: "7.5 is < 7.6", version: "7.5", want: false},
+		{name: "pc-prefixed 7.5.0.5 is < 7.6", version: "pc.7.5.0.5", want: false},
+		// Unparseable/empty versions are treated as the greater value by
+		// CompareVersions (documented "assume newest" behavior).
+		{name: "empty is treated as >= 7.6", version: "", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isPCVersionHigherThan75(tt.version))
+		})
+	}
+}
+
 func TestGetPEUUID(t *testing.T) {
 	ctx := context.Background()
 
