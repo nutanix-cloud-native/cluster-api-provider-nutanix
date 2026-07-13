@@ -959,10 +959,11 @@ func TestFindVMRediscoversVMAfterFailover(t *testing.T) {
 		// Last-known UUID (the original ExtId) no longer resolves.
 		cc.MockVMs.EXPECT().Get(gomock.Any(), originalUUID).Return(nil, notFound)
 		cc.MockDomainManager.EXPECT().GetPrismCentralVersion(gomock.Any()).Return("pc.7.6.0", nil)
-		// biosUuid filter returns the VM under its new ExtId.
-		cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{
-			{ExtId: ptr.To(newExtID), Name: ptr.To(vmName), CustomAttributes: []string{"providerid:" + originalUUID}},
-		}, nil)
+		// biosUuid lookup returns the VM under its new ExtId.
+		cc.MockVMs.EXPECT().GetVMByBiosUUID(gomock.Any(), originalUUID).Return(
+			&vmmModels.Vm{ExtId: ptr.To(newExtID), Name: ptr.To(vmName), CustomAttributes: []string{"providerid:" + originalUUID}},
+			nil,
+		)
 
 		vm, err := FindVM(ctx, cc.Client, newNutanixMachine(), vmName)
 		require.NoError(t, err)

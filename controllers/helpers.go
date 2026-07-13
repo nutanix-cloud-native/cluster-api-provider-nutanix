@@ -302,24 +302,20 @@ func findVMByStableIdentifier(ctx context.Context, client *v4Converged.Client, n
 
 	// PC 7.6+ exposes a server-side filter on biosUuid, which is stable across
 	// unplanned failovers. Since recoveryKey is the original biosUUID and the
-	// biosUUID does not change on 7.6, "biosUuid eq recoveryKey" still matches the
-	// failed-over VM under its new ExtId. Prefer it when available. A failure to
-	// determine the PC version is non-fatal: fall through to the
-	// version-independent path.
+	// biosUUID does not change on 7.6, a biosUuid lookup still matches the
+	// failed-over VM under its new ExtId. Prefer it when available, delegating to
+	// the converged client's GetVMByBiosUUID which also resolves clone chains to
+	// the leaf VM. A failure to determine the PC version, or an inability to
+	// resolve the VM by biosUuid, is non-fatal: fall through to the
+	// version-independent name + provider-id custom attribute lookup below.
 	if pcVersion, verr := client.DomainManager.GetPrismCentralVersion(ctx); verr != nil {
 		log.Error(verr, "failed to get PC version while rediscovering VM; skipping biosUuid lookup")
 	} else if isPCVersionHigherThan75(pcVersion) {
-		vms, err := client.VMs.List(ctx, converged.WithFilter(fmt.Sprintf("biosUuid eq '%s'", recoveryKey)))
-		if err != nil {
-			return nil, fmt.Errorf("failed to list VMs by biosUuid %s while rediscovering VM %s: %w", recoveryKey, vmName, err)
-		}
-		if vm := matchVMByProviderIDCustomAttribute(vms, recoveryKey); vm != nil {
+		if vm, err := client.VMs.GetVMByBiosUUID(ctx, recoveryKey); err != nil {
+			log.Info(fmt.Sprintf("biosUuid lookup did not resolve VM %s (biosUuid %s): %v; falling back to name lookup", vmName, recoveryKey, err))
+		} else {
 			log.Info(fmt.Sprintf("Rediscovered VM %s by biosUuid %s with new ExtId %s", vmName, recoveryKey, *vm.ExtId))
 			return vm, nil
-		}
-		if len(vms) == 1 {
-			log.Info(fmt.Sprintf("Rediscovered VM %s by biosUuid %s with new ExtId %s", vmName, recoveryKey, *vms[0].ExtId))
-			return &vms[0], nil
 		}
 	}
 
