@@ -278,10 +278,12 @@ func FindVM(ctx context.Context, client *v4Converged.Client, nutanixMachine *inf
 //   - PC 7.6+: biosUUID is stable across unplanned failover and is server-side
 //     filterable, so it is used as a cheap, precise lookup. The PC version is
 //     fetched here because it is not otherwise available on this path.
-//   - PC 7.5 (and as a universal fallback): biosUUID is neither stable nor
-//     filterable, but the VM name is unchanged across failover and the
-//     provider-id custom attribute survives it. List by name and disambiguate
-//     by that custom attribute.
+//   - PC 7.5 (and as a universal fallback): on unplanned failover the biosUUID
+//     is re-synced to the new ExtId (both change to the same new value), so the
+//     original biosUUID held in recoveryKey no longer matches the VM - a biosUuid
+//     filter would miss even if 7.5 offered one. What does survive failover is the
+//     VM name and the provider-id custom attribute (providerid:<original ExtId>),
+//     so list by name and disambiguate by that custom attribute.
 //
 // Returns (nil, nil) when no VM could be rediscovered so the caller can decide
 // how to proceed (the create-guard in getOrCreateVM ensures this never results
