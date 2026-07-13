@@ -43,7 +43,6 @@ import (
 	v1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
-	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"         //nolint:staticcheck // suppress complaining on Deprecated package
 	v1beta2conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions/v1beta2" //nolint:staticcheck // suppress complaining on Deprecated package
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -175,16 +174,25 @@ func GenerateProviderID(uuid string) string {
 	return fmt.Sprintf("%s%s", providerIdPrefix, uuid)
 }
 
-// GetVMUUID returns the UUID of the VM.
-func GetVMUUID(machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMachine) (string, error) {
-	// First, try to get the systemUUID from Machine.Status.NodeInfo
-	if machine != nil && machine.Status.NodeInfo != nil && machine.Status.NodeInfo.SystemUUID != "" {
-		systemUUID := machine.Status.NodeInfo.SystemUUID
-		if _, err := uuid.Parse(systemUUID); err != nil {
-			return "", fmt.Errorf("Machine.Status.NodeInfo.SystemUUID was set but was not a valid UUID: %s err: %w", systemUUID, err)
-		}
-		return systemUUID, nil
-	}
+// GetVMUUID returns the VM's ExtId - the identifier Prism Central assigns to the
+// VM and the only value accepted by VMs.Get. It deliberately consults only
+// ExtId-namespace sources, in order of reliability:
+//
+//   - NutanixMachine.Status.VmUUID: the VM's current ExtId as last observed by
+//     CAPX.
+//   - NutanixMachine.Spec.ProviderID: set once at creation and persisted with
+//     the object, so it survives a clusterctl move where status is recreated
+//     empty on the target cluster. It encodes the VM's original ExtId.
+//
+// It intentionally does NOT consult Machine.Status.NodeInfo.SystemUUID. That
+// field is the guest-reported biosUUID, which equals the ExtId only at creation
+// time by coincidence: after an unplanned Prism Element failover the ExtId
+// changes (both versions) while the biosUUID either changes (PC 7.5) or stays
+// put (PC 7.6) - in every post-failover case it is not the current ExtId, so
+// feeding it to VMs.Get would miss. The biosUUID is still useful, but only as a
+// server-side filter during rediscovery (see findVMByStableIdentifier), never as
+// a lookup key here.
+func GetVMUUID(nutanixMachine *infrav1.NutanixMachine) (string, error) {
 	vmUUID := nutanixMachine.Status.VmUUID
 	if vmUUID != "" {
 		if _, err := uuid.Parse(vmUUID); err != nil {
@@ -192,13 +200,6 @@ func GetVMUUID(machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMach
 		}
 		return vmUUID, nil
 	}
-	// Fall back to the provider ID. Status.VmUUID is derived state that can be
-	// lost (for example, after a clusterctl move where the object is recreated
-	// on the target cluster before its status is repopulated), whereas
-	// Spec.ProviderID is set once at creation and persists with the object. It
-	// encodes the VM's original ExtId, so it is a reliable identity anchor when
-	// status is empty. Without this fallback, a status-less reconcile drops to
-	// name-based lookup, which is what allows duplicate VMs to be created.
 	if nutanixMachine.Spec.ProviderID != "" {
 		providerUUID := strings.TrimPrefix(nutanixMachine.Spec.ProviderID, providerIdPrefix)
 		if _, err := uuid.Parse(providerUUID); err != nil {
@@ -210,9 +211,9 @@ func GetVMUUID(machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMach
 }
 
 // FindVM retrieves the VM with the given uuid or name
-func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
+func FindVM(ctx context.Context, client *v4Converged.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
-	vmUUID, err := GetVMUUID(machine, nutanixMachine)
+	vmUUID, err := GetVMUUID(nutanixMachine)
 	if err != nil {
 		return nil, err
 	}
@@ -224,12 +225,10 @@ func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta
 			return nil, err
 		}
 		if vm == nil {
-			// The last-known UUID no longer resolves. This is expected when the
+			// The last-known ExtId no longer resolves. This is expected when the
 			// VM's backing Prism Element cluster failed over and the VM was
-			// assigned a new ExtId (PC 7.5), or when we are looking up by the
-			// node's biosUUID which never equals the current ExtId post-failover.
-			// Attempt to rediscover the VM by identifiers that survive failover
-			// before concluding it is gone.
+			// assigned a new ExtId. Attempt to rediscover the VM by identifiers
+			// that survive failover before concluding it is gone.
 			log.Info(fmt.Sprintf("VM %s not found by UUID %s; attempting rediscovery by stable identifiers", vmName, vmUUID))
 			recovered, rerr := findVMByStableIdentifier(ctx, client, nutanixMachine, vmName)
 			if rerr != nil {

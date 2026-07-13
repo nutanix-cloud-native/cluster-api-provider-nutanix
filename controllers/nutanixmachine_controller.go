@@ -329,7 +329,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		Status: metav1.ConditionFalse,
 		Reason: capiv1beta1.DeletingReason,
 	})
-	vmUUID, err := GetVMUUID(rctx.Machine, rctx.NutanixMachine)
+	vmUUID, err := GetVMUUID(rctx.NutanixMachine)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get VM UUID during delete: %w", err)
 		log.Error(errorMsg, "failed to delete VM")
@@ -1320,7 +1320,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	convergedClient := rctx.ConvergedClient
 
 	// Check if the VM already exists
-	vmFound, err := FindVM(ctx, convergedClient, rctx.Machine, rctx.NutanixMachine, vmName)
+	vmFound, err := FindVM(ctx, convergedClient, rctx.NutanixMachine, vmName)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred finding VM %s by name or uuid", vmName))
 		return nil, err
