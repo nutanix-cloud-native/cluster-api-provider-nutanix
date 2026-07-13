@@ -1029,6 +1029,43 @@ func TestGetOrCreateVMDoesNotDuplicateWhenProviderIDSet(t *testing.T) {
 	assert.Nil(t, vm)
 }
 
+func TestReconcileDeleteRediscoversVMAfterFailover(t *testing.T) {
+	ctx := context.Background()
+	vmName := "test-machine"
+	staleUUID := "550e8400-e29b-41d4-a716-446655440000"
+	newExtID := "660e8400-e29b-41d4-a716-446655440001"
+	notFound := &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")}
+
+	ctrl := gomock.NewController(t)
+	cc := NewMockConvergedClient(ctrl)
+	// The last-known ExtId no longer resolves (PE failover reassigned it).
+	cc.MockVMs.EXPECT().Get(gomock.Any(), staleUUID).Return(nil, notFound)
+	// Rediscovery finds the VM under a new ExtId via its provider-id attribute.
+	cc.MockDomainManager.EXPECT().GetPrismCentralVersion(gomock.Any()).Return("pc.7.5.0", nil)
+	cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{
+		{ExtId: ptr.To(newExtID), Name: ptr.To(vmName), CustomAttributes: []string{"providerid:" + staleUUID}},
+	}, nil)
+	// No task in progress for the (correct) new ExtId.
+	cc.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, nil)
+	// Delete must target the rediscovered ExtId, not the stale one. Returning an
+	// error here short-circuits the reconcile without needing a k8s client for
+	// the finalizer/patch path; the assertion is that DeleteAsync is invoked with
+	// newExtID (gomock fails if it is called with staleUUID or not at all).
+	cc.MockVMs.EXPECT().DeleteAsync(gomock.Any(), newExtID).Return(nil, errors.New("delete boom"))
+
+	r := &NutanixMachineReconciler{}
+	rctx := &nctx.MachineContext{
+		Context:         ctx,
+		Machine:         &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}},
+		NutanixMachine:  &infrav1.NutanixMachine{ObjectMeta: metav1.ObjectMeta{Name: vmName}, Spec: infrav1.NutanixMachineSpec{ProviderID: "nutanix://" + staleUUID}},
+		ConvergedClient: cc.Client,
+	}
+
+	_, err := r.reconcileDelete(rctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "delete boom")
+}
+
 func TestGetPEUUID(t *testing.T) {
 	ctx := context.Background()
 

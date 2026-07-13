@@ -360,12 +360,42 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	}
 
 	if vm == nil {
+		// The last-known ExtId no longer resolves. Before concluding the VM is
+		// gone and dropping the finalizer - which would orphan a still-running
+		// VM - attempt the same failover rediscovery used on the create path.
+		// This matters when the VM's backing Prism Element cluster failed over
+		// and the VM was reassigned a new ExtId: status.vmUUID/providerID still
+		// hold the stale ExtId while the VM is present under a new one.
+		log.Info(fmt.Sprintf("VM %s not found by UUID %s during delete; attempting rediscovery by stable identifiers", vmName, vmUUID))
+		recovered, rerr := findVMByStableIdentifier(ctx, convergedClient, rctx.NutanixMachine, vmName)
+		if rerr != nil {
+			errorMsg := fmt.Errorf("error rediscovering VM %s after UUID %s did not resolve: %w", vmName, vmUUID, rerr)
+			log.Error(errorMsg, "error finding VM")
+			v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1beta1.ConditionSeverityWarning, "%s", errorMsg.Error())
+			v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+				Type:    string(infrav1.VMProvisionedCondition),
+				Status:  metav1.ConditionFalse,
+				Reason:  infrav1.DeletionFailed,
+				Message: errorMsg.Error(),
+			})
+			return reconcile.Result{}, errorMsg
+		}
+		vm = recovered
+	}
+
+	if vm == nil {
 		log.Info(fmt.Sprintf("no VM found with UUID %s: assuming it is already deleted; skipping delete", vmUUID))
 		log.Info(fmt.Sprintf("removing finalizers for VM %s during delete reconciliation", vmName))
 		ctrlutil.RemoveFinalizer(rctx.NutanixMachine, infrav1.NutanixMachineFinalizer)
 		ctrlutil.RemoveFinalizer(rctx.NutanixMachine, infrav1.DeprecatedNutanixMachineFinalizer)
 		return reconcile.Result{}, nil
 	}
+
+	// Normalize to the VM's authoritative ExtId. After a failover the value
+	// resolved from status/providerID can be stale, so every downstream
+	// operation (task check, volume-group detach, delete) must target the ExtId
+	// the VM actually carries now.
+	vmUUID = *vm.ExtId
 
 	// Check if the VM name matches the Machine name or the NutanixMachine name.
 	// Earlier, we were creating VMs with the same name as the NutanixMachine name.
