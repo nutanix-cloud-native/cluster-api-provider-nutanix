@@ -29,6 +29,7 @@ Check out the [getting started guide](https://opendocs.nutanix.com/capx/latest/g
 | 1.7.x        | pc2024.3+                  | 6.5+                       |
 | 1.8.x        | 7.3+                       | 7.3+                       |
 | 1.9.x        | 7.5+                       | 7.5+                       |
+| 1.10.x       | 7.5+                       | 7.5+                       |
 
 ## Documentation
 Visit the `Cluster API Provider: Nutanix (CAPX)` section on [opendocs.nutanix.com](https://opendocs.nutanix.com/) for all documentation related to CAPX.
