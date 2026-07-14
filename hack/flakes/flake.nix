@@ -48,17 +48,17 @@
             vendorHash = "sha256-LHRd8Q/v3ceFOqULsTtphfd4xBsz3XBG4Rkmn3Ty6CE=";
           };
 
-          setup-envtest = buildGo121Module {
+          setup-envtest = buildGo122Module {
             name = "setup-envtest";
             src = fetchFromGitHub {
               owner = "kubernetes-sigs";
               repo = "controller-runtime";
-              rev = "v0.16.3";
-              hash = "sha256-X4YM4A63UxD650S3lxbxRtZaHOyF7LY6d5eVJe91+5c=";
+              rev = "v0.19.0";
+              hash = "sha256-9AqZMiA+OIJD+inmeUc/lq57kV7L85jk1I4ywiSKirg=";
             } + "/tools/setup-envtest";
             doCheck = false;
             subPackages = [ "." ];
-            vendorHash = "sha256-ISVGxhFQh4e0eag9Sw0Zj4u1cG0tudZLhJcGdH5tDo4=";
+            vendorHash = "sha256-sn3HiKTpQzjrFTOVOGFJwoNpxU+XWgkWD2EOcPilePY=";
           };
         };
 
