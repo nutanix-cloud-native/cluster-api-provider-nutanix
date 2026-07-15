@@ -306,8 +306,6 @@ spec:
       joinConfiguration:
         nodeRegistration:
           kubeletExtraArgs:
-          - name: cloud-provider
-            value: external
           - name: eviction-hard
             value: nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,memory.available<100Mi,imagefs.inodesFree<10%
           - name: tls-cipher-suites
