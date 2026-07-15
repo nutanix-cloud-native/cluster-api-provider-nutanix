@@ -145,7 +145,9 @@ func (r *NutanixClusterReconciler) mapNutanixFailureDomainToNutanixCluster() han
 
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;update;delete
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters;clusters/status,verbs=get;list;watch
+// +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machines,verbs=get;list;watch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixmachines,verbs=get;list;watch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixclusters/finalizers,verbs=update
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixfailuredomains,verbs=get;list;watch
@@ -373,7 +375,8 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 
 	if rctx.NutanixCluster.Status.Ready {
 		log.Info("NutanixCluster is already in ready status.")
-		return reconcile.Result{}, nil
+		r.garbageCollectOrphanedVMs(rctx)
+		return reconcile.Result{RequeueAfter: orphanedVMGCInterval}, nil
 	}
 
 	err := r.reconcileCategories(rctx)
@@ -384,7 +387,17 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 	}
 
 	rctx.NutanixCluster.Status.Ready = true
-	return reconcile.Result{}, nil
+	r.garbageCollectOrphanedVMs(rctx)
+	return reconcile.Result{RequeueAfter: orphanedVMGCInterval}, nil
+}
+
+// garbageCollectOrphanedVMs runs the orphaned-VM garbage collector for the cluster. It is
+// best-effort: failures are logged but never fail the reconcile, since the periodic resync retries.
+func (r *NutanixClusterReconciler) garbageCollectOrphanedVMs(rctx *nctx.ClusterContext) {
+	log := ctrl.LoggerFrom(rctx.Context)
+	if err := garbageCollectOrphanedVMs(rctx.Context, r.Client, rctx.ConvergedClient, rctx.Cluster.Name, rctx.Cluster.Namespace); err != nil {
+		log.Error(err, "failed to garbage-collect orphaned VMs; will retry on next resync")
+	}
 }
 
 // reconcileVHADomains ensures a NutanixVirtualHADomain CR exists for every NutanixMetro referenced
