@@ -1696,7 +1696,7 @@ metadata:
   name: ${CLUSTER_NAME}
   namespace: kube-system
 stringData:
-  credentials: |
+  credentials: |-
     [
       {
         "type": "basic_auth",
@@ -1704,7 +1704,8 @@ stringData:
           "prismCentral":{
             "username": "${NUTANIX_USER}",
             "password": "${NUTANIX_PASSWORD}"
-          }
+          },
+          "prismElements": null
         }
       }
     ]
@@ -1935,8 +1936,8 @@ spec:
         extraArgs:
         - name: cloud-provider
           value: external
-        - name: eviction-hard
-          value: nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,memory.available<100Mi,imagefs.inodesFree<10%
+        - name: tls-cipher-suites
+          value: ${TLS_CIPHER_SUITES=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256}
       scheduler:
         extraArgs:
         - name: tls-cipher-suites
