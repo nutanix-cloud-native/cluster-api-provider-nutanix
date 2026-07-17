@@ -1447,3 +1447,34 @@ func getVHADomainCategory(mctx *nctx.MachineContext, ctlclient client.Client) (*
 
 	return nil, fmt.Errorf("not found vHADomain category for NutanixMachine")
 }
+
+// countVMVHADomainCategories returns the number of categories assigned to the VM that have the
+// vHADomain key (VHADomainDefaultCategoryKey, i.e. "k8s-vha-native-site"). The VM's category
+// references only carry the category extId, so the vHADomain categories are first resolved from
+// Prism Central by key and matched against the VM's assigned category extIds.
+func countVMVHADomainCategories(ctx context.Context, client *v4Converged.Client, vm *vmmconfig.Vm) (int, error) {
+	vhaCategories, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s'", VHADomainDefaultCategoryKey)))
+	if err != nil {
+		return 0, fmt.Errorf("failed to list categories with key %q: %w", VHADomainDefaultCategoryKey, err)
+	}
+
+	vhaExtIds := make(map[string]struct{}, len(vhaCategories))
+	for i := range vhaCategories {
+		if vhaCategories[i].ExtId != nil {
+			vhaExtIds[*vhaCategories[i].ExtId] = struct{}{}
+		}
+	}
+
+	count := 0
+	for i := range vm.Categories {
+		extId := vm.Categories[i].ExtId
+		if extId == nil {
+			continue
+		}
+		if _, ok := vhaExtIds[*extId]; ok {
+			count++
+		}
+	}
+
+	return count, nil
+}

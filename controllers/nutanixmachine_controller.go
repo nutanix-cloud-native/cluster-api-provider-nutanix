@@ -539,6 +539,13 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, err
 	}
 
+	// In case of the Metro use case, make sure the VM has one and only one category with the
+	// vHADomain key "k8s-vha-native-site".
+	if err = r.checkVHADomainCategory(rctx, vm); err != nil {
+		log.Error(err, "Failed to check the VHADomainCategory for the VM")
+		return reconcile.Result{}, err
+	}
+
 	log.V(1).Info(fmt.Sprintf("Patching machine post creation vmUUID: %s", rctx.NutanixMachine.Status.VmUUID))
 	if err := r.patchMachine(rctx); err != nil {
 		errorMsg := fmt.Errorf("failed to patch NutanixMachine %s after creation: %w", rctx.NutanixMachine.Name, err)
@@ -692,6 +699,31 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 
 	// Set the NutanixMachine.status.failureDomain
 	rctx.NutanixMachine.Status.FailureDomain = &fd
+
+	return nil
+}
+
+// checkVHADomainCategory enforces the implicit contract that a Metro VM carries one and only one
+// category with the vHADomain key "k8s-vha-native-site". This contract is relied on by CSI and NKP
+// for k8s-HA. It is a no-op when the Machine is not configured with a NutanixMetro/NutanixMetroSite
+// failureDomain.
+func (r *NutanixMachineReconciler) checkVHADomainCategory(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
+	if !isNutanixMetroFailureDomain(rctx.Machine.Spec.FailureDomain) &&
+		!isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
+		return nil
+	}
+
+	count, err := countVMVHADomainCategories(rctx.Context, rctx.ConvergedClient, vm)
+	if err != nil {
+		return err
+	}
+
+	if count != 1 {
+		return fmt.Errorf(
+			"the Metro VM %s must have one and only one category with the vHADomain key %q, but found %d",
+			rctx.Machine.Name, VHADomainDefaultCategoryKey, count,
+		)
+	}
 
 	return nil
 }

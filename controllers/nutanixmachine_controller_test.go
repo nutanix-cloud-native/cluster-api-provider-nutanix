@@ -4208,3 +4208,178 @@ func TestNutanixMachineReconciler_syncVmUUID(t *testing.T) {
 		g.Expect(nutanixMachine.Status.VmUUID).To(Equal(validUUID1), "VmUUID should be set to SystemUUID (not vmExtId)")
 	})
 }
+
+// vhaVM builds a VM whose Categories reference the given category extIds.
+func vhaVM(name string, categoryExtIds ...string) *vmmModels.Vm {
+	vm := vmmModels.NewVm()
+	vm.Name = ptr.To(name)
+	vm.ExtId = ptr.To("vm-" + name)
+	refs := make([]vmmModels.CategoryReference, 0, len(categoryExtIds))
+	for _, extId := range categoryExtIds {
+		refs = append(refs, vmmModels.CategoryReference{ExtId: ptr.To(extId)})
+	}
+	vm.Categories = refs
+	return vm
+}
+
+// TestCountVMVHADomainCategories asserts that only the categories carrying the vHADomain contract key
+// ("k8s-vha-native-site") are counted, regardless of any other categories assigned to the VM. This is
+// the core of the implicit CSI/NKP k8s-HA contract: the count must be exactly 1 for a Metro VM.
+func TestCountVMVHADomainCategories(t *testing.T) {
+	const (
+		vhaExtA   = "vha-ext-a"
+		vhaExtB   = "vha-ext-b"
+		otherExt1 = "other-ext-1"
+		otherExt2 = "other-ext-2"
+	)
+
+	// The Prism Central categories that carry the vHADomain contract key.
+	vhaCategories := []prismModels.Category{
+		{ExtId: ptr.To(vhaExtA), Key: ptr.To(VHADomainDefaultCategoryKey), Value: ptr.To("k8s-vha-capx-d1-default-0")},
+		{ExtId: ptr.To(vhaExtB), Key: ptr.To(VHADomainDefaultCategoryKey), Value: ptr.To("k8s-vha-capx-d1-default-1")},
+	}
+
+	tests := []struct {
+		name string
+		vm   *vmmModels.Vm
+		want int
+	}{
+		{
+			name: "no categories",
+			vm:   vhaVM("n0"),
+			want: 0,
+		},
+		{
+			name: "only non-vha categories",
+			vm:   vhaVM("n1", otherExt1, otherExt2),
+			want: 0,
+		},
+		{
+			name: "exactly one vha category (contract satisfied)",
+			vm:   vhaVM("n2", otherExt1, vhaExtA),
+			want: 1,
+		},
+		{
+			name: "two vha categories (contract violated)",
+			vm:   vhaVM("n3", vhaExtA, vhaExtB, otherExt1),
+			want: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			ctx := context.Background()
+			mockClient := NewMockConvergedClient(ctrl)
+			mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(vhaCategories, nil)
+
+			got, err := countVMVHADomainCategories(ctx, mockClient.Client, tt.vm)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestCountVMVHADomainCategories_ListError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New("boom"))
+
+	_, err := countVMVHADomainCategories(ctx, mockClient.Client, vhaVM("n"))
+	require.Error(t, err)
+}
+
+// TestCheckVHADomainCategory enforces the implicit CSI/NKP k8s-HA contract at reconcile time: a Metro
+// VM must carry one and only one category with the vHADomain key "k8s-vha-native-site". The check is a
+// no-op for non-Metro machines.
+func TestCheckVHADomainCategory(t *testing.T) {
+	const (
+		vhaExtA   = "vha-ext-a"
+		vhaExtB   = "vha-ext-b"
+		otherExt1 = "other-ext-1"
+	)
+
+	vhaCategories := []prismModels.Category{
+		{ExtId: ptr.To(vhaExtA), Key: ptr.To(VHADomainDefaultCategoryKey), Value: ptr.To("k8s-vha-capx-d1-default-0")},
+		{ExtId: ptr.To(vhaExtB), Key: ptr.To(VHADomainDefaultCategoryKey), Value: ptr.To("k8s-vha-capx-d1-default-1")},
+	}
+
+	tests := []struct {
+		name          string
+		failureDomain string
+		vm            *vmmModels.Vm
+		expectList    bool
+		wantErr       bool
+	}{
+		{
+			name:          "non-metro machine is a no-op",
+			failureDomain: "some-zone",
+			vm:            vhaVM("n", vhaExtA, vhaExtB),
+			expectList:    false,
+			wantErr:       false,
+		},
+		{
+			name:          "metro VM with exactly one vha category passes",
+			failureDomain: metroFailureDomainPrefix + "metro-1",
+			vm:            vhaVM("n", otherExt1, vhaExtA),
+			expectList:    true,
+			wantErr:       false,
+		},
+		{
+			name:          "metro VM with no vha category fails",
+			failureDomain: metroFailureDomainPrefix + "metro-1",
+			vm:            vhaVM("n", otherExt1),
+			expectList:    true,
+			wantErr:       true,
+		},
+		{
+			name:          "metro VM with two vha categories fails",
+			failureDomain: metroFailureDomainPrefix + "metro-1",
+			vm:            vhaVM("n", vhaExtA, vhaExtB),
+			expectList:    true,
+			wantErr:       true,
+		},
+		{
+			name:          "metroSite VM with exactly one vha category passes",
+			failureDomain: metroSiteFailureDomainPrefix + "site-1",
+			vm:            vhaVM("n", vhaExtA),
+			expectList:    true,
+			wantErr:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			ctx := context.Background()
+			mockClient := NewMockConvergedClient(ctrl)
+			if tt.expectList {
+				mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(vhaCategories, nil)
+			}
+
+			rctx := &nctx.MachineContext{
+				Context:         ctx,
+				ConvergedClient: mockClient.Client,
+				Machine: &capiv1beta2.Machine{
+					ObjectMeta: metav1.ObjectMeta{Name: "n", Namespace: "default"},
+					Spec:       capiv1beta2.MachineSpec{FailureDomain: tt.failureDomain},
+				},
+			}
+
+			r := &NutanixMachineReconciler{}
+			err := r.checkVHADomainCategory(rctx, tt.vm)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

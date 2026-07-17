@@ -20,10 +20,15 @@ import (
 	"context"
 	"testing"
 
+	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -79,6 +84,65 @@ func TestVHADomainNameHelpers(t *testing.T) {
 	g.Expect(vhaCategoryValue("d1", "default", 1)).To(Equal("k8s-vha-capx-d1-default-1"))
 	g.Expect(vhaRecoveryPlanName("d1", "default", 0)).To(Equal("k8s-vha-capx-d1-default-0"))
 	g.Expect(vhaProtectionPolicyName("d1")).To(Equal("k8s-vha-capx-d1"))
+}
+
+// TestVHADomainDefaultCategoryKey_Contract guards the implicit contract shared with CSI and NKP for
+// k8s-HA: the vHADomain category key MUST be exactly "k8s-vha-native-site". CSI/NKP rely on this
+// literal, so changing the constant silently would break k8s-HA in the field. This test fails loudly
+// so whoever changes the constant is alerted to the downstream contract.
+func TestVHADomainDefaultCategoryKey_Contract(t *testing.T) {
+	assert.Equal(t, "k8s-vha-native-site", VHADomainDefaultCategoryKey,
+		"the vHADomain category key is an implicit contract with CSI/NKP for k8s-HA and must not change")
+}
+
+// TestGetOrCreateVHADomainGroupCategories_UsesContractKey ensures every category generated for a
+// vHADomain is created with the contract key "k8s-vha-native-site". This upholds the CSI/NKP k8s-HA
+// contract at category-creation time (part of the "category is always created with the key
+// k8s-vha-native-site" requirement).
+func TestGetOrCreateVHADomainGroupCategories_UsesContractKey(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+
+	// Two failure domains -> two categories are generated, each with a distinct value but the same
+	// contract key. Every category is looked up (List) and, when missing, created (Create).
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil).Times(2)
+	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
+		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
+			// The core contract assertion: the key is always "k8s-vha-native-site".
+			assert.Equal(t, "k8s-vha-native-site", *in.Key)
+			in.ExtId = ptr.To("ext-" + *in.Value)
+			return in, nil
+		},
+	).Times(2)
+
+	r := &NutanixVirtualHADomainReconciler{}
+	rctx := &nctx.VHADomainContext{
+		Context:         ctx,
+		ConvergedClient: mockClient.Client,
+		VHADomain:       vhaDomainObj("d1", vhaClusterName),
+	}
+
+	failureDomains := []*infrav1.NutanixFailureDomain{
+		{ObjectMeta: metav1.ObjectMeta{Name: "fd-0", Namespace: vhaNamespace}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "fd-1", Namespace: vhaNamespace}},
+	}
+
+	categories, err := r.getOrCreateVHADomainGroupCategories(rctx, vhaDefaultMovementGroup, failureDomains)
+	require.NoError(t, err)
+	require.Len(t, categories, len(failureDomains))
+
+	// One and only one value is generated per failure domain, and the key is the contract key for all.
+	seenValues := map[string]struct{}{}
+	for _, c := range categories {
+		assert.Equal(t, VHADomainDefaultCategoryKey, c.Key)
+		_, dup := seenValues[c.Value]
+		assert.False(t, dup, "each failure domain must map to a distinct category value")
+		seenValues[c.Value] = struct{}{}
+	}
+	assert.Len(t, seenValues, len(failureDomains))
 }
 
 func TestVHADomainReconcileDelete_BlockedWhenOwnerNotInDeletion(t *testing.T) {
