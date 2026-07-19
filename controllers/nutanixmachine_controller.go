@@ -713,14 +713,14 @@ func (r *NutanixMachineReconciler) checkVHADomainCategory(rctx *nctx.MachineCont
 		return nil
 	}
 
-	count, err := countVMVHADomainCategories(rctx.Context, rctx.ConvergedClient, vm)
+	count, err := countVMVHADomainCategories(rctx, r.Client, vm)
 	if err != nil {
 		return err
 	}
 
 	if count != 1 {
 		return fmt.Errorf(
-			"the Metro VM %s must have one and only one category with the vHADomain key %q, but found %d",
+			"the Metro VM %s must have one and only one category with the vHADomain key %q from the cluster's vHADomain, but found %d",
 			rctx.Machine.Name, VHADomainDefaultCategoryKey, count,
 		)
 	}

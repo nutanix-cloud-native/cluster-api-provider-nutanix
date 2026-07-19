@@ -1448,21 +1448,51 @@ func getVHADomainCategory(mctx *nctx.MachineContext, ctlclient client.Client) (*
 	return nil, fmt.Errorf("not found vHADomain category for NutanixMachine")
 }
 
-// countVMVHADomainCategories returns the number of categories assigned to the VM that have the
-// vHADomain key (VHADomainDefaultCategoryKey, i.e. "k8s-vha-native-site"). The VM's category
-// references only carry the category extId, so the vHADomain categories are first resolved from
-// Prism Central by key and matched against the VM's assigned category extIds.
-func countVMVHADomainCategories(ctx context.Context, client *v4Converged.Client, vm *vmmconfig.Vm) (int, error) {
-	vhaCategories, err := client.Categories.List(ctx, converged.WithFilter(fmt.Sprintf("key eq '%s'", VHADomainDefaultCategoryKey)))
+// clusterVHADomainCategoryExtIds resolves the vHADomain categories (key VHADomainDefaultCategoryKey,
+// i.e. "k8s-vha-native-site") declared in the movement groups of the NutanixCluster's owned
+// NutanixVirtualHADomain CRs to their Prism Central extIds. Only the categories referenced by this
+// cluster's vHADomain CRs are resolved (a handful of targeted lookups), so this stays cheap even when
+// Prism Central hosts hundreds of metro clusters sharing the "k8s-vha-native-site" key.
+func clusterVHADomainCategoryExtIds(mctx *nctx.MachineContext, ctlclient client.Client) (map[string]struct{}, error) {
+	vHADomains, err := getOwnedVHADomains(mctx.Context, ctlclient, mctx.NutanixCluster)
 	if err != nil {
-		return 0, fmt.Errorf("failed to list categories with key %q: %w", VHADomainDefaultCategoryKey, err)
+		return nil, err
 	}
 
-	vhaExtIds := make(map[string]struct{}, len(vhaCategories))
-	for i := range vhaCategories {
-		if vhaCategories[i].ExtId != nil {
-			vhaExtIds[*vhaCategories[i].ExtId] = struct{}{}
+	extIds := map[string]struct{}{}
+	for _, vhaDomain := range vHADomains {
+		for _, mg := range vhaDomain.Spec.MovementGroups {
+			for i := range mg.CategoryRecoveryPlans {
+				category := mg.CategoryRecoveryPlans[i].Category
+				// Defensive: the vHADomain categories are keyed by VHADomainDefaultCategoryKey; skip
+				// anything else so an unexpected mapping cannot inflate the count.
+				if category.Key != VHADomainDefaultCategoryKey {
+					continue
+				}
+				prismCategory, err := getCategory(mctx.Context, mctx.ConvergedClient, category.Key, category.Value)
+				if err != nil {
+					return nil, fmt.Errorf("vHADomain %s: failed to resolve category (key:%s, value:%s) from Prism Central: %w", vhaDomain.Name, category.Key, category.Value, err)
+				}
+				if prismCategory == nil || prismCategory.ExtId == nil {
+					continue
+				}
+				extIds[*prismCategory.ExtId] = struct{}{}
+			}
 		}
+	}
+
+	return extIds, nil
+}
+
+// countVMVHADomainCategories returns the number of categories assigned to the VM that are vHADomain
+// categories (key VHADomainDefaultCategoryKey, i.e. "k8s-vha-native-site") belonging to the
+// NutanixCluster's own vHADomain CRs. It traverses the VM's assigned category extIds and matches them
+// against the cluster's vHADomain category extIds, instead of listing every "k8s-vha-native-site"
+// category in Prism Central (which is costly when many metro clusters share the key).
+func countVMVHADomainCategories(mctx *nctx.MachineContext, ctlclient client.Client, vm *vmmconfig.Vm) (int, error) {
+	vhaExtIds, err := clusterVHADomainCategoryExtIds(mctx, ctlclient)
+	if err != nil {
+		return 0, err
 	}
 
 	count := 0
