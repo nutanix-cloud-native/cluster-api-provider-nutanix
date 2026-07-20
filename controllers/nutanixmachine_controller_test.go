@@ -4208,3 +4208,271 @@ func TestNutanixMachineReconciler_syncVmUUID(t *testing.T) {
 		g.Expect(nutanixMachine.Status.VmUUID).To(Equal(validUUID1), "VmUUID should be set to SystemUUID (not vmExtId)")
 	})
 }
+
+// vhaVM builds a VM whose Categories reference the given category extIds.
+func vhaVM(name string, categoryExtIds ...string) *vmmModels.Vm {
+	vm := vmmModels.NewVm()
+	vm.Name = ptr.To(name)
+	vm.ExtId = ptr.To("vm-" + name)
+	refs := make([]vmmModels.CategoryReference, 0, len(categoryExtIds))
+	for _, extId := range categoryExtIds {
+		refs = append(refs, vmmModels.CategoryReference{ExtId: ptr.To(extId)})
+	}
+	vm.Categories = refs
+	return vm
+}
+
+const (
+	vhaTestNamespace   = "default"
+	vhaTestNtnxCluster = "test-ntnxcluster"
+	vhaCatValue0       = "k8s-vha-capx-d1-default-0"
+	vhaCatValue1       = "k8s-vha-capx-d1-default-1"
+	vhaCatExt0         = "vha-ext-a"
+	vhaCatExt1         = "vha-ext-b"
+)
+
+// vhaTestNutanixCluster returns a NutanixCluster used as the owner of the vHADomain CRs.
+func vhaTestNutanixCluster() *infrav1.NutanixCluster {
+	return &infrav1.NutanixCluster{
+		TypeMeta:   metav1.TypeMeta{Kind: infrav1.NutanixClusterKind, APIVersion: infrav1.GroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{Name: vhaTestNtnxCluster, Namespace: vhaTestNamespace, UID: "ntnx-cluster-uid"},
+	}
+}
+
+// vhaOwnedDomain returns a NutanixVirtualHADomain owned by the given NutanixCluster whose
+// cluster-scope movement group maps the two vHADomain categories (key k8s-vha-native-site).
+func vhaOwnedDomain(ncl *infrav1.NutanixCluster) *infrav1.NutanixVirtualHADomain {
+	return &infrav1.NutanixVirtualHADomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "d1",
+			Namespace: vhaTestNamespace,
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: infrav1.GroupVersion.String(),
+				Kind:       infrav1.NutanixClusterKind,
+				Name:       ncl.Name,
+				UID:        ncl.UID,
+			}},
+		},
+		Spec: infrav1.NutanixVirtualHADomainSpec{
+			MovementGroups: []infrav1.NutanixMovementGroup{{
+				Name: clusterScopeMovementGroupName,
+				CategoryRecoveryPlans: []infrav1.NutanixCategoryRecoveryPlan{
+					{
+						Category:         infrav1.NutanixCategoryIdentifier{Key: VHADomainDefaultCategoryKey, Value: vhaCatValue0},
+						FailureDomainRef: corev1.LocalObjectReference{Name: "fd-0"},
+					},
+					{
+						Category:         infrav1.NutanixCategoryIdentifier{Key: VHADomainDefaultCategoryKey, Value: vhaCatValue1},
+						FailureDomainRef: corev1.LocalObjectReference{Name: "fd-1"},
+					},
+				},
+			}},
+		},
+	}
+}
+
+// expectVHACategoryLookups wires the per-category getCategory (Categories.List by key+value) lookups
+// for the cluster's vHADomain CR, resolving each value to its extId. This mirrors the targeted
+// lookups the check performs instead of listing every "k8s-vha-native-site" category in PC.
+func expectVHACategoryLookups(mockClient *MockConvergedClientWrapper) {
+	byValue := map[string]string{
+		vhaCatValue0: vhaCatExt0,
+		vhaCatValue1: vhaCatExt1,
+	}
+	mockClient.MockCategories.EXPECT().List(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, opts ...converged.ODataOption) ([]prismModels.Category, error) {
+			for value, extId := range byValue {
+				if filterContains(opts, "value eq '"+value+"'") {
+					return []prismModels.Category{{
+						ExtId: ptr.To(extId),
+						Key:   ptr.To(VHADomainDefaultCategoryKey),
+						Value: ptr.To(value),
+					}}, nil
+				}
+			}
+			return []prismModels.Category{}, nil
+		},
+	).AnyTimes()
+}
+
+// filterContains reports whether the OData filter built from opts contains sub.
+func filterContains(opts []converged.ODataOption, sub string) bool {
+	params, err := v4Converged.OptsToV4ODataParams(opts...)
+	if err != nil || params.Filter == nil {
+		return false
+	}
+	return strings.Contains(*params.Filter, sub)
+}
+
+// TestCountVMVHADomainCategories asserts that only the categories belonging to the cluster's vHADomain
+// CR (key "k8s-vha-native-site") are counted, regardless of any other categories assigned to the VM.
+// This is the core of the implicit CSI/NKP k8s-HA contract: the count must be exactly 1 for a Metro VM.
+func TestCountVMVHADomainCategories(t *testing.T) {
+	const otherExt = "other-ext-1"
+
+	tests := []struct {
+		name string
+		vm   *vmmModels.Vm
+		want int
+	}{
+		{
+			name: "no categories",
+			vm:   vhaVM("n0"),
+			want: 0,
+		},
+		{
+			name: "only non-vha categories",
+			vm:   vhaVM("n1", otherExt, "other-ext-2"),
+			want: 0,
+		},
+		{
+			name: "exactly one vha category (contract satisfied)",
+			vm:   vhaVM("n2", otherExt, vhaCatExt0),
+			want: 1,
+		},
+		{
+			name: "two vha categories (contract violated)",
+			vm:   vhaVM("n3", vhaCatExt0, vhaCatExt1, otherExt),
+			want: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			ctx := context.Background()
+			mockClient := NewMockConvergedClient(ctrl)
+			expectVHACategoryLookups(mockClient)
+
+			ncl := vhaTestNutanixCluster()
+			ctlClient := newVHACtlClient(t, ncl, vhaOwnedDomain(ncl))
+
+			rctx := &nctx.MachineContext{
+				Context:         ctx,
+				ConvergedClient: mockClient.Client,
+				NutanixCluster:  ncl,
+			}
+
+			got, err := countVMVHADomainCategories(rctx, ctlClient, tt.vm)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestCountVMVHADomainCategories_CategoryLookupError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New("boom")).AnyTimes()
+
+	ncl := vhaTestNutanixCluster()
+	ctlClient := newVHACtlClient(t, ncl, vhaOwnedDomain(ncl))
+
+	rctx := &nctx.MachineContext{
+		Context:         ctx,
+		ConvergedClient: mockClient.Client,
+		NutanixCluster:  ncl,
+	}
+
+	_, err := countVMVHADomainCategories(rctx, ctlClient, vhaVM("n", vhaCatExt0))
+	require.Error(t, err)
+}
+
+// newVHACtlClient builds a fake controller-runtime client seeded with the given objects.
+func newVHACtlClient(t *testing.T, objs ...client.Object) client.Client {
+	t.Helper()
+	scheme := runtime.NewScheme()
+	require.NoError(t, infrav1.AddToScheme(scheme))
+	require.NoError(t, capiv1beta2.AddToScheme(scheme))
+	return fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+}
+
+// TestCheckVHADomainCategory enforces the implicit CSI/NKP k8s-HA contract at reconcile time: a Metro
+// VM must carry one and only one category with the vHADomain key "k8s-vha-native-site" belonging to
+// the cluster's vHADomain CR. The check is a no-op for non-Metro machines.
+func TestCheckVHADomainCategory(t *testing.T) {
+	const otherExt = "other-ext-1"
+
+	tests := []struct {
+		name          string
+		failureDomain string
+		vm            *vmmModels.Vm
+		expectLookups bool
+		wantErr       bool
+	}{
+		{
+			name:          "non-metro machine is a no-op",
+			failureDomain: "some-zone",
+			vm:            vhaVM("n", vhaCatExt0, vhaCatExt1),
+			expectLookups: false,
+			wantErr:       false,
+		},
+		{
+			name:          "metro VM with exactly one vha category passes",
+			failureDomain: metroFailureDomainPrefix + "metro-1",
+			vm:            vhaVM("n", otherExt, vhaCatExt0),
+			expectLookups: true,
+			wantErr:       false,
+		},
+		{
+			name:          "metro VM with no vha category fails",
+			failureDomain: metroFailureDomainPrefix + "metro-1",
+			vm:            vhaVM("n", otherExt),
+			expectLookups: true,
+			wantErr:       true,
+		},
+		{
+			name:          "metro VM with two vha categories fails",
+			failureDomain: metroFailureDomainPrefix + "metro-1",
+			vm:            vhaVM("n", vhaCatExt0, vhaCatExt1),
+			expectLookups: true,
+			wantErr:       true,
+		},
+		{
+			name:          "metroSite VM with exactly one vha category passes",
+			failureDomain: metroSiteFailureDomainPrefix + "site-1",
+			vm:            vhaVM("n", vhaCatExt0),
+			expectLookups: true,
+			wantErr:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			ctx := context.Background()
+			mockClient := NewMockConvergedClient(ctrl)
+			if tt.expectLookups {
+				expectVHACategoryLookups(mockClient)
+			}
+
+			ncl := vhaTestNutanixCluster()
+			ctlClient := newVHACtlClient(t, ncl, vhaOwnedDomain(ncl))
+
+			rctx := &nctx.MachineContext{
+				Context:         ctx,
+				ConvergedClient: mockClient.Client,
+				NutanixCluster:  ncl,
+				Machine: &capiv1beta2.Machine{
+					ObjectMeta: metav1.ObjectMeta{Name: "n", Namespace: vhaTestNamespace},
+					Spec:       capiv1beta2.MachineSpec{FailureDomain: tt.failureDomain},
+				},
+			}
+
+			r := &NutanixMachineReconciler{Client: ctlClient}
+			err := r.checkVHADomainCategory(rctx, tt.vm)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
