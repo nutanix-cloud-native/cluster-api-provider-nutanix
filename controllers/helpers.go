@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -42,7 +43,6 @@ import (
 	v1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
-	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"         //nolint:staticcheck // suppress complaining on Deprecated package
 	v1beta2conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions/v1beta2" //nolint:staticcheck // suppress complaining on Deprecated package
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -174,30 +174,47 @@ func GenerateProviderID(uuid string) string {
 	return fmt.Sprintf("%s%s", providerIdPrefix, uuid)
 }
 
-// GetVMUUID returns the UUID of the VM.
-func GetVMUUID(machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMachine) (string, error) {
-	// First, try to get the systemUUID from Machine.Status.NodeInfo
-	if machine != nil && machine.Status.NodeInfo != nil && machine.Status.NodeInfo.SystemUUID != "" {
-		systemUUID := machine.Status.NodeInfo.SystemUUID
-		if _, err := uuid.Parse(systemUUID); err != nil {
-			return "", fmt.Errorf("Machine.Status.NodeInfo.SystemUUID was set but was not a valid UUID: %s err: %w", systemUUID, err)
-		}
-		return systemUUID, nil
+// providerIDUUID returns the VM ExtId encoded in the machine's spec.providerID,
+// or "" if it is unset or not a real UUID. Cluster templates pre-seed
+// providerID with a non-UUID placeholder ("nutanix://${CLUSTER_NAME}-m1") before
+// the VM exists; that placeholder is treated as "no identity yet". CAPX replaces
+// it with the real "nutanix://<uuid>" once the VM is created, and the CAPI
+// contract keeps it immutable thereafter - so its value is the VM's original
+// ExtId (identical to the biosUUID at creation), which is why it also serves as
+// the rediscovery key in findVMByStableIdentifier.
+func providerIDUUID(nutanixMachine *infrav1.NutanixMachine) string {
+	if nutanixMachine == nil || nutanixMachine.Spec.ProviderID == "" {
+		return ""
 	}
-	vmUUID := nutanixMachine.Status.VmUUID
-	if vmUUID != "" {
+	id := strings.TrimPrefix(nutanixMachine.Spec.ProviderID, providerIdPrefix)
+	if _, err := uuid.Parse(id); err != nil {
+		return ""
+	}
+	return id
+}
+
+// GetVMUUID returns the VM's ExtId - the only identifier accepted by VMs.Get -
+// preferring the last-observed status.vmUUID and falling back to spec.providerID
+// (which survives a clusterctl move that recreates status empty). It intentionally
+// ignores Machine.Status.NodeInfo.SystemUUID (the guest biosUUID): that is a
+// different identifier, absent until the node registers, whose relationship to the
+// live ExtId is PC-version dependent, so it is unreliable as a GET key. The
+// biosUUID keeps its role as a rediscovery filter instead (see
+// findVMByStableIdentifier).
+func GetVMUUID(nutanixMachine *infrav1.NutanixMachine) (string, error) {
+	if vmUUID := nutanixMachine.Status.VmUUID; vmUUID != "" {
 		if _, err := uuid.Parse(vmUUID); err != nil {
 			return "", fmt.Errorf("VMUUID was set but was not a valid UUID: %s err: %w", vmUUID, err)
 		}
 		return vmUUID, nil
 	}
-	return "", nil
+	return providerIDUUID(nutanixMachine), nil
 }
 
 // FindVM retrieves the VM with the given uuid or name
-func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
+func FindVM(ctx context.Context, client *v4Converged.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
-	vmUUID, err := GetVMUUID(machine, nutanixMachine)
+	vmUUID, err := GetVMUUID(nutanixMachine)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +226,19 @@ func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta
 			return nil, err
 		}
 		if vm == nil {
-			return nil, fmt.Errorf("no vm %s found with UUID %s but was expected to be present", vmName, vmUUID)
+			// The last-known ExtId no longer resolves. This is expected when the
+			// VM's backing Prism Element cluster failed over and the VM was
+			// assigned a new ExtId. Attempt to rediscover the VM by identifiers
+			// that survive failover before concluding it is gone.
+			log.Info(fmt.Sprintf("VM %s not found by UUID %s; attempting rediscovery by stable identifiers", vmName, vmUUID))
+			recovered, rerr := findVMByStableIdentifier(ctx, client, nutanixMachine, vmName)
+			if rerr != nil {
+				return nil, rerr
+			}
+			if recovered == nil {
+				return nil, fmt.Errorf("no vm %s found with UUID %s but was expected to be present", vmName, vmUUID)
+			}
+			return recovered, nil
 		}
 		// Check if the VM name matches the Machine name or the NutanixMachine name.
 		// Earlier, we were creating VMs with the same name as the NutanixMachine name.
@@ -223,7 +252,7 @@ func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta
 		// otherwise search via name
 	} else {
 		log.Info(fmt.Sprintf("Searching for VM %s using name", vmName))
-		vm, err := FindVMByName(ctx, client, vmName)
+		vm, err := FindVMByName(ctx, client, nutanixMachine, vmName)
 		if err != nil {
 			log.Error(err, fmt.Sprintf("error occurred finding VM %s by name", vmName))
 			return nil, err
@@ -232,8 +261,139 @@ func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta
 	}
 }
 
-// FindVMByName retrieves the VM with the given vm name
-func FindVMByName(ctx context.Context, client *v4Converged.Client, vmName string) (*vmmconfig.Vm, error) {
+// findVMByStableIdentifier rediscovers a VM whose ExtId changed (e.g. after an
+// unplanned Prism Element failover) using identifiers that outlive the ExtId. The
+// recovery key is the VM's original ExtId from providerID, which doubles as the
+// biosUUID and as the value in the providerid:<ExtId> custom attribute, so one key
+// drives both strategies:
+//
+//   - PC 7.6+: the biosUUID is stable across failover and server-side filterable,
+//     so GetVMByBiosUUID resolves the VM (and its clone chain) directly.
+//   - PC 7.5 / universal fallback: the biosUUID is re-synced to the new ExtId on
+//     failover so it no longer matches, but the VM name and the provider-id custom
+//     attribute survive - so list by name and match on that attribute.
+//
+// Returns (nil, nil) when nothing matches; the create-guard in getOrCreateVM
+// ensures that never yields a duplicate VM.
+func findVMByStableIdentifier(ctx context.Context, client *v4Converged.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	recoveryKey := providerIDUUID(nutanixMachine)
+	if recoveryKey == "" {
+		return nil, nil
+	}
+
+	// PC 7.6+ fast path. Any failure here (version lookup or biosUuid miss) is
+	// non-fatal and falls through to the version-independent lookup below.
+	if pcVersion, verr := client.DomainManager.GetPrismCentralVersion(ctx); verr != nil {
+		log.Error(verr, "failed to get PC version while rediscovering VM; skipping biosUuid lookup")
+	} else if isPCVersionHigherThan75(pcVersion) {
+		if vm, err := client.VMs.GetVMByBiosUUID(ctx, recoveryKey); err != nil {
+			log.Info(fmt.Sprintf("biosUuid lookup did not resolve VM %s (biosUuid %s): %v; falling back to name lookup", vmName, recoveryKey, err))
+		} else {
+			log.Info(fmt.Sprintf("Rediscovered VM %s by biosUuid %s with new ExtId %s", vmName, recoveryKey, *vm.ExtId))
+			return vm, nil
+		}
+	}
+
+	vms, err := client.VMs.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", vmName)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list VMs by name %s while rediscovering VM: %w", vmName, err)
+	}
+	if vm := matchVMByProviderIDCustomAttribute(vms, recoveryKey); vm != nil {
+		log.Info(fmt.Sprintf("Rediscovered VM %s by provider-id custom attribute %s with ExtId %s", vmName, recoveryKey, *vm.ExtId))
+		return vm, nil
+	}
+
+	return nil, nil
+}
+
+// matchVMByProviderIDCustomAttribute returns the VM carrying the
+// providerid:<recoveryKey> custom attribute, or nil if none match.
+func matchVMByProviderIDCustomAttribute(vms []vmmconfig.Vm, recoveryKey string) *vmmconfig.Vm {
+	want := vmCustomAttributePrefix4ProviderID + recoveryKey
+	for i := range vms {
+		if slices.Contains(vms[i].CustomAttributes, want) {
+			return &vms[i]
+		}
+	}
+	return nil
+}
+
+// CleanPCVersion normalizes a Prism Central version string by trimming whitespace,
+// lower-casing it, and removing the optional "pc." prefix.
+func CleanPCVersion(version string) string {
+	lowerVersion := strings.ToLower(strings.TrimSpace(version))
+	return strings.TrimPrefix(lowerVersion, "pc.")
+}
+
+func convertStringToIntList(str string) []int {
+	strList := strings.Split(str, ".")
+	var intList []int
+	for _, x := range strList {
+		if val, err := strconv.Atoi(x); err != nil {
+			return []int{9999}
+		} else {
+			intList = append(intList, val)
+		}
+	}
+	return intList
+}
+
+// CompareVersions compares version numbers of the format '3.5.2.1'.
+// Returns 0 : if v1 == v2
+// Returns 1 : if v1 > v2
+// Returns -1: if v1 < v2
+//
+// If either version is not in the correct format, they will be the greater,
+// unless neither can be parsed in which case they are equal. The case where a
+// branch can't be parsed is if the cluster is running master, or some other
+// non-release branch, or empty string. This is only expected in a test/debug
+// situation and is the motivation for making an unparseable format greater.
+func CompareVersions(v1, v2 string) int {
+	if strings.EqualFold(v1, "master") {
+		v1 = "9999"
+	}
+	if strings.EqualFold(v2, "master") {
+		v2 = "9999"
+	}
+
+	v1IntList := convertStringToIntList(v1)
+	v2IntList := convertStringToIntList(v2)
+
+	maxLen := max(len(v1IntList), len(v2IntList))
+
+	v1NormIntList := make([]int, maxLen)
+	v2NormIntList := make([]int, maxLen)
+	copy(v1NormIntList, v1IntList)
+	copy(v2NormIntList, v2IntList)
+
+	for i, e := range v1NormIntList {
+		if e > v2NormIntList[i] {
+			return 1
+		} else if e < v2NormIntList[i] {
+			return -1
+		}
+	}
+	return 0
+}
+
+// isPCVersionHigherThan75 reports whether the given PC version is 7.6 or newer.
+// PC 7.6 is the first release where the biosUUID is stable across an unplanned
+// failover and is server-side filterable. The version may include a "pc." prefix
+// (e.g. "pc.7.6.0.5").
+func isPCVersionHigherThan75(version string) bool {
+	v := CleanPCVersion(version)
+	return CompareVersions(v, "7.6") >= 0
+}
+
+// FindVMByName retrieves the VM with the given vm name. When more than one VM
+// shares the name - for example because a duplicate was created by an earlier
+// idempotency gap - it disambiguates instead of dead-locking: it prefers the VM
+// carrying this machine's provider-id custom attribute, and otherwise adopts the
+// oldest matching VM (the VM name is unique per CAPI Machine, so all matches
+// belong to this machine and the duplicate can then be reaped).
+func FindVMByName(ctx context.Context, client *v4Converged.Client, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.Info(fmt.Sprintf("Checking if VM with name %s exists.", vmName))
 
@@ -242,15 +402,48 @@ func FindVMByName(ctx context.Context, client *v4Converged.Client, vmName string
 		return nil, err
 	}
 
-	if len(vms) > 1 {
-		return nil, fmt.Errorf("error: found more than one (%v) vms with name %s", len(vms), vmName)
-	}
-
 	if len(vms) == 0 {
 		return nil, nil
 	}
 
-	return FindVMByUUID(ctx, client, *vms[0].ExtId)
+	if len(vms) == 1 {
+		return FindVMByUUID(ctx, client, *vms[0].ExtId)
+	}
+
+	// More than one VM matched the name. Historically this returned an error,
+	// which permanently wedged the machine whenever a duplicate VM existed - the
+	// exact situation we want to be able to recover from.
+	log.Info(fmt.Sprintf("found %d VMs with name %s; disambiguating instead of failing", len(vms), vmName))
+
+	// Prefer the VM that carries this machine's provider-id custom attribute.
+	if recoveryKey := providerIDUUID(nutanixMachine); recoveryKey != "" {
+		if vm := matchVMByProviderIDCustomAttribute(vms, recoveryKey); vm != nil {
+			return FindVMByUUID(ctx, client, *vm.ExtId)
+		}
+	}
+
+	// No identity to match against: adopt the oldest VM deterministically so the
+	// machine can make progress; the extra VM(s) can be cleaned up afterwards.
+	oldest := oldestVM(vms)
+	log.Info(fmt.Sprintf("adopting oldest VM (ExtId %s) among %d name matches for %s", *oldest.ExtId, len(vms), vmName))
+	return FindVMByUUID(ctx, client, *oldest.ExtId)
+}
+
+// oldestVM returns the VM with the earliest CreateTime. VMs without a CreateTime
+// are considered newest so a VM with a known creation time is always preferred.
+func oldestVM(vms []vmmconfig.Vm) *vmmconfig.Vm {
+	oldest := &vms[0]
+	for i := 1; i < len(vms); i++ {
+		switch {
+		case vms[i].CreateTime == nil:
+			continue
+		case oldest.CreateTime == nil:
+			oldest = &vms[i]
+		case vms[i].CreateTime.Before(*oldest.CreateTime):
+			oldest = &vms[i]
+		}
+	}
+	return oldest
 }
 
 // GetPEUUID returns the UUID of the Prism Element cluster with the given name or UUID.

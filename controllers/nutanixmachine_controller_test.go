@@ -2092,6 +2092,11 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 
 		mockConvergedClient := NewMockConvergedClient(ctrl)
 		mockConvergedClient.MockVMs.EXPECT().Get(gomock.Any(), vmUUID).Return(nil, nil)
+		// The last-known ExtId misses, so delete attempts failover rediscovery
+		// before dropping finalizers. Rediscovery finds nothing here, so the VM
+		// is genuinely gone and finalizers are removed.
+		mockConvergedClient.MockDomainManager.EXPECT().GetPrismCentralVersion(gomock.Any()).Return("pc.7.5.0", nil)
+		mockConvergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{}, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -3602,14 +3607,14 @@ func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
 }
 
 func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
-	t.Run("should prioritize Machine.Status.NodeInfo.SystemUUID over VmUUID during VM deletion", func(t *testing.T) {
+	t.Run("should ignore Machine.Status.NodeInfo.SystemUUID and use VmUUID during VM deletion", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
 		ctx := context.Background()
 		vmName := "test-vm"
 		systemUUID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
-		vmUUID := "different-uuid-1111-2222-3333-444444444444"
+		vmUUID := "11111111-2222-3333-4444-555555555555"
 
 		// Create NutanixMachine with VmUUID in Status
 		ntnxMachine := &infrav1.NutanixMachine{
@@ -3646,18 +3651,18 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 			},
 		}
 
-		// Create mock VM matching the systemUUID (not VmUUID)
+		// Create mock VM matching the VmUUID (SystemUUID must be ignored now)
 		vm := vmmModels.NewVm()
 		vm.Name = ptr.To(vmName)
-		vm.ExtId = ptr.To(systemUUID)
+		vm.ExtId = ptr.To(vmUUID)
 
 		mockConvergedClient := NewMockConvergedClient(ctrl)
-		// Should get VM by systemUUID, NOT VmUUID
-		mockConvergedClient.MockVMs.EXPECT().Get(ctx, systemUUID).Return(vm, nil)
+		// Should get VM by VmUUID, NOT SystemUUID
+		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(vm, nil)
 		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil)
 
 		mockOperation := mockconverged.NewMockOperation[converged.NoEntity](ctrl)
-		mockConvergedClient.MockVMs.EXPECT().DeleteAsync(ctx, systemUUID).Return(mockOperation, nil)
+		mockConvergedClient.MockVMs.EXPECT().DeleteAsync(ctx, vmUUID).Return(mockOperation, nil)
 		mockOperation.EXPECT().UUID().Return("task-uuid-123").AnyTimes()
 
 		// Create machine context
@@ -3680,14 +3685,14 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 		assert.Equal(t, reconcile.Result{RequeueAfter: 5 * time.Second}, result)
 	})
 
-	t.Run("should prioritize Machine.Status.NodeInfo.SystemUUID when finding VM", func(t *testing.T) {
+	t.Run("should ignore Machine.Status.NodeInfo.SystemUUID and use VmUUID when finding VM", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
 		ctx := context.Background()
 		vmName := "test-vm"
 		systemUUID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
-		vmUUID := "different-uuid-1111-2222-3333-444444444444"
+		vmUUID := "11111111-2222-3333-4444-555555555555"
 
 		// Create NutanixMachine with VmUUID in Status
 		ntnxMachine := &infrav1.NutanixMachine{
@@ -3725,10 +3730,10 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 		// Mock FindVM to return VM matching systemUUID (already powered on)
 		expectedVm := vmmModels.NewVm()
 		expectedVm.Name = ptr.To(vmName)
-		expectedVm.ExtId = ptr.To(systemUUID)
+		expectedVm.ExtId = ptr.To(vmUUID)
 		expectedVm.PowerState = vmmModels.POWERSTATE_ON.Ref()
-		// Should get VM by systemUUID, NOT VmUUID
-		mockConvergedClient.MockVMs.EXPECT().Get(ctx, systemUUID).Return(expectedVm, nil)
+		// Should get VM by VmUUID, NOT SystemUUID
+		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(expectedVm, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -3749,7 +3754,7 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, vm)
 		assert.Equal(t, vmName, *vm.Name)
-		assert.Equal(t, systemUUID, *vm.ExtId)
+		assert.Equal(t, vmUUID, *vm.ExtId)
 	})
 
 	t.Run("should fall back to VmUUID when Machine.Status.NodeInfo is nil", func(t *testing.T) {

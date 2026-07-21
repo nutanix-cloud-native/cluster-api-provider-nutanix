@@ -27,6 +27,7 @@ import (
 	"time"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 	mockconverged "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/converged"
 	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
 	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
@@ -866,6 +867,249 @@ func TestFindVMByUUID(t *testing.T) {
 		require.Nil(t, vm)
 		assert.ErrorIs(t, err, apiErr)
 	})
+}
+
+func TestFindVMByName(t *testing.T) {
+	ctx := context.Background()
+	vmName := "test-machine"
+
+	t.Run("returns nil when no VM matches the name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		cc := NewMockConvergedClient(ctrl)
+		cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{}, nil)
+
+		vm, err := FindVMByName(ctx, cc.Client, &infrav1.NutanixMachine{}, vmName)
+		require.NoError(t, err)
+		assert.Nil(t, vm)
+	})
+
+	t.Run("returns the VM when exactly one matches", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		cc := NewMockConvergedClient(ctrl)
+		ext := "550e8400-e29b-41d4-a716-446655440000"
+		cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).
+			Return([]vmmModels.Vm{{ExtId: ptr.To(ext), Name: ptr.To(vmName)}}, nil)
+		cc.MockVMs.EXPECT().Get(gomock.Any(), ext).
+			Return(&vmmModels.Vm{ExtId: ptr.To(ext), Name: ptr.To(vmName)}, nil)
+
+		vm, err := FindVMByName(ctx, cc.Client, &infrav1.NutanixMachine{}, vmName)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, ext, *vm.ExtId)
+	})
+
+	t.Run("on duplicates, prefers the VM carrying this machine's provider-id attribute", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		cc := NewMockConvergedClient(ctrl)
+		key := "550e8400-e29b-41d4-a716-446655440000"
+		otherExt := "111e8400-e29b-41d4-a716-446655440111"
+		mineExt := "222e8400-e29b-41d4-a716-446655440222"
+		cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{
+			{ExtId: ptr.To(otherExt), Name: ptr.To(vmName)},
+			{ExtId: ptr.To(mineExt), Name: ptr.To(vmName), CustomAttributes: []string{"providerid:" + key}},
+		}, nil)
+		cc.MockVMs.EXPECT().Get(gomock.Any(), mineExt).
+			Return(&vmmModels.Vm{ExtId: ptr.To(mineExt), Name: ptr.To(vmName)}, nil)
+
+		nm := &infrav1.NutanixMachine{Spec: infrav1.NutanixMachineSpec{ProviderID: "nutanix://" + key}}
+		vm, err := FindVMByName(ctx, cc.Client, nm, vmName)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, mineExt, *vm.ExtId)
+	})
+
+	t.Run("on duplicates without an identity, adopts the oldest VM", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		cc := NewMockConvergedClient(ctrl)
+		newExt := "111e8400-e29b-41d4-a716-446655440111"
+		oldExt := "222e8400-e29b-41d4-a716-446655440222"
+		older := time.Now().Add(-2 * time.Hour)
+		newer := time.Now()
+		cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{
+			{ExtId: ptr.To(newExt), Name: ptr.To(vmName), CreateTime: ptr.To(newer)},
+			{ExtId: ptr.To(oldExt), Name: ptr.To(vmName), CreateTime: ptr.To(older)},
+		}, nil)
+		cc.MockVMs.EXPECT().Get(gomock.Any(), oldExt).
+			Return(&vmmModels.Vm{ExtId: ptr.To(oldExt), Name: ptr.To(vmName)}, nil)
+
+		vm, err := FindVMByName(ctx, cc.Client, &infrav1.NutanixMachine{}, vmName)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, oldExt, *vm.ExtId)
+	})
+}
+
+func TestFindVMRediscoversVMAfterFailover(t *testing.T) {
+	ctx := context.Background()
+	vmName := "test-machine"
+	originalUUID := "550e8400-e29b-41d4-a716-446655440000"
+	newExtID := "660e8400-e29b-41d4-a716-446655440001"
+	notFound := &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")}
+
+	newNutanixMachine := func() *infrav1.NutanixMachine {
+		return &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{Name: vmName},
+			Spec:       infrav1.NutanixMachineSpec{ProviderID: "nutanix://" + originalUUID},
+		}
+	}
+
+	t.Run("PC 7.6+ rediscovers by biosUUID after ExtId changed", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		cc := NewMockConvergedClient(ctrl)
+		// Last-known UUID (the original ExtId) no longer resolves.
+		cc.MockVMs.EXPECT().Get(gomock.Any(), originalUUID).Return(nil, notFound)
+		cc.MockDomainManager.EXPECT().GetPrismCentralVersion(gomock.Any()).Return("pc.7.6.0", nil)
+		// biosUuid lookup returns the VM under its new ExtId.
+		cc.MockVMs.EXPECT().GetVMByBiosUUID(gomock.Any(), originalUUID).Return(
+			&vmmModels.Vm{ExtId: ptr.To(newExtID), Name: ptr.To(vmName), CustomAttributes: []string{"providerid:" + originalUUID}},
+			nil,
+		)
+
+		vm, err := FindVM(ctx, cc.Client, newNutanixMachine(), vmName)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, newExtID, *vm.ExtId)
+	})
+
+	t.Run("PC 7.5 rediscovers by provider-id custom attribute via name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		cc := NewMockConvergedClient(ctrl)
+		cc.MockVMs.EXPECT().Get(gomock.Any(), originalUUID).Return(nil, notFound)
+		cc.MockDomainManager.EXPECT().GetPrismCentralVersion(gomock.Any()).Return("pc.7.5.0", nil)
+		// biosUuid path is skipped on 7.5; recovery lists by name and matches attr.
+		cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{
+			{ExtId: ptr.To(newExtID), Name: ptr.To(vmName), CustomAttributes: []string{"providerid:" + originalUUID}},
+		}, nil)
+
+		vm, err := FindVM(ctx, cc.Client, newNutanixMachine(), vmName)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, newExtID, *vm.ExtId)
+	})
+
+	t.Run("returns an error when the VM cannot be rediscovered", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		cc := NewMockConvergedClient(ctrl)
+		cc.MockVMs.EXPECT().Get(gomock.Any(), originalUUID).Return(nil, notFound)
+		cc.MockDomainManager.EXPECT().GetPrismCentralVersion(gomock.Any()).Return("pc.7.5.0", nil)
+		cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{}, nil)
+
+		vm, err := FindVM(ctx, cc.Client, newNutanixMachine(), vmName)
+		require.Error(t, err)
+		assert.Nil(t, vm)
+		assert.Contains(t, err.Error(), "expected to be present")
+	})
+}
+
+func TestGetOrCreateVMDoesNotDuplicateWhenProviderIDSet(t *testing.T) {
+	ctx := context.Background()
+	vmName := "test-machine"
+	originalUUID := "550e8400-e29b-41d4-a716-446655440000"
+	notFound := &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")}
+
+	ctrl := gomock.NewController(t)
+	cc := NewMockConvergedClient(ctrl)
+	// The VM is unresolvable: the last-known ExtId misses and no stable
+	// identifier rediscovers it. With an identity already established, the
+	// reconciler must NOT create a second VM. gomock fails the test if
+	// VMs.Create is ever called (no expectation is registered for it).
+	cc.MockVMs.EXPECT().Get(gomock.Any(), originalUUID).Return(nil, notFound)
+	cc.MockDomainManager.EXPECT().GetPrismCentralVersion(gomock.Any()).Return("pc.7.5.0", nil)
+	cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{}, nil)
+
+	r := &NutanixMachineReconciler{}
+	rctx := &nctx.MachineContext{
+		Context:         ctx,
+		Machine:         &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}},
+		NutanixMachine:  &infrav1.NutanixMachine{ObjectMeta: metav1.ObjectMeta{Name: vmName}, Spec: infrav1.NutanixMachineSpec{ProviderID: "nutanix://" + originalUUID}},
+		ConvergedClient: cc.Client,
+	}
+
+	vm, err := r.getOrCreateVM(rctx)
+	require.Error(t, err)
+	assert.Nil(t, vm)
+}
+
+func TestReconcileDeleteRediscoversVMAfterFailover(t *testing.T) {
+	ctx := context.Background()
+	vmName := "test-machine"
+	staleUUID := "550e8400-e29b-41d4-a716-446655440000"
+	newExtID := "660e8400-e29b-41d4-a716-446655440001"
+	notFound := &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")}
+
+	ctrl := gomock.NewController(t)
+	cc := NewMockConvergedClient(ctrl)
+	// The last-known ExtId no longer resolves (PE failover reassigned it).
+	cc.MockVMs.EXPECT().Get(gomock.Any(), staleUUID).Return(nil, notFound)
+	// Rediscovery finds the VM under a new ExtId via its provider-id attribute.
+	cc.MockDomainManager.EXPECT().GetPrismCentralVersion(gomock.Any()).Return("pc.7.5.0", nil)
+	cc.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{
+		{ExtId: ptr.To(newExtID), Name: ptr.To(vmName), CustomAttributes: []string{"providerid:" + staleUUID}},
+	}, nil)
+	// No task in progress for the (correct) new ExtId.
+	cc.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, nil)
+	// Delete must target the rediscovered ExtId, not the stale one. Returning an
+	// error here short-circuits the reconcile without needing a k8s client for
+	// the finalizer/patch path; the assertion is that DeleteAsync is invoked with
+	// newExtID (gomock fails if it is called with staleUUID or not at all).
+	cc.MockVMs.EXPECT().DeleteAsync(gomock.Any(), newExtID).Return(nil, errors.New("delete boom"))
+
+	r := &NutanixMachineReconciler{}
+	rctx := &nctx.MachineContext{
+		Context:         ctx,
+		Machine:         &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}},
+		NutanixMachine:  &infrav1.NutanixMachine{ObjectMeta: metav1.ObjectMeta{Name: vmName}, Spec: infrav1.NutanixMachineSpec{ProviderID: "nutanix://" + staleUUID}},
+		ConvergedClient: cc.Client,
+	}
+
+	_, err := r.reconcileDelete(rctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "delete boom")
+}
+
+func TestCompareVersions(t *testing.T) {
+	tests := []struct {
+		name   string
+		v1, v2 string
+		want   int
+	}{
+		{name: "equal", v1: "7.6", v2: "7.6", want: 0},
+		{name: "equal with trailing zero", v1: "7.6.0", v2: "7.6", want: 0},
+		{name: "greater minor", v1: "7.6", v2: "7.5", want: 1},
+		{name: "lesser minor", v1: "7.5", v2: "7.6", want: -1},
+		{name: "greater patch", v1: "7.6.1", v2: "7.6", want: 1},
+		{name: "master is greatest", v1: "master", v2: "7.6", want: 1},
+		{name: "unparseable is treated as greater", v1: "not-a-version", v2: "7.6", want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, CompareVersions(tt.v1, tt.v2))
+		})
+	}
+}
+
+func TestIsPCVersionHigherThan75(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+		want    bool
+	}{
+		{name: "7.6 is >= 7.6", version: "7.6", want: true},
+		{name: "pc-prefixed 7.6.0 is >= 7.6", version: "pc.7.6.0", want: true},
+		{name: "pc-prefixed 7.6.0.5 is >= 7.6", version: "pc.7.6.0.5", want: true},
+		{name: "7.7 is >= 7.6", version: "7.7", want: true},
+		{name: "8.0 is >= 7.6", version: "8.0", want: true},
+		{name: "7.5 is < 7.6", version: "7.5", want: false},
+		{name: "pc-prefixed 7.5.0.5 is < 7.6", version: "pc.7.5.0.5", want: false},
+		// Unparseable/empty versions are treated as the greater value by
+		// CompareVersions (documented "assume newest" behavior).
+		{name: "empty is treated as >= 7.6", version: "", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isPCVersionHigherThan75(tt.version))
+		})
+	}
 }
 
 func TestGetPEUUID(t *testing.T) {
@@ -3184,174 +3428,66 @@ func TestGetVMUUID(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		machine        *capiv1beta2.Machine
 		nutanixMachine *infrav1.NutanixMachine
 		want           string
 		wantErr        bool
 		errorMessage   string
 	}{
 		{
-			name: "should return systemUUID from Machine.Status.NodeInfo when available",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: &corev1.NodeSystemInfo{
-						SystemUUID: validUUID,
-					},
-				},
-			},
+			name: "returns status VmUUID when set",
 			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: anotherValidUUID,
-				},
+				Status: infrav1.NutanixMachineStatus{VmUUID: validUUID},
 			},
-			want:    validUUID,
-			wantErr: false,
+			want: validUUID,
 		},
 		{
-			name: "should fall back to VmUUID when Machine.Status.NodeInfo is nil",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: nil,
-				},
-			},
+			name: "falls back to Spec.ProviderID when status UUID is empty",
 			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
+				Spec: infrav1.NutanixMachineSpec{ProviderID: "nutanix://" + validUUID},
 			},
-			want:    validUUID,
-			wantErr: false,
+			want: validUUID,
 		},
 		{
-			name: "should fall back to VmUUID when Machine.Status.NodeInfo.SystemUUID is empty",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: &corev1.NodeSystemInfo{
-						SystemUUID: "",
-					},
-				},
-			},
+			name: "prioritizes status VmUUID over Spec.ProviderID",
 			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
+				Spec:   infrav1.NutanixMachineSpec{ProviderID: "nutanix://" + anotherValidUUID},
+				Status: infrav1.NutanixMachineStatus{VmUUID: validUUID},
 			},
-			want:    validUUID,
-			wantErr: false,
+			want: validUUID,
 		},
 		{
-			name:    "should fall back to VmUUID when machine is nil",
-			machine: nil,
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
+			name:           "returns empty string when neither status UUID nor ProviderID is set",
+			nutanixMachine: &infrav1.NutanixMachine{},
+			want:           "",
 		},
 		{
-			name: "should return empty string when both systemUUID and VmUUID are not available",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: nil,
-				},
-			},
+			name: "returns error when status VmUUID is not a valid UUID",
 			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: "",
-				},
+				Status: infrav1.NutanixMachineStatus{VmUUID: invalidUUID},
 			},
-			want:    "",
-			wantErr: false,
-		},
-		{
-			name: "should return error when systemUUID is not a valid UUID",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: &corev1.NodeSystemInfo{
-						SystemUUID: invalidUUID,
-					},
-				},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: "",
-				},
-			},
-			want:         "",
-			wantErr:      true,
-			errorMessage: "Machine.Status.NodeInfo.SystemUUID was set but was not a valid UUID",
-		},
-		{
-			name: "should return error when VmUUID is not a valid UUID",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: nil,
-				},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: invalidUUID,
-				},
-			},
-			want:         "",
 			wantErr:      true,
 			errorMessage: "VMUUID was set but was not a valid UUID",
 		},
 		{
-			name: "should prioritize systemUUID even when VmUUID has different UUID",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: &corev1.NodeSystemInfo{
-						SystemUUID: validUUID,
-					},
-				},
-			},
+			name: "ignores non-UUID Spec.ProviderID and returns empty",
 			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: anotherValidUUID,
-				},
+				Spec: infrav1.NutanixMachineSpec{ProviderID: "nutanix://" + invalidUUID},
 			},
-			want:    validUUID,
-			wantErr: false,
+			want: "",
 		},
 		{
-			name: "should use VmUUID when SystemUUID is empty",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: &corev1.NodeSystemInfo{
-						SystemUUID: "",
-					},
-				},
-			},
+			name: "ignores template placeholder Spec.ProviderID and returns empty",
 			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
+				Spec: infrav1.NutanixMachineSpec{ProviderID: "nutanix://my-cluster-m1"},
 			},
-			want:    validUUID,
-			wantErr: false,
-		},
-		{
-			name: "should handle Machine with empty Status",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
+			want: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Log("Running test case ", tt.name)
-			got, err := GetVMUUID(tt.machine, tt.nutanixMachine)
+			got, err := GetVMUUID(tt.nutanixMachine)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetVMUUID() error = %v, wantErr %v", err, tt.wantErr)
 				return
