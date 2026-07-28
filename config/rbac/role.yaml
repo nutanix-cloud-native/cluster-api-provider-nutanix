@@ -38,6 +38,8 @@ rules:
   - cluster.x-k8s.io
   resources:
   - clusters
+  - machines
+  - machines/status
   verbs:
   - get
   - list
@@ -49,8 +51,8 @@ rules:
   resources:
   - clusters/status
   - machinedeployments
-  - machines
-  - machines/status
+  - machinesets
+  - machinesets/status
   verbs:
   - get
   - list
