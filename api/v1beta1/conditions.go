@@ -167,3 +167,16 @@ const (
 	TrustBundleSecretOwnerSetCondition = "TrustBundleSecretOwnerSet"
 	TrustBundleSecretOwnerSetFailed    = "TrustBundleSecretOwnerSetFailed"
 )
+
+// Conditions and Reasons related to Metro recovery placement on NutanixMachine.
+const (
+	// MetroRecoveryPlacementCondition indicates that the NutanixMachine VM has been placed
+	// on a paired/alternate site due to maintenance or disaster recovery activity on the
+	// native site. When this condition is True, the VM is running on a site different from
+	// its configured native failure domain.
+	MetroRecoveryPlacementCondition capiv1beta1.ConditionType = "MetroRecoveryPlacement"
+
+	// MetroRecoveryPlacementSiteMaintenanceReason indicates that the VM was placed on the
+	// paired site because the native site is under maintenance (recovery plan job active).
+	MetroRecoveryPlacementSiteMaintenanceReason = "SiteMaintenance"
+)

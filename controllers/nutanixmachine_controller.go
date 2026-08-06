@@ -58,6 +58,7 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 )
 
 var (
@@ -665,19 +666,40 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 		return err
 	}
 
-	// Validate the NutanixMachine machine spec is consistent with that in the failure domain spec
-	// Note that when failure domain is used, the cluster/subnets fields of NutanixMachine spec are
-	// replaced with that in the failure domain spec, when the machine VM is created.
-	errMessages := []string{}
-	if !rctx.NutanixMachine.Spec.Cluster.EqualTo(&fdSpec.PrismElementCluster) {
-		errMessages = append(
-			errMessages,
-			fmt.Sprintf(
+	// Determine what PE to validate against:
+	// - For Metro/MetroSite failure domains with recovery placement, validate against MetroActivePlacementPE
+	// - Otherwise, validate against the native failure domain's PE
+	//
+	// MetroActivePlacementPE stores the PE cluster identifier (name or uuid string) where the VM
+	// is actually placed when it differs from the native failure domain due to recovery/maintenance.
+	var clusterValidationErr string
+	if rctx.NutanixMachine.Status.MetroActivePlacementPE != "" {
+		// Recovery placement scenario: validate against the active placement PE (string comparison)
+		actualPE := rctx.NutanixMachine.Spec.Cluster.String()
+		expectedPE := rctx.NutanixMachine.Status.MetroActivePlacementPE
+		if actualPE != expectedPE {
+			clusterValidationErr = fmt.Sprintf(
+				"NutanixMachine.spec.cluster=%s, expected MetroActivePlacementPE=%s",
+				rctx.NutanixMachine.Spec.Cluster.DisplayString(),
+				expectedPE,
+			)
+		}
+	} else {
+		// Normal scenario: validate against the native failure domain's PE
+		if !rctx.NutanixMachine.Spec.Cluster.EqualTo(&fdSpec.PrismElementCluster) {
+			clusterValidationErr = fmt.Sprintf(
 				"NutanixMachine.spec.cluster=%s, NutanixFailureDomain.spec.prismElementCluster=%s",
 				rctx.NutanixMachine.Spec.Cluster.DisplayString(),
 				fdSpec.PrismElementCluster.DisplayString(),
-			),
-		)
+			)
+		}
+	}
+
+	// Validate the NutanixMachine machine spec is consistent with the expected configuration
+	// Note: Subnet validation still uses fdSpec.Subnets since subnets are symmetric across Metro sites
+	errMessages := []string{}
+	if clusterValidationErr != "" {
+		errMessages = append(errMessages, clusterValidationErr)
 	}
 	if !resourceIdsEquals(rctx.NutanixMachine.Spec.Subnets, fdSpec.Subnets) {
 		errMessages = append(
@@ -848,8 +870,19 @@ func (r *NutanixMachineReconciler) getMetroFailureDomainSpec(rctx *nctx.MachineC
 		}
 	}
 
-	if err = r.validateFailureDomainSpec(rctx, &selectedFd.Spec); err != nil {
-		log.Error(err, fmt.Sprintf("The selected failureDomain %s failed at validation. Try with the other failureDomain.", selectedFd.Name))
+	// Persist native placement semantics first, then derive active placement for VM creation.
+	r.storeMetroPlacementSelection(rctx, selectedFd)
+	placementFd, perr := r.resolveMetroPlacementFailureDomainFromRecoveryPlanJob(rctx, metroName, selectedFd, fdObjs)
+	if perr != nil {
+		log.Error(perr, "Failed to resolve Metro active placement from Recovery Plan Job, fallback to native selection", "metro", metroName)
+		placementFd = selectedFd
+	}
+	if placementFd == nil {
+		placementFd = selectedFd
+	}
+
+	if err = r.validateFailureDomainSpec(rctx, &placementFd.Spec); err != nil {
+		log.Error(err, fmt.Sprintf("The selected failureDomain %s failed at validation. Try with the other failureDomain.", placementFd.Name))
 
 		if remainingFd == nil {
 			return nil, err
@@ -858,12 +891,13 @@ func (r *NutanixMachineReconciler) getMetroFailureDomainSpec(rctx *nctx.MachineC
 			log.Error(err, fmt.Sprintf("Both failureDomains of the NutanixMetro %s failed at validation.", metroName))
 			return nil, err
 		}
-		selectedFd = remainingFd
+		placementFd = remainingFd
 	}
 
-	r.storeMetroPlacementSelection(rctx, selectedFd)
+	// Set MetroRecoveryPlacement status if VM is being placed on a different site than native
+	r.setMetroRecoveryPlacementStatus(rctx, selectedFd, placementFd)
 
-	return &selectedFd.Spec, nil
+	return &placementFd.Spec, nil
 }
 
 // getMetroSiteFailureDomainSpec resolves a NutanixMetroSite failure domain to its preferred
@@ -923,9 +957,20 @@ func (r *NutanixMachineReconciler) getMetroSiteFailureDomainSpec(rctx *nctx.Mach
 		return nil, fmt.Errorf("the NutanixMetroSite %s preferredFailureDomain %s is not in the NutanixMetro %s failureDomains", metrositeName, metrositeObj.Spec.PreferredFailureDomain.Name, metroObj.Name)
 	}
 
-	// The selected is the preferred failureDomain. Only when it failed at validation, try the remaining one.
-	if err = r.validateFailureDomainSpec(rctx, &selectedFd.Spec); err != nil {
-		log.Error(err, fmt.Sprintf("The preferred failureDomain %s failed at validation. Try with the other failureDomain.", selectedFd.Name))
+	// Persist native placement semantics first, then derive active placement for VM creation.
+	r.storeMetroPlacementSelection(rctx, selectedFd)
+	placementFd, perr := r.resolveMetroPlacementFailureDomainFromRecoveryPlanJob(rctx, metroObj.Name, selectedFd, []*infrav1.NutanixFailureDomain{selectedFd, remainingFd})
+	if perr != nil {
+		log.Error(perr, "Failed to resolve MetroSite active placement from Recovery Plan Job, fallback to preferred failureDomain", "metrosite", metrositeName)
+		placementFd = selectedFd
+	}
+	if placementFd == nil {
+		placementFd = selectedFd
+	}
+
+	// The selected is the preferred/native failureDomain. Only when placement failed at validation, try the remaining one.
+	if err = r.validateFailureDomainSpec(rctx, &placementFd.Spec); err != nil {
+		log.Error(err, fmt.Sprintf("The preferred failureDomain %s failed at validation. Try with the other failureDomain.", placementFd.Name))
 
 		if remainingFd == nil {
 			return nil, err
@@ -934,12 +979,199 @@ func (r *NutanixMachineReconciler) getMetroSiteFailureDomainSpec(rctx *nctx.Mach
 			log.Error(err, fmt.Sprintf("Both failureDomains of the NutanixMetro %s failed at validation.", metroObj.Name))
 			return nil, err
 		}
-		selectedFd = remainingFd
+		placementFd = remainingFd
 	}
 
-	r.storeMetroPlacementSelection(rctx, selectedFd)
+	// Set MetroRecoveryPlacement status if VM is being placed on a different site than native
+	r.setMetroRecoveryPlacementStatus(rctx, selectedFd, placementFd)
 
-	return &selectedFd.Spec, nil
+	return &placementFd.Spec, nil
+}
+
+func (r *NutanixMachineReconciler) resolveMetroPlacementFailureDomainFromRecoveryPlanJob(
+	rctx *nctx.MachineContext,
+	metroName string,
+	nativeFd *infrav1.NutanixFailureDomain,
+	fdObjs []*infrav1.NutanixFailureDomain,
+) (*infrav1.NutanixFailureDomain, error) {
+	if rctx == nil || rctx.NutanixClient == nil || rctx.NutanixClient.V3 == nil || nativeFd == nil {
+		return nil, nil
+	}
+
+	rpUUID, err := findMetroRecoveryPlanUUIDByFailureDomain(rctx, r.Client, metroName, nativeFd.Name)
+	if err != nil {
+		return nil, err
+	}
+	if rpUUID == "" {
+		return nil, nil
+	}
+
+	latestJob, err := latestRecoveryPlanJob(rctx.Context, rctx.NutanixClient.V3, rpUUID)
+	if err != nil {
+		return nil, err
+	}
+	if latestJob == nil {
+		return nil, nil
+	}
+
+	activePEUUID := activePlacementPEUUIDFromRecoveryPlanJob(latestJob)
+	if activePEUUID == "" {
+		return nil, nil
+	}
+
+	for i := range fdObjs {
+		fdObj := fdObjs[i]
+		if fdObj == nil {
+			continue
+		}
+		peUUID, err := resolveFailureDomainPEUUID(rctx, &fdObj.Spec)
+		if err != nil {
+			continue
+		}
+		if peUUID == activePEUUID {
+			return fdObj, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func findMetroRecoveryPlanUUIDByFailureDomain(
+	mctx *nctx.MachineContext,
+	ctlclient client.Client,
+	metroName, failureDomainName string,
+) (string, error) {
+	vHADomains, err := getOwnedVHADomains(mctx.Context, ctlclient, mctx.NutanixCluster)
+	if err != nil {
+		return "", err
+	}
+
+	for _, vhaDomain := range vHADomains {
+		if vhaDomain.Spec.MetroRef.Name != metroName {
+			continue
+		}
+		for _, mg := range vhaDomain.Spec.MovementGroups {
+			if mg.Name != clusterScopeMovementGroupName {
+				continue
+			}
+			for i := range mg.CategoryRecoveryPlans {
+				crp := mg.CategoryRecoveryPlans[i]
+				if crp.FailureDomainRef.Name != failureDomainName {
+					continue
+				}
+				if crp.RecoveryPlan.UUID != nil && *crp.RecoveryPlan.UUID != "" {
+					return *crp.RecoveryPlan.UUID, nil
+				}
+				return "", nil
+			}
+		}
+	}
+
+	return "", nil
+}
+
+func latestRecoveryPlanJob(ctx context.Context, v3Client prismclientv3.Service, recoveryPlanUUID string) (*prismclientv3.RecoveryPlanJobIntentResponse, error) {
+	kind := "recovery_plan_job"
+	sortAttr := "start_time_secs"
+	sortOrder := "DESCENDING"
+	offset := int64(0)
+	length := int64(1)
+	filter := fmt.Sprintf("recovery_plan_uuid==%s", recoveryPlanUUID)
+
+	resp, err := v3Client.ListRecoveryPlanJobs(ctx, &prismclientv3.DSMetadata{
+		Kind:          &kind,
+		SortAttribute: &sortAttr,
+		SortOrder:     &sortOrder,
+		Offset:        &offset,
+		Length:        &length,
+		Filter:        &filter,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil || len(resp.Entities) == 0 {
+		return nil, nil
+	}
+
+	for i := range resp.Entities {
+		job := resp.Entities[i]
+		if job == nil || job.Status == nil || job.Status.Resources == nil || job.Status.Resources.RecoveryPlanReference == nil {
+			continue
+		}
+		rpRef := job.Status.Resources.RecoveryPlanReference
+		if rpRef.UUID == nil || *rpRef.UUID != recoveryPlanUUID {
+			continue
+		}
+		return job, nil
+	}
+
+	return nil, nil
+}
+
+func activePlacementPEUUIDFromRecoveryPlanJob(job *prismclientv3.RecoveryPlanJobIntentResponse) string {
+	if job == nil || job.Status == nil || job.Status.Resources == nil || job.Status.Resources.ExecutionParameters == nil {
+		return ""
+	}
+	azList := job.Status.Resources.ExecutionParameters.RecoveryAvailabilityZoneList
+	for i := range azList {
+		az := azList[i]
+		if az == nil {
+			continue
+		}
+		for j := range az.ClusterReferenceList {
+			clusterRef := az.ClusterReferenceList[j]
+			if clusterRef != nil && clusterRef.UUID != nil && *clusterRef.UUID != "" {
+				return *clusterRef.UUID
+			}
+		}
+	}
+	return ""
+}
+
+func resolveFailureDomainPEUUID(rctx *nctx.MachineContext, fdSpec *infrav1.NutanixFailureDomainSpec) (string, error) {
+	pe := fdSpec.PrismElementCluster
+	peCluster, err := GetPEClusterByIdentifier(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
+	if err != nil {
+		return "", err
+	}
+	return ptr.Deref(peCluster.ExtId, ""), nil
+}
+
+// setMetroRecoveryPlacementStatus sets the MetroActivePlacementPE status field and the
+// MetroRecoveryPlacement condition when a VM is placed on a different site than its native
+// failure domain due to maintenance or disaster recovery.
+func (r *NutanixMachineReconciler) setMetroRecoveryPlacementStatus(
+	rctx *nctx.MachineContext,
+	nativeFd *infrav1.NutanixFailureDomain,
+	placementFd *infrav1.NutanixFailureDomain,
+) {
+	log := ctrl.LoggerFrom(rctx.Context)
+
+	// Only set recovery placement status if placement differs from native
+	if nativeFd == nil || placementFd == nil || nativeFd.Name == placementFd.Name {
+		return
+	}
+
+	// Set the MetroActivePlacementPE status field
+	rctx.NutanixMachine.Status.MetroActivePlacementPE = placementFd.Spec.PrismElementCluster.String()
+
+	// Set the MetroRecoveryPlacement condition (v1beta1)
+	v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.MetroRecoveryPlacementCondition)
+
+	// Set the MetroRecoveryPlacement condition (v1beta2)
+	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+		Type:    string(infrav1.MetroRecoveryPlacementCondition),
+		Status:  metav1.ConditionTrue,
+		Reason:  infrav1.MetroRecoveryPlacementSiteMaintenanceReason,
+		Message: fmt.Sprintf("Placed on paired site (%s) due to maintenance/disaster recovery activity on native site (%s)", placementFd.Name, nativeFd.Name),
+	})
+
+	log.Info("Set Metro recovery placement status: VM placed on paired site due to maintenance/disaster recovery",
+		"nativeFailureDomain", nativeFd.Name,
+		"nativePE", nativeFd.Spec.PrismElementCluster.String(),
+		"placementFailureDomain", placementFd.Name,
+		"placementPE", placementFd.Spec.PrismElementCluster.String(),
+	)
 }
 
 // computeMetroPlacementIndex deterministically selects, for the machine being reconciled, the index
