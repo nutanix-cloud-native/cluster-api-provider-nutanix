@@ -1702,7 +1702,7 @@ data:
     \             value: \"false\"\n          volumeMounts:\n            - mountPath:
     /var/run/precheck-pc-secret-dir\n              name: precheck-pc-secret\n              readOnly:
     true\n      volumes:\n        - name: precheck-pc-secret\n          secret:\n
-    \           secretName: ntnx-pc-secret\n  backoffLimit: 0\n"
+    \           secretName: ntnx-pc-secret\n  backoffLimit: 10\n"
   nutanix-csi-webhook.yaml: |
     ---
     apiVersion: v1

@@ -862,4 +862,4 @@ spec:
         - name: precheck-pc-secret
           secret:
             secretName: ntnx-pc-secret
-  backoffLimit: 0
+  backoffLimit: 10
