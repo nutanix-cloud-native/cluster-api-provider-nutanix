@@ -14,7 +14,7 @@
 # limitations under the License.
 
 NUTANIX_CSI_SNAPSHOT_VERSION=6.3.3
-NUTANIX_CSI_STORAGE_VERSION=3.3.4
+NUTANIX_CSI_STORAGE_VERSION=3.7.0
 
 helm repo add nutanix-helm-releases https://nutanix.github.io/helm-releases/ --force-update && helm repo update
 
@@ -40,5 +40,16 @@ EOF
 # Helm generates --http-endpoint but the csi-snapshotter sidecar expects --metrics-address
 ex templates/csi3/nutanix-csi-storage.yaml <<EOF
 %s/--http-endpoint=:9812/--metrics-address=:9812/
+xit
+EOF
+
+# Fix 3: Raise nutanix-storage-precheck-job's backoffLimit from 0 to 10
+# This Job is a Helm pre-install hook, but we apply the chart output directly via
+# kustomize/CRS instead of `helm install`, so Kubernetes has no hook ordering and the
+# Job races the CSI controller against a freshly-provisioned node. A backoffLimit of 0
+# means a single transient failure (e.g. CoreDNS not ready yet) permanently starves the
+# CSI controller of the ConfigMap this Job creates, wedging it in CrashLoopBackOff forever.
+ex templates/csi3/nutanix-csi-storage.yaml <<EOF
+%s/backoffLimit: 0/backoffLimit: 10/
 xit
 EOF
