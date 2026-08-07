@@ -226,7 +226,6 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
     export DOCKER_POD_IPV6_CIDRS="fc00::/112"
     export WORKER_MACHINE_COUNT="2"
    
-    export CONTROL_PLANE_ENDPOINT_IP='10.0.0.1'
     export NUTANIX_STORAGE_CONTAINER=storage-container
     export NUTANIX_ADDITIONAL_CATEGORY_KEY="AppType"
     export NUTANIX_ADDITIONAL_CATEGORY_VALUE="Kubernetes"
@@ -249,7 +248,13 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
     
     export NUTANIX_SSH_AUTHORIZED_KEY='your-ssh-key'
     ```
-   
+
+    Note: unlike the manual workload cluster flow above, `CONTROL_PLANE_ENDPOINT_IP` and
+    `CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER` do not need to be set here. The e2e suite reserves
+    a free IP from `NUTANIX_SUBNET_NAME` via Prism Central's IPAM at suite startup, and releases it
+    again at the end of the run, so it is safe to run e2e tests concurrently without picking IPs by
+    hand or colliding with other runs against the same subnet.
+
     The remaining values for the e2e tests are set in `test/e2e/config/nutanix.yaml`
 
 1. Run the relevant e2e tests by specifying the label filters. For example, to run the non-clusterclass quickstart tests:

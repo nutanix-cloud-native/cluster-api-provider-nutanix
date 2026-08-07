@@ -68,6 +68,9 @@ const (
 	clusterVarKey = "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME"
 	subnetVarKey  = "NUTANIX_SUBNET_NAME"
 
+	controlPlaneEndpointIPVarKey                = "CONTROL_PLANE_ENDPOINT_IP"
+	controlPlaneEndpointIPWorkloadClusterVarKey = "CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER"
+
 	nameType = "name"
 
 	nutanixProjectNameEnv = "NUTANIX_PROJECT_NAME"
@@ -150,6 +153,7 @@ type testHelperInterface interface {
 	getVariableFromE2eConfig(variableKey string) string
 	getDefaultStorageContainerNameAndUuid(ctx context.Context) (string, string, error)
 	updateVariableInE2eConfig(variableKey string, variableValue string)
+	reserveControlPlaneEndpointIP(ctx context.Context) (ip string, unreserve func() error)
 	stripNutanixIDFromProviderID(providerID string) string
 	verifyCategoryExists(ctx context.Context, categoryKey, categoyValue string)
 	verifyCategoriesNutanixMachines(ctx context.Context, clusterName, namespace string, expectedCategories map[string][]string)
@@ -620,6 +624,27 @@ func (t testHelper) getDefaultStorageContainerNameAndUuid(ctx context.Context) (
 func (t testHelper) updateVariableInE2eConfig(variableKey string, variableValue string) {
 	t.e2eConfig.Variables[variableKey] = variableValue
 	os.Setenv(variableKey, variableValue)
+}
+
+// reserveControlPlaneEndpointIP reserves a free IP address from the subnet under test (as
+// configured via NUTANIX_PRISM_ELEMENT_CLUSTER_NAME/NUTANIX_SUBNET_NAME) using Prism Central's
+// own IPAM, so that concurrent e2e runs against the same subnet can never be handed the same
+// control plane endpoint IP. The returned unreserve func releases the IP again and must be
+// called once the IP is no longer in use (e.g. via DeferCleanup or in a suite/spec teardown).
+func (t testHelper) reserveControlPlaneEndpointIP(ctx context.Context) (ip string, unreserve func() error) {
+	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
+	subnetVarValue := t.getVariableFromE2eConfig(subnetVarKey)
+
+	peUUID, err := controllers.GetPEUUID(ctx, t.convergedClient, &clusterVarValue, nil)
+	Expect(err).ToNot(HaveOccurred())
+
+	subnetUUID, err := controllers.GetSubnetUUID(ctx, t.convergedClient, peUUID, &subnetVarValue, nil)
+	Expect(err).ToNot(HaveOccurred())
+
+	ip, unreserve, err = reserveSubnetIP(ctx, t.convergedClient, subnetUUID)
+	Expect(err).ToNot(HaveOccurred())
+
+	return ip, unreserve
 }
 
 func (t testHelper) stripNutanixIDFromProviderID(providerID string) string {

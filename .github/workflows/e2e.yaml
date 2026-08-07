@@ -52,43 +52,9 @@ jobs:
           if [[ "${{ inputs.e2e-labels }}" == "gpu" ]]; then
             echo "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME=${{ vars.NUTANIX_PRISM_ELEMENT_CLUSTER_NAME_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
             echo "NUTANIX_SUBNET_NAME=${{ vars.NUTANIX_SUBNET_NAME_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
-            echo "CONTROL_PLANE_ENDPOINT_RANGE_START=${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_START_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
-            echo "CONTROL_PLANE_ENDPOINT_RANGE_END=${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_END_WITH_GPU }}" >> "${GITHUB_OUTPUT}"
           else
             echo "NUTANIX_PRISM_ELEMENT_CLUSTER_NAME=${{ vars.NUTANIX_PRISM_ELEMENT_CLUSTER_NAME }}" >> "${GITHUB_OUTPUT}"
             echo "NUTANIX_SUBNET_NAME=${{ vars.NUTANIX_SUBNET_NAME }}" >> "${GITHUB_OUTPUT}"
-            echo "CONTROL_PLANE_ENDPOINT_RANGE_START=${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_START }}" >> "${GITHUB_OUTPUT}"
-            echo "CONTROL_PLANE_ENDPOINT_RANGE_END=${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_END }}" >> "${GITHUB_OUTPUT}"
-          fi
-
-      - name: Get Control Plane endpoint IP
-        id: get-control-plane-endpoint-ip
-        run: |
-          export CONTROL_PLANE_ENDPOINT_RANGE_START="${{ steps.pe-params.outputs.CONTROL_PLANE_ENDPOINT_RANGE_START }}"
-          export CONTROL_PLANE_ENDPOINT_RANGE_END="${{ steps.pe-params.outputs.CONTROL_PLANE_ENDPOINT_RANGE_END }}"
-          control_plane_endpoint_ip="$(devbox run -- make nutanix-cp-endpoint-ip)"
-          echo "control_plane_endpoint_ip=${control_plane_endpoint_ip}" >> "${GITHUB_OUTPUT}"
-
-      - name: Check Control Plane endpoint IP
-        run: |
-          if [[ -z "${{ steps.get-control-plane-endpoint-ip.outputs.control_plane_endpoint_ip }}" ]]; then
-            echo "control_plane_endpoint_ip is empty; cannot proceed with e2e tests"
-            exit 1
-          fi
-
-      - name: Get Control Plane endpoint IP for clusterctl upgrade test
-        id: get-control-plane-endpoint-ip-clusterctl-upgrade
-        run: |
-          export CONTROL_PLANE_ENDPOINT_RANGE_START="${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_START }}"
-          export CONTROL_PLANE_ENDPOINT_RANGE_END="${{ vars.CONTROL_PLANE_ENDPOINT_RANGE_END }}"
-          control_plane_endpoint_ip="$(devbox run -- make nutanix-cp-endpoint-ip)"
-          echo "control_plane_endpoint_ip_clusterctl_upgrade=${control_plane_endpoint_ip}" >> "${GITHUB_OUTPUT}"
-
-      - name: Check Control Plane endpoint IP for clusterctl upgrade
-        run: |
-          if [[ -z "${{ steps.get-control-plane-endpoint-ip-clusterctl-upgrade.outputs.control_plane_endpoint_ip_clusterctl_upgrade }}" ]]; then
-            echo "control_plane_endpoint_ip_clusterctl_upgrade is empty; cannot proceed with e2e tests"
-            exit 1
           fi
 
       - name: Login to Internal Container Registry
@@ -120,8 +86,6 @@ jobs:
           NUTANIX_SUBNET_NAME: ${{ steps.pe-params.outputs.NUTANIX_SUBNET_NAME }}
           NUTANIX_ADDITIONAL_SUBNET_NAME: ${{ vars.NUTANIX_ADDITIONAL_SUBNET_NAME }}
           NUTANIX_PROJECT_NAME: ${{ vars.NUTANIX_PROJECT_NAME }}
-          CONTROL_PLANE_ENDPOINT_IP: ${{ steps.get-control-plane-endpoint-ip.outputs.control_plane_endpoint_ip }}
-          CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER: ${{ steps.get-control-plane-endpoint-ip-clusterctl-upgrade.outputs.control_plane_endpoint_ip_clusterctl_upgrade }}
           NUTANIX_FAILURE_DOMAIN_1_PRISM_ELEMENT_NAME: ${{ vars.NUTANIX_FAILURE_DOMAIN_1_PRISM_ELEMENT_NAME }}
           NUTANIX_FAILURE_DOMAIN_1_SUBNET_NAME: ${{ vars.NUTANIX_FAILURE_DOMAIN_1_SUBNET_NAME }}
           NUTANIX_FAILURE_DOMAIN_2_PRISM_ELEMENT_NAME: ${{ vars.NUTANIX_FAILURE_DOMAIN_2_PRISM_ELEMENT_NAME }}
