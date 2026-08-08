@@ -1640,7 +1640,7 @@ func getDiskList(rctx *nctx.MachineContext, peUUID string) ([]vmmconfig.Disk, []
 	disks = append(disks, *systemDisk)
 
 	bootstrapRef := rctx.NutanixMachine.Spec.BootstrapRef
-	if bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindImage {
+	if bootstrapRef != nil && bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindImage {
 		bootstrapDisk, err := getBootstrapDisk(rctx)
 		if err != nil {
 			return nil, nil, err
