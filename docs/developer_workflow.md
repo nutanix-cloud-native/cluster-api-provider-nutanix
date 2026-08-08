@@ -250,10 +250,13 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
     ```
 
     Note: unlike the manual workload cluster flow above, `CONTROL_PLANE_ENDPOINT_IP` and
-    `CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER` do not need to be set here. The e2e suite reserves
-    a free IP from `NUTANIX_SUBNET_NAME` via Prism Central's IPAM at suite startup, and releases it
-    again at the end of the run, so it is safe to run e2e tests concurrently without picking IPs by
-    hand or colliding with other runs against the same subnet.
+    `CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER` do not need to be set here. If left unset, the e2e
+    suite reserves a free IP from `NUTANIX_SUBNET_NAME` via Prism Central's IPAM at suite startup,
+    and releases it again at the end of the run, so it is safe to run e2e tests concurrently
+    without picking IPs by hand or colliding with other runs against the same subnet. You can still
+    set either variable explicitly (e.g. to pin a known-good address); auto-reservation only
+    applies to whichever one is left unset, and manually-provided values are never reserved or
+    released by the suite.
 
     The remaining values for the e2e tests are set in `test/e2e/config/nutanix.yaml`
 

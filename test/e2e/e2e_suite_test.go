@@ -160,10 +160,20 @@ var controlPlaneEndpointIPUnreserveFuncs []func() error
 // CONTROL_PLANE_ENDPOINT_IP[_WORKLOAD_CLUSTER] env var computed out-of-band in CI. Reservation is
 // delegated to Prism Central's own subnet IPAM (see reserveSubnetIP), so it is safe even when
 // other e2e jobs are reserving IPs from the same subnet concurrently.
+//
+// If CONTROL_PLANE_ENDPOINT_IP / CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER is already set
+// (env var or e2e config), that value is left untouched and nothing is reserved for it — the
+// caller is assumed to own its lifecycle. Auto-reservation only kicks in for whichever of the two
+// is left unset.
 func reserveControlPlaneEndpointIPsForNode() {
 	th := newTestHelper(e2eConfig)
 
 	for _, varKey := range []string{controlPlaneEndpointIPVarKey, controlPlaneEndpointIPWorkloadClusterVarKey} {
+		if existing := e2eConfig.Variables[varKey]; existing != "" {
+			By(fmt.Sprintf("Using manually-provided %s=%s instead of reserving one", varKey, existing))
+			continue
+		}
+
 		ip, unreserve := th.reserveControlPlaneEndpointIP(ctx)
 		controlPlaneEndpointIPUnreserveFuncs = append(controlPlaneEndpointIPUnreserveFuncs, unreserve)
 		th.updateVariableInE2eConfig(varKey, ip)
