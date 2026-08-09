@@ -3346,6 +3346,57 @@ func TestGetVMUUID(t *testing.T) {
 			want:    validUUID,
 			wantErr: false,
 		},
+		{
+			name:    "should fall back to Spec.ProviderID when systemUUID and Status.VmUUID are both unavailable",
+			machine: nil,
+			nutanixMachine: &infrav1.NutanixMachine{
+				Spec: infrav1.NutanixMachineSpec{
+					ProviderID: providerIdPrefix + validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name:    "should prioritize Status.VmUUID over Spec.ProviderID",
+			machine: nil,
+			nutanixMachine: &infrav1.NutanixMachine{
+				Spec: infrav1.NutanixMachineSpec{
+					ProviderID: providerIdPrefix + anotherValidUUID,
+				},
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			// Templates can pre-populate NutanixMachineTemplate.spec.template.spec.providerID
+			// with a placeholder (the e2e fixture uses "nutanix://${CLUSTER_NAME}-m1"), so a
+			// value without the expected prefix must be silently ignored, not treated as an
+			// error - an error here would permanently block reconciliation for such machines.
+			name:    "should silently ignore Spec.ProviderID lacking the nutanix:// prefix",
+			machine: nil,
+			nutanixMachine: &infrav1.NutanixMachine{
+				Spec: infrav1.NutanixMachineSpec{
+					ProviderID: validUUID,
+				},
+			},
+			want:    "",
+			wantErr: false,
+		},
+		{
+			name:    "should silently ignore a non-UUID Spec.ProviderID (e.g. a template placeholder)",
+			machine: nil,
+			nutanixMachine: &infrav1.NutanixMachine{
+				Spec: infrav1.NutanixMachineSpec{
+					ProviderID: providerIdPrefix + invalidUUID,
+				},
+			},
+			want:    "",
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {

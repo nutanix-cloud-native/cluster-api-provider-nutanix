@@ -191,6 +191,30 @@ func GetVMUUID(machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMach
 		}
 		return vmUUID, nil
 	}
+	// Spec.ProviderID is patched in the same call as Status.VmUUID, but lands on the
+	// API server first (metadata+spec patch before the status patch), so a reconcile
+	// triggered immediately behind VM creation can observe it while Status.VmUUID is
+	// still not durable. It is also the only one of the two fields that survives a
+	// clusterctl move, since status is dropped on Create for objects with the status
+	// subresource. Falling back to it here lets FindVM locate the VM by UUID instead
+	// of racing Prism's name-search index.
+	//
+	// Unlike Status.VmUUID, this field isn't exclusively controller-written: templates
+	// are free to pre-populate NutanixMachine.Spec.ProviderID with a non-UUID placeholder
+	// (the e2e NutanixMachineTemplate fixture ships "nutanix://${CLUSTER_NAME}-m1"), so a
+	// value that doesn't parse must be treated as "no usable identifier yet" rather than
+	// a hard error - an error here would permanently block reconciliation for any machine
+	// created from such a template.
+	if providerID := nutanixMachine.Spec.ProviderID; providerID != "" {
+		vmUUID, ok := strings.CutPrefix(providerID, providerIdPrefix)
+		if !ok {
+			return "", nil
+		}
+		if _, err := uuid.Parse(vmUUID); err != nil {
+			return "", nil
+		}
+		return vmUUID, nil
+	}
 	return "", nil
 }
 

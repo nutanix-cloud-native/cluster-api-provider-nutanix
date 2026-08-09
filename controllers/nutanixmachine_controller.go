@@ -533,6 +533,10 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, err
 	}
 
+	// Snapshot before checkFailureDomainStatus/checkVHADomainCategory mutate the object, so the
+	// patchMachine call below has a valid pre-mutation baseline to diff against - see patchMachine.
+	beforeFailureDomainAndVHACheck := rctx.NutanixMachine.DeepCopy()
+
 	// Set the NutanixMachine.status.failureDomain if the Machine is created with failureDomain
 	if err = r.checkFailureDomainStatus(rctx); err != nil {
 		log.Error(err, "Failed to check/set status.failureDomain")
@@ -547,7 +551,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	}
 
 	log.V(1).Info(fmt.Sprintf("Patching machine post creation vmUUID: %s", rctx.NutanixMachine.Status.VmUUID))
-	if err := r.patchMachine(rctx); err != nil {
+	if err := r.patchMachine(rctx, beforeFailureDomainAndVHACheck); err != nil {
 		errorMsg := fmt.Errorf("failed to patch NutanixMachine %s after creation: %w", rctx.NutanixMachine.Name, err)
 		log.Error(errorMsg, "failed to patch")
 		return reconcile.Result{}, errorMsg
@@ -641,10 +645,11 @@ func (r *NutanixMachineReconciler) syncVmUUID(rctx *nctx.MachineContext, vmExtId
 
 	// Update and patch if needed
 	if rctx.NutanixMachine.Status.VmUUID != targetUUID {
+		before := rctx.NutanixMachine.DeepCopy()
 		rctx.NutanixMachine.Status.VmUUID = targetUUID
 		log.Info("Updated NutanixMachine VmUUID status", "vmUUID", targetUUID)
 
-		if err := r.patchMachine(rctx); err != nil {
+		if err := r.patchMachine(rctx, before); err != nil {
 			return fmt.Errorf("failed to patch NutanixMachine %s after setting VmUUID from %s: %w", rctx.NutanixMachine.Name, targetUUID, err)
 		}
 	}
@@ -1496,10 +1501,11 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	log.V(1).Info(fmt.Sprintf("Created VM %s. Got the vm UUID: %s, power state: %s", vmName, vmUuid, powerState))
 
 	// set the VM UUID on the nutanix machine as soon as it is available. VM UUID can be used for cleanup in case of failure
+	before := rctx.NutanixMachine.DeepCopy()
 	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUuid)
 	rctx.NutanixMachine.Status.VmUUID = vmUuid
 
-	err = r.patchMachine(rctx)
+	err = r.patchMachine(rctx, before)
 	if err != nil {
 		log.Error(err, "failed to patch NutanixMachine after setting VmUUID")
 		return nil, err
@@ -1782,9 +1788,14 @@ func (r *NutanixMachineReconciler) getBootstrapData(rctx *nctx.MachineContext) (
 	return value, nil
 }
 
-func (r *NutanixMachineReconciler) patchMachine(rctx *nctx.MachineContext) error {
+// patchMachine persists rctx.NutanixMachine's current state, diffing it against before - a
+// snapshot the caller must take with DeepCopy() *before* mutating the object. v1beta1patch.Helper
+// computes its diff from whatever object it was constructed with, so building the helper from the
+// already-mutated object (as opposed to a pre-mutation snapshot) makes the diff empty and the
+// resulting patch a silent no-op.
+func (r *NutanixMachineReconciler) patchMachine(rctx *nctx.MachineContext, before *infrav1.NutanixMachine) error {
 	log := ctrl.LoggerFrom(rctx.Context)
-	patchHelper, err := v1beta1patch.NewHelper(rctx.NutanixMachine, r.Client)
+	patchHelper, err := v1beta1patch.NewHelper(before, r.Client)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to create patch helper to patch machine %s: %w", rctx.NutanixMachine.Name, err)
 		return errorMsg
