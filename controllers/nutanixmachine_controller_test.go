@@ -2662,6 +2662,78 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 	})
 }
 
+func TestNutanixMachineReconciler_getOrMintVMCreationRequestID(t *testing.T) {
+	t.Run("mints and durably persists a new request ID via a patch that captures the annotation diff", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		ntnxMachine := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+			},
+		}
+
+		mockK8sClient := mockctlclient.NewMockClient(ctrl)
+
+		var appliedPatch []byte
+		mockK8sClient.EXPECT().Patch(ctx, ntnxMachine, gomock.Any()).DoAndReturn(
+			func(_ context.Context, obj client.Object, patch client.Patch, _ ...client.PatchOption) error {
+				data, err := patch.Data(obj)
+				require.NoError(t, err)
+				appliedPatch = data
+				return nil
+			},
+		)
+
+		reconciler := &NutanixMachineReconciler{Client: mockK8sClient}
+		rctx := &nctx.MachineContext{Context: ctx, NutanixMachine: ntnxMachine}
+
+		requestID, err := reconciler.getOrMintVMCreationRequestID(rctx)
+		require.NoError(t, err)
+
+		_, err = uuid.Parse(requestID)
+		require.NoError(t, err, "minted request ID should be a valid UUID")
+
+		// The patch sent to the API server must actually contain the new annotation - if the
+		// diff were computed against a baseline captured after the mutation, this would be
+		// empty and the annotation would never become durable.
+		assert.Contains(t, string(appliedPatch), VMCreationRequestIDAnnotation)
+		assert.Contains(t, string(appliedPatch), requestID)
+		assert.Equal(t, requestID, ntnxMachine.Annotations[VMCreationRequestIDAnnotation])
+	})
+
+	t.Run("reuses a previously persisted request ID instead of minting or patching again", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		existingRequestID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+		ntnxMachine := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+				Annotations: map[string]string{
+					VMCreationRequestIDAnnotation: existingRequestID,
+				},
+			},
+		}
+
+		// No Patch expectation is set: a second reconcile that finds the annotation already
+		// persisted (e.g. after the first Create failed/timed out) must reuse it as-is rather
+		// than minting a new one, so the retried Create stays idempotent against the same task.
+		mockK8sClient := mockctlclient.NewMockClient(ctrl)
+
+		reconciler := &NutanixMachineReconciler{Client: mockK8sClient}
+		rctx := &nctx.MachineContext{Context: ctx, NutanixMachine: ntnxMachine}
+
+		requestID, err := reconciler.getOrMintVMCreationRequestID(rctx)
+		require.NoError(t, err)
+		assert.Equal(t, existingRequestID, requestID)
+	})
+}
+
 func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 	t.Run("should return existing VM when found by UUID", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -3043,7 +3115,9 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		createdVM := vmmModels.NewVm()
 		createdVM.Name = ptr.To(vmName)
 		createdVM.ExtId = ptr.To(vmUUID)
-		mockConvergedClient.MockVMs.EXPECT().Create(ctx, gomock.Any()).Return(createdVM, nil)
+		// Context is gomock.Any() here, not ctx, because getOrCreateVM wraps it with
+		// v4Converged.WithRequestID for the vm-creation-request-id idempotency key.
+		mockConvergedClient.MockVMs.EXPECT().Create(gomock.Any(), gomock.Any()).Return(createdVM, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -3110,6 +3184,7 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		require.NoError(t, fakeClient.Get(ctx, client.ObjectKeyFromObject(ntnxMachine), persisted))
 		assert.Equal(t, vmUUID, persisted.Status.VmUUID)
 		assert.Equal(t, fmt.Sprintf("nutanix://%s", vmUUID), persisted.Spec.ProviderID)
+		assert.NotEmpty(t, persisted.Annotations[VMCreationRequestIDAnnotation])
 	})
 
 	t.Run("should set failure status when category lookup returns not found", func(t *testing.T) {
@@ -3207,7 +3282,16 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
-		reconciler := &NutanixMachineReconciler{}
+		// Mock Kubernetes client for the vm-creation-request-id annotation patch
+		// getOrMintVMCreationRequestID issues before the create flow proceeds.
+		mockK8sClient := mockctlclient.NewMockClient(ctrl)
+		scheme := runtime.NewScheme()
+		_ = infrav1.AddToScheme(scheme)
+		_ = capiv1beta2.AddToScheme(scheme)
+		mockK8sClient.EXPECT().Scheme().Return(scheme).AnyTimes()
+		mockK8sClient.EXPECT().Patch(ctx, gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+		reconciler := &NutanixMachineReconciler{Client: mockK8sClient}
 		vm, err := reconciler.getOrCreateVM(rctx)
 
 		require.Error(t, err)
@@ -3313,7 +3397,16 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
-		reconciler := &NutanixMachineReconciler{}
+		// Mock Kubernetes client for the vm-creation-request-id annotation patch
+		// getOrMintVMCreationRequestID issues before the create flow proceeds.
+		mockK8sClient := mockctlclient.NewMockClient(ctrl)
+		scheme := runtime.NewScheme()
+		_ = infrav1.AddToScheme(scheme)
+		_ = capiv1beta2.AddToScheme(scheme)
+		mockK8sClient.EXPECT().Scheme().Return(scheme).AnyTimes()
+		mockK8sClient.EXPECT().Patch(ctx, gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+		reconciler := &NutanixMachineReconciler{Client: mockK8sClient}
 		vm, err := reconciler.getOrCreateVM(rctx)
 
 		require.Error(t, err)

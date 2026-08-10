@@ -204,6 +204,21 @@ func (mr *MockVMsMockRecorder[VM]) Get(ctx, uuid any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockVMs[VM])(nil).Get), ctx, uuid)
 }
 
+// GetVMByBiosUUID mocks base method.
+func (m *MockVMs[VM]) GetVMByBiosUUID(ctx context.Context, biosUUID string) (*VM, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVMByBiosUUID", ctx, biosUUID)
+	ret0, _ := ret[0].(*VM)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetVMByBiosUUID indicates an expected call of GetVMByBiosUUID.
+func (mr *MockVMsMockRecorder[VM]) GetVMByBiosUUID(ctx, biosUUID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVMByBiosUUID", reflect.TypeOf((*MockVMs[VM])(nil).GetVMByBiosUUID), ctx, biosUUID)
+}
+
 // List mocks base method.
 func (m *MockVMs[VM]) List(ctx context.Context, opts ...converged.ODataOption) ([]VM, error) {
 	m.ctrl.T.Helper()

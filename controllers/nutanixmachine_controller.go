@@ -58,6 +58,7 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 )
 
 var (
@@ -1349,6 +1350,41 @@ func setMetroCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) {
 	}
 }
 
+// getOrMintVMCreationRequestID returns the idempotency key to use for the VM Create call.
+// If the NutanixMachine doesn't already have one recorded, a new UUID is minted and durably
+// persisted as an annotation before this returns, so every later reconcile of this object -
+// including one that races immediately behind this one, or one that resumes after a
+// controller restart - reuses the exact same key. Reusing it turns a retried Create into a
+// no-op that returns the original task's result instead of creating a second VM.
+//
+// It is stored as an annotation rather than in status because clusterctl move drops status
+// on Create for objects with the status subresource enabled, while metadata (including
+// annotations) passes through unchanged - see the Spec.ProviderID fallback in GetVMUUID for
+// the same reasoning applied to the VM's identity itself.
+func (r *NutanixMachineReconciler) getOrMintVMCreationRequestID(rctx *nctx.MachineContext) (string, error) {
+	if requestID := rctx.NutanixMachine.Annotations[VMCreationRequestIDAnnotation]; requestID != "" {
+		return requestID, nil
+	}
+
+	// Snapshot the object *before* mutating it: a patch helper built from the already-mutated
+	// object computes an empty diff, so the patch would be a silent no-op - defeating the
+	// "persist before the first Create" guarantee this function exists to provide. Same
+	// hazard as patchMachine; see its doc comment.
+	before := rctx.NutanixMachine.DeepCopy()
+
+	requestID := uuid.NewString()
+	if rctx.NutanixMachine.Annotations == nil {
+		rctx.NutanixMachine.Annotations = map[string]string{}
+	}
+	rctx.NutanixMachine.Annotations[VMCreationRequestIDAnnotation] = requestID
+
+	if err := r.Patch(rctx.Context, rctx.NutanixMachine, client.MergeFrom(before)); err != nil {
+		return "", fmt.Errorf("failed to persist vm creation request id: %w", err)
+	}
+
+	return requestID, nil
+}
+
 func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vmmconfig.Vm, error) {
 	var err error
 	ctx := rctx.Context
@@ -1377,6 +1413,14 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	}
 
 	log.Info(fmt.Sprintf("No existing VM found. Starting creation process of VM %s.", vmName))
+
+	// Mint (or recall) the idempotency key before doing anything else, so it is durably
+	// persisted ahead of the actual Create call below. See getOrMintVMCreationRequestID.
+	requestID, err := r.getOrMintVMCreationRequestID(rctx)
+	if err != nil {
+		return nil, err
+	}
+
 	err = r.validateMachineConfig(rctx)
 	if err != nil {
 		rctx.SetFailureStatus(createErrorFailureReason, err)
@@ -1484,7 +1528,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 
 	// Create the actual VM/Machine
 	log.Info(fmt.Sprintf("Creating VM with name %s for cluster %s", vmName, rctx.NutanixCluster.Name))
-	vm, err = convergedClient.VMs.Create(ctx, vm)
+	vm, err = convergedClient.VMs.Create(v4Converged.WithRequestID(ctx, requestID), vm)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to create VM %s: %w", vmName, err)
 		if !isRetryableAPIError(err) {

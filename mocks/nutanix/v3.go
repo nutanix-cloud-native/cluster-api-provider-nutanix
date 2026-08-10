@@ -876,6 +876,21 @@ func (mr *MockServiceMockRecorder) GetSubnet(ctx, uuid any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSubnet", reflect.TypeOf((*MockService)(nil).GetSubnet), ctx, uuid)
 }
 
+// GetSyncReplicationCapableClusters mocks base method.
+func (m *MockService) GetSyncReplicationCapableClusters(ctx context.Context, request *v3.ClusterSyncReplicationCapableInput) (*v3.ClusterSyncReplicationCapableResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSyncReplicationCapableClusters", ctx, request)
+	ret0, _ := ret[0].(*v3.ClusterSyncReplicationCapableResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSyncReplicationCapableClusters indicates an expected call of GetSyncReplicationCapableClusters.
+func (mr *MockServiceMockRecorder) GetSyncReplicationCapableClusters(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSyncReplicationCapableClusters", reflect.TypeOf((*MockService)(nil).GetSyncReplicationCapableClusters), ctx, request)
+}
+
 // GetTask mocks base method.
 func (m *MockService) GetTask(ctx context.Context, taskUUID string) (*v3.TasksResponse, error) {
 	m.ctrl.T.Helper()
@@ -1024,6 +1039,21 @@ func (m *MockService) ListAllAddressGroups(ctx context.Context, filter string) (
 func (mr *MockServiceMockRecorder) ListAllAddressGroups(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllAddressGroups", reflect.TypeOf((*MockService)(nil).ListAllAddressGroups), ctx, filter)
+}
+
+// ListAllAvailabilityZones mocks base method.
+func (m *MockService) ListAllAvailabilityZones(ctx context.Context, filter string) (*v3.AvailabilityZoneListResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAllAvailabilityZones", ctx, filter)
+	ret0, _ := ret[0].(*v3.AvailabilityZoneListResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAllAvailabilityZones indicates an expected call of ListAllAvailabilityZones.
+func (mr *MockServiceMockRecorder) ListAllAvailabilityZones(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllAvailabilityZones", reflect.TypeOf((*MockService)(nil).ListAllAvailabilityZones), ctx, filter)
 }
 
 // ListAllCategoryValues mocks base method.
@@ -1249,6 +1279,21 @@ func (m *MockService) ListAllVM(ctx context.Context, filter string) (*v3.VMListI
 func (mr *MockServiceMockRecorder) ListAllVM(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllVM", reflect.TypeOf((*MockService)(nil).ListAllVM), ctx, filter)
+}
+
+// ListAvailabilityZones mocks base method.
+func (m *MockService) ListAvailabilityZones(ctx context.Context, getEntitiesRequest *v3.DSMetadata) (*v3.AvailabilityZoneListResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAvailabilityZones", ctx, getEntitiesRequest)
+	ret0, _ := ret[0].(*v3.AvailabilityZoneListResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAvailabilityZones indicates an expected call of ListAvailabilityZones.
+func (mr *MockServiceMockRecorder) ListAvailabilityZones(ctx, getEntitiesRequest any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAvailabilityZones", reflect.TypeOf((*MockService)(nil).ListAvailabilityZones), ctx, getEntitiesRequest)
 }
 
 // ListCategories mocks base method.

@@ -69,9 +69,18 @@ const (
 	createErrorFailureReason  = "CreateError"
 	powerOnErrorFailureReason = "PowerOnError"
 
-	CAPXProjectPolicyAnnotation      = "capx.nutanix.com/project-policy"
-	CAPXProjectPolicyDefaultOnly     = "default-only"
-	CAPXProjectPolicyUnrestricted    = "unrestricted"
+	CAPXProjectPolicyAnnotation   = "capx.nutanix.com/project-policy"
+	CAPXProjectPolicyDefaultOnly  = "default-only"
+	CAPXProjectPolicyUnrestricted = "unrestricted"
+
+	// VMCreationRequestIDAnnotation holds the idempotency key (NTNX-Request-Id) used for
+	// the VM Create call. It is minted once and persisted before the first Create attempt,
+	// then reused by every later reconcile so a retried Create returns the original task's
+	// result instead of creating a second VM. It lives in an annotation, not status, because
+	// clusterctl move drops status on Create for objects with the status subresource enabled,
+	// while metadata (including annotations) passes through unchanged.
+	VMCreationRequestIDAnnotation = "capx.nutanix.com/vm-creation-request-id"
+
 	metroFailureDomainPrefix         = "NutanixMetro/"
 	metroSiteFailureDomainPrefix     = "NutanixMetroSite/"
 	metroNativeFailureDomainLabelKey = "metro.nutanix.com/native-failuredomain"
