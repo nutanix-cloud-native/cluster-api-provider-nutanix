@@ -1186,6 +1186,26 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 				return defaultNtnxMachine, defaultMachine, defaultNtnxCluster, convergedClientMock.Client
 			},
 		},
+		{
+			// Regression test: BootstrapRef is nil for part of the reconcile window (it's
+			// populated later in Reconcile, not guaranteed set by the time getOrCreateVM's
+			// disk-building runs), and getDiskList used to dereference it unconditionally,
+			// panicking with a nil pointer dereference instead of just skipping the
+			// image-bootstrap cdrom branch.
+			name:         "does not panic when BootstrapRef is nil",
+			wantDisksLen: 1,
+			fixtures: func(mockCtrl *gomock.Controller) (*infrav1.NutanixMachine, *capiv1beta2.Machine, *infrav1.NutanixCluster, *v4Converged.Client) {
+				ntnxMachine := defaultNtnxMachine.DeepCopy()
+				ntnxMachine.Spec.BootstrapRef = nil
+				ntnxMachine.Spec.DataDisks = nil
+
+				convergedClientMock := NewMockConvergedClient(mockCtrl)
+				convergedClientMock.MockImages.EXPECT().Get(gomock.Any(), *defaultSystemImage.ExtId).Return(defaultSystemImage, nil).MinTimes(1)
+				convergedClientMock.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil).MinTimes(1)
+
+				return ntnxMachine, defaultMachine, defaultNtnxCluster, convergedClientMock.Client
+			},
+		},
 	}
 
 	for _, tc := range tt {
