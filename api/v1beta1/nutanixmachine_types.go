@@ -282,14 +282,6 @@ type NutanixMachineStatus struct {
 	// +optional
 	FailureDomain *string `json:"failureDomain,omitempty"`
 
-	// metroActivePlacementPE is the Prism Element cluster identifier where the VM is actually
-	// placed when using Metro/MetroSite failure domains. This field is set when the VM is placed
-	// on a different site than its native failure domain due to maintenance or disaster recovery.
-	// When set, failure domain validation uses this value instead of the native failure domain's PE.
-	// Format: "name=<pe-cluster-name>" or "uuid=<pe-cluster-uuid>"
-	// +optional
-	MetroActivePlacementPE string `json:"metroActivePlacementPE,omitempty"`
-
 	// v1beta2 groups all the fields that will be added or modified in NutanixMachine's status with the v1beta2 version.
 	// +optional
 	V1Beta2 *NutanixMachineV1Beta2Status `json:"v1beta2,omitempty"`

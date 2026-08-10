@@ -590,14 +590,6 @@ spec:
               failureReason:
                 description: Will be set in case of failure of Machine instance
                 type: string
-              metroActivePlacementPE:
-                description: |-
-                  metroActivePlacementPE is the Prism Element cluster identifier where the VM is actually
-                  placed when using Metro/MetroSite failure domains. This field is set when the VM is placed
-                  on a different site than its native failure domain due to maintenance or disaster recovery.
-                  When set, failure domain validation uses this value instead of the native failure domain's PE.
-                  Format: "name=<pe-cluster-name>" or "uuid=<pe-cluster-uuid>"
-                type: string
               nodeRef:
                 description: |-
                   NodeRef is a reference to the corresponding workload cluster Node if it exists.

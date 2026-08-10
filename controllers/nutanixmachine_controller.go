@@ -667,20 +667,21 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 	}
 
 	// Determine what PE to validate against:
-	// - For Metro/MetroSite failure domains with recovery placement, validate against MetroActivePlacementPE
+	// - For Metro/MetroSite failure domains with recovery placement, validate against the active placement annotation
 	// - Otherwise, validate against the native failure domain's PE
 	//
-	// MetroActivePlacementPE stores the PE cluster identifier (name or uuid string) where the VM
+	// metro.nutanix.com/active-placement-pe stores the PE cluster identifier (name or uuid string) where the VM
 	// is actually placed when it differs from the native failure domain due to recovery/maintenance.
 	var clusterValidationErr string
-	if rctx.NutanixMachine.Status.MetroActivePlacementPE != "" {
+	if rctx.NutanixMachine.Annotations != nil && rctx.NutanixMachine.Annotations[metroActivePlacementPEAnnotation] != "" {
 		// Recovery placement scenario: validate against the active placement PE (string comparison)
 		actualPE := rctx.NutanixMachine.Spec.Cluster.String()
-		expectedPE := rctx.NutanixMachine.Status.MetroActivePlacementPE
+		expectedPE := rctx.NutanixMachine.Annotations[metroActivePlacementPEAnnotation]
 		if actualPE != expectedPE {
 			clusterValidationErr = fmt.Sprintf(
-				"NutanixMachine.spec.cluster=%s, expected MetroActivePlacementPE=%s",
+				"NutanixMachine.spec.cluster=%s, expected annotation %q=%s",
 				rctx.NutanixMachine.Spec.Cluster.DisplayString(),
+				metroActivePlacementPEAnnotation,
 				expectedPE,
 			)
 		}
@@ -1137,7 +1138,7 @@ func resolveFailureDomainPEUUID(rctx *nctx.MachineContext, fdSpec *infrav1.Nutan
 	return ptr.Deref(peCluster.ExtId, ""), nil
 }
 
-// setMetroRecoveryPlacementStatus sets the MetroActivePlacementPE status field and the
+// setMetroRecoveryPlacementStatus sets the active placement annotation and the
 // MetroRecoveryPlacement condition when a VM is placed on a different site than its native
 // failure domain due to maintenance or disaster recovery.
 func (r *NutanixMachineReconciler) setMetroRecoveryPlacementStatus(
@@ -1152,8 +1153,11 @@ func (r *NutanixMachineReconciler) setMetroRecoveryPlacementStatus(
 		return
 	}
 
-	// Set the MetroActivePlacementPE status field
-	rctx.NutanixMachine.Status.MetroActivePlacementPE = placementFd.Spec.PrismElementCluster.String()
+	// Set the active placement annotation.
+	if rctx.NutanixMachine.Annotations == nil {
+		rctx.NutanixMachine.Annotations = map[string]string{}
+	}
+	rctx.NutanixMachine.Annotations[metroActivePlacementPEAnnotation] = placementFd.Spec.PrismElementCluster.String()
 
 	// Set the MetroRecoveryPlacement condition (v1beta1)
 	v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.MetroRecoveryPlacementCondition)
