@@ -239,6 +239,7 @@ update-cni-manifests: update-calico-cni update-cilium-cni update-flannel-cni upd
 
 .PHONY: build
 build: generate ## Build manager binary.
+	@echo "ci-build-env-check: marker=capx-a97e host=$(shell hostname)"
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
 	CGO_ENABLED=0 go build -ldflags "-X main.gitCommitHash=${GIT_COMMIT_HASH}" -o bin/manager main.go
 
