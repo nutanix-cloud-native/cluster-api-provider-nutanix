@@ -26,7 +26,7 @@ jobs:
       (github.event_name == 'pull_request_target' && github.event.pull_request.base.repo.clone_url != github.event.pull_request.head.repo.clone_url )) }}
     outputs:
       # Output the approval status for pull_request_target events, otherwise default to 'true'
-      check_approvals: ${{ github.event_name == 'pull_request_target' && steps.check_approvals.outputs.check_approvals || 'true' }}
+      check_approvals: ${{ github.event_name == 'pull_request_target' && steps.check_approvals.outputs.status || 'true' }}
       # Output whether the PR is external
       external_pr: ${{ github.event.pull_request.base.repo.clone_url != github.event.pull_request.head.repo.clone_url }}
     steps:
