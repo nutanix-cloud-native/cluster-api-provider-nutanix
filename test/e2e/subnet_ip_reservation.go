@@ -22,7 +22,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
@@ -78,19 +77,21 @@ func reserveSubnetIP(
 	}
 
 	// The reserved address comes back as a JSON-encoded string in the first completion detail
-	// value, e.g. `"{\"reserved_ips\":[\"10.0.0.5\"]}"`.
-	marshaledValue, err := json.Marshal(completionDetails[0].Value)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to marshal reserve-IP completion details: %w", err)
+	// value, e.g. `{"reserved_ips":["10.0.0.5"]}`.
+	if completionDetails[0].Value == nil {
+		return "", nil, fmt.Errorf("reserve-IP task for subnet %s completed with no value", subnetUUID)
 	}
-	unquoted, err := strconv.Unquote(string(marshaledValue))
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to unquote reserve-IP completion details %s: %w", marshaledValue, err)
+	rawValue, ok := completionDetails[0].Value.GetValue().(string)
+	if !ok {
+		return "", nil, fmt.Errorf(
+			"unexpected reserve-IP completion detail value type %T for subnet %s",
+			completionDetails[0].Value.GetValue(), subnetUUID,
+		)
 	}
 
 	var reserved reservedIPsCompletionDetails
-	if err := json.Unmarshal([]byte(unquoted), &reserved); err != nil {
-		return "", nil, fmt.Errorf("failed to unmarshal reserve-IP completion details %s: %w", unquoted, err)
+	if err := json.Unmarshal([]byte(rawValue), &reserved); err != nil {
+		return "", nil, fmt.Errorf("failed to unmarshal reserve-IP completion details %s: %w", rawValue, err)
 	}
 	if len(reserved.ReservedIPs) == 0 {
 		return "", nil, fmt.Errorf("reserve-IP task for subnet %s reserved no addresses", subnetUUID)
