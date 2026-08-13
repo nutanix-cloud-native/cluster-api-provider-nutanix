@@ -58,6 +58,7 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 )
 
 var (
@@ -533,6 +534,10 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, err
 	}
 
+	// Snapshot before checkFailureDomainStatus/checkVHADomainCategory mutate the object, so the
+	// patchMachine call below has a valid pre-mutation baseline to diff against - see patchMachine.
+	beforeFailureDomainAndVHACheck := rctx.NutanixMachine.DeepCopy()
+
 	// Set the NutanixMachine.status.failureDomain if the Machine is created with failureDomain
 	if err = r.checkFailureDomainStatus(rctx); err != nil {
 		log.Error(err, "Failed to check/set status.failureDomain")
@@ -547,7 +552,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	}
 
 	log.V(1).Info(fmt.Sprintf("Patching machine post creation vmUUID: %s", rctx.NutanixMachine.Status.VmUUID))
-	if err := r.patchMachine(rctx); err != nil {
+	if err := r.patchMachine(rctx, beforeFailureDomainAndVHACheck); err != nil {
 		errorMsg := fmt.Errorf("failed to patch NutanixMachine %s after creation: %w", rctx.NutanixMachine.Name, err)
 		log.Error(errorMsg, "failed to patch")
 		return reconcile.Result{}, errorMsg
@@ -641,10 +646,11 @@ func (r *NutanixMachineReconciler) syncVmUUID(rctx *nctx.MachineContext, vmExtId
 
 	// Update and patch if needed
 	if rctx.NutanixMachine.Status.VmUUID != targetUUID {
+		before := rctx.NutanixMachine.DeepCopy()
 		rctx.NutanixMachine.Status.VmUUID = targetUUID
 		log.Info("Updated NutanixMachine VmUUID status", "vmUUID", targetUUID)
 
-		if err := r.patchMachine(rctx); err != nil {
+		if err := r.patchMachine(rctx, before); err != nil {
 			return fmt.Errorf("failed to patch NutanixMachine %s after setting VmUUID from %s: %w", rctx.NutanixMachine.Name, targetUUID, err)
 		}
 	}
@@ -1344,6 +1350,41 @@ func setMetroCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) {
 	}
 }
 
+// getOrMintVMCreationRequestID returns the idempotency key to use for the VM Create call.
+// If the NutanixMachine doesn't already have one recorded, a new UUID is minted and durably
+// persisted as an annotation before this returns, so every later reconcile of this object -
+// including one that races immediately behind this one, or one that resumes after a
+// controller restart - reuses the exact same key. Reusing it turns a retried Create into a
+// no-op that returns the original task's result instead of creating a second VM.
+//
+// It is stored as an annotation rather than in status because clusterctl move drops status
+// on Create for objects with the status subresource enabled, while metadata (including
+// annotations) passes through unchanged - see the Spec.ProviderID fallback in GetVMUUID for
+// the same reasoning applied to the VM's identity itself.
+func (r *NutanixMachineReconciler) getOrMintVMCreationRequestID(rctx *nctx.MachineContext) (string, error) {
+	if requestID := rctx.NutanixMachine.Annotations[VMCreationRequestIDAnnotation]; requestID != "" {
+		return requestID, nil
+	}
+
+	// Snapshot the object *before* mutating it: a patch helper built from the already-mutated
+	// object computes an empty diff, so the patch would be a silent no-op - defeating the
+	// "persist before the first Create" guarantee this function exists to provide. Same
+	// hazard as patchMachine; see its doc comment.
+	before := rctx.NutanixMachine.DeepCopy()
+
+	requestID := uuid.NewString()
+	if rctx.NutanixMachine.Annotations == nil {
+		rctx.NutanixMachine.Annotations = map[string]string{}
+	}
+	rctx.NutanixMachine.Annotations[VMCreationRequestIDAnnotation] = requestID
+
+	if err := r.Patch(rctx.Context, rctx.NutanixMachine, client.MergeFrom(before)); err != nil {
+		return "", fmt.Errorf("failed to persist vm creation request id: %w", err)
+	}
+
+	return requestID, nil
+}
+
 func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vmmconfig.Vm, error) {
 	var err error
 	ctx := rctx.Context
@@ -1372,6 +1413,14 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	}
 
 	log.Info(fmt.Sprintf("No existing VM found. Starting creation process of VM %s.", vmName))
+
+	// Mint (or recall) the idempotency key before doing anything else, so it is durably
+	// persisted ahead of the actual Create call below. See getOrMintVMCreationRequestID.
+	requestID, err := r.getOrMintVMCreationRequestID(rctx)
+	if err != nil {
+		return nil, err
+	}
+
 	err = r.validateMachineConfig(rctx)
 	if err != nil {
 		rctx.SetFailureStatus(createErrorFailureReason, err)
@@ -1479,7 +1528,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 
 	// Create the actual VM/Machine
 	log.Info(fmt.Sprintf("Creating VM with name %s for cluster %s", vmName, rctx.NutanixCluster.Name))
-	vm, err = convergedClient.VMs.Create(ctx, vm)
+	vm, err = convergedClient.VMs.Create(v4Converged.WithRequestID(ctx, requestID), vm)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to create VM %s: %w", vmName, err)
 		if !isRetryableAPIError(err) {
@@ -1496,10 +1545,11 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	log.V(1).Info(fmt.Sprintf("Created VM %s. Got the vm UUID: %s, power state: %s", vmName, vmUuid, powerState))
 
 	// set the VM UUID on the nutanix machine as soon as it is available. VM UUID can be used for cleanup in case of failure
+	before := rctx.NutanixMachine.DeepCopy()
 	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUuid)
 	rctx.NutanixMachine.Status.VmUUID = vmUuid
 
-	err = r.patchMachine(rctx)
+	err = r.patchMachine(rctx, before)
 	if err != nil {
 		log.Error(err, "failed to patch NutanixMachine after setting VmUUID")
 		return nil, err
@@ -1782,9 +1832,14 @@ func (r *NutanixMachineReconciler) getBootstrapData(rctx *nctx.MachineContext) (
 	return value, nil
 }
 
-func (r *NutanixMachineReconciler) patchMachine(rctx *nctx.MachineContext) error {
+// patchMachine persists rctx.NutanixMachine's current state, diffing it against before - a
+// snapshot the caller must take with DeepCopy() *before* mutating the object. v1beta1patch.Helper
+// computes its diff from whatever object it was constructed with, so building the helper from the
+// already-mutated object (as opposed to a pre-mutation snapshot) makes the diff empty and the
+// resulting patch a silent no-op.
+func (r *NutanixMachineReconciler) patchMachine(rctx *nctx.MachineContext, before *infrav1.NutanixMachine) error {
 	log := ctrl.LoggerFrom(rctx.Context)
-	patchHelper, err := v1beta1patch.NewHelper(rctx.NutanixMachine, r.Client)
+	patchHelper, err := v1beta1patch.NewHelper(before, r.Client)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to create patch helper to patch machine %s: %w", rctx.NutanixMachine.Name, err)
 		return errorMsg
