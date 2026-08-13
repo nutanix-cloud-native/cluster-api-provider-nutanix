@@ -20,12 +20,16 @@ spec:
   versions:
   - additionalPrinterColumns:
     - description: Reference of the preferred NutanixFailureDomain object
-      jsonPath: .spec.preferredFailureDomain
+      jsonPath: .spec.preferredFailureDomain.name
       name: PreferredFailureDomain
       type: string
     - description: Reference of NutanixMetro object this site belongs to
-      jsonPath: .spec.metroRef
+      jsonPath: .spec.metroRef.name
       name: Metro
+      type: string
+    - description: Group label for nodes anchored to a topology segment
+      jsonPath: .spec.groupNameLabel
+      name: Group
       type: string
     name: v1beta1
     schema:
