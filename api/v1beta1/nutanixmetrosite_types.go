@@ -61,8 +61,9 @@ type NutanixMetroSiteStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:metadata:labels=clusterctl.cluster.x-k8s.io/move=
-// +kubebuilder:printcolumn:name="PreferredFailureDomain",type="string",JSONPath=".spec.preferredFailureDomain",description="Reference of the preferred NutanixFailureDomain object"
-// +kubebuilder:printcolumn:name="Metro",type="string",JSONPath=".spec.metroRef",description="Reference of NutanixMetro object this site belongs to"
+// +kubebuilder:printcolumn:name="PreferredFailureDomain",type="string",JSONPath=".spec.preferredFailureDomain.name",description="Reference of the preferred NutanixFailureDomain object"
+// +kubebuilder:printcolumn:name="Metro",type="string",JSONPath=".spec.metroRef.name",description="Reference of NutanixMetro object this site belongs to"
+// +kubebuilder:printcolumn:name="Group",type="string",JSONPath=".spec.groupNameLabel",description="Group label for nodes anchored to a topology segment"
 
 // NutanixMetroSite is the Schema for the NutanixMetroSite API.
 type NutanixMetroSite struct {
