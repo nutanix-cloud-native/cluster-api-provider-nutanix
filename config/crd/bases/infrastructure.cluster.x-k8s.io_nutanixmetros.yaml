@@ -21,7 +21,7 @@ spec:
   versions:
   - additionalPrinterColumns:
     - description: References of NutanixFailureDomain objects
-      jsonPath: .spec.failureDomains
+      jsonPath: .spec.failureDomains[*].name
       name: FailureDomains
       type: string
     name: v1beta1
