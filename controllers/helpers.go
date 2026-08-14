@@ -771,13 +771,32 @@ func getOrCreateCategory(ctx context.Context, client *prismclientv3.Client, cate
 		return nil, errorMsg
 	}
 	if categoryValue == nil {
-		categoryValue, err = client.V3.CreateOrUpdateCategoryValue(ctx, *categoryKey.Name, &prismclientv3.CategoryValue{
+		_, err = client.V3.CreateOrUpdateCategoryValue(ctx, *categoryKey.Name, &prismclientv3.CategoryValue{
 			Description: utils.StringPtr(infrav1.DefaultCAPICategoryDescription),
 			Value:       utils.StringPtr(categoryIdentifier.Value),
 		})
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to create category value %s in category key %s: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
 			log.Error(errorMsg, "failed to create category value")
+			return nil, errorMsg
+		}
+
+		// Prism Central's category-value create response is not a reliable
+		// signal that the value is readable yet: the value can be absent from
+		// a subsequent read (e.g. the GetCategoryVMSpec lookup during machine
+		// reconciliation) even though creation reported success. Verify the
+		// value can actually be read back before treating creation as done, so
+		// callers (e.g. reconcileCategories) don't mark the cluster Ready and
+		// let machine reconciliation race ahead of category propagation.
+		categoryValue, err = getCategoryValue(ctx, client, *categoryKey.Name, categoryIdentifier.Value)
+		if err != nil {
+			errorMsg := fmt.Errorf("failed to verify category value %s in category %s after creation. error: %v", categoryIdentifier.Value, categoryIdentifier.Key, err)
+			log.Error(errorMsg, "failed to verify category value")
+			return nil, errorMsg
+		}
+		if categoryValue == nil {
+			errorMsg := fmt.Errorf("category value %s in category %s was created but is not yet readable from Prism Central", categoryIdentifier.Value, categoryIdentifier.Key)
+			log.Info(errorMsg.Error())
 			return nil, errorMsg
 		}
 	}
