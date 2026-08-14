@@ -921,6 +921,60 @@ func TestGetCategoryVMSpecMapping_MultiValues(t *testing.T) {
 	})
 }
 
+func TestGetOrCreateCategories_ReadBackVerification(t *testing.T) {
+	key := "KubernetesClusterName"
+	value := "e2e-nutanix-ag-test-1786608844"
+	notFoundErr := errors.New("CATEGORY_NAME_VALUE_MISMATCH")
+
+	ids := []*infrav1.NutanixCategoryIdentifier{{Key: key, Value: value}}
+
+	t.Run("creates category value and succeeds once read-back confirms it is visible", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		mockv3 := mocknutanixv3.NewMockService(ctrl)
+		client := &prismclientv3.Client{V3: mockv3}
+
+		mockv3.EXPECT().GetCategoryKey(ctx, key).Return(&prismclientv3.CategoryKeyStatus{Name: &key}, nil)
+		gomock.InOrder(
+			mockv3.EXPECT().GetCategoryValue(ctx, key, value).Return(nil, notFoundErr),
+			mockv3.EXPECT().CreateOrUpdateCategoryValue(ctx, key, gomock.Any()).
+				Return(&prismclientv3.CategoryValueStatus{Value: &value}, nil),
+			mockv3.EXPECT().GetCategoryValue(ctx, key, value).Return(&prismclientv3.CategoryValueStatus{Value: &value}, nil),
+		)
+
+		got, err := GetOrCreateCategories(ctx, client, ids)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		assert.Equal(t, value, *got[0].Value)
+	})
+
+	t.Run("returns an error instead of Ready-ing when the created value is not yet readable", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		mockv3 := mocknutanixv3.NewMockService(ctrl)
+		client := &prismclientv3.Client{V3: mockv3}
+
+		mockv3.EXPECT().GetCategoryKey(ctx, key).Return(&prismclientv3.CategoryKeyStatus{Name: &key}, nil)
+		gomock.InOrder(
+			mockv3.EXPECT().GetCategoryValue(ctx, key, value).Return(nil, notFoundErr),
+			mockv3.EXPECT().CreateOrUpdateCategoryValue(ctx, key, gomock.Any()).
+				Return(&prismclientv3.CategoryValueStatus{Value: &value}, nil),
+			// Prism Central reports the create as successful, but a subsequent
+			// read still can't see it (the eventual-consistency race this test
+			// guards against).
+			mockv3.EXPECT().GetCategoryValue(ctx, key, value).Return(nil, notFoundErr),
+		)
+
+		_, err := GetOrCreateCategories(ctx, client, ids)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not yet readable")
+	})
+}
+
 func TestGetStorageContainerByNtnxResourceIdentifier(t *testing.T) {
 	mockctl := gomock.NewController(t)
 
