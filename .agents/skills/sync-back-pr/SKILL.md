@@ -402,6 +402,31 @@ Note that the `CCM_REPO=` *mechanism* — making the registry overridable at all
 hardcoding `ghcr.io` — is a portable improvement worth keeping. Only the default value is
 internal. Keep the `Makefile`'s `CCM_REPO ?=` line pointing at GHCR.
 
+**The CCM *version* usually cannot come back either**, and this is the part that gets missed. The
+fork tracks internal CCM builds, so `CCM_VERSION` names a tag that exists only in
+`internal-cloud-provider-nutanix`. Pointing `CCM_REPO` at GHCR while keeping internal's tag
+produces an image reference that resolves to nothing — worse than a stale pin, because it is
+syntactically public and fails only at cluster-creation time. Check before deciding:
+
+```bash
+gh release list --repo nutanix-cloud-native/cloud-provider-nutanix --limit 5
+```
+
+If the fork's tag is not there, keep `main`'s `CCM_VERSION` and say so in the PR body.
+
+That is not a defect in the sync — it is where this repo sits in a release chain that has to run
+in order:
+
+1. public `prism-go-client` sync-back stack merges, and a tag is cut
+2. `cloud-provider-nutanix` re-pins to that tag and releases
+3. this repo re-pins to that tag and releases
+4. the two E2E bumps cross-reference each other — CAPX picks up the new CCM image, CCM picks up
+   the new CAPX `infrastructure-components.yaml`
+
+A sync-back is step 3's *input*, not step 4. Carrying a CCM bump or an E2E provider bump inside it
+inverts the order and produces a PR that cannot pass E2E no matter how correct its Go is. Leave
+both to the follow-up, and name the chain in the PR body so nobody re-derives it.
+
 Also internal-only, and easy to miss because it lives outside `.github/`:
 
 - `hack/release-public/kustomization.yaml` and the `release-public-manifests` Makefile target.
@@ -516,7 +541,9 @@ Include:
 - [ ] Codecov, the four nightly conformance crons, and `check_approvals` + `pull_request_target`
       still present; no `continue-on-error` on CodeQL
 - [ ] No job moved to a self-hosted runner; no new `pull_request_target`
-- [ ] CCM image default regenerated to GHCR across `templates/` and `test/e2e/data/`
+- [ ] CCM image default regenerated to GHCR across `templates/` and `test/e2e/data/`, and
+      `CCM_VERSION` left at a tag that actually exists in public `cloud-provider-nutanix`
+- [ ] No CCM or E2E provider bump carried inside the sync; release chain named in the PR body
 - [ ] `hack/release-public/` and `release-public-manifests` not carried over; `release.yaml`
       publishes to GHCR only
 - [ ] Generated trees regenerated, not hand-edited; `git diff --exit-code` clean afterwards
