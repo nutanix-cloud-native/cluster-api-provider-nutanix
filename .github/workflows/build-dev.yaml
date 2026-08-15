@@ -113,6 +113,7 @@ jobs:
           - "capx-feature-test"
           - "nutanix-feature-test"
           - "nutanix-storage-test"
+          - "projects"
           - "scaling"
           - "kubernetes-upgrade"
           - "gpu"
