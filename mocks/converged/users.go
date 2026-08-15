@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	converged "github.com/nutanix-cloud-native/prism-go-client/converged"
+	authn "github.com/nutanix/ntnx-api-golang-clients/iam-go-client/v4/models/iam/v4/authn"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -41,6 +42,50 @@ func (m *MockUsers[User]) EXPECT() *MockUsersMockRecorder[User] {
 	return m.recorder
 }
 
+// Create mocks base method.
+func (m *MockUsers[User]) Create(ctx context.Context, entity *User) (*User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Create", ctx, entity)
+	ret0, _ := ret[0].(*User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Create indicates an expected call of Create.
+func (mr *MockUsersMockRecorder[User]) Create(ctx, entity any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockUsers[User])(nil).Create), ctx, entity)
+}
+
+// CreateUserKey mocks base method.
+func (m *MockUsers[User]) CreateUserKey(ctx context.Context, userExtId string, key *authn.Key) (*authn.Key, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateUserKey", ctx, userExtId, key)
+	ret0, _ := ret[0].(*authn.Key)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateUserKey indicates an expected call of CreateUserKey.
+func (mr *MockUsersMockRecorder[User]) CreateUserKey(ctx, userExtId, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUserKey", reflect.TypeOf((*MockUsers[User])(nil).CreateUserKey), ctx, userExtId, key)
+}
+
+// DeleteUserKeyById mocks base method.
+func (m *MockUsers[User]) DeleteUserKeyById(ctx context.Context, userExtId, keyID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserKeyById", ctx, userExtId, keyID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteUserKeyById indicates an expected call of DeleteUserKeyById.
+func (mr *MockUsersMockRecorder[User]) DeleteUserKeyById(ctx, userExtId, keyID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserKeyById", reflect.TypeOf((*MockUsers[User])(nil).DeleteUserKeyById), ctx, userExtId, keyID)
+}
+
 // Get mocks base method.
 func (m *MockUsers[User]) Get(ctx context.Context, uuid string) (*User, error) {
 	m.ctrl.T.Helper()
@@ -54,6 +99,21 @@ func (m *MockUsers[User]) Get(ctx context.Context, uuid string) (*User, error) {
 func (mr *MockUsersMockRecorder[User]) Get(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockUsers[User])(nil).Get), ctx, uuid)
+}
+
+// GetUserKeyById mocks base method.
+func (m *MockUsers[User]) GetUserKeyById(ctx context.Context, userExtId, keyID string) (*authn.Key, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserKeyById", ctx, userExtId, keyID)
+	ret0, _ := ret[0].(*authn.Key)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserKeyById indicates an expected call of GetUserKeyById.
+func (mr *MockUsersMockRecorder[User]) GetUserKeyById(ctx, userExtId, keyID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserKeyById", reflect.TypeOf((*MockUsers[User])(nil).GetUserKeyById), ctx, userExtId, keyID)
 }
 
 // List mocks base method.
@@ -76,6 +136,26 @@ func (mr *MockUsersMockRecorder[User]) List(ctx any, opts ...any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockUsers[User])(nil).List), varargs...)
 }
 
+// ListUserKeys mocks base method.
+func (m *MockUsers[User]) ListUserKeys(ctx context.Context, userExtId string, opts ...converged.ODataOption) ([]authn.Key, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, userExtId}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ListUserKeys", varargs...)
+	ret0, _ := ret[0].([]authn.Key)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListUserKeys indicates an expected call of ListUserKeys.
+func (mr *MockUsersMockRecorder[User]) ListUserKeys(ctx, userExtId any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, userExtId}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserKeys", reflect.TypeOf((*MockUsers[User])(nil).ListUserKeys), varargs...)
+}
+
 // NewIterator mocks base method.
 func (m *MockUsers[User]) NewIterator(ctx context.Context, opts ...converged.ODataOption) converged.Iterator[User] {
 	m.ctrl.T.Helper()
@@ -93,4 +173,33 @@ func (mr *MockUsersMockRecorder[User]) NewIterator(ctx any, opts ...any) *gomock
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewIterator", reflect.TypeOf((*MockUsers[User])(nil).NewIterator), varargs...)
+}
+
+// RevokeUserKey mocks base method.
+func (m *MockUsers[User]) RevokeUserKey(ctx context.Context, userExtId, keyID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RevokeUserKey", ctx, userExtId, keyID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RevokeUserKey indicates an expected call of RevokeUserKey.
+func (mr *MockUsersMockRecorder[User]) RevokeUserKey(ctx, userExtId, keyID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeUserKey", reflect.TypeOf((*MockUsers[User])(nil).RevokeUserKey), ctx, userExtId, keyID)
+}
+
+// UpdateUserState mocks base method.
+func (m *MockUsers[User]) UpdateUserState(uuid string, status *authn.UserStateUpdate) (*authn.UserStateUpdateResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserState", uuid, status)
+	ret0, _ := ret[0].(*authn.UserStateUpdateResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserState indicates an expected call of UpdateUserState.
+func (mr *MockUsersMockRecorder[User]) UpdateUserState(uuid, status any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserState", reflect.TypeOf((*MockUsers[User])(nil).UpdateUserState), uuid, status)
 }

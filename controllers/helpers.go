@@ -76,6 +76,7 @@ const (
 	metroSiteFailureDomainPrefix     = "NutanixMetroSite/"
 	metroNativeFailureDomainLabelKey = "metro.nutanix.com/native-failuredomain"
 	metroNativePELabelKey            = "metro.nutanix.com/native-pe"
+	metroActivePlacementPEAnnotation = "metro.nutanix.com/active-placement-pe"
 
 	// clusterScopeMovementGroupName is the well-known key of the cluster-scope movement group within
 	// a NutanixVirtualHADomain's MovementGroups. Only this scope is supported for now; nodepool-scope
