@@ -653,7 +653,7 @@ metadata:
 spec:
   template:
     spec:
-      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=uefi}
       image:
         name: ${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME:=placeholder-image}
         type: name

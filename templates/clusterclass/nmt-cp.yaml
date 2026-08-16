@@ -5,9 +5,10 @@ metadata:
 spec:
   template:
     spec:
-      # Supported options for boot type: legacy and uefi
-      # Defaults to legacy if not set
-      bootType: legacy
+      # bootType defaults to uefi. When vmProfile is used, bootType is removed via patches.
+      bootType: uefi
+      # vcpusPerSocket, vcpuSockets, and memorySize are required when vmProfile is not set.
+      # When vmProfile is used, these fields are removed via patches.
       vcpusPerSocket: 1
       vcpuSockets: 2
       memorySize: 4Gi

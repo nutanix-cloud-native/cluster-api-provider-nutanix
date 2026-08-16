@@ -1,0 +1,22 @@
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: NutanixMachineTemplate
+metadata:
+  name: "${CLUSTER_NAME}-mt-0"
+spec:
+  template:
+    spec:
+      providerID: "nutanix://${CLUSTER_NAME}-m1"
+      vmProfile:
+        type: name
+        name: "${NUTANIX_VM_PROFILE_NAME}"
+      image:
+        type: name
+        name: "${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME}"
+      cluster:
+        type: name
+        name: "${NUTANIX_PRISM_ELEMENT_CLUSTER_NAME}"
+      subnet:
+        - type: name
+          name: "${NUTANIX_SUBNET_NAME}"
+      systemDiskSize: "${NUTANIX_SYSTEMDISK_SIZE=40Gi}"

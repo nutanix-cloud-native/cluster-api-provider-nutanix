@@ -82,6 +82,7 @@ CNI_PATH_CILIUM_NO_KUBEPROXY ?= "${E2E_DIR}/data/cni/cilium/cilium-no-kubeproxy.
 CNI_PATH_FLANNEL ?= "${E2E_DIR}/data/cni/flannel/flannel.yaml"
 CNI_PATH_KINDNET ?= "${E2E_DIR}/data/cni/kindnet/kindnet.yaml"
 CCM_VERSION ?= 0.7.0-alpha.1
+CCM_REPO ?= ghcr.io/nutanix-cloud-native/cloud-provider-nutanix/controller
 # Auto-select credential type: API key takes precedence when set.
 NUTANIX_CREDENTIALS_TYPE ?= $(if $(strip $(NUTANIX_API_KEY)),api_key,basic_auth)
 NUTANIX_CREDENTIALS_OVERLAY ?= $(subst _,-,$(NUTANIX_CREDENTIALS_TYPE))
@@ -131,7 +132,7 @@ define ginkgo_option
 endef
 
 .PHONY: all
-all: build
+all: mocks generate fmt vet lint build
 
 ##@ General
 
@@ -225,12 +226,12 @@ update-kindnet-cni: ## Updates the kindnet CNI manifests
 	@curl -sL https://github.com/kubernetes-sigs/cluster-api/raw/main/test/e2e/data/cni/kindnet/kindnet.yaml -o $(CNI_PATH_KINDNET)
 
 .PHONY: update-ccm
-update-ccm: ## Updates the Nutanix CCM tag in all the template manifests to CCM_VERSION
-	@echo "Updating Nutanix CCM tag to $(CCM_VERSION)"
-	@find $(TEMPLATES_DIR) -type f -name "*.yaml" -exec sed -i '' 's|CCM_TAG=[^}]*|CCM_TAG=$(CCM_VERSION)|g' {} +
-	@find $(NUTANIX_E2E_TEMPLATES) -type f -name "*.yaml" -exec sed -i '' 's|CCM_TAG=[^}]*|CCM_TAG=$(CCM_VERSION)|g' {} +
+update-ccm: ## Updates the Nutanix CCM repo/tag in all the template manifests to CCM_REPO/CCM_VERSION
+	@echo "Updating Nutanix CCM image to $(CCM_REPO):$(CCM_VERSION)"
+	@find $(TEMPLATES_DIR) -type f -name "*.yaml" -exec sed -i '' 's|CCM_REPO=[^}]*|CCM_REPO=$(CCM_REPO)|g; s|CCM_TAG=[^}]*|CCM_TAG=$(CCM_VERSION)|g' {} +
+	@find $(NUTANIX_E2E_TEMPLATES) -type f -name "*.yaml" -exec sed -i '' 's|CCM_REPO=[^}]*|CCM_REPO=$(CCM_REPO)|g; s|CCM_TAG=[^}]*|CCM_TAG=$(CCM_VERSION)|g' {} +
 	@sed -i '' 's|CCM_TAG: ".*"|CCM_TAG: "$(CCM_VERSION)"|g' $(E2E_DIR)/config/nutanix.yaml
-	@echo "Updated CCM tag to $(CCM_VERSION) in templates and E2E config"
+	@echo "Updated CCM image to $(CCM_REPO):$(CCM_VERSION) in templates and E2E config"
 
 .PHONY: update-cni-manifests ## Updates all the CNI manifests to latest variants from upstream
 update-cni-manifests: update-calico-cni update-cilium-cni update-flannel-cni update-kindnet-cni  ## Updates all the CNI manifests to latest variants from upstream
@@ -307,7 +308,9 @@ cluster-e2e-templates-v1beta1: ## Generate cluster templates for v1beta1
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nutanix-cluster --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nutanix-cluster.yaml
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-additional-categories.yaml
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt.yaml
+	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt-project-scoped-user --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-no-nmt-project-scoped-user.yaml
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project.yaml
+	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project-scoped-user --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-project-scoped-user.yaml
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-upgrades --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-upgrades.yaml
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-remediation --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-remediation.yaml
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-taints --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-md-taints.yaml
@@ -321,6 +324,7 @@ cluster-e2e-templates-v1beta1: ## Generate cluster templates for v1beta1
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-topology-autoscaler --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-topology-autoscaler.yaml
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-image-lookup --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-image-lookup.yaml
 	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-failure-domains-migration --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-failure-domains-migration.yaml
+	kustomize build $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-vmprofile --load-restrictor LoadRestrictionsNone > $(NUTANIX_E2E_TEMPLATES)/v1beta1/cluster-template-vmprofile.yaml
 
 cluster-e2e-templates-no-kubeproxy: ##Generate cluster templates without kubeproxy
 	# v1beta1
@@ -391,6 +395,8 @@ mocks: ## Generate mocks for the project
 	mockgen -destination=mocks/converged/ovas.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Ovas
 	mockgen -destination=mocks/converged/protection_policies.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged ProtectionPolicies
 	mockgen -destination=mocks/converged/recovery_plans.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged RecoveryPlans
+	mockgen -destination=mocks/converged/projects.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged Projects
+	mockgen -destination=mocks/converged/resource_groups.go -package=mockconverged github.com/nutanix-cloud-native/prism-go-client/converged ResourceGroups
 
 # Disable VCS stamping for `go list` / `go test` so unit tests run in partial checkouts and CI sandboxes.
 GOTESTPKGS = $(shell GOFLAGS=-buildvcs=false go list ./... | grep -v /mocks | grep -v /templates)

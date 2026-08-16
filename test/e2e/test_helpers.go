@@ -49,6 +49,7 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
+	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 	vmmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 )
 
@@ -127,9 +128,11 @@ type testHelperInterface interface {
 	createNameGPUNMT(ctx context.Context, clusterName, namespace string, params createGPUNMTParams) *infrav1.NutanixMachineTemplate
 	createCapiObject(ctx context.Context, params createCapiObjectParams)
 	createDeviceIDGPUNMT(ctx context.Context, clusterName, namespace string, params createGPUNMTParams) *infrav1.NutanixMachineTemplate
+	createProfileGPUNMT(clusterName, namespace string, profile infrav1.NutanixResourceIdentifier) *infrav1.NutanixMachineTemplate
 	createSecret(params createSecretParams)
 	createUUIDNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate
 	createUUIDProjectNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate
+	createVMProfileNMT(clusterName, namespace string) *infrav1.NutanixMachineTemplate
 	createDefaultNMTwithDataDisks(clusterName, namespace string, params withDataDisksParams) *infrav1.NutanixMachineTemplate
 	deployCluster(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult)
 	deployClusterAndWait(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult)
@@ -137,6 +140,7 @@ type testHelperInterface interface {
 	deleteAllClustersAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, namespace *corev1.Namespace, intervalsGetter func(spec, key string) []interface{})
 	deleteClusterAndWait(ctx context.Context, specName string, bootstrapClusterProxy framework.ClusterProxy, cluster *capiv1beta2.Cluster, intervalsGetter func(spec, key string) []interface{})
 	findGPU(ctx context.Context, gpuName string) *vmmconfig.Gpu
+	findGPUProfileExtID(ctx context.Context, profileName string) string
 	generateNMTName(clusterName string) string
 	generateNMTProviderID(clusterName string) string
 	generateTestClusterName(specName string) string
@@ -160,6 +164,7 @@ type testHelperInterface interface {
 	verifyNewFailureDomainsOnClusterMachines(ctx context.Context, params verifyFailureDomainsOnClusterMachinesParams)
 	verifyFailureMessageOnClusterMachines(ctx context.Context, params verifyFailureMessageOnClusterMachinesParams)
 	verifyGPUNutanixMachines(ctx context.Context, params verifyGPUNutanixMachinesParams)
+	verifyGPUProfileNutanixMachines(ctx context.Context, params verifyGPUProfileNutanixMachinesParams)
 	verifyProjectNutanixMachines(ctx context.Context, params verifyProjectNutanixMachinesParams)
 	verifyResourceConfigOnNutanixMachines(ctx context.Context, params verifyResourceConfigOnNutanixMachinesParams)
 }
@@ -243,16 +248,19 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
 	subnetVarValue := t.getVariableFromE2eConfig(subnetVarKey)
 
-	clusterUUID, err := controllers.GetPEUUID(ctx, t.convergedClient, &clusterVarValue, nil)
+	clusterUUID, err := controllers.GetPEUUID(ctx, t.convergedClient, nil, &clusterVarValue, nil)
+	Expect(err).ToNot(HaveOccurred())
+
+	pcVersion, err := t.convergedClient.DomainManager.GetPrismCentralVersion(ctx)
 	Expect(err).ToNot(HaveOccurred())
 
 	image, err := controllers.GetImage(ctx, t.convergedClient, infrav1.NutanixResourceIdentifier{
 		Type: infrav1.NutanixIdentifierName,
 		Name: ptr.To(imageVarValue),
-	})
+	}, nil, pcVersion)
 	Expect(err).ToNot(HaveOccurred())
 
-	subnetUUID, err := controllers.GetSubnetUUID(ctx, t.convergedClient, clusterUUID, &subnetVarValue, nil)
+	subnetUUID, err := controllers.GetSubnetUUID(ctx, t.convergedClient, clusterUUID, &subnetVarValue, nil, nil, pcVersion)
 	Expect(err).ToNot(HaveOccurred())
 
 	return &infrav1.NutanixMachineTemplate{
@@ -291,15 +299,50 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 
 func (t testHelper) createUUIDProjectNMT(ctx context.Context, clusterName, namespace string) *infrav1.NutanixMachineTemplate {
 	projectVarValue := t.getVariableFromE2eConfig(nutanixProjectNameEnv)
-	projectUUID, err := controllers.GetProjectUUID(ctx, t.nutanixClient, &projectVarValue, nil)
+	rctx := &nctx.MachineContext{
+		Context:       ctx,
+		NutanixClient: t.nutanixClient,
+	}
+	projectRef := &infrav1.NutanixResourceIdentifier{
+		Name: &projectVarValue,
+	}
+	project, err := controllers.GetProjectV3(rctx, projectRef)
 	Expect(err).ToNot(HaveOccurred())
 
 	nmt := t.createUUIDNMT(ctx, clusterName, namespace)
 	nmt.Spec.Template.Spec.Project = &infrav1.NutanixResourceIdentifier{
 		Type: infrav1.NutanixIdentifierUUID,
-		UUID: &projectUUID,
+		UUID: project.ExtID,
 	}
 	return nmt
+}
+
+func (t testHelper) createVMProfileNMT(clusterName, namespace string) *infrav1.NutanixMachineTemplate {
+	vmProfileName := t.getVariableFromE2eConfig("NUTANIX_VM_PROFILE_NAME")
+	return &infrav1.NutanixMachineTemplate{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.generateNMTName(clusterName),
+			Namespace: namespace,
+		},
+		Spec: infrav1.NutanixMachineTemplateSpec{
+			Template: infrav1.NutanixMachineTemplateResource{
+				Spec: infrav1.NutanixMachineSpec{
+					ProviderID: t.generateNMTProviderID(clusterName),
+					// When VMProfile is set, vcpusPerSocket, vcpuSockets, memorySize, bootType, and GPUs are mutually exclusive
+					VMProfile: ptr.To(infrav1.NutanixResourceIdentifier{
+						Type: infrav1.NutanixIdentifierName,
+						Name: ptr.To(vmProfileName),
+					}),
+					Image:   ptr.To(t.getNutanixResourceIdentifierFromE2eConfig(imageVarKey)),
+					Cluster: t.getNutanixResourceIdentifierFromE2eConfig(clusterVarKey),
+					Subnets: []infrav1.NutanixResourceIdentifier{
+						t.getNutanixResourceIdentifierFromE2eConfig(subnetVarKey),
+					},
+					SystemDiskSize: resource.MustParse(defaultSystemDiskSize),
+				},
+			},
+		},
+	}
 }
 
 type createGPUNMTParams struct {
@@ -322,7 +365,7 @@ func (t testHelper) createNameGPUNMT(ctx context.Context, clusterName, namespace
 func (t testHelper) findGPU(ctx context.Context, gpuName string) *vmmconfig.Gpu {
 	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
 
-	clusterUUID, err := controllers.GetPEUUID(ctx, t.convergedClient, &clusterVarValue, nil)
+	clusterUUID, err := controllers.GetPEUUID(ctx, t.convergedClient, nil, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(clusterUUID).ToNot(BeNil())
 	allUnusedGpus, err := controllers.GetGPUsForPE(ctx, t.convergedClient, clusterUUID, infrav1.NutanixGPU{
@@ -341,6 +384,159 @@ func (t testHelper) findGPU(ctx context.Context, gpuName string) *vmmconfig.Gpu 
 		}
 	}
 	return nil
+}
+
+// createProfileGPUNMT builds a NutanixMachineTemplate whose GPU is identified by an AHV GPU
+// profile rather than a device name/ID. Profiles may be identified by either their name or UUID.
+func (t testHelper) createProfileGPUNMT(clusterName, namespace string, profile infrav1.NutanixResourceIdentifier) *infrav1.NutanixMachineTemplate {
+	nmt := t.createDefaultNMT(clusterName, namespace)
+	nmt.Spec.Template.Spec.GPUs = []infrav1.NutanixGPU{
+		{
+			Type:    infrav1.NutanixGPUIdentifierProfile,
+			Profile: &profile,
+		},
+	}
+	return nmt
+}
+
+// findGPUProfileExtID resolves an AHV GPU profile name to its external ID, searching both
+// the physical and virtual profile catalogs of the Prism Element under test. This mirrors
+// the resolution CAPX itself performs in controllers.GetGPU for profile GPUs.
+func (t testHelper) findGPUProfileExtID(ctx context.Context, profileName string) string {
+	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
+
+	peUUID, err := controllers.GetPEUUID(ctx, t.convergedClient, nil, &clusterVarValue, nil)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(peUUID).ToNot(BeEmpty())
+
+	nameFilter := converged.WithFilter(fmt.Sprintf(
+		"configuration/name eq '%s'", strings.ReplaceAll(profileName, "'", "''")))
+
+	physicalProfiles, err := t.convergedClient.Clusters.ListAHVPhysicalGPUProfiles(ctx, peUUID, nameFilter)
+	Expect(err).ToNot(HaveOccurred())
+	virtualProfiles, err := t.convergedClient.Clusters.ListAHVVirtualGPUProfiles(ctx, peUUID, nameFilter)
+	Expect(err).ToNot(HaveOccurred())
+
+	Expect(len(physicalProfiles)+len(virtualProfiles)).To(Equal(1),
+		"expected GPU profile %q to resolve to exactly one profile on Prism Element %s", profileName, peUUID)
+
+	if len(physicalProfiles) == 1 {
+		return ptr.Deref(physicalProfiles[0].ExtId, "")
+	}
+	return ptr.Deref(virtualProfiles[0].ExtId, "")
+}
+
+type verifyGPUProfileNutanixMachinesParams struct {
+	clusterName           string
+	namespace             string
+	gpuProfileName        string
+	bootstrapClusterProxy framework.ClusterProxy
+}
+
+// verifyGPUProfileNutanixMachines asserts that every VM backing the cluster has a GPU
+// attached that references the expected AHV GPU profile.
+//
+// Note that reaching this point already implies the GPU was really allocated: the cluster
+// is only Ready once the VMs powered on, and AHV validates GPU allocation at power-on. This
+// additionally pins down *which* profile was used, which the profile name alone cannot
+// (AHV picks the concrete device at power-on).
+func (t testHelper) verifyGPUProfileNutanixMachines(ctx context.Context, params verifyGPUProfileNutanixMachinesParams) {
+	expectedProfileExtID := t.findGPUProfileExtID(ctx, params.gpuProfileName)
+	Expect(expectedProfileExtID).ToNot(BeEmpty())
+
+	nutanixMachines := t.getNutanixMachinesForCluster(ctx, params.clusterName, params.namespace, params.bootstrapClusterProxy)
+	Expect(nutanixMachines.Items).ToNot(BeEmpty())
+
+	for _, nm := range nutanixMachines.Items {
+		machineVmUUID := nm.Status.VmUUID
+		Expect(machineVmUUID).NotTo(BeEmpty(), "expected NutanixMachine %s to have Status.VmUUID set", nm.Name)
+
+		vm, err := t.convergedClient.VMs.Get(ctx, machineVmUUID)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(vm.Gpus).ToNot(BeEmpty(), "expected VM %s to have a GPU attached", machineVmUUID)
+
+		attachedProfileExtIDs := make([]string, 0, len(vm.Gpus))
+		for i := range vm.Gpus {
+			switch backing := vm.Gpus[i].GetBackingInfo().(type) {
+			case vmmconfig.PhysicalGpu:
+				if backing.PhysicalGpuProfileReference != nil {
+					attachedProfileExtIDs = append(attachedProfileExtIDs, ptr.Deref(backing.PhysicalGpuProfileReference.ExtId, ""))
+				}
+			case vmmconfig.VirtualGpu:
+				if backing.VirtualGpuProfileReference != nil {
+					attachedProfileExtIDs = append(attachedProfileExtIDs, ptr.Deref(backing.VirtualGpuProfileReference.ExtId, ""))
+				}
+			}
+		}
+
+		Expect(attachedProfileExtIDs).To(ContainElement(expectedProfileExtID),
+			"expected VM %s to have a GPU referencing profile %q (%s), got profile refs %v",
+			machineVmUUID, params.gpuProfileName, expectedProfileExtID, attachedProfileExtIDs)
+	}
+}
+
+// gpuVendorNameToString maps the vendor name reported by the cluster GPU APIs (e.g.
+// "kNvidia") to the vendor string reported on a VM's GPU list (e.g. "NVIDIA"). This mirrors
+// the unexported controllers.gpuVendorStringToGpuVendor conversion.
+func gpuVendorNameToString(vendorName string) string {
+	switch vendorName {
+	case "kNvidia":
+		return "NVIDIA"
+	case "kIntel":
+		return "INTEL"
+	case "kAmd":
+		return "AMD"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+type gpuDevice struct {
+	deviceID int64
+	vendor   string
+}
+
+// findGPUDevice resolves a GPU device by name irrespective of whether it is currently in
+// use. controllers.GetGPUsForPE (and therefore findGPU) deliberately skips in-use GPUs
+// because it is picking one to assign to a new VM. Verification must not do that: the
+// device ID and vendor of a given GPU name are properties of the device model, so filtering
+// on availability would make the assertion additionally require a spare GPU beyond the one
+// under test, and fail whenever the Prism Element is fully allocated.
+func (t testHelper) findGPUDevice(ctx context.Context, gpuName string) gpuDevice {
+	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
+
+	peUUID, err := controllers.GetPEUUID(ctx, t.convergedClient, nil, &clusterVarValue, nil)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(peUUID).ToNot(BeEmpty())
+
+	var found *gpuDevice
+
+	physicalGPUs, err := t.convergedClient.Clusters.ListClusterPhysicalGPUs(ctx, peUUID,
+		converged.WithFilter(fmt.Sprintf("physicalGpuConfig/deviceName eq '%s'", gpuName)))
+	Expect(err).ToNot(HaveOccurred())
+	for i := range physicalGPUs {
+		cfg := physicalGPUs[i].PhysicalGpuConfig
+		if cfg != nil && cfg.DeviceId != nil && cfg.VendorName != nil {
+			found = &gpuDevice{deviceID: *cfg.DeviceId, vendor: gpuVendorNameToString(*cfg.VendorName)}
+			break
+		}
+	}
+
+	if found == nil {
+		virtualGPUs, err := t.convergedClient.Clusters.ListClusterVirtualGPUs(ctx, peUUID,
+			converged.WithFilter(fmt.Sprintf("virtualGpuConfig/deviceName eq '%s'", gpuName)))
+		Expect(err).ToNot(HaveOccurred())
+		for i := range virtualGPUs {
+			cfg := virtualGPUs[i].VirtualGpuConfig
+			if cfg != nil && cfg.DeviceId != nil && cfg.VendorName != nil {
+				found = &gpuDevice{deviceID: *cfg.DeviceId, vendor: gpuVendorNameToString(*cfg.VendorName)}
+				break
+			}
+		}
+	}
+
+	Expect(found).ToNot(BeNil(), "expected to find a GPU named %q on Prism Element %s", gpuName, peUUID)
+	return *found
 }
 
 func (t testHelper) createDeviceIDGPUNMT(ctx context.Context, clusterName, namespace string, params createGPUNMTParams) *infrav1.NutanixMachineTemplate {
@@ -442,6 +638,18 @@ type deployClusterParams struct {
 	clusterctlConfigPath  string
 	artifactFolder        string
 	bootstrapClusterProxy framework.ClusterProxy
+	// workerMachineCount overrides the number of worker machines. Defaults to 1 when nil.
+	// Set this to 0 for specs that only need a control plane, so they do not consume
+	// scarce per-machine resources (e.g. a passthrough GPU) for a worker they never assert on.
+	workerMachineCount *int64
+}
+
+// workerMachineCountOrDefault returns the configured worker machine count, defaulting to 1.
+func (p deployClusterParams) workerMachineCountOrDefault() *int64 {
+	if p.workerMachineCount != nil {
+		return p.workerMachineCount
+	}
+	return ptr.To(int64(1))
 }
 
 func (t testHelper) deployCluster(params deployClusterParams, clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult) {
@@ -455,7 +663,7 @@ func (t testHelper) deployCluster(params deployClusterParams, clusterResources *
 		ClusterName:              params.clusterName,
 		KubernetesVersion:        t.e2eConfig.MustGetVariable(KubernetesVersion),
 		ControlPlaneMachineCount: ptr.To(int64(1)),
-		WorkerMachineCount:       ptr.To(int64(1)),
+		WorkerMachineCount:       params.workerMachineCountOrDefault(),
 	}
 
 	t.createClusterFromConfig(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
@@ -478,7 +686,7 @@ func (t testHelper) deployClusterAndWait(params deployClusterParams, clusterReso
 		ClusterName:              params.clusterName,
 		KubernetesVersion:        t.e2eConfig.MustGetVariable(KubernetesVersion),
 		ControlPlaneMachineCount: ptr.To(int64(1)),
-		WorkerMachineCount:       ptr.To(int64(1)),
+		WorkerMachineCount:       params.workerMachineCountOrDefault(),
 	}
 
 	clusterctl.ApplyClusterTemplateAndWait(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
@@ -699,6 +907,9 @@ type verifyConditionParams struct {
 	clusterName           string
 	namespace             *corev1.Namespace
 	expectedCondition     capiv1beta1.Condition
+	// expectedMessageSubstring, if non-empty, additionally asserts that the matched
+	// condition's Message contains this substring.
+	expectedMessageSubstring string
 }
 
 func (t testHelper) verifyConditionOnNutanixCluster(params verifyConditionParams) {
@@ -752,6 +963,7 @@ func (t testHelper) verifyConditionOnNutanixMachines(params verifyConditionParam
 										"Reason":   Equal(params.expectedCondition.Reason),
 										"Severity": Equal(params.expectedCondition.Severity),
 										"Status":   Equal(params.expectedCondition.Status),
+										"Message":  ContainSubstring(params.expectedMessageSubstring),
 									},
 								),
 							),
@@ -924,8 +1136,7 @@ func (t testHelper) verifyGPUNutanixMachines(ctx context.Context, params verifyG
 		Expect(machineVmUUID).NotTo(BeEmpty(), "expected NutanixMachine %s to have Status.VmUUID set", nm.Name)
 		vm, err := t.nutanixClient.V3.GetVM(ctx, machineVmUUID)
 		Expect(err).ShouldNot(HaveOccurred())
-		foundGpu := t.findGPU(ctx, params.gpuName)
-		Expect(foundGpu).ToNot(BeNil())
+		expectedGpu := t.findGPUDevice(ctx, params.gpuName)
 		gpuList := vm.Spec.Resources.GpuList
 		Expect(gpuList).ToNot(HaveLen(0))
 		Expect(gpuList).To(ContainElement(
@@ -933,8 +1144,8 @@ func (t testHelper) verifyGPUNutanixMachines(ctx context.Context, params verifyG
 				gstruct.MatchFields(
 					gstruct.IgnoreExtras,
 					gstruct.Fields{
-						"DeviceID": HaveValue(Equal(int64(*foundGpu.DeviceId))),
-						"Vendor":   HaveValue(Equal(GpuVendorToString(foundGpu.Vendor))),
+						"DeviceID": HaveValue(Equal(expectedGpu.deviceID)),
+						"Vendor":   HaveValue(Equal(expectedGpu.vendor)),
 					},
 				),
 			)))

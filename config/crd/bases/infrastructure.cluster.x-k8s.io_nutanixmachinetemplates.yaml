@@ -91,8 +91,9 @@ spec:
                           type: object
                         type: array
                       bootType:
-                        description: Defines the boot type of the virtual machine.
-                          Only supports UEFI and Legacy
+                        description: |-
+                          Defines the boot type of the virtual machine. Only supports UEFI and Legacy
+                          Mutually exclusive with vmProfile. When vmProfile is set, bootType must not be set.
                         enum:
                         - legacy
                         - uefi
@@ -178,8 +179,9 @@ spec:
                           rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
                             : !has(self.uuid)'
                       dataDisks:
-                        description: dataDisks hold the list of data disks to be attached
-                          to the VM
+                        description: |-
+                          dataDisks hold the list of data disks to be attached to the VM
+                          Mutually exclusive with VMProfile. When VMProfile is set, dataDisks must not be set.
                         items:
                           description: NutanixMachineVMDisk defines the disk configuration
                             for a NutanixMachine
@@ -323,9 +325,13 @@ spec:
                           type: object
                         type: array
                       gpus:
-                        description: List of GPU devices that need to be added to
-                          the machines.
+                        description: |-
+                          List of GPU devices that need to be added to the machines.
+                          Mutually exclusive with VMProfile. When VMProfile is set, GPUs must not be set.
                         items:
+                          description: |-
+                            NutanixGPU identifies a GPU to attach to a VM, either by device (name/deviceID) or
+                            by an AHV GPU profile.
                           properties:
                             deviceID:
                               description: deviceID is the id of the GPU entity.
@@ -333,17 +339,66 @@ spec:
                               type: integer
                             name:
                               description: name is the GPU name
+                              minLength: 1
                               type: string
+                            profile:
+                              description: |-
+                                profile identifies the AHV GPU profile to assign by name or UUID. Profile-based GPU
+                                assignment uses the named GPU profile APIs and is only supported on PC 7.6 or later.
+                              properties:
+                                name:
+                                  description: name is the resource name in the PC
+                                  minLength: 1
+                                  type: string
+                                type:
+                                  description: Type is the identifier type to use
+                                    for this resource.
+                                  enum:
+                                  - uuid
+                                  - name
+                                  type: string
+                                uuid:
+                                  description: uuid is the UUID of the resource in
+                                    the PC.
+                                  format: uuid
+                                  maxLength: 36
+                                  minLength: 36
+                                  type: string
+                              required:
+                              - type
+                              type: object
+                              x-kubernetes-validations:
+                              - message: '''name'' must be set when type is ''name'',
+                                  and forbidden otherwise'
+                                rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
+                              - message: '''uuid'' must be set when type is ''uuid'',
+                                  and forbidden otherwise'
+                                rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
+                                  : !has(self.uuid)'
                             type:
                               description: Type is the identifier type to use for
                                 this resource.
                               enum:
                               - deviceID
                               - name
+                              - profile
                               type: string
                           required:
                           - type
                           type: object
+                          x-kubernetes-validations:
+                          - message: '''name'' must be set when type is ''name'',
+                              and forbidden otherwise'
+                            rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
+                          - message: '''deviceID'' must be set when type is ''deviceID'',
+                              and forbidden otherwise'
+                            rule: 'self.type == ''deviceID'' ? has(self.deviceID)
+                              : !has(self.deviceID)'
+                          - message: '''profile'' must be set when type is ''profile'',
+                              and forbidden otherwise'
+                            rule: 'self.type == ''profile'' ? has(self.profile) :
+                              !has(self.profile)'
+                        maxItems: 32
                         type: array
                       image:
                         description: |-
@@ -414,6 +469,7 @@ spec:
                         description: |-
                           memorySize is the memory size (in Quantity format) of the VM
                           The minimum memorySize is 2Gi bytes
+                          Required when VMProfile is not set, mutually exclusive with VMProfile
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                       project:
@@ -502,22 +558,58 @@ spec:
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                       vcpuSockets:
-                        description: vcpuSockets is the number of vCPU sockets of
-                          the VM
+                        description: |-
+                          vCPUsockets is the number of vCPU sockets of the VM
+                          Required when VMProfile is not set, mutually exclusive with VMProfile
                         format: int32
                         minimum: 1
                         type: integer
                       vcpusPerSocket:
-                        description: vcpusPerSocket is the number of vCPUs per socket
-                          of the VM
+                        description: |-
+                          vcpusPerSocket is the number of vCPUs per socket of the VM
+                          Required when VMProfile is not set, mutually exclusive with VMProfile
                         format: int32
                         minimum: 1
                         type: integer
+                      vmProfile:
+                        description: |-
+                          VMProfile is to identify the VM profile in Prism Central (PC)
+                          The VM profile identifier (uuid or name) can be obtained from the Prism Central console
+                          or using the prism_central API.
+                          When VMProfile is set, it provides CPU, memory, and bootType configuration.
+                          vcpusPerSocket, vcpuSockets, memorySize, bootType, and GPUs are mutually exclusive with VMProfile;
+                          dataDisks is currently mutually exclusive with VMProfile (support for this combination may be added later).
+                        properties:
+                          name:
+                            description: name is the resource name in the PC
+                            minLength: 1
+                            type: string
+                          type:
+                            description: Type is the identifier type to use for this
+                              resource.
+                            enum:
+                            - uuid
+                            - name
+                            type: string
+                          uuid:
+                            description: uuid is the UUID of the resource in the PC.
+                            format: uuid
+                            maxLength: 36
+                            minLength: 36
+                            type: string
+                        required:
+                        - type
+                        type: object
+                        x-kubernetes-validations:
+                        - message: '''name'' must be set when type is ''name'', and
+                            forbidden otherwise'
+                          rule: 'self.type == ''name'' ? has(self.name) : !has(self.name)'
+                        - message: '''uuid'' must be set when type is ''uuid'', and
+                            forbidden otherwise'
+                          rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
+                            : !has(self.uuid)'
                     required:
-                    - memorySize
                     - systemDiskSize
-                    - vcpuSockets
-                    - vcpusPerSocket
                     type: object
                     x-kubernetes-validations:
                     - message: Either 'image' or 'imageLookup' must be set, but not
@@ -526,6 +618,20 @@ spec:
                     - message: each subnet must be unique
                       rule: 'has(self.subnet) && size(self.subnet) > 1 ? self.subnet.all(x,
                         self.subnet.exists_one(y, x == y)) : true'
+                    - message: When 'vmProfile' is set, 'vcpusPerSocket', 'vcpuSockets',
+                        'memorySize', 'bootType', 'gpus', and 'dataDisks' must not
+                        be set
+                      rule: 'has(self.vmProfile) ? ((!has(self.vcpusPerSocket) ||
+                        self.vcpusPerSocket == 0) && (!has(self.vcpuSockets) || self.vcpuSockets
+                        == 0) && (!has(self.memorySize) || self.memorySize == "" ||
+                        self.memorySize == "0") && (!has(self.bootType) || self.bootType
+                        == "") && (!has(self.gpus) || size(self.gpus) == 0) && (!has(self.dataDisks)
+                        || size(self.dataDisks) == 0)) : true'
+                    - message: When 'vmProfile' is not set, 'vcpusPerSocket', 'vcpuSockets',
+                        and 'memorySize' must be set
+                      rule: '!has(self.vmProfile) ? (has(self.vcpusPerSocket) && self.vcpusPerSocket
+                        > 0 && has(self.vcpuSockets) && self.vcpuSockets > 0 && has(self.memorySize)
+                        && self.memorySize != "" && self.memorySize != "0") : true'
                 required:
                 - spec
                 type: object

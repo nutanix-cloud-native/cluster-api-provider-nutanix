@@ -51,6 +51,7 @@ import (
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
+	multidomainModels "github.com/nutanix/ntnx-api-golang-clients/multidomain-go-client/v4/models/multidomain/v4/config"
 )
 
 // NutanixClusterReconciler reconciles a NutanixCluster object
@@ -376,13 +377,6 @@ func (r *NutanixClusterReconciler) reconcileNormal(rctx *nctx.ClusterContext) (r
 		return reconcile.Result{}, nil
 	}
 
-	err := r.reconcileCategories(rctx)
-	if err != nil {
-		log.Error(err, "error occurred while reconciling categories")
-		// Don't return fatal error but keep retrying until categories are created.
-		return reconcile.Result{}, err
-	}
-
 	rctx.NutanixCluster.Status.Ready = true
 	return reconcile.Result{}, nil
 }
@@ -554,10 +548,22 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 	v1beta1conditions.Delete(rctx.NutanixCluster, infrav1.NoFailureDomainsConfiguredCondition)
 	v1beta2conditions.Delete(rctx.NutanixCluster, string(infrav1.NoFailureDomainsConfiguredCondition))
 
+	// The project scope (resource group, effective project, PC version) implied by the
+	// cluster's project policy is resolved lazily (and only once) on the first failure
+	// domain that actually needs validation, so that clusters without resolvable failure
+	// domains don't perform project/resource-group lookups. When resolved, it is reused
+	// for all FDs so that failure domain validation uses the same project-scoped Prism
+	// Element and subnet lookups as machine reconciliation.
+	var resourceGroup *multidomainModels.ResourceGroup
+	var effectiveProject *nctx.ProjectInfo
+	var pcVersion string
+	projectScopeResolved := false
+
 	validationErrs := []error{}
 	for _, fdRef := range rctx.NutanixCluster.Spec.ControlPlaneFailureDomains {
 		switch {
 		case isNutanixMetroFailureDomain(fdRef.Name):
+			// Metro failure domains always use the default project (nil resource group)
 			metroObj, err := getNutanixMetroObject(rctx.Context, r.Client, fdRef.Name[len(metroFailureDomainPrefix):], rctx.NutanixCluster.Namespace)
 			if err != nil {
 				validationErrs = append(validationErrs, err)
@@ -571,12 +577,13 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 					continue
 				}
 
-				// Validate the failure domain configuration
-				if err := r.validateFailureDomainSpec(rctx, fdObj); err != nil {
+				// Validate the failure domain configuration (metro uses default project)
+				if err := r.validateFailureDomainSpec(rctx, fdObj, nil, nil, ""); err != nil {
 					validationErrs = append(validationErrs, fmt.Errorf("failed to validate the failure domain %s configuration: %w", fdObj.Name, err))
 				}
 			}
 		case isNutanixMetroSiteFailureDomain(fdRef.Name):
+			// MetroSite failure domains always use the default project (nil resource group)
 			metrositeObj, err := getNutanixMetroSiteObject(rctx.Context, r.Client, fdRef.Name[len(metroSiteFailureDomainPrefix):], rctx.NutanixCluster.Namespace)
 			if err != nil {
 				validationErrs = append(validationErrs, err)
@@ -589,8 +596,8 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 				continue
 			}
 
-			// Validate the failure domain configuration
-			if err := r.validateFailureDomainSpec(rctx, fdObj); err != nil {
+			// Validate the failure domain configuration (metro uses default project)
+			if err := r.validateFailureDomainSpec(rctx, fdObj, nil, nil, ""); err != nil {
 				validationErrs = append(validationErrs, fmt.Errorf("failed to validate the failure domain %s configuration: %w", fdObj.Name, err))
 			}
 		default:
@@ -606,8 +613,19 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 				continue
 			}
 
+			if !projectScopeResolved {
+				rg, project, pcVer, err := r.resolveProjectScopeForCluster(rctx)
+				if err != nil {
+					return fmt.Errorf("failed to resolve project scope for cluster %s: %w", rctx.NutanixCluster.Name, err)
+				}
+				resourceGroup = rg
+				effectiveProject = project
+				pcVersion = pcVer
+				projectScopeResolved = true
+			}
+
 			// Validate the failure domain configuration
-			if err := r.validateFailureDomainSpec(rctx, fdObj); err != nil {
+			if err := r.validateFailureDomainSpec(rctx, fdObj, effectiveProject, resourceGroup, pcVersion); err != nil {
 				validationErrs = append(validationErrs, fmt.Errorf("failed to validate the failure domain %q configuration: %w", fdRef.Name, err))
 				continue
 			}
@@ -646,17 +664,43 @@ func (r *NutanixClusterReconciler) reconcileFailureDomains(rctx *nctx.ClusterCon
 	return nil
 }
 
-// validateFailureDomainSpec is to validate the input failure domain's spec configuration.
+// resolveProjectScopeForCluster derives the project scope implied by the cluster's
+// project policy: the project-scoped resource group (used for Prism Element lookups),
+// the effective project (used for project-aware subnet lookups), and the PC version.
+// The resource group and project are nil when no project-scoped lookup applies
+// (unrestricted policy, PC < 7.6, or - for the resource group - the default project).
+func (r *NutanixClusterReconciler) resolveProjectScopeForCluster(rctx *nctx.ClusterContext) (*multidomainModels.ResourceGroup, *nctx.ProjectInfo, string, error) {
+	pcVersion, err := rctx.ConvergedClient.DomainManager.GetPrismCentralVersion(rctx.Context)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("failed to get the PC version for cluster %s: %w", rctx.NutanixCluster.Name, err)
+	}
+	projectPolicy, ok := rctx.Cluster.Annotations[CAPXProjectPolicyAnnotation]
+	if !ok {
+		projectPolicy = CAPXProjectPolicyUnrestricted
+	}
+	projectUUID := rctx.Cluster.Annotations[CAPXProjectUUIDAnnotation]
+	resourceGroup, err := resolveResourceGroupForProjectPolicy(rctx.Context, rctx.ConvergedClient, projectPolicy, projectUUID, pcVersion)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	project, err := resolveProjectInfoForPolicy(rctx.Context, rctx.ConvergedClient, projectPolicy, projectUUID, pcVersion)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	return resourceGroup, project, pcVersion, nil
+}
+
+// validateFailureDomainSpec validates the input failure domain's spec configuration.
 // It returns error if validation fails, and returns nil if validation succeeds.
-func (r *NutanixClusterReconciler) validateFailureDomainSpec(rctx *nctx.ClusterContext, fd *infrav1.NutanixFailureDomain) error {
+func (r *NutanixClusterReconciler) validateFailureDomainSpec(rctx *nctx.ClusterContext, fd *infrav1.NutanixFailureDomain, project *nctx.ProjectInfo, resourceGroup *multidomainModels.ResourceGroup, pcVersion string) error {
 	pe := fd.Spec.PrismElementCluster
-	peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
+	peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient, resourceGroup, pe.Name, pe.UUID)
 	if err != nil {
 		return err
 	}
 
 	subnets := fd.Spec.Subnets
-	_, err = GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, subnets, peUUID)
+	_, err = GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, subnets, peUUID, project, pcVersion)
 	if err != nil {
 		return err
 	}
@@ -664,30 +708,9 @@ func (r *NutanixClusterReconciler) validateFailureDomainSpec(rctx *nctx.ClusterC
 	return nil
 }
 
-func (r *NutanixClusterReconciler) reconcileCategories(rctx *nctx.ClusterContext) error {
-	log := ctrl.LoggerFrom(rctx.Context)
-	log.Info("Reconciling categories for cluster")
-	defaultCategories := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-	_, err := GetOrCreateCategories(rctx.Context, rctx.ConvergedClient, defaultCategories)
-	if err != nil {
-		v1beta1conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.ClusterCategoryCreationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
-		v1beta2conditions.Set(rctx.NutanixCluster, metav1.Condition{
-			Type:    string(infrav1.ClusterCategoryCreatedCondition),
-			Status:  metav1.ConditionFalse,
-			Reason:  infrav1.ClusterCategoryCreationFailed,
-			Message: err.Error(),
-		})
-		return err
-	}
-	v1beta1conditions.MarkTrue(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition)
-	v1beta2conditions.Set(rctx.NutanixCluster, metav1.Condition{
-		Type:   string(infrav1.ClusterCategoryCreatedCondition),
-		Status: metav1.ConditionTrue,
-		Reason: infrav1.Succeeded,
-	})
-	return nil
-}
-
+// reconcileCategoriesDelete deletes the default CAPX categories on cluster
+// delete; gated on the condition the machine reconciler sets when it first
+// creates them.
 func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterContext) error {
 	log := ctrl.LoggerFrom(rctx.Context)
 	log.Info(fmt.Sprintf("Reconciling deletion of categories for cluster %s", rctx.Cluster.Name))
@@ -695,7 +718,30 @@ func (r *NutanixClusterReconciler) reconcileCategoriesDelete(rctx *nctx.ClusterC
 		v1beta1conditions.GetReason(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition) == infrav1.DeletionFailed {
 		defaultCategories := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
 		obsoleteCategories := GetObsoleteDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
-		err := DeleteCategories(rctx.Context, rctx.ConvergedClient, defaultCategories, obsoleteCategories)
+
+		// Scope the category deletion to the project implied by the cluster's project
+		// policy, mirroring how categories were created during machine reconciliation.
+		pcVersion, err := rctx.ConvergedClient.DomainManager.GetPrismCentralVersion(rctx.Context)
+		if err != nil {
+			return fmt.Errorf("failed to get the PC version for cluster %s: %w", rctx.Cluster.Name, err)
+		}
+		projectPolicy, ok := rctx.Cluster.Annotations[CAPXProjectPolicyAnnotation]
+		if !ok {
+			projectPolicy = CAPXProjectPolicyUnrestricted
+		}
+		projectUUID := rctx.Cluster.Annotations[CAPXProjectUUIDAnnotation]
+		project, err := resolveProjectInfoForPolicy(rctx.Context, rctx.ConvergedClient, projectPolicy, projectUUID, pcVersion)
+		if err != nil {
+			return err
+		}
+		// An unrestricted policy or PC < 7.6 yields a nil project (no project scoping);
+		// fall back to nil for the legacy, unscoped category deletion.
+		var projectExtID *string
+		if project != nil && project.ExtID != nil {
+			projectExtID = project.ExtID
+		}
+
+		err = DeleteCategoriesForProject(rctx.Context, rctx.ConvergedClient, defaultCategories, obsoleteCategories, projectExtID)
 		if err != nil {
 			v1beta1conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.DeletionFailed, capiv1beta1.ConditionSeverityWarning, "%s", err.Error())
 			v1beta2conditions.Set(rctx.NutanixCluster, metav1.Condition{
