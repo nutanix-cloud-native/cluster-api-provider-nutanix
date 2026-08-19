@@ -20,7 +20,7 @@ jobs:
     outputs:
       # For pull_request_target: pass through the actual approval result (empty string if the step was skipped, i.e. no label or not external).
       # For all other events: default to 'true' so non-PR triggers are not blocked.
-      check_approvals: ${{ github.event_name == 'pull_request_target' && steps.check_approvals.outputs.check_approvals || (github.event_name != 'pull_request_target' && 'true') || '' }}
+      check_approvals: ${{ github.event_name == 'pull_request_target' && steps.check_approvals.outputs.status || (github.event_name != 'pull_request_target' && 'true') || '' }}
       # Output whether the PR is external
       external_pr: ${{ ((github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && github.event.pull_request.base.repo.clone_url != github.event.pull_request.head.repo.clone_url) || 'false' }}
     steps:
