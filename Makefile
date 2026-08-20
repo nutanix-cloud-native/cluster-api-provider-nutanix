@@ -187,10 +187,6 @@ kind-create: ## Create a kind cluster and deploy the latest supported cluster AP
 kind-delete: ## Delete the kind cluster
 	kind delete cluster --name=${KIND_CLUSTER_NAME}
 
-.PHONY: nutanix-cp-endpoint-ip
-nutanix-cp-endpoint-ip: ## Gets a random free IP from the control plane endpoint range set in the environment.
-	@shuf --head-count=1 < <(fping -g -u "$(CONTROL_PLANE_ENDPOINT_RANGE_START)" "$(CONTROL_PLANE_ENDPOINT_RANGE_END)")
-
 .PHONY: update-calico-cni
 update-calico-cni: ## Updates the calico CNI manifests
 	@echo "Updating calico CNI manifest"
