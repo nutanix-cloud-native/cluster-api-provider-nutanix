@@ -35,11 +35,20 @@ const (
 	balancerFDB    = "fd-dh2"
 )
 
+// balancerCluster is the owning Cluster for balancer test MachineSets. Reconcile looks it up to
+// honor cluster/MachineSet pause, so it must exist in the fake client.
+func balancerCluster() *capiv1beta2.Cluster {
+	return &capiv1beta2.Cluster{
+		ObjectMeta: metav1.ObjectMeta{Name: placementClusterName, Namespace: placementNamespace},
+	}
+}
+
 // newBalancerReconciler wires a MetroScaleDownBalancerReconciler over a fake client preloaded with
-// objs.
+// objs plus the owning Cluster.
 func newBalancerReconciler(g *WithT, objs ...client.Object) *MetroScaleDownBalancerReconciler {
 	scheme := newPlacementScheme(g)
-	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
+	all := append([]client.Object{balancerCluster()}, objs...)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(all...).Build()
 	return &MetroScaleDownBalancerReconciler{Client: fakeClient, Scheme: scheme}
 }
 
@@ -202,6 +211,25 @@ func TestMetroScaleDownBalancerReconcile(t *testing.T) {
 
 		g.Expect(hasDeleteAnnotation(g, r, "m-a1")).To(BeTrue())
 		g.Expect(hasManagedAnnotation(g, r, "m-a1")).To(BeFalse())
+	})
+
+	t.Run("paused MachineSet is a no-op", func(t *testing.T) {
+		g := NewWithT(t)
+		// Imbalanced (A=2, B=1) but paused, so the controller must not mark anyone.
+		ms := balancerMS(metroFailureDomainPrefix+"metro0", nil)
+		ms.Annotations = map[string]string{capiv1beta2.PausedAnnotation: ""}
+		r := newBalancerReconciler(g,
+			ms,
+			placementNM("m-a1", balancerFDA, false), balancerMachineInSet("m-a1"),
+			placementNM("m-a2", balancerFDA, false), balancerMachineInSet("m-a2"),
+			placementNM("m-b1", balancerFDB, false), balancerMachineInSet("m-b1"),
+		)
+
+		reconcileBalancer(g, r)
+
+		for _, name := range []string{"m-a1", "m-a2", "m-b1"} {
+			g.Expect(hasDeleteAnnotation(g, r, name)).To(BeFalse(), name)
+		}
 	})
 
 	t.Run("non-metro pool is skipped", func(t *testing.T) {
