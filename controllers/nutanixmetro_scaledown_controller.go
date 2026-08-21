@@ -26,6 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	capiutil "sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -143,6 +145,16 @@ func (r *MetroScaleDownBalancerReconciler) Reconcile(ctx context.Context, req ct
 		return reconcile.Result{}, nil
 	}
 	if !ms.DeletionTimestamp.IsZero() {
+		return reconcile.Result{}, nil
+	}
+
+	cluster, err := capiutil.GetClusterFromMetadata(ctx, r.Client, ms.ObjectMeta)
+	if err != nil {
+		log.Error(err, "MachineSet is missing cluster label or cluster does not exist")
+		return reconcile.Result{}, nil
+	}
+	if annotations.IsPaused(cluster, ms) {
+		log.V(1).Info("linked to a cluster that is paused")
 		return reconcile.Result{}, nil
 	}
 
