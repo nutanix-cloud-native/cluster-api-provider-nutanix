@@ -28,6 +28,7 @@ import (
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
 	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -270,6 +271,11 @@ func (r *NutanixMetroReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		// Error reading the object - requeue the request.
 		log.Error(err, "failed to fetch the NutanixMetro object")
 		return reconcile.Result{}, err
+	}
+
+	if annotations.HasPaused(metro) {
+		log.V(1).Info("NutanixMetro is paused")
+		return reconcile.Result{}, nil
 	}
 
 	// Initialize the patch helper.

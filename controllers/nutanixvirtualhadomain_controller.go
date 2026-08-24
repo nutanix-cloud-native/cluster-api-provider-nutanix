@@ -39,6 +39,7 @@ import (
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/utils/ptr"
 	capiutil "sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -144,6 +145,11 @@ func (r *NutanixVirtualHADomainReconciler) Reconcile(ctx context.Context, req ct
 			log.Info("Patched NutanixVirtualHADomain", "status", vHADomain.Status, "finalizers", vHADomain.Finalizers)
 		}
 	}()
+
+	if annotations.HasPaused(vHADomain) {
+		log.V(1).Info("NutanixVirtualHADomain is paused")
+		return reconcile.Result{}, nil
+	}
 
 	// Fetch the CAPI Cluster.
 	cluster, err := capiutil.GetClusterFromMetadata(ctx, r.Client, vHADomain.ObjectMeta)
