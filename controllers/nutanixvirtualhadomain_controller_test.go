@@ -292,6 +292,29 @@ func TestVHADomainReconcile_MissingCluster(t *testing.T) {
 	g.Expect(err).To(HaveOccurred())
 }
 
+func TestVHADomainReconcile_PausedVHADomain(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	// Reconcile should short-circuit when the vHADomain itself is paused, without requiring the
+	// NutanixCluster to exist.
+	vHADomain := vhaDomainObj("d1", vhaClusterName)
+	vHADomain.Annotations = map[string]string{capiv1beta2.PausedAnnotation: "true"}
+	cluster := &capiv1beta2.Cluster{
+		ObjectMeta: metav1.ObjectMeta{Name: vhaClusterName, Namespace: vhaNamespace},
+		Spec: capiv1beta2.ClusterSpec{
+			InfrastructureRef: capiv1beta2.ContractVersionedObjectReference{Name: vhaNtnxCluster},
+		},
+	}
+
+	r := newVHAReconciler(g, vHADomain, cluster)
+	res, err := r.Reconcile(ctx, reconcile.Request{
+		NamespacedName: client.ObjectKey{Name: vHADomain.Name, Namespace: vHADomain.Namespace},
+	})
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(res).To(Equal(reconcile.Result{}))
+}
+
 func TestVHADomainReconcileNormal_AddsFinalizer(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()

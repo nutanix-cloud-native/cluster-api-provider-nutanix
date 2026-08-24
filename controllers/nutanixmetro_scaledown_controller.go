@@ -26,6 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	capiutil "sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -94,6 +96,12 @@ func (r *MetroScaleDownBalancerReconciler) SetupWithManager(ctx context.Context,
 				r.mapMachineToMachineSet(),
 			),
 		).
+		Watches(
+			&capiv1beta2.Cluster{},
+			handler.EnqueueRequestsFromMapFunc(
+				r.mapClusterToMachineSets(),
+			),
+		).
 		WithOptions(copts).
 		Complete(r)
 }
@@ -120,8 +128,39 @@ func (r *MetroScaleDownBalancerReconciler) mapMachineToMachineSet() handler.MapF
 	}
 }
 
+// mapClusterToMachineSets enqueues all MachineSets owned by the Cluster so cluster-level pause and
+// other relevant metadata changes re-evaluate balancing.
+func (r *MetroScaleDownBalancerReconciler) mapClusterToMachineSets() handler.MapFunc {
+	return func(ctx context.Context, o client.Object) []ctrl.Request {
+		log := ctrl.LoggerFrom(ctx)
+		cluster, ok := o.(*capiv1beta2.Cluster)
+		if !ok {
+			log.Error(fmt.Errorf("expected a Cluster object but was %T", o), "unexpected type")
+			return nil
+		}
+
+		msList := &capiv1beta2.MachineSetList{}
+		if err := r.List(ctx, msList,
+			client.InNamespace(cluster.Namespace),
+			client.MatchingLabels{capiv1beta2.ClusterNameLabel: cluster.Name},
+		); err != nil {
+			log.Error(err, "failed to list MachineSets for Cluster", "cluster", client.ObjectKeyFromObject(cluster))
+			return nil
+		}
+
+		requests := make([]ctrl.Request, 0, len(msList.Items))
+		for i := range msList.Items {
+			requests = append(requests, ctrl.Request{
+				NamespacedName: client.ObjectKeyFromObject(&msList.Items[i]),
+			})
+		}
+		return requests
+	}
+}
+
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machinesets;machinesets/status,verbs=get;list;watch
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machines;machines/status,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters;clusters/status,verbs=get;list;watch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixmachines,verbs=get;list;watch
 
 func (r *MetroScaleDownBalancerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -143,6 +182,16 @@ func (r *MetroScaleDownBalancerReconciler) Reconcile(ctx context.Context, req ct
 		return reconcile.Result{}, nil
 	}
 	if !ms.DeletionTimestamp.IsZero() {
+		return reconcile.Result{}, nil
+	}
+
+	cluster, err := capiutil.GetClusterFromMetadata(ctx, r.Client, ms.ObjectMeta)
+	if err != nil {
+		log.Error(err, "MachineSet is missing cluster label or cluster does not exist")
+		return reconcile.Result{}, nil
+	}
+	if annotations.IsPaused(cluster, ms) {
+		log.V(1).Info("linked to a cluster that is paused")
 		return reconcile.Result{}, nil
 	}
 
