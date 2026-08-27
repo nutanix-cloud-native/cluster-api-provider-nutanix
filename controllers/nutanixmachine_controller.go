@@ -346,7 +346,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, nil
 	}
 
-	vm, err := FindVMByUUID(ctx, convergedClient, vmUUID)
+	vm, waitForRecovered, err := r.vmToDelete(rctx, vmUUID, vmName)
 	if err != nil {
 		errorMsg := fmt.Errorf("error finding VM %s with UUID %s: %w", vmName, vmUUID, err)
 		log.Error(errorMsg, "error finding VM")
@@ -359,13 +359,24 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		})
 		return reconcile.Result{}, errorMsg
 	}
+	if waitForRecovered {
+		log.Info(fmt.Sprintf("recorded VM %s with UUID %s is decoupled; waiting for a recovered non-decoupled VM", vmName, vmUUID))
+		return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+	}
 
 	if vm == nil {
-		log.Info(fmt.Sprintf("no VM found with UUID %s: assuming it is already deleted; skipping delete", vmUUID))
-		log.Info(fmt.Sprintf("removing finalizers for VM %s during delete reconciliation", vmName))
+		log.Info(fmt.Sprintf("no live VM remains for %s (recorded UUID %s); removing finalizers", vmName, vmUUID))
 		ctrlutil.RemoveFinalizer(rctx.NutanixMachine, infrav1.NutanixMachineFinalizer)
 		ctrlutil.RemoveFinalizer(rctx.NutanixMachine, infrav1.DeprecatedNutanixMachineFinalizer)
 		return reconcile.Result{}, nil
+	}
+
+	if vm.Name == nil {
+		return reconcile.Result{}, fmt.Errorf("found VM with UUID %s but name was empty", ptr.Deref(vm.ExtId, vmUUID))
+	}
+	targetUUID := ptr.Deref(vm.ExtId, vmUUID)
+	if targetUUID == "" {
+		return reconcile.Result{}, fmt.Errorf("found VM %s but UUID was empty", *vm.Name)
 	}
 
 	// Check if the VM name matches the Machine name or the NutanixMachine name.
@@ -374,12 +385,12 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	// This check is to ensure that we are deleting the correct VM for both cases as older CAPX VMs
 	// will have the NutanixMachine name as the VM name.
 	if *vm.Name != vmName && *vm.Name != rctx.NutanixMachine.Name {
-		return reconcile.Result{}, fmt.Errorf("found VM with UUID %s but name %s did not match Machine name %s or NutanixMachineName %s", vmUUID, *vm.Name, vmName, rctx.NutanixMachine.Name)
+		return reconcile.Result{}, fmt.Errorf("found VM with UUID %s but name %s did not match Machine name %s or NutanixMachineName %s", targetUUID, *vm.Name, vmName, rctx.NutanixMachine.Name)
 	}
 
-	log.V(1).Info(fmt.Sprintf("Found VM %s with UUID %s.", *vm.Name, vmUUID))
+	log.V(1).Info(fmt.Sprintf("Found VM %s with UUID %s.", *vm.Name, targetUUID))
 
-	taskInProgress, err := VmHasTaskInProgress(ctx, convergedClient, vmUUID)
+	taskInProgress, err := VmHasTaskInProgress(ctx, convergedClient, targetUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while fetching running task from VM: %w", err)
 		log.Error(errorMsg, "error fetching running task from VM")
@@ -396,7 +407,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		log.Info(fmt.Sprintf("VM %s has tasks in progress. Requeuing", vmName))
 		return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
 	} else {
-		log.V(1).Info(fmt.Sprintf("no running tasks anymore... Initiating delete for VM %s with UUID %s", vmName, vmUUID))
+		log.V(1).Info(fmt.Sprintf("no running tasks anymore... Initiating delete for VM %s with UUID %s", vmName, targetUUID))
 	}
 
 	var vgDetachNeeded bool
@@ -407,8 +418,8 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		}
 	}
 	if vgDetachNeeded {
-		if err := r.detachVolumeGroups(rctx, vmName, vmUUID, vm.Disks); err != nil {
-			err := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %w", vmName, vmUUID, err)
+		if err := r.detachVolumeGroups(rctx, vmName, targetUUID, vm.Disks); err != nil {
+			err := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %w", vmName, targetUUID, err)
 			log.Error(err, "failed to detach volume groups from VM")
 			v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VolumeGroupDetachFailed, capiv1beta1.ConditionSeverityWarning, "%s", err.Error())
 			v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
@@ -423,14 +434,14 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 
 		// Requeue to wait for volume group detach tasks to complete. This is done instead of blocking on task
 		// completion to avoid long-running reconcile loops.
-		log.Info(fmt.Sprintf("detaching volume groups from VM %s with UUID %s; requeueing again after %s", vmName, vmUUID, detachVGRequeueAfter))
+		log.Info(fmt.Sprintf("detaching volume groups from VM %s with UUID %s; requeueing again after %s", vmName, targetUUID, detachVGRequeueAfter))
 		return reconcile.Result{RequeueAfter: detachVGRequeueAfter}, nil
 	}
 
 	// Delete the VM since the VM was found (err was nil)
-	deleteTaskUUID, err := DeleteVM(ctx, convergedClient, vmName, vmUUID)
+	deleteTaskUUID, err := DeleteVM(ctx, convergedClient, vmName, targetUUID)
 	if err != nil {
-		err := fmt.Errorf("failed to delete VM %s with UUID %s: %w", vmName, vmUUID, err)
+		err := fmt.Errorf("failed to delete VM %s with UUID %s: %w", vmName, targetUUID, err)
 		log.Error(err, "failed to delete VM")
 		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1beta1.ConditionSeverityWarning, "%s", err.Error())
 		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
@@ -442,8 +453,98 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 
 		return reconcile.Result{}, err
 	}
-	log.Info(fmt.Sprintf("Deletion task with UUID %s received for vm %s with UUID %s. Requeueing", deleteTaskUUID, vmName, vmUUID))
+	log.Info(fmt.Sprintf("Deletion task with UUID %s received for vm %s with UUID %s. Requeueing", deleteTaskUUID, vmName, targetUUID))
 	return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+}
+
+// vmToDelete returns the AHV VM CAPX should delete for this Machine.
+//
+// A DR-decoupled VM (original UUID after Metro UPFO) is never deleted; DR owns it.
+// After the failed site returns, DR typically deletes that decoupled leftover. The
+// migrated VM keeps the Machine name but a new UUID. If we only look at the recorded
+// UUID we would drop the finalizer and leave that migrated VM orphaned — so we always
+// look up a non-decoupled VM by name before giving up.
+//
+// wait is true when the recorded UUID is still decoupled and no recovered VM exists yet.
+func (r *NutanixMachineReconciler) vmToDelete(rctx *nctx.MachineContext, recordedUUID, vmName string) (*vmmconfig.Vm, bool, error) {
+	ctx := rctx.Context
+	log := ctrl.LoggerFrom(ctx)
+	v3Client := nutanixV3Service(rctx.NutanixClient)
+	if v3Client == nil {
+		vm, err := FindVMByUUID(ctx, rctx.ConvergedClient, recordedUUID)
+		return vm, false, err
+	}
+
+	decoupled, err := isVMDecoupled(ctx, v3Client, recordedUUID)
+	if err != nil {
+		return nil, false, err
+	}
+	if decoupled {
+		log.Info(fmt.Sprintf("VM %s with UUID %s is decoupled; leaving it for DR", vmName, recordedUUID))
+		setNutanixMachineAnnotation(rctx.NutanixMachine, skippedDecoupledVMUUIDAnnotation, recordedUUID)
+		return r.resolveRecoveredVMForDelete(rctx, v3Client, vmName, true)
+	}
+
+	vm, err := FindVMByUUID(ctx, rctx.ConvergedClient, recordedUUID)
+	if err != nil {
+		live, _, lookupErr := r.resolveRecoveredVMForDelete(rctx, v3Client, vmName, false)
+		if lookupErr != nil {
+			return nil, false, lookupErr
+		}
+		if live != nil {
+			log.Info(fmt.Sprintf("recorded VM UUID %s lookup failed; deleting migrated VM %s with UUID %s by name", recordedUUID, vmName, ptr.Deref(live.ExtId, "")))
+			return live, false, nil
+		}
+		return nil, false, err
+	}
+	if vm != nil {
+		return vm, false, nil
+	}
+
+	// Recorded UUID is gone — DR likely deleted the decoupled leftover after the
+	// site came back. Delete the migrated VM by name so it is not left orphaned.
+	log.Info(fmt.Sprintf("recorded VM UUID %s is gone; looking for a migrated VM named %s", recordedUUID, vmName))
+	return r.resolveRecoveredVMForDelete(rctx, v3Client, vmName, false)
+}
+
+// resolveRecoveredVMForDelete finds the non-decoupled VM to delete after skipping
+// a decoupled original. If waitIfMissing is true and none exists yet, wait is true.
+func (r *NutanixMachineReconciler) resolveRecoveredVMForDelete(rctx *nctx.MachineContext, v3Client prismclientv3.Service, vmName string, waitIfMissing bool) (*vmmconfig.Vm, bool, error) {
+	ctx := rctx.Context
+	log := ctrl.LoggerFrom(ctx)
+
+	if recoveredUUID := nutanixMachineAnnotation(rctx.NutanixMachine, recoveredVMUUIDAnnotation); recoveredUUID != "" {
+		recoveredDecoupled, err := isVMDecoupled(ctx, v3Client, recoveredUUID)
+		if err != nil {
+			return nil, false, err
+		}
+		if recoveredDecoupled {
+			log.Info(fmt.Sprintf("previously recovered VM %s is now decoupled; waiting for the next recovered generation", recoveredUUID))
+			deleteNutanixMachineAnnotation(rctx.NutanixMachine, recoveredVMUUIDAnnotation)
+		} else {
+			vm, err := FindVMByUUID(ctx, rctx.ConvergedClient, recoveredUUID)
+			if err != nil {
+				return nil, false, err
+			}
+			if vm == nil {
+				log.Info(fmt.Sprintf("recovered VM %s has been deleted", recoveredUUID))
+				return nil, false, nil
+			}
+			return vm, false, nil
+		}
+	}
+
+	live, err := findNonDecoupledVMByName(ctx, rctx.ConvergedClient, v3Client, vmNamesForDelete(vmName, rctx.NutanixMachine.Name))
+	if err != nil {
+		return nil, false, err
+	}
+	if live == nil || live.ExtId == nil || *live.ExtId == "" {
+		return nil, waitIfMissing, nil
+	}
+
+	setNutanixMachineAnnotation(rctx.NutanixMachine, recoveredVMUUIDAnnotation, *live.ExtId)
+	log.Info(fmt.Sprintf("found migrated VM %s with UUID %s to delete", vmName, *live.ExtId))
+	return live, false, nil
 }
 
 func (r *NutanixMachineReconciler) detachVolumeGroups(rctx *nctx.MachineContext, vmName string, vmUUID string, vmDiskList []vmmconfig.Disk) error {

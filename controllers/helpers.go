@@ -85,6 +85,17 @@ const (
 
 	vmCustomAttributePrefix4MetroPreferredPE        = "metro-preferred-pe:"
 	vmCustomAttributePrefix4MetroNodeGroupNameLabel = "metro-node-group-name:"
+
+	drConfigEntityType    = "entity_dr_config"
+	drRoleDecoupled       = "kDecoupled"
+	drConfigRoleAttribute = "role"
+
+	// skippedDecoupledVMUUIDAnnotation records the Machine's original VM UUID when
+	// delete skipped it because DR marked the VM decoupled (Metro UPFO).
+	skippedDecoupledVMUUIDAnnotation = "capx.nutanix.com/skipped-decoupled-vm-uuid"
+	// recoveredVMUUIDAnnotation is the non-decoupled recovered VM CAPX will delete
+	// instead of the decoupled original.
+	recoveredVMUUIDAnnotation = "capx.nutanix.com/recovered-vm-uuid"
 )
 
 type StorageContainerIntentResponse struct {
@@ -252,6 +263,148 @@ func FindVMByName(ctx context.Context, client *v4Converged.Client, vmName string
 	}
 
 	return FindVMByUUID(ctx, client, *vms[0].ExtId)
+}
+
+func nutanixV3Service(client *prismclientv3.Client) prismclientv3.Service {
+	if client == nil {
+		return nil
+	}
+	return client.V3
+}
+
+func groupsFieldValue(entity *prismclientv3.GroupsEntity, name string) string {
+	if entity == nil {
+		return ""
+	}
+	for _, data := range entity.Data {
+		if data == nil || data.Name != name {
+			continue
+		}
+		for _, pair := range data.Values {
+			if pair == nil || len(pair.Values) == 0 {
+				continue
+			}
+			return pair.Values[0]
+		}
+	}
+	return ""
+}
+
+// isVMDecoupled reports whether Prism Central DR config marks the VM as decoupled.
+// A decoupled VM must not be deleted by CAPX; Disaster Recovery owns it.
+func isVMDecoupled(ctx context.Context, v3Client prismclientv3.Service, vmUUID string) (bool, error) {
+	if v3Client == nil || vmUUID == "" {
+		return false, nil
+	}
+
+	resp, err := v3Client.GroupsGetEntities(ctx, &prismclientv3.GroupsGetEntitiesRequest{
+		EntityType:     ptr.To(drConfigEntityType),
+		FilterCriteria: fmt.Sprintf("entity_uuid=in=%s", vmUUID),
+		GroupMemberAttributes: []*prismclientv3.GroupsRequestedAttribute{
+			{Attribute: ptr.To(drConfigRoleAttribute)},
+		},
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to get DR config for VM %s: %w", vmUUID, err)
+	}
+	if resp == nil {
+		return false, nil
+	}
+
+	for _, group := range resp.GroupResults {
+		if group == nil {
+			continue
+		}
+		for _, entity := range group.EntityResults {
+			if groupsFieldValue(entity, drConfigRoleAttribute) == drRoleDecoupled {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// findNonDecoupledVMByName lists VMs with the given names and returns the single
+// VM that is not DR-decoupled. Returns nil if only decoupled VMs exist (or none).
+func findNonDecoupledVMByName(ctx context.Context, client *v4Converged.Client, v3Client prismclientv3.Service, names []string) (*vmmconfig.Vm, error) {
+	log := ctrl.LoggerFrom(ctx)
+	seen := map[string]struct{}{}
+	live := make([]*vmmconfig.Vm, 0)
+
+	for _, name := range names {
+		if name == "" {
+			continue
+		}
+		vms, err := client.VMs.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", name)))
+		if err != nil {
+			return nil, fmt.Errorf("failed to list VMs named %s: %w", name, err)
+		}
+		for i := range vms {
+			vm := vms[i]
+			if vm.ExtId == nil || *vm.ExtId == "" {
+				continue
+			}
+			uuid := *vm.ExtId
+			if _, ok := seen[uuid]; ok {
+				continue
+			}
+			seen[uuid] = struct{}{}
+
+			decoupled, err := isVMDecoupled(ctx, v3Client, uuid)
+			if err != nil {
+				return nil, err
+			}
+			if decoupled {
+				log.Info(fmt.Sprintf("skipping decoupled VM %s with UUID %s", name, uuid))
+				continue
+			}
+
+			full, err := FindVMByUUID(ctx, client, uuid)
+			if err != nil {
+				return nil, err
+			}
+			if full != nil {
+				live = append(live, full)
+			}
+		}
+	}
+
+	if len(live) == 0 {
+		return nil, nil
+	}
+	if len(live) > 1 {
+		return nil, fmt.Errorf("found more than one (%d) non-decoupled VMs with names %v", len(live), names)
+	}
+	return live[0], nil
+}
+
+func nutanixMachineAnnotation(nm *infrav1.NutanixMachine, key string) string {
+	if nm == nil || nm.Annotations == nil {
+		return ""
+	}
+	return nm.Annotations[key]
+}
+
+func setNutanixMachineAnnotation(nm *infrav1.NutanixMachine, key, value string) {
+	if nm.Annotations == nil {
+		nm.Annotations = map[string]string{}
+	}
+	nm.Annotations[key] = value
+}
+
+func deleteNutanixMachineAnnotation(nm *infrav1.NutanixMachine, key string) {
+	if nm == nil || nm.Annotations == nil {
+		return
+	}
+	delete(nm.Annotations, key)
+}
+
+func vmNamesForDelete(machineName, nutanixMachineName string) []string {
+	names := []string{machineName}
+	if nutanixMachineName != "" && nutanixMachineName != machineName {
+		names = append(names, nutanixMachineName)
+	}
+	return names
 }
 
 // GetPEUUID returns the UUID of the Prism Element cluster with the given name or UUID.

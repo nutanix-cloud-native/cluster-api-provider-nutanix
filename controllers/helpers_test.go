@@ -2326,6 +2326,122 @@ func TestDeleteVM(t *testing.T) {
 	})
 }
 
+func drConfigGroupsResponse(role string) *prismclientv3.GroupsGetEntitiesResponse {
+	return &prismclientv3.GroupsGetEntitiesResponse{
+		GroupResults: []*prismclientv3.GroupsGroupResult{
+			{
+				EntityResults: []*prismclientv3.GroupsEntity{
+					{
+						Data: []*prismclientv3.GroupsFieldData{
+							{Name: drConfigRoleAttribute, Values: []*prismclientv3.GroupsTimevaluePair{{Values: []string{role}}}},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestIsVMDecoupled(t *testing.T) {
+	ctx := context.Background()
+	vmUUID := "e530a7a6-3e93-4408-77af-d7ce41a3997c"
+
+	t.Run("returns false when v3 client is nil", func(t *testing.T) {
+		decoupled, err := isVMDecoupled(ctx, nil, vmUUID)
+		assert.NoError(t, err)
+		assert.False(t, decoupled)
+	})
+
+	t.Run("returns true when role is kDecoupled", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(drConfigGroupsResponse(drRoleDecoupled), nil)
+
+		decoupled, err := isVMDecoupled(ctx, mockV3, vmUUID)
+		assert.NoError(t, err)
+		assert.True(t, decoupled)
+	})
+
+	t.Run("returns false when role is not decoupled", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(drConfigGroupsResponse("kActive"), nil)
+
+		decoupled, err := isVMDecoupled(ctx, mockV3, vmUUID)
+		assert.NoError(t, err)
+		assert.False(t, decoupled)
+	})
+
+	t.Run("returns error when groups API fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(nil, errors.New("pc unavailable"))
+
+		decoupled, err := isVMDecoupled(ctx, mockV3, vmUUID)
+		assert.Error(t, err)
+		assert.False(t, decoupled)
+		assert.Contains(t, err.Error(), "failed to get DR config")
+	})
+}
+
+func TestFindNonDecoupledVMByName(t *testing.T) {
+	ctx := context.Background()
+	vmName := "cp1"
+	decoupledUUID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+	liveUUID := "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+
+	t.Run("skips decoupled VM and returns recovered VM", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		decoupledVM := vmmModels.NewVm()
+		decoupledVM.Name = ptr.To(vmName)
+		decoupledVM.ExtId = ptr.To(decoupledUUID)
+		liveVM := vmmModels.NewVm()
+		liveVM.Name = ptr.To(vmName)
+		liveVM.ExtId = ptr.To(liveUUID)
+
+		mockClient := NewMockConvergedClient(ctrl)
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockClient.MockVMs.EXPECT().List(ctx, gomock.Any()).Return([]vmmModels.Vm{*decoupledVM, *liveVM}, nil)
+		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).DoAndReturn(
+			func(_ context.Context, req *prismclientv3.GroupsGetEntitiesRequest) (*prismclientv3.GroupsGetEntitiesResponse, error) {
+				if strings.Contains(req.FilterCriteria, decoupledUUID) {
+					return drConfigGroupsResponse(drRoleDecoupled), nil
+				}
+				return drConfigGroupsResponse("kActive"), nil
+			},
+		).AnyTimes()
+		mockClient.MockVMs.EXPECT().Get(ctx, liveUUID).Return(liveVM, nil)
+
+		got, err := findNonDecoupledVMByName(ctx, mockClient.Client, mockV3, []string{vmName})
+		assert.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, liveUUID, *got.ExtId)
+	})
+
+	t.Run("returns nil when only decoupled VMs exist", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		decoupledVM := vmmModels.NewVm()
+		decoupledVM.Name = ptr.To(vmName)
+		decoupledVM.ExtId = ptr.To(decoupledUUID)
+
+		mockClient := NewMockConvergedClient(ctrl)
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockClient.MockVMs.EXPECT().List(ctx, gomock.Any()).Return([]vmmModels.Vm{*decoupledVM}, nil)
+		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(drConfigGroupsResponse(drRoleDecoupled), nil)
+
+		got, err := findNonDecoupledVMByName(ctx, mockClient.Client, mockV3, []string{vmName})
+		assert.NoError(t, err)
+		assert.Nil(t, got)
+	})
+}
+
 func TestDeleteCategoryKeyValues(t *testing.T) {
 	ctx := context.Background()
 
