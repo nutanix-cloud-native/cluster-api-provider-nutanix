@@ -31,6 +31,7 @@ import (
 	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
 	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 	converged "github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
@@ -2340,6 +2341,35 @@ func drConfigGroupsResponse(role string) *prismclientv3.GroupsGetEntitiesRespons
 			},
 		},
 	}
+}
+
+func TestUseMetroDRDeletePath(t *testing.T) {
+	t.Run("false when context is empty", func(t *testing.T) {
+		assert.False(t, useMetroDRDeletePath(nil))
+		assert.False(t, useMetroDRDeletePath(&nctx.MachineContext{
+			Machine:        &capiv1beta2.Machine{},
+			NutanixMachine: &infrav1.NutanixMachine{},
+		}))
+	})
+
+	t.Run("true for metro site failure domain", func(t *testing.T) {
+		assert.True(t, useMetroDRDeletePath(&nctx.MachineContext{
+			Machine: &capiv1beta2.Machine{
+				Spec: capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "metro0-s1"},
+			},
+		}))
+	})
+
+	t.Run("true when delete already recorded a recovered VM", func(t *testing.T) {
+		assert.True(t, useMetroDRDeletePath(&nctx.MachineContext{
+			Machine: &capiv1beta2.Machine{},
+			NutanixMachine: &infrav1.NutanixMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{recoveredVMUUIDAnnotation: "live-uuid"},
+				},
+			},
+		}))
+	})
 }
 
 func TestIsVMDecoupled(t *testing.T) {

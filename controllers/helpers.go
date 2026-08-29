@@ -265,13 +265,6 @@ func FindVMByName(ctx context.Context, client *v4Converged.Client, vmName string
 	return FindVMByUUID(ctx, client, *vms[0].ExtId)
 }
 
-func nutanixV3Service(client *prismclientv3.Client) prismclientv3.Service {
-	if client == nil {
-		return nil
-	}
-	return client.V3
-}
-
 func groupsFieldValue(entity *prismclientv3.GroupsEntity, name string) string {
 	if entity == nil {
 		return ""
@@ -290,8 +283,35 @@ func groupsFieldValue(entity *prismclientv3.GroupsEntity, name string) string {
 	return ""
 }
 
+// useMetroDRDeletePath reports whether reconcileDelete may call v3 Groups
+// (entity_dr_config) to skip DR-decoupled VMs. kDecoupled is a Metro UPFO signal.
+// Groups is not project-scoped and is denied for least-privilege / Projects 2.0
+// users, so non-metro delete must stay UUID-only even when Groups is down.
+func useMetroDRDeletePath(rctx *nctx.MachineContext) bool {
+	if rctx == nil {
+		return false
+	}
+	if rctx.Machine != nil && (isNutanixMetroFailureDomain(rctx.Machine.Spec.FailureDomain) ||
+		isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain)) {
+		return true
+	}
+	if rctx.NutanixMachine == nil {
+		return false
+	}
+	if fd := ptr.Deref(rctx.NutanixMachine.Status.FailureDomain, ""); isNutanixMetroFailureDomain(fd) ||
+		isNutanixMetroSiteFailureDomain(fd) {
+		return true
+	}
+	if nutanixMachineAnnotation(rctx.NutanixMachine, metroActivePlacementPEAnnotation) != "" {
+		return true
+	}
+	return nutanixMachineAnnotation(rctx.NutanixMachine, skippedDecoupledVMUUIDAnnotation) != "" ||
+		nutanixMachineAnnotation(rctx.NutanixMachine, recoveredVMUUIDAnnotation) != ""
+}
+
 // isVMDecoupled reports whether Prism Central DR config marks the VM as decoupled.
 // A decoupled VM must not be deleted by CAPX; Disaster Recovery owns it.
+// Callers must only use this on the Metro delete path (see useMetroDRDeletePath).
 func isVMDecoupled(ctx context.Context, v3Client prismclientv3.Service, vmUUID string) (bool, error) {
 	if v3Client == nil || vmUUID == "" {
 		return false, nil

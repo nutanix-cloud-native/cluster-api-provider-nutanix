@@ -465,12 +465,18 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 // UUID we would drop the finalizer and leave that migrated VM orphaned — so we always
 // look up a non-decoupled VM by name before giving up.
 //
+// The v3 Groups lookup is Metro-only. Non-metro (and project-scope / least-privilege)
+// delete stays UUID-only so a Groups deny or timeout cannot block a normal Machine.
+//
 // wait is true when the recorded UUID is still decoupled and no recovered VM exists yet.
 func (r *NutanixMachineReconciler) vmToDelete(rctx *nctx.MachineContext, recordedUUID, vmName string) (*vmmconfig.Vm, bool, error) {
 	ctx := rctx.Context
 	log := ctrl.LoggerFrom(ctx)
-	v3Client := nutanixV3Service(rctx.NutanixClient)
-	if v3Client == nil {
+	var v3Client prismclientv3.Service
+	if rctx.NutanixClient != nil {
+		v3Client = rctx.NutanixClient.V3
+	}
+	if v3Client == nil || !useMetroDRDeletePath(rctx) {
 		vm, err := FindVMByUUID(ctx, rctx.ConvergedClient, recordedUUID)
 		return vm, false, err
 	}

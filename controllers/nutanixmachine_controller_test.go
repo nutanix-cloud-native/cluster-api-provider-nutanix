@@ -2697,7 +2697,10 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			},
 			Status: infrav1.NutanixMachineStatus{VmUUID: vmUUID},
 		}
-		machine := &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}}
+		machine := &capiv1beta2.Machine{
+			ObjectMeta: metav1.ObjectMeta{Name: vmName},
+			Spec:       capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "metro0-s1"},
+		}
 		ntnxCluster := &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"}}
 
 		mockConvergedClient := NewMockConvergedClient(ctrl)
@@ -2738,7 +2741,10 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			},
 			Status: infrav1.NutanixMachineStatus{VmUUID: originalUUID},
 		}
-		machine := &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}}
+		machine := &capiv1beta2.Machine{
+			ObjectMeta: metav1.ObjectMeta{Name: vmName},
+			Spec:       capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "metro0-s1"},
+		}
 		ntnxCluster := &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"}}
 
 		originalVM := vmmModels.NewVm()
@@ -2806,7 +2812,10 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			},
 			Status: infrav1.NutanixMachineStatus{VmUUID: originalUUID},
 		}
-		machine := &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}}
+		machine := &capiv1beta2.Machine{
+			ObjectMeta: metav1.ObjectMeta{Name: vmName},
+			Spec:       capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "metro0-s1"},
+		}
 		ntnxCluster := &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"}}
 
 		mockConvergedClient := NewMockConvergedClient(ctrl)
@@ -2854,7 +2863,10 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 			},
 			Status: infrav1.NutanixMachineStatus{VmUUID: originalUUID},
 		}
-		machine := &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}}
+		machine := &capiv1beta2.Machine{
+			ObjectMeta: metav1.ObjectMeta{Name: vmName},
+			Spec:       capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "metro0-s1"},
+		}
 		ntnxCluster := &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"}}
 
 		migratedVM := vmmModels.NewVm()
@@ -2888,6 +2900,55 @@ func TestNutanixMachineReconciler_ReconcileDelete(t *testing.T) {
 		assert.Equal(t, reconcile.Result{RequeueAfter: 5 * time.Second}, result)
 		assert.Equal(t, migratedUUID, ntnxMachine.Annotations[recoveredVMUUIDAnnotation])
 		assert.Contains(t, ntnxMachine.Finalizers, infrav1.NutanixMachineFinalizer)
+	})
+
+	t.Run("should not call groups API on non-metro delete even if v3 client is present", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		vmName := "worker-1"
+		vmUUID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+
+		ntnxMachine := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       "worker-1",
+				Namespace:  "default",
+				Finalizers: []string{infrav1.NutanixMachineFinalizer},
+			},
+			Status: infrav1.NutanixMachineStatus{VmUUID: vmUUID},
+		}
+		machine := &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}}
+		ntnxCluster := &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"}}
+
+		vm := vmmModels.NewVm()
+		vm.Name = ptr.To(vmName)
+		vm.ExtId = ptr.To(vmUUID)
+		vm.Disks = []vmmModels.Disk{}
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockV3.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).Times(0)
+		mockConvergedClient.MockVMs.EXPECT().Get(gomock.Any(), vmUUID).Return(vm, nil)
+		mockConvergedClient.MockTasks.EXPECT().List(gomock.Any(), FilterMatcher{ContainsExtId: vmUUID}).Return(nil, nil)
+		mockOperation := mockconverged.NewMockOperation[converged.NoEntity](ctrl)
+		mockConvergedClient.MockVMs.EXPECT().DeleteAsync(gomock.Any(), vmUUID).Return(mockOperation, nil)
+		mockOperation.EXPECT().UUID().Return("task-uuid-non-metro").AnyTimes()
+
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Machine:         machine,
+			NutanixMachine:  ntnxMachine,
+			NutanixCluster:  ntnxCluster,
+			NutanixClient:   &prismclientv3.Client{V3: mockV3},
+			ConvergedClient: mockConvergedClient.Client,
+		}
+
+		result, err := (&NutanixMachineReconciler{}).reconcileDelete(rctx)
+		assert.NoError(t, err)
+		assert.Equal(t, reconcile.Result{RequeueAfter: 5 * time.Second}, result)
+		assert.Contains(t, ntnxMachine.Finalizers, infrav1.NutanixMachineFinalizer)
+		assert.Empty(t, ntnxMachine.Annotations[skippedDecoupledVMUUIDAnnotation])
 	})
 }
 
