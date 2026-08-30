@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/cluster-api/util"
 
@@ -33,6 +34,11 @@ import (
 const (
 	nutanixGPUPassthroughNameEnv = "NUTANIX_GPU_PASSTHROUGH_NAME"
 	nutanixGPUVirtualNameEnv     = "NUTANIX_GPU_VIRTUAL_NAME"
+
+	// AHV GPU profile names. These live in a different namespace from the device names
+	// above: the physical profile is backed by devices named by nutanixGPUPassthroughNameEnv.
+	nutanixGPUPhysicalProfileNameEnv = "NUTANIX_GPU_PHYSICAL_PROFILE_NAME"
+	nutanixGPUVirtualProfileNameEnv  = "NUTANIX_GPU_VIRTUAL_PROFILE_NAME"
 )
 
 var _ = Describe("Nutanix Passthrough GPU", Label("passthrough", "gpu"), func() {
@@ -132,6 +138,10 @@ var _ = Describe("Nutanix Passthrough GPU", Label("passthrough", "gpu"), func() 
 					clusterctlConfigPath:  clusterctlConfigPath,
 					artifactFolder:        artifactFolder,
 					bootstrapClusterProxy: bootstrapClusterProxy,
+					// The control plane and the workers share one NutanixMachineTemplate, so a
+					// worker would claim a GPU of its own without being asserted on. Physical
+					// GPUs are consumed whole and are scarce, so deploy without workers.
+					workerMachineCount: ptr.To(int64(0)),
 				}, clusterResources)
 		})
 
@@ -171,6 +181,10 @@ var _ = Describe("Nutanix Passthrough GPU", Label("passthrough", "gpu"), func() 
 					clusterctlConfigPath:  clusterctlConfigPath,
 					artifactFolder:        artifactFolder,
 					bootstrapClusterProxy: bootstrapClusterProxy,
+					// The control plane and the workers share one NutanixMachineTemplate, so a
+					// worker would claim a GPU of its own without being asserted on. Physical
+					// GPUs are consumed whole and are scarce, so deploy without workers.
+					workerMachineCount: ptr.To(int64(0)),
 				}, clusterResources)
 		})
 
@@ -283,6 +297,10 @@ var _ = Describe("Nutanix Virtual GPU", Label("virtual", "gpu"), func() {
 					clusterctlConfigPath:  clusterctlConfigPath,
 					artifactFolder:        artifactFolder,
 					bootstrapClusterProxy: bootstrapClusterProxy,
+					// The control plane and the workers share one NutanixMachineTemplate, so a
+					// worker would claim a GPU of its own without being asserted on. Physical
+					// GPUs are consumed whole and are scarce, so deploy without workers.
+					workerMachineCount: ptr.To(int64(0)),
 				}, clusterResources)
 		})
 
@@ -322,6 +340,10 @@ var _ = Describe("Nutanix Virtual GPU", Label("virtual", "gpu"), func() {
 					clusterctlConfigPath:  clusterctlConfigPath,
 					artifactFolder:        artifactFolder,
 					bootstrapClusterProxy: bootstrapClusterProxy,
+					// The control plane and the workers share one NutanixMachineTemplate, so a
+					// worker would claim a GPU of its own without being asserted on. Physical
+					// GPUs are consumed whole and are scarce, so deploy without workers.
+					workerMachineCount: ptr.To(int64(0)),
 				}, clusterResources)
 		})
 
@@ -334,5 +356,127 @@ var _ = Describe("Nutanix Virtual GPU", Label("virtual", "gpu"), func() {
 		})
 
 		By("PASSED!")
+	})
+})
+
+// Nutanix GPU profiles exercises GPU assignment by AHV GPU *profile* name (as opposed to
+// device name / device ID), for both the broad-scope CI user and a project-scoped user.
+//
+// These live in the "gpu" suite rather than the "projects" suite because the e2e workflow
+// only swaps in the GPU-capable Prism Element, subnet and control plane endpoint range when
+// the label filter is "gpu"; running them under the "projects" label would land them on a
+// Prism Element with no GPUs.
+var _ = Describe("Nutanix GPU profiles", Label("gpu", "gpu-profile"), func() {
+	const specName = "cluster-gpu-profile"
+
+	var (
+		namespace          *corev1.Namespace
+		clusterName        string
+		clusterResources   *clusterctl.ApplyClusterTemplateAndWaitResult
+		cancelWatches      context.CancelFunc
+		nutanixProjectName string
+		testHelper         testHelperInterface
+	)
+
+	BeforeEach(func() {
+		testHelper = newTestHelper(e2eConfig)
+		nutanixProjectName = testHelper.getVariableFromE2eConfig(nutanixProjectNameEnv)
+		clusterName = testHelper.generateTestClusterName(specName)
+		clusterResources = new(clusterctl.ApplyClusterTemplateAndWaitResult)
+		Expect(bootstrapClusterProxy).NotTo(BeNil(), "BootstrapClusterProxy can't be nil")
+		namespace, cancelWatches = setupSpecNamespace(ctx, specName, bootstrapClusterProxy, artifactFolder)
+	})
+
+	AfterEach(func() {
+		dumpSpecResourcesAndCleanup(ctx, specName, bootstrapClusterProxy, artifactFolder, namespace, cancelWatches, clusterResources.Cluster, e2eConfig.GetIntervals, skipCleanup)
+	})
+
+	// deployWithGPUProfile creates a NutanixMachineTemplate whose GPU is identified by the
+	// profile name behind gpuProfileEnvKey, or by the UUID resolved from that name using the
+	// authenticated E2E client. It optionally scopes the template to NUTANIX_PROJECT_NAME,
+	// deploys a cluster with the given flavor, and verifies the resulting VMs reference the
+	// expected profile.
+	//
+	// The cluster is deployed with zero workers: the KubeadmControlPlane and the
+	// MachineDeployment share a single NutanixMachineTemplate, so every machine would
+	// otherwise claim a GPU. Physical GPUs are consumed whole and are a scarce, shared
+	// resource, so one control plane machine is all these specs need to assert on.
+	deployWithGPUProfile := func(flavor, gpuProfileEnvKey string, profileIdentifierType infrav1.NutanixIdentifierType, scopedToProject bool) {
+		Expect(namespace).NotTo(BeNil())
+		profileName := testHelper.getVariableFromE2eConfig(gpuProfileEnvKey)
+		profile := infrav1.NutanixResourceIdentifier{
+			Type: infrav1.NutanixIdentifierName,
+			Name: &profileName,
+		}
+		if profileIdentifierType == infrav1.NutanixIdentifierUUID {
+			profileUUID := testHelper.findGPUProfileExtID(ctx, profileName)
+			profile = infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierUUID,
+				UUID: &profileUUID,
+			}
+		}
+
+		By("Creating a GPU profile Nutanix Machine Template", func() {
+			gpuNMT := testHelper.createProfileGPUNMT(clusterName, namespace.Name, profile)
+			if scopedToProject {
+				Expect(nutanixProjectName).ToNot(BeEmpty())
+				gpuNMT.Spec.Template.Spec.Project = &infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierName,
+					Name: &nutanixProjectName,
+				}
+			}
+
+			testHelper.createCapiObject(ctx, createCapiObjectParams{
+				creator:    bootstrapClusterProxy.GetClient(),
+				capiObject: gpuNMT,
+			})
+		})
+
+		By("Creating a workload cluster", func() {
+			testHelper.deployClusterAndWait(
+				deployClusterParams{
+					clusterName:           clusterName,
+					namespace:             namespace,
+					flavor:                flavor,
+					clusterctlConfigPath:  clusterctlConfigPath,
+					artifactFolder:        artifactFolder,
+					bootstrapClusterProxy: bootstrapClusterProxy,
+					workerMachineCount:    ptr.To(int64(0)),
+				}, clusterResources)
+		})
+
+		By("Verifying the VMs reference the expected GPU profile")
+		testHelper.verifyGPUProfileNutanixMachines(ctx, verifyGPUProfileNutanixMachinesParams{
+			clusterName:           clusterName,
+			namespace:             namespace.Name,
+			gpuProfileName:        testHelper.getVariableFromE2eConfig(gpuProfileEnvKey),
+			bootstrapClusterProxy: bootstrapClusterProxy,
+		})
+
+		By("PASSED!")
+	}
+
+	It("Create a cluster with a physical GPU profile", Label("physical", "broad-scope-user"), func() {
+		deployWithGPUProfile("no-nmt", nutanixGPUPhysicalProfileNameEnv, infrav1.NutanixIdentifierName, false)
+	})
+
+	It("Create a cluster with a virtual GPU profile", Label("virtual", "broad-scope-user"), func() {
+		deployWithGPUProfile("no-nmt", nutanixGPUVirtualProfileNameEnv, infrav1.NutanixIdentifierName, false)
+	})
+
+	It("Create a cluster with a physical GPU profile as a project-scoped user", Label("physical", "project-scope-user"), func() {
+		deployWithGPUProfile("no-nmt-project-scoped-user", nutanixGPUPhysicalProfileNameEnv, infrav1.NutanixIdentifierName, true)
+	})
+
+	It("Create a cluster with a virtual GPU profile as a project-scoped user", Label("virtual", "project-scope-user"), func() {
+		deployWithGPUProfile("no-nmt-project-scoped-user", nutanixGPUVirtualProfileNameEnv, infrav1.NutanixIdentifierName, true)
+	})
+
+	It("Create a cluster with a physical GPU profile UUID", Label("physical", "broad-scope-user"), func() {
+		deployWithGPUProfile("no-nmt", nutanixGPUPhysicalProfileNameEnv, infrav1.NutanixIdentifierUUID, false)
+	})
+
+	It("Create a cluster with a virtual GPU profile UUID as a project-scoped user", Label("virtual", "project-scope-user"), func() {
+		deployWithGPUProfile("no-nmt-project-scoped-user", nutanixGPUVirtualProfileNameEnv, infrav1.NutanixIdentifierUUID, true)
 	})
 })

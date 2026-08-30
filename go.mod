@@ -10,8 +10,8 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
-	github.com/nutanix-cloud-native/prism-go-client v0.8.0
-	github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4 v4.2.1
+	github.com/nutanix-cloud-native/prism-go-client v0.8.2-0.20260815142505-df547638e2f8
+	github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4 v4.3.1
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
 	github.com/pkg/errors v0.9.1
@@ -36,13 +36,14 @@ require (
 )
 
 require (
-	github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4 v4.2.2
-	github.com/nutanix/ntnx-api-golang-clients/datapolicies-go-client/v4 v4.2.1
-	github.com/nutanix/ntnx-api-golang-clients/iam-go-client/v4 v4.0.1
-	github.com/nutanix/ntnx-api-golang-clients/monitoring-go-client/v4 v4.2.2
-	github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.2.1
-	github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4 v4.2.1
-	github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4 v4.2.1
+	github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4 v4.3.1
+	github.com/nutanix/ntnx-api-golang-clients/datapolicies-go-client/v4 v4.3.1
+	github.com/nutanix/ntnx-api-golang-clients/iam-go-client/v4 v4.1.2-beta.3
+	github.com/nutanix/ntnx-api-golang-clients/monitoring-go-client/v4 v4.3.1
+	github.com/nutanix/ntnx-api-golang-clients/multidomain-go-client/v4 v4.4.1-beta.1
+	github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4 v4.4.1
+	github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4 v4.4.1
+	github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4 v4.3.1
 	k8s.io/component-base v0.35.5
 )
 
@@ -154,7 +155,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
+	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect

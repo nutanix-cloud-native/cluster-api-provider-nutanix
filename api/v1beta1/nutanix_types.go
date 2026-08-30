@@ -46,6 +46,10 @@ const (
 	// NutanixGPUIdentifierDeviceID is a resource identifier identifying a GPU using device ID.
 	NutanixGPUIdentifierDeviceID NutanixGPUIdentifierType = "deviceID"
 
+	// NutanixGPUIdentifierProfile is a resource identifier identifying a GPU by an AHV
+	// GPU profile. Profile-based GPU assignment is only supported on PC 7.6 or later.
+	NutanixGPUIdentifierProfile NutanixGPUIdentifierType = "profile"
+
 	// ObsoleteDefaultCAPICategoryPrefix is the obsolete default category prefix used for CAPI clusters.
 	ObsoleteDefaultCAPICategoryPrefix = "kubernetes-io-cluster-"
 
@@ -145,10 +149,15 @@ type NutanixCategoryIdentifier struct {
 	Value string `json:"value,omitempty"`
 }
 
+// NutanixGPU identifies a GPU to attach to a VM, either by device (name/deviceID) or
+// by an AHV GPU profile.
+// +kubebuilder:validation:XValidation:rule="self.type == 'name' ? has(self.name) : !has(self.name)",message="'name' must be set when type is 'name', and forbidden otherwise"
+// +kubebuilder:validation:XValidation:rule="self.type == 'deviceID' ? has(self.deviceID) : !has(self.deviceID)",message="'deviceID' must be set when type is 'deviceID', and forbidden otherwise"
+// +kubebuilder:validation:XValidation:rule="self.type == 'profile' ? has(self.profile) : !has(self.profile)",message="'profile' must be set when type is 'profile', and forbidden otherwise"
 type NutanixGPU struct {
 	// Type is the identifier type to use for this resource.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum:=deviceID;name
+	// +kubebuilder:validation:Enum:=deviceID;name;profile
 	Type NutanixGPUIdentifierType `json:"type"`
 
 	// deviceID is the id of the GPU entity.
@@ -157,5 +166,11 @@ type NutanixGPU struct {
 
 	// name is the GPU name
 	// +optional
+	// +kubebuilder:validation:MinLength=1
 	Name *string `json:"name,omitempty"`
+
+	// profile identifies the AHV GPU profile to assign by name or UUID. Profile-based GPU
+	// assignment uses the named GPU profile APIs and is only supported on PC 7.6 or later.
+	// +optional
+	Profile *NutanixResourceIdentifier `json:"profile,omitempty"`
 }

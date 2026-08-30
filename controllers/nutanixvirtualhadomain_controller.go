@@ -380,7 +380,8 @@ func (r *NutanixVirtualHADomainReconciler) ensureVHADomainPCResources(
 	peNames := make([]string, len(failureDomains))
 	subnetNames := make([]string, len(failureDomains))
 	for i, fd := range failureDomains {
-		peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient,
+		// VHA domains always use the default project (nil resource group)
+		peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient, nil,
 			fd.Spec.PrismElementCluster.Name, fd.Spec.PrismElementCluster.UUID)
 		if err != nil {
 			return fmt.Errorf("failed to get PE UUID for failure domain %s: %w", fd.Name, err)

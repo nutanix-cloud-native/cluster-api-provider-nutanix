@@ -61,6 +61,19 @@ type ClusterContext struct {
 	NutanixCluster *infrav1.NutanixCluster
 }
 
+// ProjectInfo holds the resolved project identifier and optional name for
+// user-friendly error messages. Name is set to the user-provided name when
+// the project was specified by name, "_internal" when using the default project,
+// or nil when the project was specified only by UUID.
+type ProjectInfo struct {
+	ExtID *string
+	Name  *string
+}
+
+// InternalProjectName is used as the Name in ProjectInfo when the default
+// project is resolved automatically (i.e., user did not specify a project).
+const InternalProjectName = "_internal"
+
 // MachineContext is a context used with a NutanixMachine reconciler
 type MachineContext struct {
 	Context         context.Context
@@ -71,6 +84,9 @@ type MachineContext struct {
 	Machine        *capiv1beta2.Machine
 	NutanixCluster *infrav1.NutanixCluster
 	NutanixMachine *infrav1.NutanixMachine
+
+	PCVersion     string
+	ProjectPolicy string
 
 	// The VM ip address
 	IP string

@@ -152,18 +152,6 @@ spec:
   - definitions:
     - jsonPatches:
       - op: add
-        path: /spec/template/spec/bootType
-        valueFrom:
-          variable: controlPlaneMachineDetails.bootType
-      - op: add
-        path: /spec/template/spec/vcpusPerSocket
-        valueFrom:
-          variable: controlPlaneMachineDetails.vcpusPerSocket
-      - op: add
-        path: /spec/template/spec/memorySize
-        valueFrom:
-          variable: controlPlaneMachineDetails.memorySize
-      - op: add
         path: /spec/template/spec/systemDiskSize
         valueFrom:
           variable: controlPlaneMachineDetails.systemDiskSize
@@ -186,7 +174,32 @@ spec:
         kind: NutanixMachineTemplate
         matchResources:
           controlPlane: true
-    name: update-control-plane-machine-template
+    name: update-control-plane-machine-template-common
+  - definitions:
+    - jsonPatches:
+      - op: add
+        path: /spec/template/spec/bootType
+        valueFrom:
+          template: '{{ .controlPlaneMachineDetails.bootType | default "uefi" }}'
+      - op: add
+        path: /spec/template/spec/vcpusPerSocket
+        valueFrom:
+          template: '{{ .controlPlaneMachineDetails.vcpusPerSocket | default 1 }}'
+      - op: add
+        path: /spec/template/spec/vcpuSockets
+        valueFrom:
+          template: '{{ .controlPlaneMachineDetails.vcpuSockets | default 2 }}'
+      - op: add
+        path: /spec/template/spec/memorySize
+        valueFrom:
+          template: '{{ .controlPlaneMachineDetails.memorySize | default "4Gi" }}'
+      selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        matchResources:
+          controlPlane: true
+    enabledIf: '{{if .controlPlaneMachineDetails.vmProfile}}false{{else}}true{{end}}'
+    name: update-control-plane-machine-template-cpu-memory
   - definitions:
     - jsonPatches:
       - op: add
@@ -215,18 +228,27 @@ spec:
     name: update-control-plane-machine-template-additional-categories
   - definitions:
     - jsonPatches:
-      - op: add
+      - op: remove
         path: /spec/template/spec/bootType
-        valueFrom:
-          variable: workerMachineDetails.bootType
-      - op: add
+      - op: remove
         path: /spec/template/spec/vcpusPerSocket
-        valueFrom:
-          variable: workerMachineDetails.vcpusPerSocket
-      - op: add
+      - op: remove
+        path: /spec/template/spec/vcpuSockets
+      - op: remove
         path: /spec/template/spec/memorySize
+      - op: add
+        path: /spec/template/spec/vmProfile
         valueFrom:
-          variable: workerMachineDetails.memorySize
+          variable: controlPlaneMachineDetails.vmProfile
+      selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        matchResources:
+          controlPlane: true
+    enabledIf: '{{if .controlPlaneMachineDetails.vmProfile}}true{{else}}false{{end}}'
+    name: update-control-plane-machine-template-vmprofile
+  - definitions:
+    - jsonPatches:
       - op: add
         path: /spec/template/spec/systemDiskSize
         valueFrom:
@@ -252,7 +274,34 @@ spec:
           machineDeploymentClass:
             names:
             - nutanix-quick-start-worker
-    name: update-worker-machine-template
+    name: update-worker-machine-template-common
+  - definitions:
+    - jsonPatches:
+      - op: add
+        path: /spec/template/spec/bootType
+        valueFrom:
+          template: '{{ .workerMachineDetails.bootType | default "uefi" }}'
+      - op: add
+        path: /spec/template/spec/vcpusPerSocket
+        valueFrom:
+          template: '{{ .workerMachineDetails.vcpusPerSocket | default 1 }}'
+      - op: add
+        path: /spec/template/spec/vcpuSockets
+        valueFrom:
+          template: '{{ .workerMachineDetails.vcpuSockets | default 2 }}'
+      - op: add
+        path: /spec/template/spec/memorySize
+        valueFrom:
+          template: '{{ .workerMachineDetails.memorySize | default "4Gi" }}'
+      selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - nutanix-quick-start-worker
+    enabledIf: '{{if .workerMachineDetails.vmProfile}}false{{else}}true{{end}}'
+    name: update-worker-machine-template-cpu-memory
   - definitions:
     - jsonPatches:
       - op: add
@@ -283,6 +332,29 @@ spec:
             - nutanix-quick-start-worker
     enabledIf: '{{if .workerMachineDetails.additionalCategories}}true{{end}}'
     name: update-worker-machine-template-additional-categories
+  - definitions:
+    - jsonPatches:
+      - op: remove
+        path: /spec/template/spec/bootType
+      - op: remove
+        path: /spec/template/spec/vcpusPerSocket
+      - op: remove
+        path: /spec/template/spec/vcpuSockets
+      - op: remove
+        path: /spec/template/spec/memorySize
+      - op: add
+        path: /spec/template/spec/vmProfile
+        valueFrom:
+          variable: workerMachineDetails.vmProfile
+      selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - nutanix-quick-start-worker
+    enabledIf: '{{if .workerMachineDetails.vmProfile}}true{{else}}false{{end}}'
+    name: update-worker-machine-template-vmprofile
   - definitions:
     - jsonPatches:
       - op: replace
@@ -434,6 +506,18 @@ spec:
             type: integer
           vcpusPerSocket:
             type: integer
+          vmProfile:
+            properties:
+              name:
+                type: string
+              type:
+                enum:
+                - name
+                - uuid
+                type: string
+              uuid:
+                type: string
+            type: object
         type: object
   - name: workerMachineDetails
     required: true
@@ -489,6 +573,18 @@ spec:
             type: integer
           vcpusPerSocket:
             type: integer
+          vmProfile:
+            properties:
+              name:
+                type: string
+              type:
+                enum:
+                - name
+                - uuid
+                type: string
+              uuid:
+                type: string
+            type: object
         type: object
   - name: failureDomains
     required: false
@@ -737,7 +833,7 @@ metadata:
 spec:
   template:
     spec:
-      bootType: legacy
+      bootType: uefi
       image:
         name: placeholder-image
         type: name
@@ -753,7 +849,7 @@ metadata:
 spec:
   template:
     spec:
-      bootType: legacy
+      bootType: uefi
       image:
         name: placeholder-image
         type: name

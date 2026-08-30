@@ -654,4 +654,52 @@ var _ = Describe("Cluster Class Template Patches Test Suite", Ordered, func() {
 			))
 		})
 	})
+
+	Describe("patches for vmProfile", func() {
+		It("should have correct vmProfile and not have CPU/memory/GPU/dataDisks fields", func() {
+			clusterManifest := "testdata/cluster-with-vmprofile.yaml"
+			obj, err := getClusterManifest(clusterManifest)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = clnt.Create(context.Background(), obj) // Create the cluster
+			Expect(err).NotTo(HaveOccurred())
+
+			// Verify control plane machine template has vmProfile set and CPU/memory/bootType/GPU/dataDisks fields are not set
+			Eventually(func() (*v1beta1.NutanixMachineTemplate, error) {
+				return fetchControlPlaneMachineTemplate(clnt, obj.GetName())
+			}).Within(time.Minute).Should(And(
+				HaveExistingField("Spec.Template.Spec.VMProfile"),
+				HaveField("Spec.Template.Spec.VMProfile.Type", Equal(v1beta1.NutanixIdentifierName)),
+				HaveField("Spec.Template.Spec.VMProfile.Name", HaveValue(Equal("fake-vm-profile"))),
+				// Verify CPU/memory/bootType/GPU/dataDisks fields are not set (should be zero/empty)
+				HaveField("Spec.Template.Spec.VCPUsPerSocket", BeZero()),
+				HaveField("Spec.Template.Spec.VCPUSockets", BeZero()),
+				WithTransform(func(nmt *v1beta1.NutanixMachineTemplate) bool {
+					return nmt.Spec.Template.Spec.MemorySize.IsZero()
+				}, BeTrue()),
+				HaveField("Spec.Template.Spec.BootType", BeZero()),
+				HaveField("Spec.Template.Spec.GPUs", BeNil()),
+				HaveField("Spec.Template.Spec.DataDisks", BeNil()),
+			))
+
+			// Verify worker machine templates have vmProfile set and CPU/memory/bootType/GPU/dataDisks fields are not set
+			Eventually(func() ([]*v1beta1.NutanixMachineTemplate, error) {
+				return fetchWorkerMachineTemplates(clnt, obj.GetName())
+			}).Within(time.Minute).Should(And(
+				HaveLen(1),
+				HaveEach(HaveExistingField("Spec.Template.Spec.VMProfile")),
+				HaveEach(HaveField("Spec.Template.Spec.VMProfile.Type", Equal(v1beta1.NutanixIdentifierUUID))),
+				HaveEach(HaveField("Spec.Template.Spec.VMProfile.UUID", HaveValue(Equal("00000000-0000-0000-0000-000000000001")))),
+				// Verify CPU/memory/bootType/GPU/dataDisks fields are not set (should be zero/empty)
+				HaveEach(HaveField("Spec.Template.Spec.VCPUsPerSocket", BeZero())),
+				HaveEach(HaveField("Spec.Template.Spec.VCPUSockets", BeZero())),
+				HaveEach(WithTransform(func(nmt *v1beta1.NutanixMachineTemplate) bool {
+					return nmt.Spec.Template.Spec.MemorySize.IsZero()
+				}, BeTrue())),
+				HaveEach(HaveField("Spec.Template.Spec.BootType", BeZero())),
+				HaveEach(HaveField("Spec.Template.Spec.GPUs", BeNil())),
+				HaveEach(HaveField("Spec.Template.Spec.DataDisks", BeNil())),
+			))
+		})
+	})
 })
