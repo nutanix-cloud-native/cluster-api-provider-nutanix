@@ -20,7 +20,6 @@ package e2e
 
 import (
 	"context"
-	"os"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -217,12 +216,6 @@ var _ = Describe("Nutanix categories", Label("nutanix-feature-test", "categories
 		By("Setting different Control plane endpoint IP for 2nd cluster", func() {
 			cp1EndpointIP = testHelper.getVariableFromE2eConfig("CONTROL_PLANE_ENDPOINT_IP")
 			cp2EndpointIP := testHelper.getVariableFromE2eConfig("CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER")
-			if cp2EndpointIP == "" {
-				cp2EndpointIP = os.Getenv("CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER")
-				if cp2EndpointIP == "" {
-					Fail("CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER not set")
-				}
-			}
 			testHelper.updateVariableInE2eConfig("CONTROL_PLANE_ENDPOINT_IP", cp2EndpointIP)
 		})
 
