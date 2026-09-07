@@ -5157,7 +5157,7 @@ func TestSetMetroCustomAttributes(t *testing.T) {
 			wantAttrsEmpty: true,
 		},
 		{
-			name: "metro stamps metro-zone-name and preferred PE",
+			name: "metro stamps full failure-domain and preferred PE",
 			rctx: &nctx.MachineContext{
 				Machine: &capiv1beta2.Machine{
 					Spec: capiv1beta2.MachineSpec{FailureDomain: metroFailureDomainPrefix + "metro-ab"},
@@ -5166,12 +5166,12 @@ func TestSetMetroCustomAttributes(t *testing.T) {
 			},
 			vm: vmmModels.NewVm(),
 			wantAttrs: []string{
-				vmCustomAttributePrefix4MetroZoneName + "metro-ab",
+				vmCustomAttributePrefix4FailureDomain + metroFailureDomainPrefix + "metro-ab",
 				vmCustomAttributePrefix4MetroPreferredPE + "pe-a",
 			},
 		},
 		{
-			name: "metro stamps metro-zone-name even without preferred PE",
+			name: "metro stamps full failure-domain even without preferred PE",
 			rctx: &nctx.MachineContext{
 				Machine: &capiv1beta2.Machine{
 					Spec: capiv1beta2.MachineSpec{FailureDomain: metroFailureDomainPrefix + "metro-ab"},
@@ -5180,7 +5180,7 @@ func TestSetMetroCustomAttributes(t *testing.T) {
 			},
 			vm: vmmModels.NewVm(),
 			wantAttrs: []string{
-				vmCustomAttributePrefix4MetroZoneName + "metro-ab",
+				vmCustomAttributePrefix4FailureDomain + metroFailureDomainPrefix + "metro-ab",
 			},
 		},
 		{
@@ -5193,11 +5193,11 @@ func TestSetMetroCustomAttributes(t *testing.T) {
 			},
 			vm: vmmModels.NewVm(),
 			wantAttrs: []string{
-				vmCustomAttributePrefix4MetroZoneName + "metro-ab",
+				vmCustomAttributePrefix4FailureDomain + metroFailureDomainPrefix + "metro-ab",
 			},
 		},
 		{
-			name: "metrosite stamps metro-zone-name, group label, and preferred PE",
+			name: "metrosite stamps full failure-domain, group label, and preferred PE",
 			rctx: &nctx.MachineContext{
 				Machine: &capiv1beta2.Machine{
 					Spec: capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "site-a"},
@@ -5209,13 +5209,13 @@ func TestSetMetroCustomAttributes(t *testing.T) {
 			},
 			vm: vmmModels.NewVm(),
 			wantAttrs: []string{
-				vmCustomAttributePrefix4MetroZoneName + "site-a",
+				vmCustomAttributePrefix4FailureDomain + metroSiteFailureDomainPrefix + "site-a",
 				vmCustomAttributePrefix4MetroNodeGroupNameLabel + "workers",
 				vmCustomAttributePrefix4MetroPreferredPE + "pe-a",
 			},
 		},
 		{
-			name: "metrosite stamps metro-zone-name without optional group label",
+			name: "metrosite stamps full failure-domain without optional group label",
 			rctx: &nctx.MachineContext{
 				Machine: &capiv1beta2.Machine{
 					Spec: capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "site-b"},
@@ -5224,7 +5224,7 @@ func TestSetMetroCustomAttributes(t *testing.T) {
 			},
 			vm: vmmModels.NewVm(),
 			wantAttrs: []string{
-				vmCustomAttributePrefix4MetroZoneName + "site-b",
+				vmCustomAttributePrefix4FailureDomain + metroSiteFailureDomainPrefix + "site-b",
 				vmCustomAttributePrefix4MetroPreferredPE + "pe-b",
 			},
 		},
@@ -5241,12 +5241,12 @@ func TestSetMetroCustomAttributes(t *testing.T) {
 			},
 			vm: vmmModels.NewVm(),
 			wantAttrs: []string{
-				vmCustomAttributePrefix4MetroZoneName + "site-c",
+				vmCustomAttributePrefix4FailureDomain + metroSiteFailureDomainPrefix + "site-c",
 				vmCustomAttributePrefix4MetroPreferredPE + "pe-c",
 			},
 		},
 		{
-			name: "metrosite stamps metro-zone-name alone when datastore is empty",
+			name: "metrosite stamps full failure-domain alone when datastore is empty",
 			rctx: &nctx.MachineContext{
 				Machine: &capiv1beta2.Machine{
 					Spec: capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "site-d"},
@@ -5255,22 +5255,24 @@ func TestSetMetroCustomAttributes(t *testing.T) {
 			},
 			vm: vmmModels.NewVm(),
 			wantAttrs: []string{
-				vmCustomAttributePrefix4MetroZoneName + "site-d",
+				vmCustomAttributePrefix4FailureDomain + metroSiteFailureDomainPrefix + "site-d",
 			},
 		},
 		{
-			name: "empty metro name after prefix is a no-op without preferred PE",
+			name: "metro prefix-only failure domain still stamps identity",
 			rctx: &nctx.MachineContext{
 				Machine: &capiv1beta2.Machine{
 					Spec: capiv1beta2.MachineSpec{FailureDomain: metroFailureDomainPrefix},
 				},
 				Datastore: map[string]*string{},
 			},
-			vm:             vmmModels.NewVm(),
-			wantAttrsEmpty: true,
+			vm: vmmModels.NewVm(),
+			wantAttrs: []string{
+				vmCustomAttributePrefix4FailureDomain + metroFailureDomainPrefix,
+			},
 		},
 		{
-			name: "empty metrosite name after prefix still stamps preferred PE if present",
+			name: "metrosite prefix-only failure domain stamps identity and preferred PE",
 			rctx: &nctx.MachineContext{
 				Machine: &capiv1beta2.Machine{
 					Spec: capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix},
@@ -5279,6 +5281,7 @@ func TestSetMetroCustomAttributes(t *testing.T) {
 			},
 			vm: vmmModels.NewVm(),
 			wantAttrs: []string{
+				vmCustomAttributePrefix4FailureDomain + metroSiteFailureDomainPrefix,
 				vmCustomAttributePrefix4MetroPreferredPE + "pe-x",
 			},
 		},

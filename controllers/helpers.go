@@ -85,10 +85,7 @@ const (
 
 	vmCustomAttributePrefix4MetroPreferredPE        = "metro-preferred-pe:"
 	vmCustomAttributePrefix4MetroNodeGroupNameLabel = "metro-node-group-name:"
-	// vmCustomAttributePrefix4MetroZoneName is stamped on VMs whose Machine uses a
-	// NutanixMetro/ or NutanixMetroSite/ failure domain. The value is the object name
-	// (metro or metrosite). CCM reads it for topology.kubernetes.io/zone.
-	vmCustomAttributePrefix4MetroZoneName = "metro-zone-name:"
+	vmCustomAttributePrefix4FailureDomain           = "failure-domain:"
 
 	drConfigEntityType    = "entity_dr_config"
 	drRoleDecoupled       = "kDecoupled"

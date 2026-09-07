@@ -1670,8 +1670,7 @@ func validateDataDiskDeviceProperties(disk infrav1.NutanixMachineVMDisk, errors 
 }
 
 // setMetroCustomAttributes sets the metro placement customAttributes on the VM
-// for Metro/MetroSite failure domains. CCM uses metro-zone-name as
-// topology.kubernetes.io/zone so zone matches the CAPI failure-domain object name.
+// for Metro/MetroSite failure domains.
 func setMetroCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) {
 	if rctx == nil || rctx.Machine == nil || vm == nil {
 		return
@@ -1680,18 +1679,13 @@ func setMetroCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) {
 	fd := rctx.Machine.Spec.FailureDomain
 	attrs := make([]string, 0, 3)
 
-	var zoneName string
 	switch {
-	case isNutanixMetroFailureDomain(fd):
-		zoneName = fd[len(metroFailureDomainPrefix):]
-	case isNutanixMetroSiteFailureDomain(fd):
-		zoneName = fd[len(metroSiteFailureDomainPrefix):]
+	case isNutanixMetroFailureDomain(fd), isNutanixMetroSiteFailureDomain(fd):
+		if fd != "" {
+			attrs = append(attrs, vmCustomAttributePrefix4FailureDomain+fd)
+		}
 	default:
 		return
-	}
-
-	if zoneName != "" {
-		attrs = append(attrs, vmCustomAttributePrefix4MetroZoneName+zoneName)
 	}
 
 	if isNutanixMetroSiteFailureDomain(fd) {
