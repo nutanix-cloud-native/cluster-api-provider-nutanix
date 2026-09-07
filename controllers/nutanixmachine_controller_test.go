@@ -5114,3 +5114,188 @@ func newRecoveryPlanJobIntentResponse(recoveryPlanUUID, activePEUUID string) *pr
 		},
 	}
 }
+
+func TestSetMetroCustomAttributes(t *testing.T) {
+	tests := []struct {
+		name           string
+		rctx           *nctx.MachineContext
+		vm             *vmmModels.Vm
+		wantAttrs      []string
+		wantAttrsEmpty bool
+	}{
+		{
+			name:           "nil machine context is a no-op",
+			vm:             vmmModels.NewVm(),
+			rctx:           nil,
+			wantAttrsEmpty: true,
+		},
+		{
+			name:           "nil machine is a no-op",
+			vm:             vmmModels.NewVm(),
+			rctx:           &nctx.MachineContext{},
+			wantAttrsEmpty: true,
+		},
+		{
+			name: "nil vm is a no-op",
+			rctx: &nctx.MachineContext{
+				Machine: &capiv1beta2.Machine{
+					Spec: capiv1beta2.MachineSpec{FailureDomain: metroFailureDomainPrefix + "metro-ab"},
+				},
+			},
+			vm:             nil,
+			wantAttrsEmpty: true,
+		},
+		{
+			name: "non-metro machine is a no-op",
+			rctx: &nctx.MachineContext{
+				Machine: &capiv1beta2.Machine{
+					Spec: capiv1beta2.MachineSpec{FailureDomain: "some-zone"},
+				},
+				Datastore: map[string]*string{nctx.MetroPreferredPE: ptr.To("pe-a")},
+			},
+			vm:             vmmModels.NewVm(),
+			wantAttrsEmpty: true,
+		},
+		{
+			name: "metro stamps metro-zone-name and preferred PE",
+			rctx: &nctx.MachineContext{
+				Machine: &capiv1beta2.Machine{
+					Spec: capiv1beta2.MachineSpec{FailureDomain: metroFailureDomainPrefix + "metro-ab"},
+				},
+				Datastore: map[string]*string{nctx.MetroPreferredPE: ptr.To("pe-a")},
+			},
+			vm: vmmModels.NewVm(),
+			wantAttrs: []string{
+				vmCustomAttributePrefix4MetroZoneName + "metro-ab",
+				vmCustomAttributePrefix4MetroPreferredPE + "pe-a",
+			},
+		},
+		{
+			name: "metro stamps metro-zone-name even without preferred PE",
+			rctx: &nctx.MachineContext{
+				Machine: &capiv1beta2.Machine{
+					Spec: capiv1beta2.MachineSpec{FailureDomain: metroFailureDomainPrefix + "metro-ab"},
+				},
+				Datastore: map[string]*string{},
+			},
+			vm: vmmModels.NewVm(),
+			wantAttrs: []string{
+				vmCustomAttributePrefix4MetroZoneName + "metro-ab",
+			},
+		},
+		{
+			name: "metro ignores empty preferred PE",
+			rctx: &nctx.MachineContext{
+				Machine: &capiv1beta2.Machine{
+					Spec: capiv1beta2.MachineSpec{FailureDomain: metroFailureDomainPrefix + "metro-ab"},
+				},
+				Datastore: map[string]*string{nctx.MetroPreferredPE: ptr.To("")},
+			},
+			vm: vmmModels.NewVm(),
+			wantAttrs: []string{
+				vmCustomAttributePrefix4MetroZoneName + "metro-ab",
+			},
+		},
+		{
+			name: "metrosite stamps metro-zone-name, group label, and preferred PE",
+			rctx: &nctx.MachineContext{
+				Machine: &capiv1beta2.Machine{
+					Spec: capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "site-a"},
+				},
+				Datastore: map[string]*string{
+					nctx.MetroPreferredPE:        ptr.To("pe-a"),
+					nctx.MetroNodeGroupNameLabel: ptr.To("workers"),
+				},
+			},
+			vm: vmmModels.NewVm(),
+			wantAttrs: []string{
+				vmCustomAttributePrefix4MetroZoneName + "site-a",
+				vmCustomAttributePrefix4MetroNodeGroupNameLabel + "workers",
+				vmCustomAttributePrefix4MetroPreferredPE + "pe-a",
+			},
+		},
+		{
+			name: "metrosite stamps metro-zone-name without optional group label",
+			rctx: &nctx.MachineContext{
+				Machine: &capiv1beta2.Machine{
+					Spec: capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "site-b"},
+				},
+				Datastore: map[string]*string{nctx.MetroPreferredPE: ptr.To("pe-b")},
+			},
+			vm: vmmModels.NewVm(),
+			wantAttrs: []string{
+				vmCustomAttributePrefix4MetroZoneName + "site-b",
+				vmCustomAttributePrefix4MetroPreferredPE + "pe-b",
+			},
+		},
+		{
+			name: "metrosite ignores empty group label",
+			rctx: &nctx.MachineContext{
+				Machine: &capiv1beta2.Machine{
+					Spec: capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "site-c"},
+				},
+				Datastore: map[string]*string{
+					nctx.MetroPreferredPE:        ptr.To("pe-c"),
+					nctx.MetroNodeGroupNameLabel: ptr.To(""),
+				},
+			},
+			vm: vmmModels.NewVm(),
+			wantAttrs: []string{
+				vmCustomAttributePrefix4MetroZoneName + "site-c",
+				vmCustomAttributePrefix4MetroPreferredPE + "pe-c",
+			},
+		},
+		{
+			name: "metrosite stamps metro-zone-name alone when datastore is empty",
+			rctx: &nctx.MachineContext{
+				Machine: &capiv1beta2.Machine{
+					Spec: capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "site-d"},
+				},
+				Datastore: map[string]*string{},
+			},
+			vm: vmmModels.NewVm(),
+			wantAttrs: []string{
+				vmCustomAttributePrefix4MetroZoneName + "site-d",
+			},
+		},
+		{
+			name: "empty metro name after prefix is a no-op without preferred PE",
+			rctx: &nctx.MachineContext{
+				Machine: &capiv1beta2.Machine{
+					Spec: capiv1beta2.MachineSpec{FailureDomain: metroFailureDomainPrefix},
+				},
+				Datastore: map[string]*string{},
+			},
+			vm:             vmmModels.NewVm(),
+			wantAttrsEmpty: true,
+		},
+		{
+			name: "empty metrosite name after prefix still stamps preferred PE if present",
+			rctx: &nctx.MachineContext{
+				Machine: &capiv1beta2.Machine{
+					Spec: capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix},
+				},
+				Datastore: map[string]*string{nctx.MetroPreferredPE: ptr.To("pe-x")},
+			},
+			vm: vmmModels.NewVm(),
+			wantAttrs: []string{
+				vmCustomAttributePrefix4MetroPreferredPE + "pe-x",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setMetroCustomAttributes(tt.rctx, tt.vm)
+
+			if tt.vm == nil {
+				return
+			}
+			if tt.wantAttrsEmpty {
+				require.Empty(t, tt.vm.CustomAttributes)
+				return
+			}
+			require.Equal(t, tt.wantAttrs, tt.vm.CustomAttributes)
+		})
+	}
+}

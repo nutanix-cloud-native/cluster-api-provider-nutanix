@@ -1669,21 +1669,43 @@ func validateDataDiskDeviceProperties(disk infrav1.NutanixMachineVMDisk, errors 
 	return errors
 }
 
-// GetOrCreateVM creates a VM and is invoked by the NutanixMachineReconciler
 // setMetroCustomAttributes sets the metro placement customAttributes on the VM
-// for Metro/MetroSite failure domains.
+// for Metro/MetroSite failure domains. CCM uses metro-zone-name as
+// topology.kubernetes.io/zone so zone matches the CAPI failure-domain object name.
 func setMetroCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) {
-	if isNutanixMetroFailureDomain(rctx.Machine.Spec.FailureDomain) || isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
-		if preferredPE := rctx.Datastore[nctx.MetroPreferredPE]; preferredPE != nil {
-			vm.CustomAttributes = []string{
-				vmCustomAttributePrefix4MetroPreferredPE + *preferredPE,
-			}
+	if rctx == nil || rctx.Machine == nil || vm == nil {
+		return
+	}
+
+	fd := rctx.Machine.Spec.FailureDomain
+	attrs := make([]string, 0, 3)
+
+	var zoneName string
+	switch {
+	case isNutanixMetroFailureDomain(fd):
+		zoneName = fd[len(metroFailureDomainPrefix):]
+	case isNutanixMetroSiteFailureDomain(fd):
+		zoneName = fd[len(metroSiteFailureDomainPrefix):]
+	default:
+		return
+	}
+
+	if zoneName != "" {
+		attrs = append(attrs, vmCustomAttributePrefix4MetroZoneName+zoneName)
+	}
+
+	if isNutanixMetroSiteFailureDomain(fd) {
+		if groupNameLabel := rctx.Datastore[nctx.MetroNodeGroupNameLabel]; groupNameLabel != nil && *groupNameLabel != "" {
+			attrs = append(attrs, vmCustomAttributePrefix4MetroNodeGroupNameLabel+*groupNameLabel)
 		}
 	}
-	if isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
-		if groupNameLabel := rctx.Datastore[nctx.MetroNodeGroupNameLabel]; groupNameLabel != nil {
-			vm.CustomAttributes = append(vm.CustomAttributes, vmCustomAttributePrefix4MetroNodeGroupNameLabel+*groupNameLabel)
-		}
+
+	if preferredPE := rctx.Datastore[nctx.MetroPreferredPE]; preferredPE != nil && *preferredPE != "" {
+		attrs = append(attrs, vmCustomAttributePrefix4MetroPreferredPE+*preferredPE)
+	}
+
+	if len(attrs) > 0 {
+		vm.CustomAttributes = attrs
 	}
 }
 
