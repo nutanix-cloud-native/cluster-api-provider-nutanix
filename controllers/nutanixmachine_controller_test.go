@@ -5146,15 +5146,28 @@ func TestSetMetroCustomAttributes(t *testing.T) {
 			wantAttrsEmpty: true,
 		},
 		{
-			name: "non-metro machine is a no-op",
+			name: "empty failure domain is a no-op",
+			rctx: &nctx.MachineContext{
+				Machine: &capiv1beta2.Machine{
+					Spec: capiv1beta2.MachineSpec{FailureDomain: ""},
+				},
+				Datastore: map[string]*string{nctx.MetroPreferredPE: ptr.To("pe-a")},
+			},
+			vm:             vmmModels.NewVm(),
+			wantAttrsEmpty: true,
+		},
+		{
+			name: "traditional failure domain stamps failure-domain only",
 			rctx: &nctx.MachineContext{
 				Machine: &capiv1beta2.Machine{
 					Spec: capiv1beta2.MachineSpec{FailureDomain: "some-zone"},
 				},
 				Datastore: map[string]*string{nctx.MetroPreferredPE: ptr.To("pe-a")},
 			},
-			vm:             vmmModels.NewVm(),
-			wantAttrsEmpty: true,
+			vm: vmmModels.NewVm(),
+			wantAttrs: []string{
+				vmCustomAttributePrefix4FailureDomain + "some-zone",
+			},
 		},
 		{
 			name: "metro stamps full failure-domain and preferred PE",

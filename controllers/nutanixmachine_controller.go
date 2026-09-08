@@ -1669,8 +1669,8 @@ func validateDataDiskDeviceProperties(disk infrav1.NutanixMachineVMDisk, errors 
 	return errors
 }
 
-// setMetroCustomAttributes sets the metro placement customAttributes on the VM
-// for Metro/MetroSite failure domains.
+// setMetroCustomAttributes stamps failure-domain (any non-empty Machine.spec.failureDomain)
+// and metro placement customAttributes (Metro/MetroSite only) on the VM.
 func setMetroCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) {
 	if rctx == nil || rctx.Machine == nil || vm == nil {
 		return
@@ -1679,13 +1679,8 @@ func setMetroCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) {
 	fd := rctx.Machine.Spec.FailureDomain
 	attrs := make([]string, 0, 3)
 
-	switch {
-	case isNutanixMetroFailureDomain(fd), isNutanixMetroSiteFailureDomain(fd):
-		if fd != "" {
-			attrs = append(attrs, vmCustomAttributePrefix4FailureDomain+fd)
-		}
-	default:
-		return
+	if fd != "" {
+		attrs = append(attrs, vmCustomAttributePrefix4FailureDomain+fd)
 	}
 
 	if isNutanixMetroSiteFailureDomain(fd) {
@@ -1694,8 +1689,10 @@ func setMetroCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) {
 		}
 	}
 
-	if preferredPE := rctx.Datastore[nctx.MetroPreferredPE]; preferredPE != nil && *preferredPE != "" {
-		attrs = append(attrs, vmCustomAttributePrefix4MetroPreferredPE+*preferredPE)
+	if isNutanixMetroFailureDomain(fd) || isNutanixMetroSiteFailureDomain(fd) {
+		if preferredPE := rctx.Datastore[nctx.MetroPreferredPE]; preferredPE != nil && *preferredPE != "" {
+			attrs = append(attrs, vmCustomAttributePrefix4MetroPreferredPE+*preferredPE)
+		}
 	}
 
 	if len(attrs) > 0 {
