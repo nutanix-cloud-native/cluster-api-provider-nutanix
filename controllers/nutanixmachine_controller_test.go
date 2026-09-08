@@ -5115,7 +5115,7 @@ func newRecoveryPlanJobIntentResponse(recoveryPlanUUID, activePEUUID string) *pr
 	}
 }
 
-func TestSetMetroCustomAttributes(t *testing.T) {
+func TestSetFailureDomainCustomAttributes(t *testing.T) {
 	tests := []struct {
 		name           string
 		rctx           *nctx.MachineContext
@@ -5302,7 +5302,7 @@ func TestSetMetroCustomAttributes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setMetroCustomAttributes(tt.rctx, tt.vm)
+			setFailureDomainCustomAttributes(tt.rctx, tt.vm)
 
 			if tt.vm == nil {
 				return
