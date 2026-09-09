@@ -1669,21 +1669,35 @@ func validateDataDiskDeviceProperties(disk infrav1.NutanixMachineVMDisk, errors 
 	return errors
 }
 
-// GetOrCreateVM creates a VM and is invoked by the NutanixMachineReconciler
-// setMetroCustomAttributes sets the metro placement customAttributes on the VM
-// for Metro/MetroSite failure domains.
-func setMetroCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) {
-	if isNutanixMetroFailureDomain(rctx.Machine.Spec.FailureDomain) || isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
-		if preferredPE := rctx.Datastore[nctx.MetroPreferredPE]; preferredPE != nil {
-			vm.CustomAttributes = []string{
-				vmCustomAttributePrefix4MetroPreferredPE + *preferredPE,
-			}
+// setFailureDomainCustomAttributes stamps failure-domain (any non-empty
+// Machine.spec.failureDomain) and metro placement customAttributes
+// (Metro/MetroSite only) on the VM.
+func setFailureDomainCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) {
+	if rctx == nil || rctx.Machine == nil || vm == nil {
+		return
+	}
+
+	fd := rctx.Machine.Spec.FailureDomain
+	attrs := make([]string, 0, 3)
+
+	if fd != "" {
+		attrs = append(attrs, vmCustomAttributePrefix4FailureDomain+fd)
+	}
+
+	if isNutanixMetroSiteFailureDomain(fd) {
+		if groupNameLabel := rctx.Datastore[nctx.MetroNodeGroupNameLabel]; groupNameLabel != nil && *groupNameLabel != "" {
+			attrs = append(attrs, vmCustomAttributePrefix4MetroNodeGroupNameLabel+*groupNameLabel)
 		}
 	}
-	if isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
-		if groupNameLabel := rctx.Datastore[nctx.MetroNodeGroupNameLabel]; groupNameLabel != nil {
-			vm.CustomAttributes = append(vm.CustomAttributes, vmCustomAttributePrefix4MetroNodeGroupNameLabel+*groupNameLabel)
+
+	if isNutanixMetroFailureDomain(fd) || isNutanixMetroSiteFailureDomain(fd) {
+		if preferredPE := rctx.Datastore[nctx.MetroPreferredPE]; preferredPE != nil && *preferredPE != "" {
+			attrs = append(attrs, vmCustomAttributePrefix4MetroPreferredPE+*preferredPE)
 		}
+	}
+
+	if len(attrs) > 0 {
+		vm.CustomAttributes = attrs
 	}
 }
 
@@ -1737,7 +1751,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	}
 
 	// Set the metro placement customAttributes on the VM for Metro/MetroSite failure domains.
-	setMetroCustomAttributes(rctx, vm)
+	setFailureDomainCustomAttributes(rctx, vm)
 
 	// Set cluster reference
 	vm.Cluster = vmmconfig.NewClusterReference()

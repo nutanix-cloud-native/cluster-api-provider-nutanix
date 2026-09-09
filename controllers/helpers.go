@@ -85,6 +85,7 @@ const (
 
 	vmCustomAttributePrefix4MetroPreferredPE        = "metro-preferred-pe:"
 	vmCustomAttributePrefix4MetroNodeGroupNameLabel = "metro-node-group-name:"
+	vmCustomAttributePrefix4FailureDomain           = "failure-domain:"
 
 	drConfigEntityType    = "entity_dr_config"
 	drRoleDecoupled       = "kDecoupled"
