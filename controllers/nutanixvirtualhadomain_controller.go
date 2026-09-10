@@ -56,6 +56,9 @@ const (
 	// vhaDefaultMovementGroup is the name of the single movement group generated for a vHA domain.
 	vhaDefaultMovementGroup = "default"
 
+	// prismNameMaxLen is Prism Central's maximum length for category values.
+	prismNameMaxLen = 64
+
 	// vhaResyncInterval is how often a successfully-reconciled vHADomain is re-enqueued so that its
 	// Prism Central resources (categories, protection policy, recovery plans) are re-validated.
 	// Those resources live in Prism Central and cannot be watched, so periodic requeue is used to
@@ -616,8 +619,12 @@ func (r *NutanixVirtualHADomainReconciler) validateRecoveryPlanExists(
 // vhaCategoryValue returns the category value generated for a vHA domain's
 // movement group at the given prism-element index. The category key is shared
 // across all clusters (VHADomainDefaultCategoryKey).
-func vhaCategoryValue(vHADomainName, group string, idx int) string {
-	return fmt.Sprintf("k8s-vha-capx-%s-%s-%d", vHADomainName, group, idx)
+func vhaCategoryValue(vHADomainName, group string, idx int) (string, error) {
+	value := fmt.Sprintf("k8s-vha-capx-%s-%s-%d", vHADomainName, group, idx)
+	if len(value) > prismNameMaxLen {
+		return "", fmt.Errorf("generated category value %q is %d characters; Prism Central limits category values to %d", value, len(value), prismNameMaxLen)
+	}
+	return value, nil
 }
 
 // vhaRecoveryPlanName returns the recovery plan name generated for a vHA domain's
@@ -645,9 +652,13 @@ func (r *NutanixVirtualHADomainReconciler) getOrCreateVHADomainGroupCategories(
 
 	categories := make([]infrav1.NutanixCategoryIdentifier, 0, len(failureDomains))
 	for i := range failureDomains {
+		categoryVal, err := vhaCategoryValue(rctx.VHADomain.Name, group, i)
+		if err != nil {
+			return nil, fmt.Errorf("movementGroup %s: %w", group, err)
+		}
 		ci := infrav1.NutanixCategoryIdentifier{
 			Key:   VHADomainDefaultCategoryKey,
-			Value: vhaCategoryValue(rctx.VHADomain.Name, group, i),
+			Value: categoryVal,
 		}
 		if _, err := getOrCreateCategory(rctx.Context, rctx.ConvergedClient, &ci); err != nil {
 			return nil, fmt.Errorf("movementGroup %s: failed to get or create category %s/%s: %w", group, ci.Key, ci.Value, err)
@@ -806,7 +817,10 @@ func (r *NutanixVirtualHADomainReconciler) getOrCreateVHADomainRecoveryPlan(
 	}
 
 	categoryKey := VHADomainDefaultCategoryKey
-	categoryVal := vhaCategoryValue(rctx.VHADomain.Name, group, primaryIndex)
+	categoryVal, err := vhaCategoryValue(rctx.VHADomain.Name, group, primaryIndex)
+	if err != nil {
+		return nil, err
+	}
 
 	networkMappingAZList := make(
 		[]*v3models.RecoveryPlanResourcesParametersNetworkMappingListItems0AvailabilityZoneNetworkMappingListItems0,
