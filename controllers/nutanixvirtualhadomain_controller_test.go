@@ -80,10 +80,19 @@ func vhaDomainObj(name, clusterName string) *infrav1.NutanixVirtualHADomain {
 func TestVHADomainNameHelpers(t *testing.T) {
 	g := NewWithT(t)
 
-	g.Expect(vhaCategoryValue("d1", "default", 0)).To(Equal("k8s-vha-capx-d1-default-0"))
-	g.Expect(vhaCategoryValue("d1", "default", 1)).To(Equal("k8s-vha-capx-d1-default-1"))
+	cat0, err := vhaCategoryValue("d1", "default", 0)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cat0).To(Equal("k8s-vha-capx-d1-default-0"))
+	cat1, err := vhaCategoryValue("d1", "default", 1)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cat1).To(Equal("k8s-vha-capx-d1-default-1"))
 	g.Expect(vhaRecoveryPlanName("d1", "default", 0)).To(Equal("k8s-vha-capx-d1-default-0"))
 	g.Expect(vhaProtectionPolicyName("d1")).To(Equal("k8s-vha-capx-d1"))
+
+	longDomain := vHADomainName("nkp-management-cluster-rocky", "production-metro")
+	_, err = vhaCategoryValue(longDomain, vhaDefaultMovementGroup, 0)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("Prism Central limits category values to 64"))
 }
 
 // TestVHADomainDefaultCategoryKey_Contract guards the implicit contract shared with CSI and NKP for
