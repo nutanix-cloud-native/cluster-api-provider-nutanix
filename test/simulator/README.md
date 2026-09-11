@@ -83,6 +83,35 @@ image names in the cluster template must match the seed
 (`pe-sim`, `subnet-sim`, `ubuntu-sim`, `default-sim` by default). See
 `config.example.yaml` for a multi-cluster seed, timing and fault settings.
 
+## Running CAPX against it with no hardware
+
+`make test-sim` builds the CAPX manager, the CAPI core manager (from the
+version in `go.mod`), `ntnx-sim` and a driver (`cmd/simrun`), then:
+
+1. starts envtest (kube-apiserver and etcd) with the CAPI and CAPX CRDs,
+2. starts all three processes against it,
+3. creates a Cluster and NutanixCluster pointing at the simulator, then
+   `SIM_MACHINES` Machines and NutanixMachines with hand-made bootstrap
+   secrets,
+4. waits for every Machine to reach `Provisioned` with a providerID and an
+   address, prints the simulator's per-route request statistics,
+5. deletes the Cluster and waits for CAPI and CAPX to remove every VM.
+
+```sh
+make test-sim                                                       # one machine, instant tasks
+make test-sim SIM_MACHINES=50 SIM_ARGS="--vm-create 10s --vm-power-on 15s"
+make test-sim SIM_MACHINES=50 SIM_ARGS="--vm-create 10s --vm-power-on 15s --max-concurrent-reconciles 50"
+```
+
+Logs, certificates and the kubeconfig land in the work directory printed at
+start (`--workdir` to choose it). `--keep` leaves everything running for
+poking at with `kubectl --kubeconfig <workdir>/kubeconfig`.
+
+Machines stop at `Provisioned` rather than `Running` because nothing fakes the
+workload cluster's nodes; that is the harness's job (see below). The driver
+also stamps the `cluster.x-k8s.io/v1beta1` contract label on the CAPX CRDs,
+which kustomize normally adds and CAPI core requires.
+
 ## Using it as a library
 
 ```go
