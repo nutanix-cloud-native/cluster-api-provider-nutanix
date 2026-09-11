@@ -242,6 +242,10 @@ build: generate ## Build manager binary.
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
 	CGO_ENABLED=0 go build -ldflags "-X main.gitCommitHash=${GIT_COMMIT_HASH}" -o bin/manager main.go
 
+.PHONY: ntnx-sim
+ntnx-sim: ## Build the ntnx-sim Prism Central simulator binary (see test/simulator/README.md).
+	go build -o bin/ntnx-sim ./test/simulator/cmd/ntnx-sim
+
 .PHONY: build-e2e
 build-e2e: generate ## Build e2e binary.
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
