@@ -3329,11 +3329,13 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		// 2. GetTaskUUIDFromVM after VM creation returns task with UUID
 		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil)
 
-		// Mock CreateVM
+		// Mock CreateVM (async + wait)
 		createdVM := vmmModels.NewVm()
 		createdVM.Name = ptr.To(vmName)
 		createdVM.ExtId = ptr.To(vmUUID)
-		mockConvergedClient.MockVMs.EXPECT().Create(ctx, gomock.Any()).Return(createdVM, nil)
+		mockCreateOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
+		mockCreateOp.EXPECT().Wait(ctx).Return([]*vmmModels.Vm{createdVM}, nil)
+		mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctx, gomock.Any()).Return(mockCreateOp, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
