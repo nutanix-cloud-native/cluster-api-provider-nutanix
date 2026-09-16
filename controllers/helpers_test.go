@@ -1136,6 +1136,99 @@ func TestGetSubnetUUIDList(t *testing.T) {
 	})
 }
 
+func TestSubnetProfileKey(t *testing.T) {
+	vlan := subnetModels.SUBNETTYPE_VLAN
+	overlay := subnetModels.SUBNETTYPE_OVERLAY
+
+	tests := []struct {
+		name string
+		in   *subnetModels.Subnet
+		want string
+	}{
+		{
+			name: "vlan with id and cidr",
+			in: &subnetModels.Subnet{
+				SubnetType: &vlan,
+				NetworkId:  ptr.To(41),
+				IpPrefix:   ptr.To("10.0.0.0/24"),
+			},
+			want: "VLAN|41|10.0.0.0/24",
+		},
+		{
+			name: "overlay with vni",
+			in: &subnetModels.Subnet{
+				SubnetType: &overlay,
+				NetworkId:  ptr.To(5000),
+				IpPrefix:   ptr.To("192.168.0.0/16"),
+			},
+			want: "OVERLAY|5000|192.168.0.0/16",
+		},
+		{
+			name: "nil subnet",
+			in:   nil,
+			want: "UNKNOWN||",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, subnetProfileKey(tt.in))
+		})
+	}
+}
+
+func TestMetroSubnetProfilesMatch(t *testing.T) {
+	ctx := context.Background()
+	pe0 := "00000000-0000-0000-0000-000000000010"
+	pe1 := "00000000-0000-0000-0000-000000000011"
+	subnet0 := "00000000-0000-0000-0000-0000000000a1"
+	subnet1 := "00000000-0000-0000-0000-0000000000a2"
+	vlan := subnetModels.SUBNETTYPE_VLAN
+
+	pe0ID := infrav1.NutanixResourceIdentifier{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(pe0)}
+	pe1ID := infrav1.NutanixResourceIdentifier{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(pe1)}
+	subnet0ID := []infrav1.NutanixResourceIdentifier{{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(subnet0)}}
+	subnet1ID := []infrav1.NutanixResourceIdentifier{{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(subnet1)}}
+
+	t.Run("matches when VLAN ID and CIDR are equal across differently named subnets", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		client := NewMockConvergedClient(ctrl)
+		client.MockClusters.EXPECT().Get(gomock.Any(), pe0).Return(&clusterModels.Cluster{ExtId: ptr.To(pe0)}, nil)
+		client.MockClusters.EXPECT().Get(gomock.Any(), pe1).Return(&clusterModels.Cluster{ExtId: ptr.To(pe1)}, nil)
+		client.MockSubnets.EXPECT().Get(gomock.Any(), subnet0).Return(&subnetModels.Subnet{
+			ExtId: ptr.To(subnet0), Name: ptr.To("Vlan-041-site-01"), SubnetType: &vlan, NetworkId: ptr.To(41), IpPrefix: ptr.To("10.0.0.0/24"),
+		}, nil)
+		client.MockSubnets.EXPECT().Get(gomock.Any(), subnet1).Return(&subnetModels.Subnet{
+			ExtId: ptr.To(subnet1), Name: ptr.To("Vlan-041-site-02"), SubnetType: &vlan, NetworkId: ptr.To(41), IpPrefix: ptr.To("10.0.0.0/24"),
+		}, nil)
+
+		match, machineKeys, fdKeys, err := metroSubnetProfilesMatch(ctx, client.Client, subnet1ID, subnet0ID, pe1ID, pe0ID)
+		require.NoError(t, err)
+		assert.True(t, match)
+		assert.Equal(t, []string{"VLAN|41|10.0.0.0/24"}, machineKeys)
+		assert.Equal(t, []string{"VLAN|41|10.0.0.0/24"}, fdKeys)
+	})
+
+	t.Run("does not match when VLAN IDs differ", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		client := NewMockConvergedClient(ctrl)
+		client.MockClusters.EXPECT().Get(gomock.Any(), pe0).Return(&clusterModels.Cluster{ExtId: ptr.To(pe0)}, nil)
+		client.MockClusters.EXPECT().Get(gomock.Any(), pe1).Return(&clusterModels.Cluster{ExtId: ptr.To(pe1)}, nil)
+		client.MockSubnets.EXPECT().Get(gomock.Any(), subnet0).Return(&subnetModels.Subnet{
+			ExtId: ptr.To(subnet0), Name: ptr.To("Vlan-041-site-01"), SubnetType: &vlan, NetworkId: ptr.To(41), IpPrefix: ptr.To("10.0.0.0/24"),
+		}, nil)
+		client.MockSubnets.EXPECT().Get(gomock.Any(), subnet1).Return(&subnetModels.Subnet{
+			ExtId: ptr.To(subnet1), Name: ptr.To("Vlan-100-site-02"), SubnetType: &vlan, NetworkId: ptr.To(100), IpPrefix: ptr.To("10.0.1.0/24"),
+		}, nil)
+
+		match, machineKeys, fdKeys, err := metroSubnetProfilesMatch(ctx, client.Client, subnet1ID, subnet0ID, pe1ID, pe0ID)
+		require.NoError(t, err)
+		assert.False(t, match)
+		assert.Equal(t, []string{"VLAN|100|10.0.1.0/24"}, machineKeys)
+		assert.Equal(t, []string{"VLAN|41|10.0.0.0/24"}, fdKeys)
+	})
+}
+
 func TestCreateDataDiskList(t *testing.T) {
 	expectedStorageContainers := []clusterModels.StorageContainer{
 		{

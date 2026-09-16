@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -713,58 +714,144 @@ func subnetBelongsToCluster(subnet *subnetModels.Subnet, peUUID string) bool {
 	return false
 }
 
-// GetSubnetUUID returns the UUID of the subnet with the given name
-func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
-	var foundSubnetUUID string
+// GetSubnet returns the subnet identified by UUID or name. Name lookup for VLAN
+// subnets is scoped to peUUID via ClusterReference / ClusterReferenceList.
+func GetSubnet(ctx context.Context, client *v4Converged.Client, peUUID string, subnetName, subnetUUID *string) (*subnetModels.Subnet, error) {
 	if subnetUUID == nil && subnetName == nil {
-		return "", fmt.Errorf("subnet name or subnet uuid must be passed in order to retrieve the subnet")
+		return nil, fmt.Errorf("subnet name or subnet uuid must be passed in order to retrieve the subnet")
 	}
 	if subnetUUID != nil {
 		subnetIntentResponse, err := client.Subnets.Get(ctx, *subnetUUID)
 		if err != nil {
 			if converged.IsNotFound(err) {
-				return "", fmt.Errorf("failed to find subnet with UUID %s: %w", *subnetUUID, err)
+				return nil, fmt.Errorf("failed to find subnet with UUID %s: %w", *subnetUUID, err)
 			}
-			return "", fmt.Errorf("failed to get subnet with UUID %s: %w", *subnetUUID, err)
+			return nil, fmt.Errorf("failed to get subnet with UUID %s: %w", *subnetUUID, err)
 		}
-		foundSubnetUUID = *subnetIntentResponse.ExtId
-	} else { // else search by name
-		// Not using additional filtering since we want to list overlay and vlan subnets
-		responseSubnets, err := client.Subnets.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", *subnetName)))
-		if err != nil {
-			return "", err
+		return subnetIntentResponse, nil
+	}
+
+	// Not using additional filtering since we want to list overlay and vlan subnets
+	responseSubnets, err := client.Subnets.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", *subnetName)))
+	if err != nil {
+		return nil, err
+	}
+	foundSubnets := make([]subnetModels.Subnet, 0)
+	for _, subnet := range responseSubnets {
+		if subnet.Name == nil || subnet.SubnetType == nil {
+			continue
 		}
-		// Validate filtered Subnets
-		foundSubnets := make([]subnetModels.Subnet, 0)
-		for _, subnet := range responseSubnets {
-			if subnet.Name == nil || subnet.SubnetType == nil {
+		if *subnet.Name == *subnetName {
+			if subnet.SubnetType.GetName() == subnetTypeOverlay {
+				foundSubnets = append(foundSubnets, subnet)
 				continue
 			}
-			if *subnet.Name == *subnetName {
-				if subnet.SubnetType.GetName() == subnetTypeOverlay {
-					foundSubnets = append(foundSubnets, subnet)
-					continue
-				}
-
-				// Check if subnet belongs to the PE cluster via ClusterReference or ClusterReferenceList
-				if subnetBelongsToCluster(&subnet, peUUID) {
-					foundSubnets = append(foundSubnets, subnet)
-				}
+			if subnetBelongsToCluster(&subnet, peUUID) {
+				foundSubnets = append(foundSubnets, subnet)
 			}
 		}
+	}
 
-		if len(foundSubnets) == 0 {
-			return "", &terminalError{message: fmt.Sprintf("failed to retrieve subnet by name %s", *subnetName)}
-		} else if len(foundSubnets) > 1 {
-			return "", fmt.Errorf("more than one subnet found with name %s", *subnetName)
-		} else {
-			foundSubnetUUID = *foundSubnets[0].ExtId
-		}
-		if foundSubnetUUID == "" {
-			return "", fmt.Errorf("failed to retrieve subnet by name or uuid. Verify input parameters")
-		}
+	switch len(foundSubnets) {
+	case 0:
+		return nil, &terminalError{message: fmt.Sprintf("failed to retrieve subnet by name %s", *subnetName)}
+	case 1:
+		return &foundSubnets[0], nil
+	default:
+		return nil, fmt.Errorf("more than one subnet found with name %s", *subnetName)
+	}
+}
+
+// GetSubnetUUID returns the UUID of the subnet with the given name or UUID.
+func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
+	subnet, err := GetSubnet(ctx, client, peUUID, subnetName, subnetUUID)
+	if err != nil {
+		return "", err
+	}
+	foundSubnetUUID := ptr.Deref(subnet.ExtId, "")
+	if foundSubnetUUID == "" {
+		return "", fmt.Errorf("failed to retrieve subnet by name or uuid. Verify input parameters")
 	}
 	return foundSubnetUUID, nil
+}
+
+// subnetProfileKey identifies a subnet by network layer, VLAN ID/VNI and CIDR.
+// Metro sites use distinct Prism subnet objects (names/UUIDs) that must share this profile.
+func subnetProfileKey(s *subnetModels.Subnet) string {
+	if s == nil {
+		return "UNKNOWN||"
+	}
+	layer := "UNKNOWN"
+	if s.SubnetType != nil {
+		layer = s.SubnetType.GetName()
+	}
+	vlanID := ""
+	if s.NetworkId != nil {
+		vlanID = strconv.Itoa(*s.NetworkId)
+	}
+	cidr := ptr.Deref(s.IpPrefix, "")
+	return fmt.Sprintf("%s|%s|%s", layer, vlanID, cidr)
+}
+
+// subnetProfileKeys resolves each identifier against pe and returns the matching subnet profiles.
+func subnetProfileKeys(
+	ctx context.Context,
+	client *v4Converged.Client,
+	ids []infrav1.NutanixResourceIdentifier,
+	pe infrav1.NutanixResourceIdentifier,
+) ([]string, error) {
+	if client == nil {
+		return nil, fmt.Errorf("cannot retrieve subnet profiles if nutanix client is nil")
+	}
+	peUUID, err := GetPEUUID(ctx, client, pe.Name, pe.UUID)
+	if err != nil {
+		return nil, err
+	}
+	keys := make([]string, 0, len(ids))
+	for i := range ids {
+		subnet, err := GetSubnet(ctx, client, peUUID, ids[i].Name, ids[i].UUID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve subnet %s: %w", ids[i].DisplayString(), err)
+		}
+		keys = append(keys, subnetProfileKey(subnet))
+	}
+	return keys, nil
+}
+
+func stringSliceSetEquals(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	remaining := make(map[string]int, len(b))
+	for _, s := range b {
+		remaining[s]++
+	}
+	for _, s := range a {
+		if remaining[s] == 0 {
+			return false
+		}
+		remaining[s]--
+	}
+	return true
+}
+
+// metroSubnetProfilesMatch reports whether machine and failure-domain subnet identifiers
+// describe the same network profiles (layer, VLAN ID/VNI, CIDR), even when Prism names differ.
+func metroSubnetProfilesMatch(
+	ctx context.Context,
+	client *v4Converged.Client,
+	machineSubnets, fdSubnets []infrav1.NutanixResourceIdentifier,
+	machinePE, fdPE infrav1.NutanixResourceIdentifier,
+) (bool, []string, []string, error) {
+	machineKeys, err := subnetProfileKeys(ctx, client, machineSubnets, machinePE)
+	if err != nil {
+		return false, nil, nil, fmt.Errorf("failed to resolve NutanixMachine subnet profiles: %w", err)
+	}
+	fdKeys, err := subnetProfileKeys(ctx, client, fdSubnets, fdPE)
+	if err != nil {
+		return false, nil, nil, fmt.Errorf("failed to resolve NutanixFailureDomain subnet profiles: %w", err)
+	}
+	return stringSliceSetEquals(machineKeys, fdKeys), machineKeys, fdKeys, nil
 }
 
 // GetImage returns an image. If no UUID is provided, returns the unique image with the name.
