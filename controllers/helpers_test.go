@@ -3652,11 +3652,6 @@ func TestEnrichTaskErrorWithFailedSubtasks(t *testing.T) {
 		}, nil)
 		// Nested collect for the failed child lists its own children.
 		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
-		mockClient.MockTasks.EXPECT().Get(gomock.Any(), childUUID).Return(&prismModels.Task{
-			ExtId:    ptr.To(childUUID),
-			Status:   &failedStatus,
-			SubTasks: nil,
-		}, nil)
 
 		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
 		require.Error(t, err)
@@ -3666,13 +3661,25 @@ func TestEnrichTaskErrorWithFailedSubtasks(t *testing.T) {
 		assert.ErrorContains(t, err, "Create VM vNIC port")
 	})
 
-	t.Run("falls back to parent subtask references when list is empty", func(t *testing.T) {
+	t.Run("does not fall back to Get when list returns empty", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockClient := NewMockConvergedClient(ctrl)
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
+
+		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
+		require.Error(t, err)
+		assert.Equal(t, parentErr, err)
+	})
+
+	t.Run("falls back to parent subtask references when list errors", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
 		mockClient := NewMockConvergedClient(ctrl)
 		failedStatus := prismModels.TASKSTATUS_FAILED
-		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("list failed"))
 		mockClient.MockTasks.EXPECT().Get(gomock.Any(), parentUUID).Return(&prismModels.Task{
 			ExtId: ptr.To(parentUUID),
 			SubTasks: []prismModels.TaskReferenceInternal{
@@ -3686,15 +3693,34 @@ func TestEnrichTaskErrorWithFailedSubtasks(t *testing.T) {
 			LegacyErrorMessage:   ptr.To(dhcpMsg),
 		}, nil)
 		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
-		mockClient.MockTasks.EXPECT().Get(gomock.Any(), childUUID).Return(&prismModels.Task{
-			ExtId:    ptr.To(childUUID),
-			Status:   &failedStatus,
-			SubTasks: nil,
-		}, nil)
 
 		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, dhcpMsg)
+	})
+
+	t.Run("deduplicates identical ErrorMessages and LegacyErrorMessage", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockClient := NewMockConvergedClient(ctrl)
+		failedStatus := prismModels.TASKSTATUS_FAILED
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{
+			{
+				ExtId:                ptr.To(childUUID),
+				Status:               &failedStatus,
+				OperationDescription: ptr.To("Create VM vNIC port"),
+				ErrorMessages: []prismErrors.AppMessage{
+					{Message: ptr.To(dhcpMsg)},
+				},
+				LegacyErrorMessage: ptr.To(dhcpMsg),
+			},
+		}, nil)
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
+
+		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
+		require.Error(t, err)
+		assert.Equal(t, 1, strings.Count(err.Error(), dhcpMsg))
 	})
 
 	t.Run("returns original error when parent error is nil", func(t *testing.T) {
@@ -3730,10 +3756,6 @@ func TestWaitForConvergedOperation_EnrichesFailedWait(t *testing.T) {
 		},
 	}, nil)
 	mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
-	mockClient.MockTasks.EXPECT().Get(gomock.Any(), childUUID).Return(&prismModels.Task{
-		ExtId:    ptr.To(childUUID),
-		SubTasks: nil,
-	}, nil)
 
 	_, err := waitForConvergedOperation(ctx, mockClient.Client, mockOp)
 	require.Error(t, err)
