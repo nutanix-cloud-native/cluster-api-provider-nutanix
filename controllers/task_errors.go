@@ -80,8 +80,6 @@ func collectFailedSubtaskErrors(ctx context.Context, client *v4Converged.Client,
 	children, err := listFailedChildTasks(ctx, client, parentTaskUUID)
 	if err != nil {
 		log.Error(err, "failed to list Prism subtasks while collecting failure details", "parentTaskUUID", parentTaskUUID)
-	}
-	if len(children) == 0 {
 		children = failedSubtasksFromParentGet(ctx, client, parentTaskUUID)
 	}
 
@@ -159,15 +157,24 @@ func formatTaskError(task *prismModels.Task) string {
 	if task != nil {
 		for _, msg := range task.ErrorMessages {
 			if msg.Message != nil && *msg.Message != "" {
-				parts = append(parts, *msg.Message)
+				parts = appendUnique(parts, *msg.Message)
 			}
 		}
 		if legacy := ptr.Deref(task.LegacyErrorMessage, ""); legacy != "" {
-			parts = append(parts, legacy)
+			parts = appendUnique(parts, legacy)
 		}
 	}
 	if len(parts) == 0 {
 		parts = append(parts, "no error message provided")
 	}
 	return fmt.Sprintf("[%s] %s", op, strings.Join(parts, "; "))
+}
+
+func appendUnique(parts []string, msg string) []string {
+	for _, existing := range parts {
+		if existing == msg {
+			return parts
+		}
+	}
+	return append(parts, msg)
 }
