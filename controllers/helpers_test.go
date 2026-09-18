@@ -869,6 +869,120 @@ func TestFindVMByUUID(t *testing.T) {
 	})
 }
 
+func TestFindVM(t *testing.T) {
+	ctx := context.Background()
+	recordedUUID := "68d4847f-a7c1-4ed9-75fe-3c0f941363a7"
+	liveUUID := "11111111-2222-3333-4444-555555555555"
+	vmName := "abhay-mgmt-wqfmw-m7vmr"
+
+	metroMachine := &capiv1beta2.Machine{
+		ObjectMeta: metav1.ObjectMeta{Name: vmName},
+		Spec:       capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "metro0-s1"},
+		Status: capiv1beta2.MachineStatus{
+			NodeInfo: &corev1.NodeSystemInfo{SystemUUID: recordedUUID},
+		},
+	}
+	nonMetroMachine := &capiv1beta2.Machine{
+		ObjectMeta: metav1.ObjectMeta{Name: vmName},
+		Status: capiv1beta2.MachineStatus{
+			NodeInfo: &corev1.NodeSystemInfo{SystemUUID: recordedUUID},
+		},
+	}
+	ntnxMachine := &infrav1.NutanixMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: vmName},
+		Status:     infrav1.NutanixMachineStatus{VmUUID: recordedUUID},
+	}
+
+	t.Run("metro returns VM found by name after recorded UUID 404", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		liveVM := &vmmModels.Vm{ExtId: ptr.To(liveUUID), Name: ptr.To(vmName)}
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
+			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
+		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*liveVM}, nil)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), liveUUID).Return(liveVM, nil)
+
+		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, nil)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, liveUUID, *vm.ExtId)
+	})
+
+	t.Run("metro returns expected-to-be-present when UUID 404 and name search is empty", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
+			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
+		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{}, nil)
+
+		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, nil)
+		require.Error(t, err)
+		require.Nil(t, vm)
+		assert.Contains(t, err.Error(), "but was expected to be present")
+	})
+
+	t.Run("non-metro UUID 404 does not search by name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
+			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
+
+		vm, err := FindVM(ctx, convergedClient.Client, nonMetroMachine, ntnxMachine, vmName, nil)
+		require.Error(t, err)
+		require.Nil(t, vm)
+		assert.Contains(t, err.Error(), "but was expected to be present")
+	})
+
+	t.Run("metro skips decoupled leftover and returns recovered VM by name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		decoupledVM := &vmmModels.Vm{ExtId: ptr.To(recordedUUID), Name: ptr.To(vmName)}
+		liveVM := &vmmModels.Vm{ExtId: ptr.To(liveUUID), Name: ptr.To(vmName)}
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
+			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
+		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*decoupledVM, *liveVM}, nil)
+		mockV3.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, req *prismclientv3.GroupsGetEntitiesRequest) (*prismclientv3.GroupsGetEntitiesResponse, error) {
+				if strings.Contains(req.FilterCriteria, recordedUUID) {
+					return drConfigGroupsResponse(drRoleDecoupled), nil
+				}
+				return drConfigGroupsResponse("kActive"), nil
+			},
+		).AnyTimes()
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), liveUUID).Return(liveVM, nil)
+
+		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, mockV3)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, liveUUID, *vm.ExtId)
+	})
+
+	t.Run("metro does not adopt a decoupled UUID GET; looks up recovered VM by name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		decoupledVM := &vmmModels.Vm{ExtId: ptr.To(recordedUUID), Name: ptr.To(vmName)}
+		liveVM := &vmmModels.Vm{ExtId: ptr.To(liveUUID), Name: ptr.To(vmName)}
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(decoupledVM, nil)
+		mockV3.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, req *prismclientv3.GroupsGetEntitiesRequest) (*prismclientv3.GroupsGetEntitiesResponse, error) {
+				if strings.Contains(req.FilterCriteria, recordedUUID) {
+					return drConfigGroupsResponse(drRoleDecoupled), nil
+				}
+				return drConfigGroupsResponse("kActive"), nil
+			},
+		).AnyTimes()
+		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*decoupledVM, *liveVM}, nil)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), liveUUID).Return(liveVM, nil)
+
+		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, mockV3)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, liveUUID, *vm.ExtId)
+	})
+}
+
 func TestGetPEUUID(t *testing.T) {
 	ctx := context.Background()
 
