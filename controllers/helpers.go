@@ -207,35 +207,26 @@ func GetVMUUID(machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMach
 	return "", nil
 }
 
-// FindVM retrieves the VM with the given uuid or name
-func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
+// FindVM retrieves the VM with the given uuid or name.
+// On Metro/MetroSite, a UUID miss (or a DR-decoupled leftover) is resolved the same
+// way as reconcileDelete: list by Machine/NutanixMachine name and skip decoupled VMs.
+func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMachine, vmName string, v3Client prismclientv3.Service) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
 	vmUUID, err := GetVMUUID(machine, nutanixMachine)
 	if err != nil {
 		return nil, err
 	}
-	// Search via uuid if it is present
-	if vmUUID != "" {
-		log.V(1).Info(fmt.Sprintf("Searching for VM %s using UUID %s", vmName, vmUUID))
-		vm, err := FindVMByUUID(ctx, client, vmUUID)
-		if err != nil {
-			return nil, err
-		}
-		if vm == nil {
-			return nil, fmt.Errorf("no vm %s found with UUID %s but was expected to be present", vmName, vmUUID)
-		}
-		// Check if the VM name matches the Machine name or the NutanixMachine name.
-		// Earlier, we were creating VMs with the same name as the NutanixMachine name.
-		// Now, we create VMs with the same name as the Machine name in line with other CAPI providers.
-		// This check is to ensure that we are deleting the correct VM for both cases as older CAPX VMs
-		// will have the NutanixMachine name as the VM name.
-		if *vm.Name != vmName && *vm.Name != nutanixMachine.Name {
-			return nil, fmt.Errorf("found VM with UUID %s but name %s did not match %s", vmUUID, *vm.Name, vmName)
-		}
-		return vm, nil
-		// otherwise search via name
-	} else {
+	metro := useMetroDRDeletePath(&nctx.MachineContext{Machine: machine, NutanixMachine: nutanixMachine})
+	nmName := ""
+	if nutanixMachine != nil {
+		nmName = nutanixMachine.Name
+	}
+
+	if vmUUID == "" {
 		log.Info(fmt.Sprintf("Searching for VM %s using name", vmName))
+		if metro {
+			return findNonDecoupledVMByName(ctx, client, v3Client, vmNamesForDelete(vmName, nmName))
+		}
 		vm, err := FindVMByName(ctx, client, vmName)
 		if err != nil {
 			log.Error(err, fmt.Sprintf("error occurred finding VM %s by name", vmName))
@@ -243,6 +234,44 @@ func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta
 		}
 		return vm, nil
 	}
+
+	log.V(1).Info(fmt.Sprintf("Searching for VM %s using UUID %s", vmName, vmUUID))
+	vm, err := FindVMByUUID(ctx, client, vmUUID)
+	if err != nil {
+		return nil, err
+	}
+	if vm != nil {
+		if vm.Name == nil {
+			return nil, fmt.Errorf("found VM with UUID %s but name was empty", vmUUID)
+		}
+		if *vm.Name != vmName && *vm.Name != nmName {
+			return nil, fmt.Errorf("found VM with UUID %s but name %s did not match %s", vmUUID, *vm.Name, vmName)
+		}
+		if !metro {
+			return vm, nil
+		}
+		decoupled, err := isVMDecoupled(ctx, v3Client, vmUUID)
+		if err != nil {
+			return nil, err
+		}
+		if !decoupled {
+			return vm, nil
+		}
+		log.Info(fmt.Sprintf("VM %s with UUID %s is decoupled; looking for a recovered VM by name", vmName, vmUUID))
+	} else if metro {
+		log.Info(fmt.Sprintf("VM UUID %s returned 404; confirming non-existence by name %s", vmUUID, vmName))
+	}
+
+	if metro {
+		live, err := findNonDecoupledVMByName(ctx, client, v3Client, vmNamesForDelete(vmName, nmName))
+		if err != nil {
+			return nil, err
+		}
+		if live != nil {
+			return live, nil
+		}
+	}
+	return nil, fmt.Errorf("no vm %s found with UUID %s but was expected to be present", vmName, vmUUID)
 }
 
 // FindVMByName retrieves the VM with the given vm name
@@ -308,6 +337,13 @@ func useMetroDRDeletePath(rctx *nctx.MachineContext) bool {
 	}
 	return nutanixMachineAnnotation(rctx.NutanixMachine, skippedDecoupledVMUUIDAnnotation) != "" ||
 		nutanixMachineAnnotation(rctx.NutanixMachine, recoveredVMUUIDAnnotation) != ""
+}
+
+func nutanixV3Service(rctx *nctx.MachineContext) prismclientv3.Service {
+	if rctx == nil || rctx.NutanixClient == nil {
+		return nil
+	}
+	return rctx.NutanixClient.V3
 }
 
 // isVMDecoupled reports whether Prism Central DR config marks the VM as decoupled.
