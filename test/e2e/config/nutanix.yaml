@@ -127,7 +127,12 @@ variables:
   NUTANIX_ADDITIONAL_TRUST_BUNDLE: ""
   KUBERNETES_VERSION: "v1.35.3"
   NUTANIX_SSH_AUTHORIZED_KEY: "fake-key"
+  # CONTROL_PLANE_ENDPOINT_IP and CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER are, if left unset,
+  # reserved automatically at suite startup from the subnet under test (see reserveSubnetIP in
+  # test/e2e/subnet_ip_reservation.go). Set either one explicitly (env var or here) to opt that
+  # one out of auto-reservation and pin a specific address instead.
   CONTROL_PLANE_ENDPOINT_IP: ""
+  CONTROL_PLANE_ENDPOINT_IP_WORKLOAD_CLUSTER: ""
   CONTROL_PLANE_ENDPOINT_IP_V124: ""
   CONTROL_PLANE_MACHINE_COUNT: 1
   WORKER_MACHINE_COUNT: 1
