@@ -577,6 +577,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 
 	log.V(1).Info(fmt.Sprintf("Checking current machine status for machine %s: Status %+v Spec %+v", rctx.NutanixMachine.Name, rctx.NutanixMachine.Status, rctx.NutanixMachine.Spec))
 	if rctx.NutanixMachine.Status.Ready {
+		ensureProviderID(rctx.NutanixMachine, rctx.NutanixMachine.Status.VmUUID)
 		infraReady := rctx.Cluster.Status.Initialization.InfrastructureProvisioned != nil && *rctx.Cluster.Status.Initialization.InfrastructureProvisioned
 		if !infraReady || rctx.Machine.Spec.ProviderID == "" {
 			log.Info("The NutanixMachine is ready, wait for the owner Machine's update.")
@@ -1717,6 +1718,11 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 
 	// if VM exists
 	if vmFound != nil {
+		vmUUID := ptr.Deref(vmFound.ExtId, "")
+		if rctx.NutanixMachine.Status.VmUUID == "" {
+			rctx.NutanixMachine.Status.VmUUID = vmUUID
+		}
+		ensureProviderID(rctx.NutanixMachine, vmUUID)
 		log.Info(fmt.Sprintf("vm %s found with UUID %s", *vmFound.Name, rctx.NutanixMachine.Status.VmUUID))
 
 		v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
