@@ -805,8 +805,8 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 
 	// Validate the NutanixMachine machine spec is consistent with the expected configuration.
 	// Metro sites use distinct Prism subnet objects per PE (different names/UUIDs) that share the
-	// same L2/L3 profile (layer, VLAN ID/VNI, CIDR). Identifier equality is therefore not a valid
-	// metro check; when names differ, compare the resolved subnet profiles instead.
+	// same L2/L3 network (layer, VLAN ID/VNI, CIDR). Identifier equality is therefore not a valid
+	// metro check; when names differ, compare the resolved network keys instead.
 	errMessages := []string{}
 	if clusterValidationErr != "" {
 		errMessages = append(errMessages, clusterValidationErr)
@@ -850,7 +850,7 @@ func (r *NutanixMachineReconciler) checkFailureDomainSubnets(
 		), nil
 	}
 
-	match, machineKeys, fdKeys, err := metroSubnetProfilesMatch(
+	match, machineKeys, fdKeys, err := metroSubnetsMatch(
 		rctx.Context,
 		rctx.ConvergedClient,
 		rctx.NutanixMachine.Spec.Subnets,
@@ -865,7 +865,7 @@ func (r *NutanixMachineReconciler) checkFailureDomainSubnets(
 		return "", nil
 	}
 	return fmt.Sprintf(
-		"NutanixMachine.spec.subnets profiles=%v, NutanixFailureDomain.spec.subnets profiles=%v",
+		"NutanixMachine.spec.subnets network=%v, NutanixFailureDomain.spec.subnets network=%v",
 		machineKeys,
 		fdKeys,
 	), nil

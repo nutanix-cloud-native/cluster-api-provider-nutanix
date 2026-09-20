@@ -5316,7 +5316,7 @@ func TestSetFailureDomainCustomAttributes(t *testing.T) {
 	}
 }
 
-func TestCheckFailureDomainStatus_MetroComparesSubnetProfiles(t *testing.T) {
+func TestCheckFailureDomainStatus_MetroComparesSubnetNetworks(t *testing.T) {
 	g := NewWithT(t)
 
 	const (

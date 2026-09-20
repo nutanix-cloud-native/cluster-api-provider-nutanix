@@ -1250,7 +1250,7 @@ func TestGetSubnetUUIDList(t *testing.T) {
 	})
 }
 
-func TestSubnetProfileKey(t *testing.T) {
+func TestSubnetNetworkKey(t *testing.T) {
 	vlan := subnetModels.SUBNETTYPE_VLAN
 	overlay := subnetModels.SUBNETTYPE_OVERLAY
 
@@ -1286,12 +1286,12 @@ func TestSubnetProfileKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, subnetProfileKey(tt.in))
+			assert.Equal(t, tt.want, subnetNetworkKey(tt.in))
 		})
 	}
 }
 
-func TestMetroSubnetProfilesMatch(t *testing.T) {
+func TestMetroSubnetsMatch(t *testing.T) {
 	ctx := context.Background()
 	pe0 := "00000000-0000-0000-0000-000000000010"
 	pe1 := "00000000-0000-0000-0000-000000000011"
@@ -1316,7 +1316,7 @@ func TestMetroSubnetProfilesMatch(t *testing.T) {
 			ExtId: ptr.To(subnet1), Name: ptr.To("Vlan-041-site-02"), SubnetType: &vlan, NetworkId: ptr.To(41), IpPrefix: ptr.To("10.0.0.0/24"),
 		}, nil)
 
-		match, machineKeys, fdKeys, err := metroSubnetProfilesMatch(ctx, client.Client, subnet1ID, subnet0ID, pe1ID, pe0ID)
+		match, machineKeys, fdKeys, err := metroSubnetsMatch(ctx, client.Client, subnet1ID, subnet0ID, pe1ID, pe0ID)
 		require.NoError(t, err)
 		assert.True(t, match)
 		assert.Equal(t, []string{"VLAN|41|10.0.0.0/24"}, machineKeys)
@@ -1335,7 +1335,7 @@ func TestMetroSubnetProfilesMatch(t *testing.T) {
 			ExtId: ptr.To(subnet1), Name: ptr.To("Vlan-100-site-02"), SubnetType: &vlan, NetworkId: ptr.To(100), IpPrefix: ptr.To("10.0.1.0/24"),
 		}, nil)
 
-		match, machineKeys, fdKeys, err := metroSubnetProfilesMatch(ctx, client.Client, subnet1ID, subnet0ID, pe1ID, pe0ID)
+		match, machineKeys, fdKeys, err := metroSubnetsMatch(ctx, client.Client, subnet1ID, subnet0ID, pe1ID, pe0ID)
 		require.NoError(t, err)
 		assert.False(t, match)
 		assert.Equal(t, []string{"VLAN|100|10.0.1.0/24"}, machineKeys)

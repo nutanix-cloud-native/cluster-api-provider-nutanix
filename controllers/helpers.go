@@ -811,9 +811,9 @@ func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID strin
 	return foundSubnetUUID, nil
 }
 
-// subnetProfileKey identifies a subnet by network layer, VLAN ID/VNI and CIDR.
-// Metro sites use distinct Prism subnet objects (names/UUIDs) that must share this profile.
-func subnetProfileKey(s *subnetModels.Subnet) string {
+// subnetNetworkKey identifies a subnet by network layer, VLAN ID/VNI and CIDR.
+// Metro sites use distinct Prism subnet objects (names/UUIDs) that must share this key.
+func subnetNetworkKey(s *subnetModels.Subnet) string {
 	if s == nil {
 		return "UNKNOWN||"
 	}
@@ -829,15 +829,15 @@ func subnetProfileKey(s *subnetModels.Subnet) string {
 	return fmt.Sprintf("%s|%s|%s", layer, vlanID, cidr)
 }
 
-// subnetProfileKeys resolves each identifier against pe and returns the matching subnet profiles.
-func subnetProfileKeys(
+// subnetNetworkKeys resolves each identifier against pe and returns the matching network keys.
+func subnetNetworkKeys(
 	ctx context.Context,
 	client *v4Converged.Client,
 	ids []infrav1.NutanixResourceIdentifier,
 	pe infrav1.NutanixResourceIdentifier,
 ) ([]string, error) {
 	if client == nil {
-		return nil, fmt.Errorf("cannot retrieve subnet profiles if nutanix client is nil")
+		return nil, fmt.Errorf("cannot retrieve subnet network keys if nutanix client is nil")
 	}
 	peUUID, err := GetPEUUID(ctx, client, pe.Name, pe.UUID)
 	if err != nil {
@@ -849,7 +849,7 @@ func subnetProfileKeys(
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve subnet %s: %w", ids[i].DisplayString(), err)
 		}
-		keys = append(keys, subnetProfileKey(subnet))
+		keys = append(keys, subnetNetworkKey(subnet))
 	}
 	return keys, nil
 }
@@ -871,21 +871,21 @@ func stringSliceSetEquals(a, b []string) bool {
 	return true
 }
 
-// metroSubnetProfilesMatch reports whether machine and failure-domain subnet identifiers
-// describe the same network profiles (layer, VLAN ID/VNI, CIDR), even when Prism names differ.
-func metroSubnetProfilesMatch(
+// metroSubnetsMatch reports whether machine and failure-domain subnet identifiers
+// describe the same network (layer, VLAN ID/VNI, CIDR), even when Prism names differ.
+func metroSubnetsMatch(
 	ctx context.Context,
 	client *v4Converged.Client,
 	machineSubnets, fdSubnets []infrav1.NutanixResourceIdentifier,
 	machinePE, fdPE infrav1.NutanixResourceIdentifier,
 ) (bool, []string, []string, error) {
-	machineKeys, err := subnetProfileKeys(ctx, client, machineSubnets, machinePE)
+	machineKeys, err := subnetNetworkKeys(ctx, client, machineSubnets, machinePE)
 	if err != nil {
-		return false, nil, nil, fmt.Errorf("failed to resolve NutanixMachine subnet profiles: %w", err)
+		return false, nil, nil, fmt.Errorf("failed to resolve NutanixMachine subnet network keys: %w", err)
 	}
-	fdKeys, err := subnetProfileKeys(ctx, client, fdSubnets, fdPE)
+	fdKeys, err := subnetNetworkKeys(ctx, client, fdSubnets, fdPE)
 	if err != nil {
-		return false, nil, nil, fmt.Errorf("failed to resolve NutanixFailureDomain subnet profiles: %w", err)
+		return false, nil, nil, fmt.Errorf("failed to resolve NutanixFailureDomain subnet network keys: %w", err)
 	}
 	return stringSliceSetEquals(machineKeys, fdKeys), machineKeys, fdKeys, nil
 }
