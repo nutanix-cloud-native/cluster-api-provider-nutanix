@@ -803,21 +803,20 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 		}
 	}
 
-	// Validate the NutanixMachine machine spec is consistent with the expected configuration
-	// Note: Subnet validation still uses fdSpec.Subnets since subnets are symmetric across Metro sites
+	// Validate the NutanixMachine machine spec is consistent with the expected configuration.
+	// Metro sites use distinct Prism subnet objects per PE (different names/UUIDs) that share the
+	// same L2/L3 network (layer, VLAN ID/VNI, CIDR). Identifier equality is therefore not a valid
+	// metro check; when names differ, compare the resolved network keys instead.
 	errMessages := []string{}
 	if clusterValidationErr != "" {
 		errMessages = append(errMessages, clusterValidationErr)
 	}
-	if !resourceIdsEquals(rctx.NutanixMachine.Spec.Subnets, fdSpec.Subnets) {
-		errMessages = append(
-			errMessages,
-			fmt.Sprintf(
-				"NutanixMachine.spec.subnets=%v, NutanixFailureDomain.spec.subnets=%v",
-				rctx.NutanixMachine.Spec.Subnets,
-				fdSpec.Subnets,
-			),
-		)
+	subnetMsg, err := r.checkFailureDomainSubnets(rctx, fd, fdSpec)
+	if err != nil {
+		return err
+	}
+	if subnetMsg != "" {
+		errMessages = append(errMessages, subnetMsg)
 	}
 	if len(errMessages) > 0 {
 		return fmt.Errorf(
@@ -831,6 +830,45 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 	rctx.NutanixMachine.Status.FailureDomain = &fd
 
 	return nil
+}
+
+func (r *NutanixMachineReconciler) checkFailureDomainSubnets(
+	rctx *nctx.MachineContext,
+	fdName string,
+	fdSpec *infrav1.NutanixFailureDomainSpec,
+) (string, error) {
+	if resourceIdsEquals(rctx.NutanixMachine.Spec.Subnets, fdSpec.Subnets) {
+		return "", nil
+	}
+
+	metroFD := isNutanixMetroFailureDomain(fdName) || isNutanixMetroSiteFailureDomain(fdName)
+	if !metroFD {
+		return fmt.Sprintf(
+			"NutanixMachine.spec.subnets=%v, NutanixFailureDomain.spec.subnets=%v",
+			rctx.NutanixMachine.Spec.Subnets,
+			fdSpec.Subnets,
+		), nil
+	}
+
+	match, machineKeys, fdKeys, err := metroSubnetsMatch(
+		rctx.Context,
+		rctx.ConvergedClient,
+		rctx.NutanixMachine.Spec.Subnets,
+		fdSpec.Subnets,
+		rctx.NutanixMachine.Spec.Cluster,
+		fdSpec.PrismElementCluster,
+	)
+	if err != nil {
+		return "", err
+	}
+	if match {
+		return "", nil
+	}
+	return fmt.Sprintf(
+		"NutanixMachine.spec.subnets network=%v, NutanixFailureDomain.spec.subnets network=%v",
+		machineKeys,
+		fdKeys,
+	), nil
 }
 
 // checkVHADomainCategory enforces the implicit contract that a Metro VM carries one and only one
