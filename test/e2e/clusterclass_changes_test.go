@@ -46,8 +46,14 @@ var _ = Describe("When mutating ClusterClass fields", Label("clusterclass"), fun
 			ModifyMachineDeploymentBootstrapConfigTemplateFields: map[string]interface{}{
 				"spec.template.spec.verbosity": int64(4),
 			},
+			// Use dataDisks: vcpuSockets, memorySize, and systemDiskSize are overwritten
+			// by ClusterClass variable patches (e.g. workerMachineDetails). dataDisks is
+			// not patched, so adding it here verifies infrastructure template rollout.
+			// No default dataDisks in the template; test adds this field and asserts rollout.
 			ModifyMachineDeploymentInfrastructureMachineTemplateFields: map[string]interface{}{
-				"spec.template.spec.vcpuSockets": int64(1),
+				"spec.template.spec.dataDisks": []interface{}{
+					map[string]interface{}{"diskSize": "20Gi"},
+				},
 			},
 		}
 	})
