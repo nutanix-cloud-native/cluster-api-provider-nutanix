@@ -18,31 +18,31 @@ import (
 )
 
 // MockClusters is a mock of Clusters interface.
-type MockClusters[Cluster any, VirtualGpuProfile any, PhysicalGpuProfile any, Host any] struct {
+type MockClusters[Cluster any, VirtualGpuProfile any, PhysicalGpuProfile any, AHVVirtualGpuProfile any, AHVPhysicalGpuProfile any, Host any] struct {
 	ctrl     *gomock.Controller
-	recorder *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]
+	recorder *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]
 	isgomock struct{}
 }
 
 // MockClustersMockRecorder is the mock recorder for MockClusters.
-type MockClustersMockRecorder[Cluster any, VirtualGpuProfile any, PhysicalGpuProfile any, Host any] struct {
-	mock *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]
+type MockClustersMockRecorder[Cluster any, VirtualGpuProfile any, PhysicalGpuProfile any, AHVVirtualGpuProfile any, AHVPhysicalGpuProfile any, Host any] struct {
+	mock *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]
 }
 
 // NewMockClusters creates a new mock instance.
-func NewMockClusters[Cluster any, VirtualGpuProfile any, PhysicalGpuProfile any, Host any](ctrl *gomock.Controller) *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host] {
-	mock := &MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]{ctrl: ctrl}
-	mock.recorder = &MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]{mock}
+func NewMockClusters[Cluster any, VirtualGpuProfile any, PhysicalGpuProfile any, AHVVirtualGpuProfile any, AHVPhysicalGpuProfile any, Host any](ctrl *gomock.Controller) *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host] {
+	mock := &MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]{ctrl: ctrl}
+	mock.recorder = &MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) EXPECT() *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host] {
+func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) EXPECT() *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host] {
 	return m.recorder
 }
 
 // Get mocks base method.
-func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) Get(ctx context.Context, uuid string) (*Cluster, error) {
+func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) Get(ctx context.Context, uuid string) (*Cluster, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", ctx, uuid)
 	ret0, _ := ret[0].(*Cluster)
@@ -51,13 +51,13 @@ func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) Get
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) Get(ctx, uuid any) *gomock.Call {
+func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) Get(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host])(nil).Get), ctx, uuid)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host])(nil).Get), ctx, uuid)
 }
 
 // GetClusterHost mocks base method.
-func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) GetClusterHost(ctx context.Context, clusterUuid, hostId string) (*Host, error) {
+func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) GetClusterHost(ctx context.Context, clusterUuid, hostId string) (*Host, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetClusterHost", ctx, clusterUuid, hostId)
 	ret0, _ := ret[0].(*Host)
@@ -66,13 +66,13 @@ func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) Get
 }
 
 // GetClusterHost indicates an expected call of GetClusterHost.
-func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) GetClusterHost(ctx, clusterUuid, hostId any) *gomock.Call {
+func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) GetClusterHost(ctx, clusterUuid, hostId any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterHost", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host])(nil).GetClusterHost), ctx, clusterUuid, hostId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterHost", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host])(nil).GetClusterHost), ctx, clusterUuid, hostId)
 }
 
 // List mocks base method.
-func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) List(ctx context.Context, opts ...converged.ODataOption) ([]Cluster, error) {
+func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) List(ctx context.Context, opts ...converged.ODataOption) ([]Cluster, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range opts {
@@ -85,14 +85,54 @@ func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) Lis
 }
 
 // List indicates an expected call of List.
-func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) List(ctx any, opts ...any) *gomock.Call {
+func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) List(ctx any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host])(nil).List), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host])(nil).List), varargs...)
+}
+
+// ListAHVPhysicalGPUProfiles mocks base method.
+func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) ListAHVPhysicalGPUProfiles(ctx context.Context, clusterUuid string, opts ...converged.ODataOption) ([]AHVPhysicalGpuProfile, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, clusterUuid}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ListAHVPhysicalGPUProfiles", varargs...)
+	ret0, _ := ret[0].([]AHVPhysicalGpuProfile)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAHVPhysicalGPUProfiles indicates an expected call of ListAHVPhysicalGPUProfiles.
+func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) ListAHVPhysicalGPUProfiles(ctx, clusterUuid any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, clusterUuid}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAHVPhysicalGPUProfiles", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host])(nil).ListAHVPhysicalGPUProfiles), varargs...)
+}
+
+// ListAHVVirtualGPUProfiles mocks base method.
+func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) ListAHVVirtualGPUProfiles(ctx context.Context, clusterUuid string, opts ...converged.ODataOption) ([]AHVVirtualGpuProfile, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, clusterUuid}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ListAHVVirtualGPUProfiles", varargs...)
+	ret0, _ := ret[0].([]AHVVirtualGpuProfile)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAHVVirtualGPUProfiles indicates an expected call of ListAHVVirtualGPUProfiles.
+func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) ListAHVVirtualGPUProfiles(ctx, clusterUuid any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, clusterUuid}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAHVVirtualGPUProfiles", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host])(nil).ListAHVVirtualGPUProfiles), varargs...)
 }
 
 // ListAllHosts mocks base method.
-func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) ListAllHosts(ctx context.Context, opts ...converged.ODataOption) ([]Host, error) {
+func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) ListAllHosts(ctx context.Context, opts ...converged.ODataOption) ([]Host, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range opts {
@@ -105,14 +145,14 @@ func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) Lis
 }
 
 // ListAllHosts indicates an expected call of ListAllHosts.
-func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) ListAllHosts(ctx any, opts ...any) *gomock.Call {
+func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) ListAllHosts(ctx any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllHosts", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host])(nil).ListAllHosts), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllHosts", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host])(nil).ListAllHosts), varargs...)
 }
 
 // ListClusterHosts mocks base method.
-func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) ListClusterHosts(ctx context.Context, clusterUuid string, opts ...converged.ODataOption) ([]Host, error) {
+func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) ListClusterHosts(ctx context.Context, clusterUuid string, opts ...converged.ODataOption) ([]Host, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, clusterUuid}
 	for _, a := range opts {
@@ -125,14 +165,14 @@ func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) Lis
 }
 
 // ListClusterHosts indicates an expected call of ListClusterHosts.
-func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) ListClusterHosts(ctx, clusterUuid any, opts ...any) *gomock.Call {
+func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) ListClusterHosts(ctx, clusterUuid any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, clusterUuid}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListClusterHosts", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host])(nil).ListClusterHosts), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListClusterHosts", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host])(nil).ListClusterHosts), varargs...)
 }
 
 // ListClusterPhysicalGPUs mocks base method.
-func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) ListClusterPhysicalGPUs(ctx context.Context, clusterUuid string, opts ...converged.ODataOption) ([]PhysicalGpuProfile, error) {
+func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) ListClusterPhysicalGPUs(ctx context.Context, clusterUuid string, opts ...converged.ODataOption) ([]PhysicalGpuProfile, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, clusterUuid}
 	for _, a := range opts {
@@ -145,14 +185,14 @@ func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) Lis
 }
 
 // ListClusterPhysicalGPUs indicates an expected call of ListClusterPhysicalGPUs.
-func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) ListClusterPhysicalGPUs(ctx, clusterUuid any, opts ...any) *gomock.Call {
+func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) ListClusterPhysicalGPUs(ctx, clusterUuid any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, clusterUuid}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListClusterPhysicalGPUs", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host])(nil).ListClusterPhysicalGPUs), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListClusterPhysicalGPUs", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host])(nil).ListClusterPhysicalGPUs), varargs...)
 }
 
 // ListClusterVirtualGPUs mocks base method.
-func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) ListClusterVirtualGPUs(ctx context.Context, clusterUuid string, opts ...converged.ODataOption) ([]VirtualGpuProfile, error) {
+func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) ListClusterVirtualGPUs(ctx context.Context, clusterUuid string, opts ...converged.ODataOption) ([]VirtualGpuProfile, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, clusterUuid}
 	for _, a := range opts {
@@ -165,14 +205,14 @@ func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) Lis
 }
 
 // ListClusterVirtualGPUs indicates an expected call of ListClusterVirtualGPUs.
-func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) ListClusterVirtualGPUs(ctx, clusterUuid any, opts ...any) *gomock.Call {
+func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) ListClusterVirtualGPUs(ctx, clusterUuid any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, clusterUuid}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListClusterVirtualGPUs", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host])(nil).ListClusterVirtualGPUs), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListClusterVirtualGPUs", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host])(nil).ListClusterVirtualGPUs), varargs...)
 }
 
 // NewAllHostsIterator mocks base method.
-func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) NewAllHostsIterator(ctx context.Context, opts ...converged.ODataOption) converged.Iterator[Host] {
+func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) NewAllHostsIterator(ctx context.Context, opts ...converged.ODataOption) converged.Iterator[Host] {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range opts {
@@ -184,14 +224,14 @@ func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) New
 }
 
 // NewAllHostsIterator indicates an expected call of NewAllHostsIterator.
-func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) NewAllHostsIterator(ctx any, opts ...any) *gomock.Call {
+func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) NewAllHostsIterator(ctx any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAllHostsIterator", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host])(nil).NewAllHostsIterator), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAllHostsIterator", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host])(nil).NewAllHostsIterator), varargs...)
 }
 
 // NewClusterHostsIterator mocks base method.
-func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) NewClusterHostsIterator(ctx context.Context, clusterUuid string, opts ...converged.ODataOption) converged.Iterator[Host] {
+func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) NewClusterHostsIterator(ctx context.Context, clusterUuid string, opts ...converged.ODataOption) converged.Iterator[Host] {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, clusterUuid}
 	for _, a := range opts {
@@ -203,14 +243,14 @@ func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) New
 }
 
 // NewClusterHostsIterator indicates an expected call of NewClusterHostsIterator.
-func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) NewClusterHostsIterator(ctx, clusterUuid any, opts ...any) *gomock.Call {
+func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) NewClusterHostsIterator(ctx, clusterUuid any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, clusterUuid}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewClusterHostsIterator", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host])(nil).NewClusterHostsIterator), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewClusterHostsIterator", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host])(nil).NewClusterHostsIterator), varargs...)
 }
 
 // NewIterator mocks base method.
-func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) NewIterator(ctx context.Context, opts ...converged.ODataOption) converged.Iterator[Cluster] {
+func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) NewIterator(ctx context.Context, opts ...converged.ODataOption) converged.Iterator[Cluster] {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range opts {
@@ -222,8 +262,8 @@ func (m *MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) New
 }
 
 // NewIterator indicates an expected call of NewIterator.
-func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host]) NewIterator(ctx any, opts ...any) *gomock.Call {
+func (mr *MockClustersMockRecorder[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host]) NewIterator(ctx any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewIterator", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, Host])(nil).NewIterator), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewIterator", reflect.TypeOf((*MockClusters[Cluster, VirtualGpuProfile, PhysicalGpuProfile, AHVVirtualGpuProfile, AHVPhysicalGpuProfile, Host])(nil).NewIterator), varargs...)
 }

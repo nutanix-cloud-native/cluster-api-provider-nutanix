@@ -86,8 +86,11 @@ providers:
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-secret.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-nutanix-cluster.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-additional-categories.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-vmprofile.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-nmt.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-nmt-project-scoped-user.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-project.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-project-scoped-user.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-upgrades.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-md-remediation.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-md-taints.yaml"
@@ -120,6 +123,10 @@ variables:
   NUTANIX_USER: ""
   NUTANIX_PASSWORD: ""
   NUTANIX_API_KEY: ""
+  # NOTE: 'NUTANIX_PROJECT_SCOPE_USER'/'NUTANIX_PROJECT_SCOPE_PASSWORD' are required for the
+  # project-scoped-user e2e tests; this user is restricted to NUTANIX_PROJECT_NAME.
+  NUTANIX_PROJECT_SCOPE_USER: ""
+  NUTANIX_PROJECT_SCOPE_PASSWORD: ""
   NUTANIX_PORT: "9440"
   IMAGE_LOOKUP_BASE_OS: "rockylinux-9"
   IMAGE_LOOKUP_FORMAT: "\"{{.BaseOS}}-kube-v{{.K8sVersion}}.*\""
@@ -179,11 +186,20 @@ variables:
   # NOTE: We test the latest release with a previous contract.
   INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.13.1/clusterctl-{OS}-{ARCH}"
   INIT_WITH_KUBERNETES_VERSION: "v1.35.3"
-  # NOTE: Following parameters are required for GPU testing
+  # NOTE: Following parameters are required for GPU testing.
+  # The '*_NAME' values are AHV *device* names, used for the name/deviceID based
+  # GPU tests, and are looked up per Prism Element.
   NUTANIX_GPU_PASSTHROUGH_VENDOR: "NVIDIA"
   NUTANIX_GPU_PASSTHROUGH_NAME: "Ampere 40"
   NUTANIX_GPU_VIRTUAL_VENDOR: "NVIDIA"
   NUTANIX_GPU_VIRTUAL_NAME: "NVIDIA A40-1Q"
+  # The '*_PROFILE_NAME' values are AHV *GPU profile* names, a distinct namespace
+  # from the device names above; they are resolved via the named GPU profile APIs
+  # and are only supported on PC 7.6 or later.
+  NUTANIX_GPU_PHYSICAL_PROFILE_NAME: "NVIDIA Corporation GA102GL [A40]"
+  NUTANIX_GPU_VIRTUAL_PROFILE_NAME: "NVIDIA A40-1B"
+  # NOTE: Following parameter is required for VMProfile testing
+  NUTANIX_VM_PROFILE_NAME: ""
   # NOTE: Following parameters are required for Autoscaler testing
   AUTOSCALER_WORKLOAD: "./data/infrastructure-nutanix/v1beta1/autoscaler-to-management-cluster.yaml"
   AUTOSCALER_VERSION: "v1.35.0"

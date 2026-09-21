@@ -162,7 +162,7 @@ spec:
             additionalTrustBundle:
               name: '{{ .prismCentralEndpoint.additionalTrustBundle }}'
               kind: ConfigMap
-  - name: update-control-plane-machine-template
+  - name: update-control-plane-machine-template-common
     definitions:
     - selector:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
@@ -170,18 +170,6 @@ spec:
         matchResources:
           controlPlane: true
       jsonPatches:
-          - op: add
-            path: /spec/template/spec/bootType
-            valueFrom:
-              variable: controlPlaneMachineDetails.bootType
-          - op: add
-            path: /spec/template/spec/vcpusPerSocket
-            valueFrom:
-              variable: controlPlaneMachineDetails.vcpusPerSocket
-          - op: add
-            path: /spec/template/spec/memorySize
-            valueFrom:
-              variable: controlPlaneMachineDetails.memorySize
           - op: add
             path: /spec/template/spec/systemDiskSize
             valueFrom:
@@ -200,6 +188,31 @@ spec:
             path: /spec/template/spec/subnet
             valueFrom:
               variable: controlPlaneMachineDetails.subnets
+  - name: update-control-plane-machine-template-cpu-memory
+    enabledIf: "{{if .controlPlaneMachineDetails.vmProfile}}false{{else}}true{{end}}"
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+          - op: add
+            path: /spec/template/spec/bootType
+            valueFrom:
+              template: "{{ .controlPlaneMachineDetails.bootType | default \"uefi\" }}"
+          - op: add
+            path: /spec/template/spec/vcpusPerSocket
+            valueFrom:
+              template: "{{ .controlPlaneMachineDetails.vcpusPerSocket | default 1 }}"
+          - op: add
+            path: /spec/template/spec/vcpuSockets
+            valueFrom:
+              template: "{{ .controlPlaneMachineDetails.vcpuSockets | default 2 }}"
+          - op: add
+            path: /spec/template/spec/memorySize
+            valueFrom:
+              template: "{{ .controlPlaneMachineDetails.memorySize | default \"4Gi\" }}"
   - name: update-control-plane-machine-template-gpus
     enabledIf: "{{if .controlPlaneMachineDetails.gpus}}true{{end}}"
     definitions:
@@ -226,7 +239,28 @@ spec:
             path: /spec/template/spec/additionalCategories
             valueFrom:
               variable: controlPlaneMachineDetails.additionalCategories
-  - name: update-worker-machine-template
+  - name: update-control-plane-machine-template-vmprofile
+    enabledIf: "{{if .controlPlaneMachineDetails.vmProfile}}true{{else}}false{{end}}"
+    definitions:
+      - selector:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+          kind: NutanixMachineTemplate
+          matchResources:
+            controlPlane: true
+        jsonPatches:
+          - op: remove
+            path: /spec/template/spec/bootType
+          - op: remove
+            path: /spec/template/spec/vcpusPerSocket
+          - op: remove
+            path: /spec/template/spec/vcpuSockets
+          - op: remove
+            path: /spec/template/spec/memorySize
+          - op: add
+            path: /spec/template/spec/vmProfile
+            valueFrom:
+              variable: controlPlaneMachineDetails.vmProfile
+  - name: update-worker-machine-template-common
     definitions:
     - selector:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
@@ -236,18 +270,6 @@ spec:
             names:
             - nutanix-quick-start-worker
       jsonPatches:
-          - op: add
-            path: /spec/template/spec/bootType
-            valueFrom:
-              variable: workerMachineDetails.bootType
-          - op: add
-            path: /spec/template/spec/vcpusPerSocket
-            valueFrom:
-              variable: workerMachineDetails.vcpusPerSocket
-          - op: add
-            path: /spec/template/spec/memorySize
-            valueFrom:
-              variable: workerMachineDetails.memorySize
           - op: add
             path: /spec/template/spec/systemDiskSize
             valueFrom:
@@ -266,6 +288,33 @@ spec:
             path: /spec/template/spec/subnet
             valueFrom:
               variable: workerMachineDetails.subnets
+  - name: update-worker-machine-template-cpu-memory
+    enabledIf: "{{if .workerMachineDetails.vmProfile}}false{{else}}true{{end}}"
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: NutanixMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - nutanix-quick-start-worker
+      jsonPatches:
+          - op: add
+            path: /spec/template/spec/bootType
+            valueFrom:
+              template: "{{ .workerMachineDetails.bootType | default \"uefi\" }}"
+          - op: add
+            path: /spec/template/spec/vcpusPerSocket
+            valueFrom:
+              template: "{{ .workerMachineDetails.vcpusPerSocket | default 1 }}"
+          - op: add
+            path: /spec/template/spec/vcpuSockets
+            valueFrom:
+              template: "{{ .workerMachineDetails.vcpuSockets | default 2 }}"
+          - op: add
+            path: /spec/template/spec/memorySize
+            valueFrom:
+              template: "{{ .workerMachineDetails.memorySize | default \"4Gi\" }}"
   - name: update-worker-machine-template-gpus
     enabledIf: "{{if .workerMachineDetails.gpus}}true{{end}}"
     definitions:
@@ -296,6 +345,29 @@ spec:
             path: /spec/template/spec/additionalCategories
             valueFrom:
               variable: workerMachineDetails.additionalCategories
+  - name: update-worker-machine-template-vmprofile
+    enabledIf: "{{if .workerMachineDetails.vmProfile}}true{{else}}false{{end}}"
+    definitions:
+      - selector:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+          kind: NutanixMachineTemplate
+          matchResources:
+            machineDeploymentClass:
+              names:
+                - nutanix-quick-start-worker
+        jsonPatches:
+          - op: remove
+            path: /spec/template/spec/bootType
+          - op: remove
+            path: /spec/template/spec/vcpusPerSocket
+          - op: remove
+            path: /spec/template/spec/vcpuSockets
+          - op: remove
+            path: /spec/template/spec/memorySize
+          - op: add
+            path: /spec/template/spec/vmProfile
+            valueFrom:
+              variable: workerMachineDetails.vmProfile
   - name: add-failure-domains
     enabledIf: "{{if .failureDomains}}true{{end}}"
     definitions:
@@ -447,6 +519,18 @@ spec:
                   type: string
                 value:
                   type: string
+          vmProfile:
+            type: object
+            properties:
+              name:
+                type: string
+              uuid:
+                type: string
+              type:
+                type: string
+                enum:
+                  - name
+                  - uuid
         type: object
   - name: workerMachineDetails
     required: true
@@ -502,6 +586,18 @@ spec:
                   type: string
                 value:
                   type: string
+          vmProfile:
+            type: object
+            properties:
+              name:
+                type: string
+              uuid:
+                type: string
+              type:
+                type: string
+                enum:
+                  - name
+                  - uuid
         type: object
   - name: failureDomains
     required: false
