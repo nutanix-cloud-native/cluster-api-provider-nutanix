@@ -779,9 +779,13 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 	//
 	// metro.nutanix.com/active-placement-pe stores the PE cluster identifier (name or uuid string) where the VM
 	// is actually placed when it differs from the native failure domain due to recovery/maintenance.
+	//
+	// Empty spec.cluster / spec.subnets inherit from the failure domain. That is the normal
+	// metro/topology state (templates omit PE and subnet; topology can wipe CAPX copies).
+	// Treat a field as a conflict only when it is set and disagrees.
 	var clusterValidationErr string
-	if rctx.NutanixMachine.Annotations != nil && rctx.NutanixMachine.Annotations[metroActivePlacementPEAnnotation] != "" {
-		// Recovery placement scenario: validate against the active placement PE (string comparison)
+	machineClusterSpecified := nutanixResourceIdentifierSpecified(rctx.NutanixMachine.Spec.Cluster)
+	if machineClusterSpecified && rctx.NutanixMachine.Annotations != nil && rctx.NutanixMachine.Annotations[metroActivePlacementPEAnnotation] != "" {
 		actualPE := rctx.NutanixMachine.Spec.Cluster.String()
 		expectedPE := rctx.NutanixMachine.Annotations[metroActivePlacementPEAnnotation]
 		if actualPE != expectedPE {
@@ -792,15 +796,12 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 				expectedPE,
 			)
 		}
-	} else {
-		// Normal scenario: validate against the native failure domain's PE
-		if !rctx.NutanixMachine.Spec.Cluster.EqualTo(&fdSpec.PrismElementCluster) {
-			clusterValidationErr = fmt.Sprintf(
-				"NutanixMachine.spec.cluster=%s, NutanixFailureDomain.spec.prismElementCluster=%s",
-				rctx.NutanixMachine.Spec.Cluster.DisplayString(),
-				fdSpec.PrismElementCluster.DisplayString(),
-			)
-		}
+	} else if machineClusterSpecified && !rctx.NutanixMachine.Spec.Cluster.EqualTo(&fdSpec.PrismElementCluster) {
+		clusterValidationErr = fmt.Sprintf(
+			"NutanixMachine.spec.cluster=%s, NutanixFailureDomain.spec.prismElementCluster=%s",
+			rctx.NutanixMachine.Spec.Cluster.DisplayString(),
+			fdSpec.PrismElementCluster.DisplayString(),
+		)
 	}
 
 	// Validate the NutanixMachine machine spec is consistent with the expected configuration.
@@ -837,6 +838,10 @@ func (r *NutanixMachineReconciler) checkFailureDomainSubnets(
 	fdName string,
 	fdSpec *infrav1.NutanixFailureDomainSpec,
 ) (string, error) {
+	// Empty spec.subnets inherit from the failure domain (topology/metro templates omit them).
+	if len(rctx.NutanixMachine.Spec.Subnets) == 0 {
+		return "", nil
+	}
 	if resourceIdsEquals(rctx.NutanixMachine.Spec.Subnets, fdSpec.Subnets) {
 		return "", nil
 	}

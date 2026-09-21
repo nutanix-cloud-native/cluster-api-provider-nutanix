@@ -1561,6 +1561,13 @@ func detachVolumeGroupsFromVM(ctx context.Context, client *v4Converged.Client, v
 	return nil
 }
 
+// nutanixResourceIdentifierSpecified reports whether nri identifies a Prism resource.
+// A zero-value identifier (typical when NutanixMachine.spec.cluster is omitted on a
+// topology/metro template) is treated as unset so callers can inherit from a FailureDomain.
+func nutanixResourceIdentifierSpecified(nri infrav1.NutanixResourceIdentifier) bool {
+	return nri.IsName() || nri.IsUUID()
+}
+
 func resourceIdsEquals(nris1, nris2 []infrav1.NutanixResourceIdentifier) bool {
 	if nris1 == nil && nris2 == nil {
 		return true
