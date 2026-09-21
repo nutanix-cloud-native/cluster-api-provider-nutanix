@@ -1762,13 +1762,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		}
 		ensureProviderID(rctx.NutanixMachine, vmUUID)
 		log.Info(fmt.Sprintf("vm %s found with UUID %s", *vmFound.Name, rctx.NutanixMachine.Status.VmUUID))
-
-		v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
-		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
-			Type:   string(infrav1.VMProvisionedCondition),
-			Status: metav1.ConditionTrue,
-			Reason: capiv1beta1.ProvisionedV1Beta2Reason,
-		})
+		markVMProvisioned(rctx)
 		return vmFound, nil
 	}
 
@@ -1880,13 +1874,9 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 
 	// Create the actual VM/Machine
 	log.Info(fmt.Sprintf("Creating VM with name %s for cluster %s", vmName, rctx.NutanixCluster.Name))
-	vm, err = convergedClient.VMs.Create(ctx, vm)
+	vm, err = createAndWaitForVM(ctx, rctx, vm, vmName)
 	if err != nil {
-		errorMsg := fmt.Errorf("failed to create VM %s: %w", vmName, err)
-		if !isRetryableAPIError(err) {
-			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
-		}
-		return nil, errorMsg
+		return nil, err
 	}
 
 	vmUuid := *vm.ExtId
@@ -1906,13 +1896,43 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		return nil, err
 	}
 
+	markVMProvisioned(rctx)
+	return vm, nil
+}
+
+func markVMProvisioned(rctx *nctx.MachineContext) {
 	v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
 	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
 		Type:   string(infrav1.VMProvisionedCondition),
 		Status: metav1.ConditionTrue,
 		Reason: capiv1beta1.ProvisionedV1Beta2Reason,
 	})
-	return vm, nil
+}
+
+func createAndWaitForVM(ctx context.Context, rctx *nctx.MachineContext, vm *vmmconfig.Vm, vmName string) (*vmmconfig.Vm, error) {
+	convergedClient := rctx.ConvergedClient
+	createOp, err := convergedClient.VMs.CreateAsync(ctx, vm)
+	if err != nil {
+		return nil, vmCreateFailure(rctx, vmName, err)
+	}
+	createdVMs, err := waitForConvergedOperation(ctx, convergedClient, createOp)
+	if err != nil {
+		return nil, vmCreateFailure(rctx, vmName, err)
+	}
+	if len(createdVMs) != 1 || createdVMs[0] == nil {
+		errorMsg := fmt.Errorf("failed to create VM %s: operation completed but expected exactly 1 VM, got %d", vmName, len(createdVMs))
+		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		return nil, errorMsg
+	}
+	return createdVMs[0], nil
+}
+
+func vmCreateFailure(rctx *nctx.MachineContext, vmName string, err error) error {
+	errorMsg := fmt.Errorf("failed to create VM %s: %w", vmName, err)
+	if !isRetryableAPIError(err) {
+		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+	}
+	return errorMsg
 }
 
 // addCustomAttributes sets custom attributes on the VM, including the provider ID.
