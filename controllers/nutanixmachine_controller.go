@@ -1913,8 +1913,8 @@ func createAndWaitForVM(ctx context.Context, rctx *nctx.MachineContext, vm *vmmc
 	if err != nil {
 		return nil, vmCreateFailure(rctx, vmName, err)
 	}
-	if len(createdVMs) == 0 || createdVMs[0] == nil {
-		errorMsg := fmt.Errorf("failed to create VM %s: operation completed but no VM returned", vmName)
+	if len(createdVMs) != 1 || createdVMs[0] == nil {
+		errorMsg := fmt.Errorf("failed to create VM %s: operation completed but expected exactly 1 VM, got %d", vmName, len(createdVMs))
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, errorMsg
 	}
