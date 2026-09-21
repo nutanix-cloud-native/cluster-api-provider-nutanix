@@ -31,6 +31,7 @@ import (
 	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
 	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 	converged "github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
@@ -868,6 +869,120 @@ func TestFindVMByUUID(t *testing.T) {
 	})
 }
 
+func TestFindVM(t *testing.T) {
+	ctx := context.Background()
+	recordedUUID := "68d4847f-a7c1-4ed9-75fe-3c0f941363a7"
+	liveUUID := "11111111-2222-3333-4444-555555555555"
+	vmName := "abhay-mgmt-wqfmw-m7vmr"
+
+	metroMachine := &capiv1beta2.Machine{
+		ObjectMeta: metav1.ObjectMeta{Name: vmName},
+		Spec:       capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "metro0-s1"},
+		Status: capiv1beta2.MachineStatus{
+			NodeInfo: &corev1.NodeSystemInfo{SystemUUID: recordedUUID},
+		},
+	}
+	nonMetroMachine := &capiv1beta2.Machine{
+		ObjectMeta: metav1.ObjectMeta{Name: vmName},
+		Status: capiv1beta2.MachineStatus{
+			NodeInfo: &corev1.NodeSystemInfo{SystemUUID: recordedUUID},
+		},
+	}
+	ntnxMachine := &infrav1.NutanixMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: vmName},
+		Status:     infrav1.NutanixMachineStatus{VmUUID: recordedUUID},
+	}
+
+	t.Run("metro returns VM found by name after recorded UUID 404", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		liveVM := &vmmModels.Vm{ExtId: ptr.To(liveUUID), Name: ptr.To(vmName)}
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
+			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
+		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*liveVM}, nil)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), liveUUID).Return(liveVM, nil)
+
+		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, nil)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, liveUUID, *vm.ExtId)
+	})
+
+	t.Run("metro returns expected-to-be-present when UUID 404 and name search is empty", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
+			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
+		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{}, nil)
+
+		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, nil)
+		require.Error(t, err)
+		require.Nil(t, vm)
+		assert.Contains(t, err.Error(), "but was expected to be present")
+	})
+
+	t.Run("non-metro UUID 404 does not search by name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
+			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
+
+		vm, err := FindVM(ctx, convergedClient.Client, nonMetroMachine, ntnxMachine, vmName, nil)
+		require.Error(t, err)
+		require.Nil(t, vm)
+		assert.Contains(t, err.Error(), "but was expected to be present")
+	})
+
+	t.Run("metro skips decoupled leftover and returns recovered VM by name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		decoupledVM := &vmmModels.Vm{ExtId: ptr.To(recordedUUID), Name: ptr.To(vmName)}
+		liveVM := &vmmModels.Vm{ExtId: ptr.To(liveUUID), Name: ptr.To(vmName)}
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
+			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
+		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*decoupledVM, *liveVM}, nil)
+		mockV3.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, req *prismclientv3.GroupsGetEntitiesRequest) (*prismclientv3.GroupsGetEntitiesResponse, error) {
+				if strings.Contains(req.FilterCriteria, recordedUUID) {
+					return drConfigGroupsResponse(drRoleDecoupled), nil
+				}
+				return drConfigGroupsResponse("kActive"), nil
+			},
+		).AnyTimes()
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), liveUUID).Return(liveVM, nil)
+
+		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, mockV3)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, liveUUID, *vm.ExtId)
+	})
+
+	t.Run("metro does not adopt a decoupled UUID GET; looks up recovered VM by name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		decoupledVM := &vmmModels.Vm{ExtId: ptr.To(recordedUUID), Name: ptr.To(vmName)}
+		liveVM := &vmmModels.Vm{ExtId: ptr.To(liveUUID), Name: ptr.To(vmName)}
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(decoupledVM, nil)
+		mockV3.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, req *prismclientv3.GroupsGetEntitiesRequest) (*prismclientv3.GroupsGetEntitiesResponse, error) {
+				if strings.Contains(req.FilterCriteria, recordedUUID) {
+					return drConfigGroupsResponse(drRoleDecoupled), nil
+				}
+				return drConfigGroupsResponse("kActive"), nil
+			},
+		).AnyTimes()
+		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*decoupledVM, *liveVM}, nil)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), liveUUID).Return(liveVM, nil)
+
+		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, mockV3)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, liveUUID, *vm.ExtId)
+	})
+}
+
 func TestGetPEUUID(t *testing.T) {
 	ctx := context.Background()
 
@@ -1132,6 +1247,99 @@ func TestGetSubnetUUIDList(t *testing.T) {
 		got, err := GetSubnetUUIDList(ctx, convergedClient.Client, machineSubnets, peUUID)
 		require.Error(t, err)
 		assert.Empty(t, got)
+	})
+}
+
+func TestSubnetNetworkKey(t *testing.T) {
+	vlan := subnetModels.SUBNETTYPE_VLAN
+	overlay := subnetModels.SUBNETTYPE_OVERLAY
+
+	tests := []struct {
+		name string
+		in   *subnetModels.Subnet
+		want string
+	}{
+		{
+			name: "vlan with id and cidr",
+			in: &subnetModels.Subnet{
+				SubnetType: &vlan,
+				NetworkId:  ptr.To(41),
+				IpPrefix:   ptr.To("10.0.0.0/24"),
+			},
+			want: "VLAN|41|10.0.0.0/24",
+		},
+		{
+			name: "overlay with vni",
+			in: &subnetModels.Subnet{
+				SubnetType: &overlay,
+				NetworkId:  ptr.To(5000),
+				IpPrefix:   ptr.To("192.168.0.0/16"),
+			},
+			want: "OVERLAY|5000|192.168.0.0/16",
+		},
+		{
+			name: "nil subnet",
+			in:   nil,
+			want: "UNKNOWN||",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, subnetNetworkKey(tt.in))
+		})
+	}
+}
+
+func TestMetroSubnetsMatch(t *testing.T) {
+	ctx := context.Background()
+	pe0 := "00000000-0000-0000-0000-000000000010"
+	pe1 := "00000000-0000-0000-0000-000000000011"
+	subnet0 := "00000000-0000-0000-0000-0000000000a1"
+	subnet1 := "00000000-0000-0000-0000-0000000000a2"
+	vlan := subnetModels.SUBNETTYPE_VLAN
+
+	pe0ID := infrav1.NutanixResourceIdentifier{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(pe0)}
+	pe1ID := infrav1.NutanixResourceIdentifier{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(pe1)}
+	subnet0ID := []infrav1.NutanixResourceIdentifier{{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(subnet0)}}
+	subnet1ID := []infrav1.NutanixResourceIdentifier{{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(subnet1)}}
+
+	t.Run("matches when VLAN ID and CIDR are equal across differently named subnets", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		client := NewMockConvergedClient(ctrl)
+		client.MockClusters.EXPECT().Get(gomock.Any(), pe0).Return(&clusterModels.Cluster{ExtId: ptr.To(pe0)}, nil)
+		client.MockClusters.EXPECT().Get(gomock.Any(), pe1).Return(&clusterModels.Cluster{ExtId: ptr.To(pe1)}, nil)
+		client.MockSubnets.EXPECT().Get(gomock.Any(), subnet0).Return(&subnetModels.Subnet{
+			ExtId: ptr.To(subnet0), Name: ptr.To("Vlan-041-site-01"), SubnetType: &vlan, NetworkId: ptr.To(41), IpPrefix: ptr.To("10.0.0.0/24"),
+		}, nil)
+		client.MockSubnets.EXPECT().Get(gomock.Any(), subnet1).Return(&subnetModels.Subnet{
+			ExtId: ptr.To(subnet1), Name: ptr.To("Vlan-041-site-02"), SubnetType: &vlan, NetworkId: ptr.To(41), IpPrefix: ptr.To("10.0.0.0/24"),
+		}, nil)
+
+		match, machineKeys, fdKeys, err := metroSubnetsMatch(ctx, client.Client, subnet1ID, subnet0ID, pe1ID, pe0ID)
+		require.NoError(t, err)
+		assert.True(t, match)
+		assert.Equal(t, []string{"VLAN|41|10.0.0.0/24"}, machineKeys)
+		assert.Equal(t, []string{"VLAN|41|10.0.0.0/24"}, fdKeys)
+	})
+
+	t.Run("does not match when VLAN IDs differ", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		client := NewMockConvergedClient(ctrl)
+		client.MockClusters.EXPECT().Get(gomock.Any(), pe0).Return(&clusterModels.Cluster{ExtId: ptr.To(pe0)}, nil)
+		client.MockClusters.EXPECT().Get(gomock.Any(), pe1).Return(&clusterModels.Cluster{ExtId: ptr.To(pe1)}, nil)
+		client.MockSubnets.EXPECT().Get(gomock.Any(), subnet0).Return(&subnetModels.Subnet{
+			ExtId: ptr.To(subnet0), Name: ptr.To("Vlan-041-site-01"), SubnetType: &vlan, NetworkId: ptr.To(41), IpPrefix: ptr.To("10.0.0.0/24"),
+		}, nil)
+		client.MockSubnets.EXPECT().Get(gomock.Any(), subnet1).Return(&subnetModels.Subnet{
+			ExtId: ptr.To(subnet1), Name: ptr.To("Vlan-100-site-02"), SubnetType: &vlan, NetworkId: ptr.To(100), IpPrefix: ptr.To("10.0.1.0/24"),
+		}, nil)
+
+		match, machineKeys, fdKeys, err := metroSubnetsMatch(ctx, client.Client, subnet1ID, subnet0ID, pe1ID, pe0ID)
+		require.NoError(t, err)
+		assert.False(t, match)
+		assert.Equal(t, []string{"VLAN|100|10.0.1.0/24"}, machineKeys)
+		assert.Equal(t, []string{"VLAN|41|10.0.0.0/24"}, fdKeys)
 	})
 }
 
@@ -2326,6 +2534,151 @@ func TestDeleteVM(t *testing.T) {
 	})
 }
 
+func drConfigGroupsResponse(role string) *prismclientv3.GroupsGetEntitiesResponse {
+	return &prismclientv3.GroupsGetEntitiesResponse{
+		GroupResults: []*prismclientv3.GroupsGroupResult{
+			{
+				EntityResults: []*prismclientv3.GroupsEntity{
+					{
+						Data: []*prismclientv3.GroupsFieldData{
+							{Name: drConfigRoleAttribute, Values: []*prismclientv3.GroupsTimevaluePair{{Values: []string{role}}}},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestUseMetroDRDeletePath(t *testing.T) {
+	t.Run("false when context is empty", func(t *testing.T) {
+		assert.False(t, useMetroDRDeletePath(nil))
+		assert.False(t, useMetroDRDeletePath(&nctx.MachineContext{
+			Machine:        &capiv1beta2.Machine{},
+			NutanixMachine: &infrav1.NutanixMachine{},
+		}))
+	})
+
+	t.Run("true for metro site failure domain", func(t *testing.T) {
+		assert.True(t, useMetroDRDeletePath(&nctx.MachineContext{
+			Machine: &capiv1beta2.Machine{
+				Spec: capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "metro0-s1"},
+			},
+		}))
+	})
+
+	t.Run("true when delete already recorded a recovered VM", func(t *testing.T) {
+		assert.True(t, useMetroDRDeletePath(&nctx.MachineContext{
+			Machine: &capiv1beta2.Machine{},
+			NutanixMachine: &infrav1.NutanixMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{recoveredVMUUIDAnnotation: "live-uuid"},
+				},
+			},
+		}))
+	})
+}
+
+func TestIsVMDecoupled(t *testing.T) {
+	ctx := context.Background()
+	vmUUID := "e530a7a6-3e93-4408-77af-d7ce41a3997c"
+
+	t.Run("returns false when v3 client is nil", func(t *testing.T) {
+		decoupled, err := isVMDecoupled(ctx, nil, vmUUID)
+		assert.NoError(t, err)
+		assert.False(t, decoupled)
+	})
+
+	t.Run("returns true when role is kDecoupled", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(drConfigGroupsResponse(drRoleDecoupled), nil)
+
+		decoupled, err := isVMDecoupled(ctx, mockV3, vmUUID)
+		assert.NoError(t, err)
+		assert.True(t, decoupled)
+	})
+
+	t.Run("returns false when role is not decoupled", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(drConfigGroupsResponse("kActive"), nil)
+
+		decoupled, err := isVMDecoupled(ctx, mockV3, vmUUID)
+		assert.NoError(t, err)
+		assert.False(t, decoupled)
+	})
+
+	t.Run("returns error when groups API fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(nil, errors.New("pc unavailable"))
+
+		decoupled, err := isVMDecoupled(ctx, mockV3, vmUUID)
+		assert.Error(t, err)
+		assert.False(t, decoupled)
+		assert.Contains(t, err.Error(), "failed to get DR config")
+	})
+}
+
+func TestFindNonDecoupledVMByName(t *testing.T) {
+	ctx := context.Background()
+	vmName := "cp1"
+	decoupledUUID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+	liveUUID := "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+
+	t.Run("skips decoupled VM and returns recovered VM", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		decoupledVM := vmmModels.NewVm()
+		decoupledVM.Name = ptr.To(vmName)
+		decoupledVM.ExtId = ptr.To(decoupledUUID)
+		liveVM := vmmModels.NewVm()
+		liveVM.Name = ptr.To(vmName)
+		liveVM.ExtId = ptr.To(liveUUID)
+
+		mockClient := NewMockConvergedClient(ctrl)
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockClient.MockVMs.EXPECT().List(ctx, gomock.Any()).Return([]vmmModels.Vm{*decoupledVM, *liveVM}, nil)
+		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).DoAndReturn(
+			func(_ context.Context, req *prismclientv3.GroupsGetEntitiesRequest) (*prismclientv3.GroupsGetEntitiesResponse, error) {
+				if strings.Contains(req.FilterCriteria, decoupledUUID) {
+					return drConfigGroupsResponse(drRoleDecoupled), nil
+				}
+				return drConfigGroupsResponse("kActive"), nil
+			},
+		).AnyTimes()
+		mockClient.MockVMs.EXPECT().Get(ctx, liveUUID).Return(liveVM, nil)
+
+		got, err := findNonDecoupledVMByName(ctx, mockClient.Client, mockV3, []string{vmName})
+		assert.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, liveUUID, *got.ExtId)
+	})
+
+	t.Run("returns nil when only decoupled VMs exist", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		decoupledVM := vmmModels.NewVm()
+		decoupledVM.Name = ptr.To(vmName)
+		decoupledVM.ExtId = ptr.To(decoupledUUID)
+
+		mockClient := NewMockConvergedClient(ctrl)
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockClient.MockVMs.EXPECT().List(ctx, gomock.Any()).Return([]vmmModels.Vm{*decoupledVM}, nil)
+		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(drConfigGroupsResponse(drRoleDecoupled), nil)
+
+		got, err := findNonDecoupledVMByName(ctx, mockClient.Client, mockV3, []string{vmName})
+		assert.NoError(t, err)
+		assert.Nil(t, got)
+	})
+}
+
 func TestDeleteCategoryKeyValues(t *testing.T) {
 	ctx := context.Background()
 
@@ -3366,4 +3719,139 @@ func TestGetVMUUID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEnrichTaskErrorWithFailedSubtasks(t *testing.T) {
+	parentUUID := "parent-create-vm"
+	childUUID := "child-vnic"
+	parentErr := errors.New("task parent-create-vm failed: Failed to perform the operation on the VM with UUID 'EMPTY' as '' is not defined")
+	dhcpMsg := "Cannot allocate address! No DHCP pool is defined or the DHCP pool is exhausted"
+
+	t.Run("appends failed child subtask errors from list", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockClient := NewMockConvergedClient(ctrl)
+		failedStatus := prismModels.TASKSTATUS_FAILED
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{
+			{
+				ExtId:                ptr.To(childUUID),
+				Status:               &failedStatus,
+				OperationDescription: ptr.To("Create VM vNIC port"),
+				ErrorMessages: []prismErrors.AppMessage{
+					{Message: ptr.To(dhcpMsg)},
+				},
+			},
+		}, nil)
+		// Nested collect for the failed child lists its own children.
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
+
+		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, parentErr.Error())
+		assert.ErrorContains(t, err, "failed_subtasks:")
+		assert.ErrorContains(t, err, dhcpMsg)
+		assert.ErrorContains(t, err, "Create VM vNIC port")
+	})
+
+	t.Run("does not fall back to Get when list returns empty", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockClient := NewMockConvergedClient(ctrl)
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
+
+		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
+		require.Error(t, err)
+		assert.Equal(t, parentErr, err)
+	})
+
+	t.Run("falls back to parent subtask references when list errors", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockClient := NewMockConvergedClient(ctrl)
+		failedStatus := prismModels.TASKSTATUS_FAILED
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("list failed"))
+		mockClient.MockTasks.EXPECT().Get(gomock.Any(), parentUUID).Return(&prismModels.Task{
+			ExtId: ptr.To(parentUUID),
+			SubTasks: []prismModels.TaskReferenceInternal{
+				{ExtId: ptr.To(childUUID)},
+			},
+		}, nil)
+		mockClient.MockTasks.EXPECT().Get(gomock.Any(), childUUID).Return(&prismModels.Task{
+			ExtId:                ptr.To(childUUID),
+			Status:               &failedStatus,
+			OperationDescription: ptr.To("Create VM vNIC port"),
+			LegacyErrorMessage:   ptr.To(dhcpMsg),
+		}, nil)
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
+
+		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, dhcpMsg)
+	})
+
+	t.Run("deduplicates identical ErrorMessages and LegacyErrorMessage", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockClient := NewMockConvergedClient(ctrl)
+		failedStatus := prismModels.TASKSTATUS_FAILED
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{
+			{
+				ExtId:                ptr.To(childUUID),
+				Status:               &failedStatus,
+				OperationDescription: ptr.To("Create VM vNIC port"),
+				ErrorMessages: []prismErrors.AppMessage{
+					{Message: ptr.To(dhcpMsg)},
+				},
+				LegacyErrorMessage: ptr.To(dhcpMsg),
+			},
+		}, nil)
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
+
+		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
+		require.Error(t, err)
+		assert.Equal(t, 1, strings.Count(err.Error(), dhcpMsg))
+	})
+
+	t.Run("returns original error when parent error is nil", func(t *testing.T) {
+		err := enrichTaskErrorWithFailedSubtasks(context.Background(), nil, parentUUID, nil)
+		assert.NoError(t, err)
+	})
+}
+
+func TestWaitForConvergedOperation_EnrichesFailedWait(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	parentUUID := "parent-task"
+	childUUID := "child-task"
+	waitErr := errors.New("task parent-task failed: generic parent error")
+	childMsg := "Cannot allocate address! No DHCP pool is defined or the DHCP pool is exhausted"
+
+	mockClient := NewMockConvergedClient(ctrl)
+	mockOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
+	mockOp.EXPECT().Wait(ctx).Return(nil, waitErr)
+	mockOp.EXPECT().UUID().Return(parentUUID)
+
+	failedStatus := prismModels.TASKSTATUS_FAILED
+	mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{
+		{
+			ExtId:                ptr.To(childUUID),
+			Status:               &failedStatus,
+			OperationDescription: ptr.To("Create VM vNIC port"),
+			ErrorMessages: []prismErrors.AppMessage{
+				{Message: ptr.To(childMsg)},
+			},
+		},
+	}, nil)
+	mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
+
+	_, err := waitForConvergedOperation(ctx, mockClient.Client, mockOp)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "generic parent error")
+	assert.ErrorContains(t, err, childMsg)
 }

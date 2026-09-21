@@ -30,7 +30,9 @@ import (
 	"k8s.io/utils/ptr"
 	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util/conditions"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 var _ = Describe("NutanixMetroSiteReconciler", func() {
@@ -259,6 +261,24 @@ var _ = Describe("NutanixMetroSiteReconciler", func() {
 			err := reconciler.reconcileNormal(ctx, metroSiteObj)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("metroSite spec.preferredFailureDomain %s is not in the referred NutanixMetro's failureDomains", metroSiteObj.Spec.PreferredFailureDomain.Name)))
+		})
+	})
+
+	Context("Test pause", func() {
+		It("should be a no-op when the NutanixMetroSite carries the paused annotation", func() {
+			metroSiteObj.Annotations = map[string]string{capiv1beta2.PausedAnnotation: "true"}
+			Expect(k8sClient.Create(ctx, metroSiteObj)).To(Succeed())
+
+			res, err := reconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: client.ObjectKeyFromObject(metroSiteObj),
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res).To(Equal(reconcile.Result{}))
+
+			// The finalizer must not be added while paused.
+			current := &infrav1.NutanixMetroSite{}
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(metroSiteObj), current)).To(Succeed())
+			Expect(ctrlutil.ContainsFinalizer(current, infrav1.NutanixMetroSiteFinalizer)).To(BeFalse())
 		})
 	})
 })

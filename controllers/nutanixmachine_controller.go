@@ -346,7 +346,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, nil
 	}
 
-	vm, err := FindVMByUUID(ctx, convergedClient, vmUUID)
+	vm, waitForRecovered, err := r.vmToDelete(rctx, vmUUID, vmName)
 	if err != nil {
 		errorMsg := fmt.Errorf("error finding VM %s with UUID %s: %w", vmName, vmUUID, err)
 		log.Error(errorMsg, "error finding VM")
@@ -359,13 +359,24 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		})
 		return reconcile.Result{}, errorMsg
 	}
+	if waitForRecovered {
+		log.Info(fmt.Sprintf("recorded VM %s with UUID %s is decoupled; waiting for a recovered non-decoupled VM", vmName, vmUUID))
+		return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+	}
 
 	if vm == nil {
-		log.Info(fmt.Sprintf("no VM found with UUID %s: assuming it is already deleted; skipping delete", vmUUID))
-		log.Info(fmt.Sprintf("removing finalizers for VM %s during delete reconciliation", vmName))
+		log.Info(fmt.Sprintf("no live VM remains for %s (recorded UUID %s); removing finalizers", vmName, vmUUID))
 		ctrlutil.RemoveFinalizer(rctx.NutanixMachine, infrav1.NutanixMachineFinalizer)
 		ctrlutil.RemoveFinalizer(rctx.NutanixMachine, infrav1.DeprecatedNutanixMachineFinalizer)
 		return reconcile.Result{}, nil
+	}
+
+	if vm.Name == nil {
+		return reconcile.Result{}, fmt.Errorf("found VM with UUID %s but name was empty", ptr.Deref(vm.ExtId, vmUUID))
+	}
+	targetUUID := ptr.Deref(vm.ExtId, vmUUID)
+	if targetUUID == "" {
+		return reconcile.Result{}, fmt.Errorf("found VM %s but UUID was empty", *vm.Name)
 	}
 
 	// Check if the VM name matches the Machine name or the NutanixMachine name.
@@ -374,12 +385,12 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	// This check is to ensure that we are deleting the correct VM for both cases as older CAPX VMs
 	// will have the NutanixMachine name as the VM name.
 	if *vm.Name != vmName && *vm.Name != rctx.NutanixMachine.Name {
-		return reconcile.Result{}, fmt.Errorf("found VM with UUID %s but name %s did not match Machine name %s or NutanixMachineName %s", vmUUID, *vm.Name, vmName, rctx.NutanixMachine.Name)
+		return reconcile.Result{}, fmt.Errorf("found VM with UUID %s but name %s did not match Machine name %s or NutanixMachineName %s", targetUUID, *vm.Name, vmName, rctx.NutanixMachine.Name)
 	}
 
-	log.V(1).Info(fmt.Sprintf("Found VM %s with UUID %s.", *vm.Name, vmUUID))
+	log.V(1).Info(fmt.Sprintf("Found VM %s with UUID %s.", *vm.Name, targetUUID))
 
-	taskInProgress, err := VmHasTaskInProgress(ctx, convergedClient, vmUUID)
+	taskInProgress, err := VmHasTaskInProgress(ctx, convergedClient, targetUUID)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while fetching running task from VM: %w", err)
 		log.Error(errorMsg, "error fetching running task from VM")
@@ -396,7 +407,7 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		log.Info(fmt.Sprintf("VM %s has tasks in progress. Requeuing", vmName))
 		return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
 	} else {
-		log.V(1).Info(fmt.Sprintf("no running tasks anymore... Initiating delete for VM %s with UUID %s", vmName, vmUUID))
+		log.V(1).Info(fmt.Sprintf("no running tasks anymore... Initiating delete for VM %s with UUID %s", vmName, targetUUID))
 	}
 
 	var vgDetachNeeded bool
@@ -407,8 +418,8 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 		}
 	}
 	if vgDetachNeeded {
-		if err := r.detachVolumeGroups(rctx, vmName, vmUUID, vm.Disks); err != nil {
-			err := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %w", vmName, vmUUID, err)
+		if err := r.detachVolumeGroups(rctx, vmName, targetUUID, vm.Disks); err != nil {
+			err := fmt.Errorf("failed to detach volume groups from VM %s with UUID %s: %w", vmName, targetUUID, err)
 			log.Error(err, "failed to detach volume groups from VM")
 			v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VolumeGroupDetachFailed, capiv1beta1.ConditionSeverityWarning, "%s", err.Error())
 			v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
@@ -423,14 +434,14 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 
 		// Requeue to wait for volume group detach tasks to complete. This is done instead of blocking on task
 		// completion to avoid long-running reconcile loops.
-		log.Info(fmt.Sprintf("detaching volume groups from VM %s with UUID %s; requeueing again after %s", vmName, vmUUID, detachVGRequeueAfter))
+		log.Info(fmt.Sprintf("detaching volume groups from VM %s with UUID %s; requeueing again after %s", vmName, targetUUID, detachVGRequeueAfter))
 		return reconcile.Result{RequeueAfter: detachVGRequeueAfter}, nil
 	}
 
 	// Delete the VM since the VM was found (err was nil)
-	deleteTaskUUID, err := DeleteVM(ctx, convergedClient, vmName, vmUUID)
+	deleteTaskUUID, err := DeleteVM(ctx, convergedClient, vmName, targetUUID)
 	if err != nil {
-		err := fmt.Errorf("failed to delete VM %s with UUID %s: %w", vmName, vmUUID, err)
+		err := fmt.Errorf("failed to delete VM %s with UUID %s: %w", vmName, targetUUID, err)
 		log.Error(err, "failed to delete VM")
 		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.DeletionFailed, capiv1beta1.ConditionSeverityWarning, "%s", err.Error())
 		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
@@ -442,8 +453,104 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 
 		return reconcile.Result{}, err
 	}
-	log.Info(fmt.Sprintf("Deletion task with UUID %s received for vm %s with UUID %s. Requeueing", deleteTaskUUID, vmName, vmUUID))
+	log.Info(fmt.Sprintf("Deletion task with UUID %s received for vm %s with UUID %s. Requeueing", deleteTaskUUID, vmName, targetUUID))
 	return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+}
+
+// vmToDelete returns the AHV VM CAPX should delete for this Machine.
+//
+// A DR-decoupled VM (original UUID after Metro UPFO) is never deleted; DR owns it.
+// After the failed site returns, DR typically deletes that decoupled leftover. The
+// migrated VM keeps the Machine name but a new UUID. If we only look at the recorded
+// UUID we would drop the finalizer and leave that migrated VM orphaned — so we always
+// look up a non-decoupled VM by name before giving up.
+//
+// The v3 Groups lookup is Metro-only. Non-metro (and project-scope / least-privilege)
+// delete stays UUID-only so a Groups deny or timeout cannot block a normal Machine.
+//
+// wait is true when the recorded UUID is still decoupled and no recovered VM exists yet.
+func (r *NutanixMachineReconciler) vmToDelete(rctx *nctx.MachineContext, recordedUUID, vmName string) (*vmmconfig.Vm, bool, error) {
+	ctx := rctx.Context
+	log := ctrl.LoggerFrom(ctx)
+	var v3Client prismclientv3.Service
+	if rctx.NutanixClient != nil {
+		v3Client = rctx.NutanixClient.V3
+	}
+	if v3Client == nil || !useMetroDRDeletePath(rctx) {
+		vm, err := FindVMByUUID(ctx, rctx.ConvergedClient, recordedUUID)
+		return vm, false, err
+	}
+
+	decoupled, err := isVMDecoupled(ctx, v3Client, recordedUUID)
+	if err != nil {
+		return nil, false, err
+	}
+	if decoupled {
+		log.Info(fmt.Sprintf("VM %s with UUID %s is decoupled; leaving it for DR", vmName, recordedUUID))
+		setNutanixMachineAnnotation(rctx.NutanixMachine, skippedDecoupledVMUUIDAnnotation, recordedUUID)
+		return r.resolveRecoveredVMForDelete(rctx, v3Client, vmName, true)
+	}
+
+	vm, err := FindVMByUUID(ctx, rctx.ConvergedClient, recordedUUID)
+	if err != nil {
+		live, _, lookupErr := r.resolveRecoveredVMForDelete(rctx, v3Client, vmName, false)
+		if lookupErr != nil {
+			return nil, false, lookupErr
+		}
+		if live != nil {
+			log.Info(fmt.Sprintf("recorded VM UUID %s lookup failed; deleting migrated VM %s with UUID %s by name", recordedUUID, vmName, ptr.Deref(live.ExtId, "")))
+			return live, false, nil
+		}
+		return nil, false, err
+	}
+	if vm != nil {
+		return vm, false, nil
+	}
+
+	// Recorded UUID is gone — DR likely deleted the decoupled leftover after the
+	// site came back. Delete the migrated VM by name so it is not left orphaned.
+	log.Info(fmt.Sprintf("recorded VM UUID %s is gone; looking for a migrated VM named %s", recordedUUID, vmName))
+	return r.resolveRecoveredVMForDelete(rctx, v3Client, vmName, false)
+}
+
+// resolveRecoveredVMForDelete finds the non-decoupled VM to delete after skipping
+// a decoupled original. If waitIfMissing is true and none exists yet, wait is true.
+func (r *NutanixMachineReconciler) resolveRecoveredVMForDelete(rctx *nctx.MachineContext, v3Client prismclientv3.Service, vmName string, waitIfMissing bool) (*vmmconfig.Vm, bool, error) {
+	ctx := rctx.Context
+	log := ctrl.LoggerFrom(ctx)
+
+	if recoveredUUID := nutanixMachineAnnotation(rctx.NutanixMachine, recoveredVMUUIDAnnotation); recoveredUUID != "" {
+		recoveredDecoupled, err := isVMDecoupled(ctx, v3Client, recoveredUUID)
+		if err != nil {
+			return nil, false, err
+		}
+		if recoveredDecoupled {
+			log.Info(fmt.Sprintf("previously recovered VM %s is now decoupled; waiting for the next recovered generation", recoveredUUID))
+			deleteNutanixMachineAnnotation(rctx.NutanixMachine, recoveredVMUUIDAnnotation)
+		} else {
+			vm, err := FindVMByUUID(ctx, rctx.ConvergedClient, recoveredUUID)
+			if err != nil {
+				return nil, false, err
+			}
+			if vm == nil {
+				log.Info(fmt.Sprintf("recovered VM %s has been deleted", recoveredUUID))
+				return nil, false, nil
+			}
+			return vm, false, nil
+		}
+	}
+
+	live, err := findNonDecoupledVMByName(ctx, rctx.ConvergedClient, v3Client, vmNamesForDelete(vmName, rctx.NutanixMachine.Name))
+	if err != nil {
+		return nil, false, err
+	}
+	if live == nil || live.ExtId == nil || *live.ExtId == "" {
+		return nil, waitIfMissing, nil
+	}
+
+	setNutanixMachineAnnotation(rctx.NutanixMachine, recoveredVMUUIDAnnotation, *live.ExtId)
+	log.Info(fmt.Sprintf("found migrated VM %s with UUID %s to delete", vmName, *live.ExtId))
+	return live, false, nil
 }
 
 func (r *NutanixMachineReconciler) detachVolumeGroups(rctx *nctx.MachineContext, vmName string, vmUUID string, vmDiskList []vmmconfig.Disk) error {
@@ -672,9 +779,13 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 	//
 	// metro.nutanix.com/active-placement-pe stores the PE cluster identifier (name or uuid string) where the VM
 	// is actually placed when it differs from the native failure domain due to recovery/maintenance.
+	//
+	// Empty spec.cluster / spec.subnets inherit from the failure domain. That is the normal
+	// metro/topology state (templates omit PE and subnet; topology can wipe CAPX copies).
+	// Treat a field as a conflict only when it is set and disagrees.
 	var clusterValidationErr string
-	if rctx.NutanixMachine.Annotations != nil && rctx.NutanixMachine.Annotations[metroActivePlacementPEAnnotation] != "" {
-		// Recovery placement scenario: validate against the active placement PE (string comparison)
+	machineClusterSpecified := nutanixResourceIdentifierSpecified(rctx.NutanixMachine.Spec.Cluster)
+	if machineClusterSpecified && rctx.NutanixMachine.Annotations != nil && rctx.NutanixMachine.Annotations[metroActivePlacementPEAnnotation] != "" {
 		actualPE := rctx.NutanixMachine.Spec.Cluster.String()
 		expectedPE := rctx.NutanixMachine.Annotations[metroActivePlacementPEAnnotation]
 		if actualPE != expectedPE {
@@ -685,32 +796,28 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 				expectedPE,
 			)
 		}
-	} else {
-		// Normal scenario: validate against the native failure domain's PE
-		if !rctx.NutanixMachine.Spec.Cluster.EqualTo(&fdSpec.PrismElementCluster) {
-			clusterValidationErr = fmt.Sprintf(
-				"NutanixMachine.spec.cluster=%s, NutanixFailureDomain.spec.prismElementCluster=%s",
-				rctx.NutanixMachine.Spec.Cluster.DisplayString(),
-				fdSpec.PrismElementCluster.DisplayString(),
-			)
-		}
+	} else if machineClusterSpecified && !rctx.NutanixMachine.Spec.Cluster.EqualTo(&fdSpec.PrismElementCluster) {
+		clusterValidationErr = fmt.Sprintf(
+			"NutanixMachine.spec.cluster=%s, NutanixFailureDomain.spec.prismElementCluster=%s",
+			rctx.NutanixMachine.Spec.Cluster.DisplayString(),
+			fdSpec.PrismElementCluster.DisplayString(),
+		)
 	}
 
-	// Validate the NutanixMachine machine spec is consistent with the expected configuration
-	// Note: Subnet validation still uses fdSpec.Subnets since subnets are symmetric across Metro sites
+	// Validate the NutanixMachine machine spec is consistent with the expected configuration.
+	// Metro sites use distinct Prism subnet objects per PE (different names/UUIDs) that share the
+	// same L2/L3 network (layer, VLAN ID/VNI, CIDR). Identifier equality is therefore not a valid
+	// metro check; when names differ, compare the resolved network keys instead.
 	errMessages := []string{}
 	if clusterValidationErr != "" {
 		errMessages = append(errMessages, clusterValidationErr)
 	}
-	if !resourceIdsEquals(rctx.NutanixMachine.Spec.Subnets, fdSpec.Subnets) {
-		errMessages = append(
-			errMessages,
-			fmt.Sprintf(
-				"NutanixMachine.spec.subnets=%v, NutanixFailureDomain.spec.subnets=%v",
-				rctx.NutanixMachine.Spec.Subnets,
-				fdSpec.Subnets,
-			),
-		)
+	subnetMsg, err := r.checkFailureDomainSubnets(rctx, fd, fdSpec)
+	if err != nil {
+		return err
+	}
+	if subnetMsg != "" {
+		errMessages = append(errMessages, subnetMsg)
 	}
 	if len(errMessages) > 0 {
 		return fmt.Errorf(
@@ -724,6 +831,49 @@ func (r *NutanixMachineReconciler) checkFailureDomainStatus(rctx *nctx.MachineCo
 	rctx.NutanixMachine.Status.FailureDomain = &fd
 
 	return nil
+}
+
+func (r *NutanixMachineReconciler) checkFailureDomainSubnets(
+	rctx *nctx.MachineContext,
+	fdName string,
+	fdSpec *infrav1.NutanixFailureDomainSpec,
+) (string, error) {
+	// Empty spec.subnets inherit from the failure domain (topology/metro templates omit them).
+	if len(rctx.NutanixMachine.Spec.Subnets) == 0 {
+		return "", nil
+	}
+	if resourceIdsEquals(rctx.NutanixMachine.Spec.Subnets, fdSpec.Subnets) {
+		return "", nil
+	}
+
+	metroFD := isNutanixMetroFailureDomain(fdName) || isNutanixMetroSiteFailureDomain(fdName)
+	if !metroFD {
+		return fmt.Sprintf(
+			"NutanixMachine.spec.subnets=%v, NutanixFailureDomain.spec.subnets=%v",
+			rctx.NutanixMachine.Spec.Subnets,
+			fdSpec.Subnets,
+		), nil
+	}
+
+	match, machineKeys, fdKeys, err := metroSubnetsMatch(
+		rctx.Context,
+		rctx.ConvergedClient,
+		rctx.NutanixMachine.Spec.Subnets,
+		fdSpec.Subnets,
+		rctx.NutanixMachine.Spec.Cluster,
+		fdSpec.PrismElementCluster,
+	)
+	if err != nil {
+		return "", err
+	}
+	if match {
+		return "", nil
+	}
+	return fmt.Sprintf(
+		"NutanixMachine.spec.subnets network=%v, NutanixFailureDomain.spec.subnets network=%v",
+		machineKeys,
+		fdKeys,
+	), nil
 }
 
 // checkVHADomainCategory enforces the implicit contract that a Metro VM carries one and only one
@@ -1562,21 +1712,35 @@ func validateDataDiskDeviceProperties(disk infrav1.NutanixMachineVMDisk, errors 
 	return errors
 }
 
-// GetOrCreateVM creates a VM and is invoked by the NutanixMachineReconciler
-// setMetroCustomAttributes sets the metro placement customAttributes on the VM
-// for Metro/MetroSite failure domains.
-func setMetroCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) {
-	if isNutanixMetroFailureDomain(rctx.Machine.Spec.FailureDomain) || isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
-		if preferredPE := rctx.Datastore[nctx.MetroPreferredPE]; preferredPE != nil {
-			vm.CustomAttributes = []string{
-				vmCustomAttributePrefix4MetroPreferredPE + *preferredPE,
-			}
+// setFailureDomainCustomAttributes stamps failure-domain (any non-empty
+// Machine.spec.failureDomain) and metro placement customAttributes
+// (Metro/MetroSite only) on the VM.
+func setFailureDomainCustomAttributes(rctx *nctx.MachineContext, vm *vmmconfig.Vm) {
+	if rctx == nil || rctx.Machine == nil || vm == nil {
+		return
+	}
+
+	fd := rctx.Machine.Spec.FailureDomain
+	attrs := make([]string, 0, 3)
+
+	if fd != "" {
+		attrs = append(attrs, vmCustomAttributePrefix4FailureDomain+fd)
+	}
+
+	if isNutanixMetroSiteFailureDomain(fd) {
+		if groupNameLabel := rctx.Datastore[nctx.MetroNodeGroupNameLabel]; groupNameLabel != nil && *groupNameLabel != "" {
+			attrs = append(attrs, vmCustomAttributePrefix4MetroNodeGroupNameLabel+*groupNameLabel)
 		}
 	}
-	if isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain) {
-		if groupNameLabel := rctx.Datastore[nctx.MetroNodeGroupNameLabel]; groupNameLabel != nil {
-			vm.CustomAttributes = append(vm.CustomAttributes, vmCustomAttributePrefix4MetroNodeGroupNameLabel+*groupNameLabel)
+
+	if isNutanixMetroFailureDomain(fd) || isNutanixMetroSiteFailureDomain(fd) {
+		if preferredPE := rctx.Datastore[nctx.MetroPreferredPE]; preferredPE != nil && *preferredPE != "" {
+			attrs = append(attrs, vmCustomAttributePrefix4MetroPreferredPE+*preferredPE)
 		}
+	}
+
+	if len(attrs) > 0 {
+		vm.CustomAttributes = attrs
 	}
 }
 
@@ -1588,7 +1752,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	convergedClient := rctx.ConvergedClient
 
 	// Check if the VM already exists
-	vmFound, err := FindVM(ctx, convergedClient, rctx.Machine, rctx.NutanixMachine, vmName)
+	vmFound, err := FindVM(ctx, convergedClient, rctx.Machine, rctx.NutanixMachine, vmName, nutanixV3Service(rctx))
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred finding VM %s by name or uuid", vmName))
 		return nil, err
@@ -1597,13 +1761,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	// if VM exists
 	if vmFound != nil {
 		log.Info(fmt.Sprintf("vm %s found with UUID %s", *vmFound.Name, rctx.NutanixMachine.Status.VmUUID))
-
-		v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
-		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
-			Type:   string(infrav1.VMProvisionedCondition),
-			Status: metav1.ConditionTrue,
-			Reason: capiv1beta1.ProvisionedV1Beta2Reason,
-		})
+		markVMProvisioned(rctx)
 		return vmFound, nil
 	}
 
@@ -1630,7 +1788,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 	}
 
 	// Set the metro placement customAttributes on the VM for Metro/MetroSite failure domains.
-	setMetroCustomAttributes(rctx, vm)
+	setFailureDomainCustomAttributes(rctx, vm)
 
 	// Set cluster reference
 	vm.Cluster = vmmconfig.NewClusterReference()
@@ -1715,13 +1873,9 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 
 	// Create the actual VM/Machine
 	log.Info(fmt.Sprintf("Creating VM with name %s for cluster %s", vmName, rctx.NutanixCluster.Name))
-	vm, err = convergedClient.VMs.Create(ctx, vm)
+	vm, err = createAndWaitForVM(ctx, rctx, vm, vmName)
 	if err != nil {
-		errorMsg := fmt.Errorf("failed to create VM %s: %w", vmName, err)
-		if !isRetryableAPIError(err) {
-			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
-		}
-		return nil, errorMsg
+		return nil, err
 	}
 
 	vmUuid := *vm.ExtId
@@ -1741,13 +1895,43 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext) (*vm
 		return nil, err
 	}
 
+	markVMProvisioned(rctx)
+	return vm, nil
+}
+
+func markVMProvisioned(rctx *nctx.MachineContext) {
 	v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
 	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
 		Type:   string(infrav1.VMProvisionedCondition),
 		Status: metav1.ConditionTrue,
 		Reason: capiv1beta1.ProvisionedV1Beta2Reason,
 	})
-	return vm, nil
+}
+
+func createAndWaitForVM(ctx context.Context, rctx *nctx.MachineContext, vm *vmmconfig.Vm, vmName string) (*vmmconfig.Vm, error) {
+	convergedClient := rctx.ConvergedClient
+	createOp, err := convergedClient.VMs.CreateAsync(ctx, vm)
+	if err != nil {
+		return nil, vmCreateFailure(rctx, vmName, err)
+	}
+	createdVMs, err := waitForConvergedOperation(ctx, convergedClient, createOp)
+	if err != nil {
+		return nil, vmCreateFailure(rctx, vmName, err)
+	}
+	if len(createdVMs) != 1 || createdVMs[0] == nil {
+		errorMsg := fmt.Errorf("failed to create VM %s: operation completed but expected exactly 1 VM, got %d", vmName, len(createdVMs))
+		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		return nil, errorMsg
+	}
+	return createdVMs[0], nil
+}
+
+func vmCreateFailure(rctx *nctx.MachineContext, vmName string, err error) error {
+	errorMsg := fmt.Errorf("failed to create VM %s: %w", vmName, err)
+	if !isRetryableAPIError(err) {
+		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+	}
+	return errorMsg
 }
 
 // addCustomAttributes sets custom attributes on the VM, including the provider ID.

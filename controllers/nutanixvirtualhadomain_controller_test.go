@@ -80,10 +80,19 @@ func vhaDomainObj(name, clusterName string) *infrav1.NutanixVirtualHADomain {
 func TestVHADomainNameHelpers(t *testing.T) {
 	g := NewWithT(t)
 
-	g.Expect(vhaCategoryValue("d1", "default", 0)).To(Equal("k8s-vha-capx-d1-default-0"))
-	g.Expect(vhaCategoryValue("d1", "default", 1)).To(Equal("k8s-vha-capx-d1-default-1"))
+	cat0, err := vhaCategoryValue("d1", "default", 0)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cat0).To(Equal("k8s-vha-capx-d1-default-0"))
+	cat1, err := vhaCategoryValue("d1", "default", 1)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cat1).To(Equal("k8s-vha-capx-d1-default-1"))
 	g.Expect(vhaRecoveryPlanName("d1", "default", 0)).To(Equal("k8s-vha-capx-d1-default-0"))
 	g.Expect(vhaProtectionPolicyName("d1")).To(Equal("k8s-vha-capx-d1"))
+
+	longDomain := vHADomainName("nkp-management-cluster-rocky", "production-metro")
+	_, err = vhaCategoryValue(longDomain, vhaDefaultMovementGroup, 0)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("Prism Central limits category values to 64"))
 }
 
 // TestVHADomainDefaultCategoryKey_Contract guards the implicit contract shared with CSI and NKP for
@@ -290,6 +299,29 @@ func TestVHADomainReconcile_MissingCluster(t *testing.T) {
 		NamespacedName: client.ObjectKey{Name: vHADomain.Name, Namespace: vHADomain.Namespace},
 	})
 	g.Expect(err).To(HaveOccurred())
+}
+
+func TestVHADomainReconcile_PausedVHADomain(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	// Reconcile should short-circuit when the vHADomain itself is paused, without requiring the
+	// NutanixCluster to exist.
+	vHADomain := vhaDomainObj("d1", vhaClusterName)
+	vHADomain.Annotations = map[string]string{capiv1beta2.PausedAnnotation: "true"}
+	cluster := &capiv1beta2.Cluster{
+		ObjectMeta: metav1.ObjectMeta{Name: vhaClusterName, Namespace: vhaNamespace},
+		Spec: capiv1beta2.ClusterSpec{
+			InfrastructureRef: capiv1beta2.ContractVersionedObjectReference{Name: vhaNtnxCluster},
+		},
+	}
+
+	r := newVHAReconciler(g, vHADomain, cluster)
+	res, err := r.Reconcile(ctx, reconcile.Request{
+		NamespacedName: client.ObjectKey{Name: vHADomain.Name, Namespace: vHADomain.Namespace},
+	})
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(res).To(Equal(reconcile.Result{}))
 }
 
 func TestVHADomainReconcileNormal_AddsFinalizer(t *testing.T) {

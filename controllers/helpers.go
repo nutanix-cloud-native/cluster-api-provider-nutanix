@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -85,6 +86,18 @@ const (
 
 	vmCustomAttributePrefix4MetroPreferredPE        = "metro-preferred-pe:"
 	vmCustomAttributePrefix4MetroNodeGroupNameLabel = "metro-node-group-name:"
+	vmCustomAttributePrefix4FailureDomain           = "failure-domain:"
+
+	drConfigEntityType    = "entity_dr_config"
+	drRoleDecoupled       = "kDecoupled"
+	drConfigRoleAttribute = "role"
+
+	// skippedDecoupledVMUUIDAnnotation records the Machine's original VM UUID when
+	// delete skipped it because DR marked the VM decoupled (Metro UPFO).
+	skippedDecoupledVMUUIDAnnotation = "capx.nutanix.com/skipped-decoupled-vm-uuid"
+	// recoveredVMUUIDAnnotation is the non-decoupled recovered VM CAPX will delete
+	// instead of the decoupled original.
+	recoveredVMUUIDAnnotation = "capx.nutanix.com/recovered-vm-uuid"
 )
 
 type StorageContainerIntentResponse struct {
@@ -195,35 +208,26 @@ func GetVMUUID(machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMach
 	return "", nil
 }
 
-// FindVM retrieves the VM with the given uuid or name
-func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMachine, vmName string) (*vmmconfig.Vm, error) {
+// FindVM retrieves the VM with the given uuid or name.
+// On Metro/MetroSite, a UUID miss (or a DR-decoupled leftover) is resolved the same
+// way as reconcileDelete: list by Machine/NutanixMachine name and skip decoupled VMs.
+func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMachine, vmName string, v3Client prismclientv3.Service) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
 	vmUUID, err := GetVMUUID(machine, nutanixMachine)
 	if err != nil {
 		return nil, err
 	}
-	// Search via uuid if it is present
-	if vmUUID != "" {
-		log.V(1).Info(fmt.Sprintf("Searching for VM %s using UUID %s", vmName, vmUUID))
-		vm, err := FindVMByUUID(ctx, client, vmUUID)
-		if err != nil {
-			return nil, err
-		}
-		if vm == nil {
-			return nil, fmt.Errorf("no vm %s found with UUID %s but was expected to be present", vmName, vmUUID)
-		}
-		// Check if the VM name matches the Machine name or the NutanixMachine name.
-		// Earlier, we were creating VMs with the same name as the NutanixMachine name.
-		// Now, we create VMs with the same name as the Machine name in line with other CAPI providers.
-		// This check is to ensure that we are deleting the correct VM for both cases as older CAPX VMs
-		// will have the NutanixMachine name as the VM name.
-		if *vm.Name != vmName && *vm.Name != nutanixMachine.Name {
-			return nil, fmt.Errorf("found VM with UUID %s but name %s did not match %s", vmUUID, *vm.Name, vmName)
-		}
-		return vm, nil
-		// otherwise search via name
-	} else {
+	metro := useMetroDRDeletePath(&nctx.MachineContext{Machine: machine, NutanixMachine: nutanixMachine})
+	nmName := ""
+	if nutanixMachine != nil {
+		nmName = nutanixMachine.Name
+	}
+
+	if vmUUID == "" {
 		log.Info(fmt.Sprintf("Searching for VM %s using name", vmName))
+		if metro {
+			return findNonDecoupledVMByName(ctx, client, v3Client, vmNamesForDelete(vmName, nmName))
+		}
 		vm, err := FindVMByName(ctx, client, vmName)
 		if err != nil {
 			log.Error(err, fmt.Sprintf("error occurred finding VM %s by name", vmName))
@@ -231,6 +235,44 @@ func FindVM(ctx context.Context, client *v4Converged.Client, machine *capiv1beta
 		}
 		return vm, nil
 	}
+
+	log.V(1).Info(fmt.Sprintf("Searching for VM %s using UUID %s", vmName, vmUUID))
+	vm, err := FindVMByUUID(ctx, client, vmUUID)
+	if err != nil {
+		return nil, err
+	}
+	if vm != nil {
+		if vm.Name == nil {
+			return nil, fmt.Errorf("found VM with UUID %s but name was empty", vmUUID)
+		}
+		if *vm.Name != vmName && *vm.Name != nmName {
+			return nil, fmt.Errorf("found VM with UUID %s but name %s did not match %s", vmUUID, *vm.Name, vmName)
+		}
+		if !metro {
+			return vm, nil
+		}
+		decoupled, err := isVMDecoupled(ctx, v3Client, vmUUID)
+		if err != nil {
+			return nil, err
+		}
+		if !decoupled {
+			return vm, nil
+		}
+		log.Info(fmt.Sprintf("VM %s with UUID %s is decoupled; looking for a recovered VM by name", vmName, vmUUID))
+	} else if metro {
+		log.Info(fmt.Sprintf("VM UUID %s returned 404; confirming non-existence by name %s", vmUUID, vmName))
+	}
+
+	if metro {
+		live, err := findNonDecoupledVMByName(ctx, client, v3Client, vmNamesForDelete(vmName, nmName))
+		if err != nil {
+			return nil, err
+		}
+		if live != nil {
+			return live, nil
+		}
+	}
+	return nil, fmt.Errorf("no vm %s found with UUID %s but was expected to be present", vmName, vmUUID)
 }
 
 // FindVMByName retrieves the VM with the given vm name
@@ -252,6 +294,175 @@ func FindVMByName(ctx context.Context, client *v4Converged.Client, vmName string
 	}
 
 	return FindVMByUUID(ctx, client, *vms[0].ExtId)
+}
+
+func groupsFieldValue(entity *prismclientv3.GroupsEntity, name string) string {
+	if entity == nil {
+		return ""
+	}
+	for _, data := range entity.Data {
+		if data == nil || data.Name != name {
+			continue
+		}
+		for _, pair := range data.Values {
+			if pair == nil || len(pair.Values) == 0 {
+				continue
+			}
+			return pair.Values[0]
+		}
+	}
+	return ""
+}
+
+// useMetroDRDeletePath reports whether reconcileDelete may call v3 Groups
+// (entity_dr_config) to skip DR-decoupled VMs. kDecoupled is a Metro UPFO signal.
+// Groups is not project-scoped and is denied for least-privilege / Projects 2.0
+// users, so non-metro delete must stay UUID-only even when Groups is down.
+func useMetroDRDeletePath(rctx *nctx.MachineContext) bool {
+	if rctx == nil {
+		return false
+	}
+	if rctx.Machine != nil && (isNutanixMetroFailureDomain(rctx.Machine.Spec.FailureDomain) ||
+		isNutanixMetroSiteFailureDomain(rctx.Machine.Spec.FailureDomain)) {
+		return true
+	}
+	if rctx.NutanixMachine == nil {
+		return false
+	}
+	if fd := ptr.Deref(rctx.NutanixMachine.Status.FailureDomain, ""); isNutanixMetroFailureDomain(fd) ||
+		isNutanixMetroSiteFailureDomain(fd) {
+		return true
+	}
+	if nutanixMachineAnnotation(rctx.NutanixMachine, metroActivePlacementPEAnnotation) != "" {
+		return true
+	}
+	return nutanixMachineAnnotation(rctx.NutanixMachine, skippedDecoupledVMUUIDAnnotation) != "" ||
+		nutanixMachineAnnotation(rctx.NutanixMachine, recoveredVMUUIDAnnotation) != ""
+}
+
+func nutanixV3Service(rctx *nctx.MachineContext) prismclientv3.Service {
+	if rctx == nil || rctx.NutanixClient == nil {
+		return nil
+	}
+	return rctx.NutanixClient.V3
+}
+
+// isVMDecoupled reports whether Prism Central DR config marks the VM as decoupled.
+// A decoupled VM must not be deleted by CAPX; Disaster Recovery owns it.
+// Callers must only use this on the Metro delete path (see useMetroDRDeletePath).
+func isVMDecoupled(ctx context.Context, v3Client prismclientv3.Service, vmUUID string) (bool, error) {
+	if v3Client == nil || vmUUID == "" {
+		return false, nil
+	}
+
+	resp, err := v3Client.GroupsGetEntities(ctx, &prismclientv3.GroupsGetEntitiesRequest{
+		EntityType:     ptr.To(drConfigEntityType),
+		FilterCriteria: fmt.Sprintf("entity_uuid=in=%s", vmUUID),
+		GroupMemberAttributes: []*prismclientv3.GroupsRequestedAttribute{
+			{Attribute: ptr.To(drConfigRoleAttribute)},
+		},
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to get DR config for VM %s: %w", vmUUID, err)
+	}
+	if resp == nil {
+		return false, nil
+	}
+
+	for _, group := range resp.GroupResults {
+		if group == nil {
+			continue
+		}
+		for _, entity := range group.EntityResults {
+			if groupsFieldValue(entity, drConfigRoleAttribute) == drRoleDecoupled {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// findNonDecoupledVMByName lists VMs with the given names and returns the single
+// VM that is not DR-decoupled. Returns nil if only decoupled VMs exist (or none).
+func findNonDecoupledVMByName(ctx context.Context, client *v4Converged.Client, v3Client prismclientv3.Service, names []string) (*vmmconfig.Vm, error) {
+	log := ctrl.LoggerFrom(ctx)
+	seen := map[string]struct{}{}
+	live := make([]*vmmconfig.Vm, 0)
+
+	for _, name := range names {
+		if name == "" {
+			continue
+		}
+		vms, err := client.VMs.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", name)))
+		if err != nil {
+			return nil, fmt.Errorf("failed to list VMs named %s: %w", name, err)
+		}
+		for i := range vms {
+			vm := vms[i]
+			if vm.ExtId == nil || *vm.ExtId == "" {
+				continue
+			}
+			uuid := *vm.ExtId
+			if _, ok := seen[uuid]; ok {
+				continue
+			}
+			seen[uuid] = struct{}{}
+
+			decoupled, err := isVMDecoupled(ctx, v3Client, uuid)
+			if err != nil {
+				return nil, err
+			}
+			if decoupled {
+				log.Info(fmt.Sprintf("skipping decoupled VM %s with UUID %s", name, uuid))
+				continue
+			}
+
+			full, err := FindVMByUUID(ctx, client, uuid)
+			if err != nil {
+				return nil, err
+			}
+			if full != nil {
+				live = append(live, full)
+			}
+		}
+	}
+
+	if len(live) == 0 {
+		return nil, nil
+	}
+	if len(live) > 1 {
+		return nil, fmt.Errorf("found more than one (%d) non-decoupled VMs with names %v", len(live), names)
+	}
+	return live[0], nil
+}
+
+func nutanixMachineAnnotation(nm *infrav1.NutanixMachine, key string) string {
+	if nm == nil || nm.Annotations == nil {
+		return ""
+	}
+	return nm.Annotations[key]
+}
+
+func setNutanixMachineAnnotation(nm *infrav1.NutanixMachine, key, value string) {
+	if nm.Annotations == nil {
+		nm.Annotations = map[string]string{}
+	}
+	nm.Annotations[key] = value
+}
+
+func deleteNutanixMachineAnnotation(nm *infrav1.NutanixMachine, key string) {
+	if nm == nil || nm.Annotations == nil {
+		return
+	}
+	delete(nm.Annotations, key)
+}
+
+func vmNamesForDelete(machineName, nutanixMachineName string) []string {
+	names := []string{machineName}
+	if nutanixMachineName != "" && nutanixMachineName != machineName {
+		names = append(names, nutanixMachineName)
+	}
+	return names
 }
 
 // GetPEUUID returns the UUID of the Prism Element cluster with the given name or UUID.
@@ -539,58 +750,144 @@ func subnetBelongsToCluster(subnet *subnetModels.Subnet, peUUID string) bool {
 	return false
 }
 
-// GetSubnetUUID returns the UUID of the subnet with the given name
-func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
-	var foundSubnetUUID string
+// GetSubnet returns the subnet identified by UUID or name. Name lookup for VLAN
+// subnets is scoped to peUUID via ClusterReference / ClusterReferenceList.
+func GetSubnet(ctx context.Context, client *v4Converged.Client, peUUID string, subnetName, subnetUUID *string) (*subnetModels.Subnet, error) {
 	if subnetUUID == nil && subnetName == nil {
-		return "", fmt.Errorf("subnet name or subnet uuid must be passed in order to retrieve the subnet")
+		return nil, fmt.Errorf("subnet name or subnet uuid must be passed in order to retrieve the subnet")
 	}
 	if subnetUUID != nil {
 		subnetIntentResponse, err := client.Subnets.Get(ctx, *subnetUUID)
 		if err != nil {
 			if converged.IsNotFound(err) {
-				return "", fmt.Errorf("failed to find subnet with UUID %s: %w", *subnetUUID, err)
+				return nil, fmt.Errorf("failed to find subnet with UUID %s: %w", *subnetUUID, err)
 			}
-			return "", fmt.Errorf("failed to get subnet with UUID %s: %w", *subnetUUID, err)
+			return nil, fmt.Errorf("failed to get subnet with UUID %s: %w", *subnetUUID, err)
 		}
-		foundSubnetUUID = *subnetIntentResponse.ExtId
-	} else { // else search by name
-		// Not using additional filtering since we want to list overlay and vlan subnets
-		responseSubnets, err := client.Subnets.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", *subnetName)))
-		if err != nil {
-			return "", err
+		return subnetIntentResponse, nil
+	}
+
+	// Not using additional filtering since we want to list overlay and vlan subnets
+	responseSubnets, err := client.Subnets.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", *subnetName)))
+	if err != nil {
+		return nil, err
+	}
+	foundSubnets := make([]subnetModels.Subnet, 0)
+	for _, subnet := range responseSubnets {
+		if subnet.Name == nil || subnet.SubnetType == nil {
+			continue
 		}
-		// Validate filtered Subnets
-		foundSubnets := make([]subnetModels.Subnet, 0)
-		for _, subnet := range responseSubnets {
-			if subnet.Name == nil || subnet.SubnetType == nil {
+		if *subnet.Name == *subnetName {
+			if subnet.SubnetType.GetName() == subnetTypeOverlay {
+				foundSubnets = append(foundSubnets, subnet)
 				continue
 			}
-			if *subnet.Name == *subnetName {
-				if subnet.SubnetType.GetName() == subnetTypeOverlay {
-					foundSubnets = append(foundSubnets, subnet)
-					continue
-				}
-
-				// Check if subnet belongs to the PE cluster via ClusterReference or ClusterReferenceList
-				if subnetBelongsToCluster(&subnet, peUUID) {
-					foundSubnets = append(foundSubnets, subnet)
-				}
+			if subnetBelongsToCluster(&subnet, peUUID) {
+				foundSubnets = append(foundSubnets, subnet)
 			}
 		}
+	}
 
-		if len(foundSubnets) == 0 {
-			return "", &terminalError{message: fmt.Sprintf("failed to retrieve subnet by name %s", *subnetName)}
-		} else if len(foundSubnets) > 1 {
-			return "", fmt.Errorf("more than one subnet found with name %s", *subnetName)
-		} else {
-			foundSubnetUUID = *foundSubnets[0].ExtId
-		}
-		if foundSubnetUUID == "" {
-			return "", fmt.Errorf("failed to retrieve subnet by name or uuid. Verify input parameters")
-		}
+	switch len(foundSubnets) {
+	case 0:
+		return nil, &terminalError{message: fmt.Sprintf("failed to retrieve subnet by name %s", *subnetName)}
+	case 1:
+		return &foundSubnets[0], nil
+	default:
+		return nil, fmt.Errorf("more than one subnet found with name %s", *subnetName)
+	}
+}
+
+// GetSubnetUUID returns the UUID of the subnet with the given name or UUID.
+func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID string, subnetName, subnetUUID *string) (string, error) {
+	subnet, err := GetSubnet(ctx, client, peUUID, subnetName, subnetUUID)
+	if err != nil {
+		return "", err
+	}
+	foundSubnetUUID := ptr.Deref(subnet.ExtId, "")
+	if foundSubnetUUID == "" {
+		return "", fmt.Errorf("failed to retrieve subnet by name or uuid. Verify input parameters")
 	}
 	return foundSubnetUUID, nil
+}
+
+// subnetNetworkKey identifies a subnet by network layer, VLAN ID/VNI and CIDR.
+// Metro sites use distinct Prism subnet objects (names/UUIDs) that must share this key.
+func subnetNetworkKey(s *subnetModels.Subnet) string {
+	if s == nil {
+		return "UNKNOWN||"
+	}
+	layer := "UNKNOWN"
+	if s.SubnetType != nil {
+		layer = s.SubnetType.GetName()
+	}
+	vlanID := ""
+	if s.NetworkId != nil {
+		vlanID = strconv.Itoa(*s.NetworkId)
+	}
+	cidr := ptr.Deref(s.IpPrefix, "")
+	return fmt.Sprintf("%s|%s|%s", layer, vlanID, cidr)
+}
+
+// subnetNetworkKeys resolves each identifier against pe and returns the matching network keys.
+func subnetNetworkKeys(
+	ctx context.Context,
+	client *v4Converged.Client,
+	ids []infrav1.NutanixResourceIdentifier,
+	pe infrav1.NutanixResourceIdentifier,
+) ([]string, error) {
+	if client == nil {
+		return nil, fmt.Errorf("cannot retrieve subnet network keys if nutanix client is nil")
+	}
+	peUUID, err := GetPEUUID(ctx, client, pe.Name, pe.UUID)
+	if err != nil {
+		return nil, err
+	}
+	keys := make([]string, 0, len(ids))
+	for i := range ids {
+		subnet, err := GetSubnet(ctx, client, peUUID, ids[i].Name, ids[i].UUID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve subnet %s: %w", ids[i].DisplayString(), err)
+		}
+		keys = append(keys, subnetNetworkKey(subnet))
+	}
+	return keys, nil
+}
+
+func stringSliceSetEquals(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	remaining := make(map[string]int, len(b))
+	for _, s := range b {
+		remaining[s]++
+	}
+	for _, s := range a {
+		if remaining[s] == 0 {
+			return false
+		}
+		remaining[s]--
+	}
+	return true
+}
+
+// metroSubnetsMatch reports whether machine and failure-domain subnet identifiers
+// describe the same network (layer, VLAN ID/VNI, CIDR), even when Prism names differ.
+func metroSubnetsMatch(
+	ctx context.Context,
+	client *v4Converged.Client,
+	machineSubnets, fdSubnets []infrav1.NutanixResourceIdentifier,
+	machinePE, fdPE infrav1.NutanixResourceIdentifier,
+) (bool, []string, []string, error) {
+	machineKeys, err := subnetNetworkKeys(ctx, client, machineSubnets, machinePE)
+	if err != nil {
+		return false, nil, nil, fmt.Errorf("failed to resolve NutanixMachine subnet network keys: %w", err)
+	}
+	fdKeys, err := subnetNetworkKeys(ctx, client, fdSubnets, fdPE)
+	if err != nil {
+		return false, nil, nil, fmt.Errorf("failed to resolve NutanixFailureDomain subnet network keys: %w", err)
+	}
+	return stringSliceSetEquals(machineKeys, fdKeys), machineKeys, fdKeys, nil
 }
 
 // GetImage returns an image. If no UUID is provided, returns the unique image with the name.
@@ -1262,6 +1559,13 @@ func detachVolumeGroupsFromVM(ctx context.Context, client *v4Converged.Client, v
 	}
 
 	return nil
+}
+
+// nutanixResourceIdentifierSpecified reports whether nri identifies a Prism resource.
+// A zero-value identifier (typical when NutanixMachine.spec.cluster is omitted on a
+// topology/metro template) is treated as unset so callers can inherit from a FailureDomain.
+func nutanixResourceIdentifierSpecified(nri infrav1.NutanixResourceIdentifier) bool {
+	return nri.IsName() || nri.IsUUID()
 }
 
 func resourceIdsEquals(nris1, nris2 []infrav1.NutanixResourceIdentifier) bool {

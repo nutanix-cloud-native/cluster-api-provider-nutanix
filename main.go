@@ -433,6 +433,25 @@ func setupNutanixMetroSiteController(ctx context.Context, mgr manager.Manager, s
 	return nil
 }
 
+func setupMetroScaleDownBalancerController(ctx context.Context, mgr manager.Manager,
+	opts ...controllers.ControllerConfigOpts,
+) error {
+	balancerCtrl, err := controllers.NewMetroScaleDownBalancerReconciler(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		opts...,
+	)
+	if err != nil {
+		return fmt.Errorf("unable to create MetroScaleDownBalancer controller: %w", err)
+	}
+
+	if err := balancerCtrl.SetupWithManager(ctx, mgr); err != nil {
+		return fmt.Errorf("unable to setup MetroScaleDownBalancer controller with manager: %w", err)
+	}
+
+	return nil
+}
+
 func setupNutanixVirtualHADomainController(ctx context.Context, mgr manager.Manager, secretInformer coreinformers.SecretInformer,
 	configMapInformer coreinformers.ConfigMapInformer, opts ...controllers.ControllerConfigOpts,
 ) error {
@@ -507,6 +526,10 @@ func runManager(ctx context.Context, mgr manager.Manager, config *managerConfig)
 	}
 
 	if err := setupNutanixMetroSiteController(ctx, mgr, secretInformer, configMapInformer, machineControllerOpts...); err != nil {
+		return fmt.Errorf("unable to setup controllers: %w", err)
+	}
+
+	if err := setupMetroScaleDownBalancerController(ctx, mgr, machineControllerOpts...); err != nil {
 		return fmt.Errorf("unable to setup controllers: %w", err)
 	}
 
