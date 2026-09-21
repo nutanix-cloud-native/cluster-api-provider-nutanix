@@ -27,6 +27,8 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"strings"
@@ -64,6 +66,7 @@ type flags struct {
 	taskFail   int
 	maxVMs     int
 	apiVersion string
+	profiler   string
 }
 
 func parseFlags() *flags {
@@ -87,6 +90,7 @@ func parseFlags() *flags {
 	flag.IntVar(&f.taskFail, "task-failure-every", -1, "override: fail every Nth task")
 	flag.IntVar(&f.maxVMs, "max-vms", -1, "override: reject VM creation beyond this many VMs")
 	flag.StringVar(&f.apiVersion, "api-version", "", "override the v4 API version reported to SDK negotiation")
+	flag.StringVar(&f.profiler, "profiler-address", ":6060", "pprof listen address; empty disables")
 	flag.Parse()
 	return f
 }
@@ -153,6 +157,11 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	if f.profiler != "" {
+		go func() {
+			_ = http.ListenAndServe(f.profiler, nil) //nolint:gosec // pprof, same as CAPI managers
+		}()
+	}
 	logger.Info("ntnx-sim listening", "addr", f.listen,
 		"clusters", len(cfg.Seed.Clusters), "subnets", len(cfg.Seed.Subnets), "images", len(cfg.Seed.Images),
 		"vmCreate", cfg.Timing.VMCreate, "vmPowerOn", cfg.Timing.VMPowerOn, "vmDelete", cfg.Timing.VMDelete)
