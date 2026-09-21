@@ -19,6 +19,7 @@ package simulator
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 )
@@ -193,9 +194,9 @@ func (n lambdaNode) eval(root map[string]any, scope map[string]any) (any, error)
 		return nil, err
 	}
 	items, _ := coll.([]any)
-	inner := make(map[string]any, len(scope)+1)
-	for k, v := range scope {
-		inner[k] = v
+	inner := maps.Clone(scope)
+	if inner == nil {
+		inner = make(map[string]any)
 	}
 	for _, item := range items {
 		inner[n.variable] = item
