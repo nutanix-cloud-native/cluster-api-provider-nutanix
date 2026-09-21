@@ -242,6 +242,19 @@ build: generate ## Build manager binary.
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
 	CGO_ENABLED=0 go build -ldflags "-X main.gitCommitHash=${GIT_COMMIT_HASH}" -o bin/manager main.go
 
+.PHONY: ntnx-sim
+ntnx-sim: ## Build the ntnx-sim Prism Central simulator binary (see test/simulator/README.md).
+	go build -o bin/ntnx-sim ./test/simulator/cmd/ntnx-sim
+
+SIM_MACHINES ?= 1
+SIM_ARGS ?=
+.PHONY: test-sim
+test-sim: ntnx-sim ## Run the CAPX manager and CAPI core against ntnx-sim under envtest; no Nutanix hardware needed.
+	go build -o bin/manager .
+	go build -o bin/capi-manager sigs.k8s.io/cluster-api
+	go build -o bin/simrun ./test/simulator/cmd/simrun
+	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" bin/simrun --machines $(SIM_MACHINES) $(SIM_ARGS)
+
 .PHONY: build-e2e
 build-e2e: generate ## Build e2e binary.
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
