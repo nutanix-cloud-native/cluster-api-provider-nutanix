@@ -5356,6 +5356,8 @@ func TestReconcileNormal_readyRestoresMissingProviderID(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(ntnxMachine.Spec.ProviderID).To(Equal(GenerateProviderID(vmUUID)))
 	g.Expect(result.RequeueAfter).To(Equal(5 * time.Second))
+}
+
 func TestCheckFailureDomainStatus_MetroComparesSubnetNetworks(t *testing.T) {
 	g := NewWithT(t)
 
