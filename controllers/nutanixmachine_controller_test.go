@@ -3447,11 +3447,13 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 				Namespace: "default",
 			},
 			Spec: infrav1.NutanixMachineSpec{
-				VCPUSockets:    2,
-				VCPUsPerSocket: 1,
-				MemorySize:     resource.MustParse("4Gi"),
-				SystemDiskSize: resource.MustParse("40Gi"),
-				BootType:       infrav1.NutanixBootTypeLegacy,
+				VCPUSockets:       2,
+				VCPUsPerSocket:    1,
+				MemorySize:        resource.MustParse("4Gi"),
+				SystemDiskSize:    resource.MustParse("40Gi"),
+				BootType:          infrav1.NutanixBootTypeUEFI,
+				SecureBootEnabled: true,
+				VTPMEnabled:       true,
 				Project: &infrav1.NutanixResourceIdentifier{
 					Type: infrav1.NutanixIdentifierName,
 					Name: &projectName,
@@ -3566,7 +3568,31 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		// that passes the plain ctx (and silently drops the key) fails here.
 		mockCreateOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
 		mockCreateOp.EXPECT().Wait(gomock.Any()).Return([]*vmmModels.Vm{createdVM}, nil)
-		mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctxWithRequestID(), gomock.Any()).Return(mockCreateOp, nil)
+		mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctxWithRequestID(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, request *vmmModels.Vm) (converged.Operation[vmmModels.Vm], error) {
+				require.NotNil(t, request.MachineType)
+				assert.Equal(t, vmmModels.MACHINETYPE_Q35, *request.MachineType)
+
+				require.NotNil(t, request.BootConfig)
+				uefi, ok := request.BootConfig.GetValue().(vmmModels.UefiBoot)
+				require.True(t, ok)
+				require.NotNil(t, uefi.IsSecureBootEnabled)
+				assert.True(t, *uefi.IsSecureBootEnabled)
+
+				require.NotNil(t, request.VtpmConfig)
+				require.NotNil(t, request.VtpmConfig.IsVtpmEnabled)
+				assert.True(t, *request.VtpmConfig.IsVtpmEnabled)
+
+				payload, err := json.Marshal(request)
+				require.NoError(t, err)
+				assert.Contains(t, string(payload), `"machineType":"Q35"`)
+				assert.Contains(t, string(payload), `"isSecureBootEnabled":true`)
+				assert.Contains(t, string(payload), `"vtpmConfig"`)
+				assert.Contains(t, string(payload), `"isVtpmEnabled":true`)
+
+				return mockCreateOp, nil
+			},
+		)
 
 		// Create machine context (PC 7.5 uses V3 project API, so ListAllProject mock is used)
 		rctx := &nctx.MachineContext{
