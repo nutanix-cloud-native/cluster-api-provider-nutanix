@@ -4218,6 +4218,112 @@ func TestNutanixMachineReconciler_buildDeployParamsFromProfile_CategoryErrorHand
 	})
 }
 
+func TestNutanixMachineReconciler_addBootTypeToVM(t *testing.T) {
+	tests := []struct {
+		name           string
+		spec           infrav1.NutanixMachineSpec
+		wantError      string
+		wantUEFI       bool
+		wantSecureBoot bool
+		wantVTPM       bool
+	}{
+		{
+			name: "leaves the Nutanix defaults unchanged when no boot security is configured",
+		},
+		{
+			name: "configures UEFI without Secure Boot",
+			spec: infrav1.NutanixMachineSpec{
+				BootType: infrav1.NutanixBootTypeUEFI,
+			},
+			wantUEFI: true,
+		},
+		{
+			name: "enables UEFI Secure Boot",
+			spec: infrav1.NutanixMachineSpec{
+				BootType:          infrav1.NutanixBootTypeUEFI,
+				SecureBootEnabled: true,
+			},
+			wantUEFI:       true,
+			wantSecureBoot: true,
+		},
+		{
+			name: "enables UEFI Secure Boot and vTPM",
+			spec: infrav1.NutanixMachineSpec{
+				BootType:          infrav1.NutanixBootTypeUEFI,
+				SecureBootEnabled: true,
+				VTPMEnabled:       true,
+			},
+			wantUEFI:       true,
+			wantSecureBoot: true,
+			wantVTPM:       true,
+		},
+		{
+			name: "rejects Secure Boot with legacy boot",
+			spec: infrav1.NutanixMachineSpec{
+				BootType:          infrav1.NutanixBootTypeLegacy,
+				SecureBootEnabled: true,
+			},
+			wantError: "secure boot requires boot type uefi",
+		},
+		{
+			name: "rejects vTPM without Secure Boot",
+			spec: infrav1.NutanixMachineSpec{
+				BootType:    infrav1.NutanixBootTypeUEFI,
+				VTPMEnabled: true,
+			},
+			wantError: "vTPM requires secure boot to be enabled",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reconciler := &NutanixMachineReconciler{}
+			machineContext := &nctx.MachineContext{
+				Context: context.Background(),
+				NutanixMachine: &infrav1.NutanixMachine{
+					Spec: tt.spec,
+				},
+			}
+			vm := vmmModels.NewVm()
+
+			err := reconciler.addBootTypeToVM(machineContext, vm)
+			if tt.wantError != "" {
+				require.EqualError(t, err, tt.wantError)
+				return
+			}
+			require.NoError(t, err)
+
+			if !tt.wantUEFI {
+				assert.Nil(t, vm.BootConfig)
+			} else {
+				require.NotNil(t, vm.BootConfig)
+				uefi, ok := vm.BootConfig.GetValue().(vmmModels.UefiBoot)
+				require.True(t, ok)
+				if tt.wantSecureBoot {
+					require.NotNil(t, uefi.IsSecureBootEnabled)
+					assert.True(t, *uefi.IsSecureBootEnabled)
+				} else {
+					assert.Nil(t, uefi.IsSecureBootEnabled)
+				}
+			}
+			if tt.wantSecureBoot {
+				require.NotNil(t, vm.MachineType)
+				assert.Equal(t, vmmModels.MACHINETYPE_Q35, *vm.MachineType)
+			} else {
+				assert.Nil(t, vm.MachineType)
+			}
+
+			if tt.wantVTPM {
+				require.NotNil(t, vm.VtpmConfig)
+				require.NotNil(t, vm.VtpmConfig.IsVtpmEnabled)
+				assert.True(t, *vm.VtpmConfig.IsVtpmEnabled)
+			} else {
+				assert.Nil(t, vm.VtpmConfig)
+			}
+		})
+	}
+}
+
 func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
 	newIPv4Address := func(ip string) *vmmCommonConfig.IPv4Address {
 		addr := vmmCommonConfig.NewIPv4Address()

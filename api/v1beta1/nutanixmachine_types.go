@@ -103,6 +103,8 @@ type NutanixImageLookup struct {
 // evaluate as present due zero-value decoding in CRDs. Use value checks instead.
 // +kubebuilder:validation:XValidation:rule="has(self.vmProfile) ? ((!has(self.vcpusPerSocket) || self.vcpusPerSocket == 0) && (!has(self.vcpuSockets) || self.vcpuSockets == 0) && (!has(self.memorySize) || self.memorySize == \"\" || self.memorySize == \"0\") && (!has(self.bootType) || self.bootType == \"\") && (!has(self.gpus) || size(self.gpus) == 0) && (!has(self.dataDisks) || size(self.dataDisks) == 0)) : true",message="When 'vmProfile' is set, 'vcpusPerSocket', 'vcpuSockets', 'memorySize', 'bootType', 'gpus', and 'dataDisks' must not be set"
 // +kubebuilder:validation:XValidation:rule="!has(self.vmProfile) ? (has(self.vcpusPerSocket) && self.vcpusPerSocket > 0 && has(self.vcpuSockets) && self.vcpuSockets > 0 && has(self.memorySize) && self.memorySize != \"\" && self.memorySize != \"0\") : true",message="When 'vmProfile' is not set, 'vcpusPerSocket', 'vcpuSockets', and 'memorySize' must be set"
+// +kubebuilder:validation:XValidation:rule="!has(self.secureBootEnabled) || !self.secureBootEnabled || self.bootType == 'uefi'",message="secureBootEnabled requires bootType to be uefi"
+// +kubebuilder:validation:XValidation:rule="!has(self.vtpmEnabled) || !self.vtpmEnabled || (self.bootType == 'uefi' && has(self.secureBootEnabled) && self.secureBootEnabled)",message="vtpmEnabled requires bootType to be uefi and secureBootEnabled to be true"
 type NutanixMachineSpec struct {
 	// SPEC FIELDS - desired state of NutanixMachine
 	// Important: Run "make" to regenerate code after modifying this file
@@ -159,6 +161,16 @@ type NutanixMachineSpec struct {
 	// +kubebuilder:validation:Enum:=legacy;uefi
 	// +optional
 	BootType NutanixBootType `json:"bootType,omitzero"`
+	// secureBootEnabled enables UEFI Secure Boot for the virtual machine.
+	// It requires bootType to be uefi.
+	// +kubebuilder:validation:Optional
+	// +optional
+	SecureBootEnabled bool `json:"secureBootEnabled,omitempty"`
+	// vtpmEnabled enables the virtual Trusted Platform Module for the virtual machine.
+	// It requires UEFI Secure Boot to be enabled.
+	// +kubebuilder:validation:Optional
+	// +optional
+	VTPMEnabled bool `json:"vtpmEnabled,omitempty"`
 	// systemDiskSize is size (in Quantity format) of the system disk of the VM
 	// The minimum systemDiskSize is 20Gi bytes
 	// +kubebuilder:validation:Required
