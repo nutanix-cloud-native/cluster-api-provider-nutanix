@@ -18,31 +18,61 @@ import (
 )
 
 // MockVMs is a mock of VMs interface.
-type MockVMs[VM any] struct {
+type MockVMs[VM any, NIC any, VMDisk any] struct {
 	ctrl     *gomock.Controller
-	recorder *MockVMsMockRecorder[VM]
+	recorder *MockVMsMockRecorder[VM, NIC, VMDisk]
 	isgomock struct{}
 }
 
 // MockVMsMockRecorder is the mock recorder for MockVMs.
-type MockVMsMockRecorder[VM any] struct {
-	mock *MockVMs[VM]
+type MockVMsMockRecorder[VM any, NIC any, VMDisk any] struct {
+	mock *MockVMs[VM, NIC, VMDisk]
 }
 
 // NewMockVMs creates a new mock instance.
-func NewMockVMs[VM any](ctrl *gomock.Controller) *MockVMs[VM] {
-	mock := &MockVMs[VM]{ctrl: ctrl}
-	mock.recorder = &MockVMsMockRecorder[VM]{mock}
+func NewMockVMs[VM any, NIC any, VMDisk any](ctrl *gomock.Controller) *MockVMs[VM, NIC, VMDisk] {
+	mock := &MockVMs[VM, NIC, VMDisk]{ctrl: ctrl}
+	mock.recorder = &MockVMsMockRecorder[VM, NIC, VMDisk]{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockVMs[VM]) EXPECT() *MockVMsMockRecorder[VM] {
+func (m *MockVMs[VM, NIC, VMDisk]) EXPECT() *MockVMsMockRecorder[VM, NIC, VMDisk] {
 	return m.recorder
 }
 
+// AddDisk mocks base method.
+func (m *MockVMs[VM, NIC, VMDisk]) AddDisk(ctx context.Context, vmUUID string, disk *VMDisk) (converged.Operation[converged.NoEntity], error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddDisk", ctx, vmUUID, disk)
+	ret0, _ := ret[0].(converged.Operation[converged.NoEntity])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddDisk indicates an expected call of AddDisk.
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) AddDisk(ctx, vmUUID, disk any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDisk", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).AddDisk), ctx, vmUUID, disk)
+}
+
+// AddNIC mocks base method.
+func (m *MockVMs[VM, NIC, VMDisk]) AddNIC(ctx context.Context, vmUUID string, nic *NIC) (converged.Operation[converged.NoEntity], error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddNIC", ctx, vmUUID, nic)
+	ret0, _ := ret[0].(converged.Operation[converged.NoEntity])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddNIC indicates an expected call of AddNIC.
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) AddNIC(ctx, vmUUID, nic any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddNIC", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).AddNIC), ctx, vmUUID, nic)
+}
+
 // AddVmCustomAttributes mocks base method.
-func (m *MockVMs[VM]) AddVmCustomAttributes(ctx context.Context, uuid string, customAttributes []string) (*VM, error) {
+func (m *MockVMs[VM, NIC, VMDisk]) AddVmCustomAttributes(ctx context.Context, uuid string, customAttributes []string) (*VM, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddVmCustomAttributes", ctx, uuid, customAttributes)
 	ret0, _ := ret[0].(*VM)
@@ -51,28 +81,28 @@ func (m *MockVMs[VM]) AddVmCustomAttributes(ctx context.Context, uuid string, cu
 }
 
 // AddVmCustomAttributes indicates an expected call of AddVmCustomAttributes.
-func (mr *MockVMsMockRecorder[VM]) AddVmCustomAttributes(ctx, uuid, customAttributes any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) AddVmCustomAttributes(ctx, uuid, customAttributes any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddVmCustomAttributes", reflect.TypeOf((*MockVMs[VM])(nil).AddVmCustomAttributes), ctx, uuid, customAttributes)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddVmCustomAttributes", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).AddVmCustomAttributes), ctx, uuid, customAttributes)
 }
 
 // AddVmCustomAttributesAsync mocks base method.
-func (m *MockVMs[VM]) AddVmCustomAttributesAsync(uuid string, customAttributes []string) (converged.Operation[VM], error) {
+func (m *MockVMs[VM, NIC, VMDisk]) AddVmCustomAttributesAsync(ctx context.Context, uuid string, customAttributes []string) (converged.Operation[VM], error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddVmCustomAttributesAsync", uuid, customAttributes)
+	ret := m.ctrl.Call(m, "AddVmCustomAttributesAsync", ctx, uuid, customAttributes)
 	ret0, _ := ret[0].(converged.Operation[VM])
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AddVmCustomAttributesAsync indicates an expected call of AddVmCustomAttributesAsync.
-func (mr *MockVMsMockRecorder[VM]) AddVmCustomAttributesAsync(uuid, customAttributes any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) AddVmCustomAttributesAsync(ctx, uuid, customAttributes any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddVmCustomAttributesAsync", reflect.TypeOf((*MockVMs[VM])(nil).AddVmCustomAttributesAsync), uuid, customAttributes)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddVmCustomAttributesAsync", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).AddVmCustomAttributesAsync), ctx, uuid, customAttributes)
 }
 
 // Create mocks base method.
-func (m *MockVMs[VM]) Create(ctx context.Context, entity *VM) (*VM, error) {
+func (m *MockVMs[VM, NIC, VMDisk]) Create(ctx context.Context, entity *VM) (*VM, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", ctx, entity)
 	ret0, _ := ret[0].(*VM)
@@ -81,13 +111,13 @@ func (m *MockVMs[VM]) Create(ctx context.Context, entity *VM) (*VM, error) {
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockVMsMockRecorder[VM]) Create(ctx, entity any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) Create(ctx, entity any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockVMs[VM])(nil).Create), ctx, entity)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).Create), ctx, entity)
 }
 
 // CreateAsync mocks base method.
-func (m *MockVMs[VM]) CreateAsync(ctx context.Context, entity *VM) (converged.Operation[VM], error) {
+func (m *MockVMs[VM, NIC, VMDisk]) CreateAsync(ctx context.Context, entity *VM) (converged.Operation[VM], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateAsync", ctx, entity)
 	ret0, _ := ret[0].(converged.Operation[VM])
@@ -96,13 +126,13 @@ func (m *MockVMs[VM]) CreateAsync(ctx context.Context, entity *VM) (converged.Op
 }
 
 // CreateAsync indicates an expected call of CreateAsync.
-func (mr *MockVMsMockRecorder[VM]) CreateAsync(ctx, entity any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) CreateAsync(ctx, entity any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAsync", reflect.TypeOf((*MockVMs[VM])(nil).CreateAsync), ctx, entity)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAsync", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).CreateAsync), ctx, entity)
 }
 
 // Delete mocks base method.
-func (m *MockVMs[VM]) Delete(ctx context.Context, uuid string) error {
+func (m *MockVMs[VM, NIC, VMDisk]) Delete(ctx context.Context, uuid string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", ctx, uuid)
 	ret0, _ := ret[0].(error)
@@ -110,13 +140,13 @@ func (m *MockVMs[VM]) Delete(ctx context.Context, uuid string) error {
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *MockVMsMockRecorder[VM]) Delete(ctx, uuid any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) Delete(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockVMs[VM])(nil).Delete), ctx, uuid)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).Delete), ctx, uuid)
 }
 
 // DeleteAsync mocks base method.
-func (m *MockVMs[VM]) DeleteAsync(ctx context.Context, uuid string) (converged.Operation[converged.NoEntity], error) {
+func (m *MockVMs[VM, NIC, VMDisk]) DeleteAsync(ctx context.Context, uuid string) (converged.Operation[converged.NoEntity], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteAsync", ctx, uuid)
 	ret0, _ := ret[0].(converged.Operation[converged.NoEntity])
@@ -125,13 +155,13 @@ func (m *MockVMs[VM]) DeleteAsync(ctx context.Context, uuid string) (converged.O
 }
 
 // DeleteAsync indicates an expected call of DeleteAsync.
-func (mr *MockVMsMockRecorder[VM]) DeleteAsync(ctx, uuid any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) DeleteAsync(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAsync", reflect.TypeOf((*MockVMs[VM])(nil).DeleteAsync), ctx, uuid)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAsync", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).DeleteAsync), ctx, uuid)
 }
 
 // DeleteCdRom mocks base method.
-func (m *MockVMs[VM]) DeleteCdRom(ctx context.Context, uuid, cdRomUUID string) error {
+func (m *MockVMs[VM, NIC, VMDisk]) DeleteCdRom(ctx context.Context, uuid, cdRomUUID string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteCdRom", ctx, uuid, cdRomUUID)
 	ret0, _ := ret[0].(error)
@@ -139,28 +169,58 @@ func (m *MockVMs[VM]) DeleteCdRom(ctx context.Context, uuid, cdRomUUID string) e
 }
 
 // DeleteCdRom indicates an expected call of DeleteCdRom.
-func (mr *MockVMsMockRecorder[VM]) DeleteCdRom(ctx, uuid, cdRomUUID any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) DeleteCdRom(ctx, uuid, cdRomUUID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCdRom", reflect.TypeOf((*MockVMs[VM])(nil).DeleteCdRom), ctx, uuid, cdRomUUID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCdRom", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).DeleteCdRom), ctx, uuid, cdRomUUID)
 }
 
 // DeleteCdRomAsync mocks base method.
-func (m *MockVMs[VM]) DeleteCdRomAsync(uuid, cdRomUUID string) (converged.Operation[converged.NoEntity], error) {
+func (m *MockVMs[VM, NIC, VMDisk]) DeleteCdRomAsync(ctx context.Context, uuid, cdRomUUID string) (converged.Operation[converged.NoEntity], error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteCdRomAsync", uuid, cdRomUUID)
+	ret := m.ctrl.Call(m, "DeleteCdRomAsync", ctx, uuid, cdRomUUID)
 	ret0, _ := ret[0].(converged.Operation[converged.NoEntity])
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteCdRomAsync indicates an expected call of DeleteCdRomAsync.
-func (mr *MockVMsMockRecorder[VM]) DeleteCdRomAsync(uuid, cdRomUUID any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) DeleteCdRomAsync(ctx, uuid, cdRomUUID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCdRomAsync", reflect.TypeOf((*MockVMs[VM])(nil).DeleteCdRomAsync), uuid, cdRomUUID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCdRomAsync", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).DeleteCdRomAsync), ctx, uuid, cdRomUUID)
+}
+
+// DeleteDisk mocks base method.
+func (m *MockVMs[VM, NIC, VMDisk]) DeleteDisk(ctx context.Context, vmUUID, diskUUID string) (converged.Operation[converged.NoEntity], error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteDisk", ctx, vmUUID, diskUUID)
+	ret0, _ := ret[0].(converged.Operation[converged.NoEntity])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteDisk indicates an expected call of DeleteDisk.
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) DeleteDisk(ctx, vmUUID, diskUUID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDisk", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).DeleteDisk), ctx, vmUUID, diskUUID)
+}
+
+// DeleteNIC mocks base method.
+func (m *MockVMs[VM, NIC, VMDisk]) DeleteNIC(ctx context.Context, vmUUID, nicUUID string) (converged.Operation[converged.NoEntity], error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteNIC", ctx, vmUUID, nicUUID)
+	ret0, _ := ret[0].(converged.Operation[converged.NoEntity])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteNIC indicates an expected call of DeleteNIC.
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) DeleteNIC(ctx, vmUUID, nicUUID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNIC", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).DeleteNIC), ctx, vmUUID, nicUUID)
 }
 
 // GenerateConsoleToken mocks base method.
-func (m *MockVMs[VM]) GenerateConsoleToken(ctx context.Context, uuid string) (*converged.VMConsoleToken, error) {
+func (m *MockVMs[VM, NIC, VMDisk]) GenerateConsoleToken(ctx context.Context, uuid string) (*converged.VMConsoleToken, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GenerateConsoleToken", ctx, uuid)
 	ret0, _ := ret[0].(*converged.VMConsoleToken)
@@ -169,28 +229,28 @@ func (m *MockVMs[VM]) GenerateConsoleToken(ctx context.Context, uuid string) (*c
 }
 
 // GenerateConsoleToken indicates an expected call of GenerateConsoleToken.
-func (mr *MockVMsMockRecorder[VM]) GenerateConsoleToken(ctx, uuid any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) GenerateConsoleToken(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateConsoleToken", reflect.TypeOf((*MockVMs[VM])(nil).GenerateConsoleToken), ctx, uuid)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateConsoleToken", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).GenerateConsoleToken), ctx, uuid)
 }
 
 // GenerateConsoleTokenAsync mocks base method.
-func (m *MockVMs[VM]) GenerateConsoleTokenAsync(uuid string) (converged.Operation[converged.NoEntity], error) {
+func (m *MockVMs[VM, NIC, VMDisk]) GenerateConsoleTokenAsync(ctx context.Context, uuid string) (converged.Operation[converged.NoEntity], error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GenerateConsoleTokenAsync", uuid)
+	ret := m.ctrl.Call(m, "GenerateConsoleTokenAsync", ctx, uuid)
 	ret0, _ := ret[0].(converged.Operation[converged.NoEntity])
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GenerateConsoleTokenAsync indicates an expected call of GenerateConsoleTokenAsync.
-func (mr *MockVMsMockRecorder[VM]) GenerateConsoleTokenAsync(uuid any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) GenerateConsoleTokenAsync(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateConsoleTokenAsync", reflect.TypeOf((*MockVMs[VM])(nil).GenerateConsoleTokenAsync), uuid)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateConsoleTokenAsync", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).GenerateConsoleTokenAsync), ctx, uuid)
 }
 
 // Get mocks base method.
-func (m *MockVMs[VM]) Get(ctx context.Context, uuid string) (*VM, error) {
+func (m *MockVMs[VM, NIC, VMDisk]) Get(ctx context.Context, uuid string) (*VM, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", ctx, uuid)
 	ret0, _ := ret[0].(*VM)
@@ -199,13 +259,43 @@ func (m *MockVMs[VM]) Get(ctx context.Context, uuid string) (*VM, error) {
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockVMsMockRecorder[VM]) Get(ctx, uuid any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) Get(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockVMs[VM])(nil).Get), ctx, uuid)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).Get), ctx, uuid)
+}
+
+// GetVMByBiosUUID mocks base method.
+func (m *MockVMs[VM, NIC, VMDisk]) GetVMByBiosUUID(ctx context.Context, biosUUID string) (*VM, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVMByBiosUUID", ctx, biosUUID)
+	ret0, _ := ret[0].(*VM)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetVMByBiosUUID indicates an expected call of GetVMByBiosUUID.
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) GetVMByBiosUUID(ctx, biosUUID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVMByBiosUUID", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).GetVMByBiosUUID), ctx, biosUUID)
+}
+
+// GrowDisk mocks base method.
+func (m *MockVMs[VM, NIC, VMDisk]) GrowDisk(ctx context.Context, vmUUID, diskUUID string, disk *VMDisk) (converged.Operation[converged.NoEntity], error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GrowDisk", ctx, vmUUID, diskUUID, disk)
+	ret0, _ := ret[0].(converged.Operation[converged.NoEntity])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GrowDisk indicates an expected call of GrowDisk.
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) GrowDisk(ctx, vmUUID, diskUUID, disk any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GrowDisk", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).GrowDisk), ctx, vmUUID, diskUUID, disk)
 }
 
 // List mocks base method.
-func (m *MockVMs[VM]) List(ctx context.Context, opts ...converged.ODataOption) ([]VM, error) {
+func (m *MockVMs[VM, NIC, VMDisk]) List(ctx context.Context, opts ...converged.ODataOption) ([]VM, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range opts {
@@ -218,14 +308,29 @@ func (m *MockVMs[VM]) List(ctx context.Context, opts ...converged.ODataOption) (
 }
 
 // List indicates an expected call of List.
-func (mr *MockVMsMockRecorder[VM]) List(ctx any, opts ...any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) List(ctx any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockVMs[VM])(nil).List), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).List), varargs...)
+}
+
+// ListNicsByVmId mocks base method.
+func (m *MockVMs[VM, NIC, VMDisk]) ListNicsByVmId(ctx context.Context, vmUUID string) ([]NIC, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListNicsByVmId", ctx, vmUUID)
+	ret0, _ := ret[0].([]NIC)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListNicsByVmId indicates an expected call of ListNicsByVmId.
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) ListNicsByVmId(ctx, vmUUID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListNicsByVmId", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).ListNicsByVmId), ctx, vmUUID)
 }
 
 // NewIterator mocks base method.
-func (m *MockVMs[VM]) NewIterator(ctx context.Context, opts ...converged.ODataOption) converged.Iterator[VM] {
+func (m *MockVMs[VM, NIC, VMDisk]) NewIterator(ctx context.Context, opts ...converged.ODataOption) converged.Iterator[VM] {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range opts {
@@ -237,44 +342,44 @@ func (m *MockVMs[VM]) NewIterator(ctx context.Context, opts ...converged.ODataOp
 }
 
 // NewIterator indicates an expected call of NewIterator.
-func (mr *MockVMsMockRecorder[VM]) NewIterator(ctx any, opts ...any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) NewIterator(ctx any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewIterator", reflect.TypeOf((*MockVMs[VM])(nil).NewIterator), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewIterator", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).NewIterator), varargs...)
 }
 
 // PowerOffVM mocks base method.
-func (m *MockVMs[VM]) PowerOffVM(uuid string) (converged.Operation[VM], error) {
+func (m *MockVMs[VM, NIC, VMDisk]) PowerOffVM(ctx context.Context, uuid string) (converged.Operation[VM], error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PowerOffVM", uuid)
+	ret := m.ctrl.Call(m, "PowerOffVM", ctx, uuid)
 	ret0, _ := ret[0].(converged.Operation[VM])
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PowerOffVM indicates an expected call of PowerOffVM.
-func (mr *MockVMsMockRecorder[VM]) PowerOffVM(uuid any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) PowerOffVM(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PowerOffVM", reflect.TypeOf((*MockVMs[VM])(nil).PowerOffVM), uuid)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PowerOffVM", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).PowerOffVM), ctx, uuid)
 }
 
 // PowerOnVM mocks base method.
-func (m *MockVMs[VM]) PowerOnVM(uuid string) (converged.Operation[VM], error) {
+func (m *MockVMs[VM, NIC, VMDisk]) PowerOnVM(ctx context.Context, uuid string) (converged.Operation[VM], error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PowerOnVM", uuid)
+	ret := m.ctrl.Call(m, "PowerOnVM", ctx, uuid)
 	ret0, _ := ret[0].(converged.Operation[VM])
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PowerOnVM indicates an expected call of PowerOnVM.
-func (mr *MockVMsMockRecorder[VM]) PowerOnVM(uuid any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) PowerOnVM(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PowerOnVM", reflect.TypeOf((*MockVMs[VM])(nil).PowerOnVM), uuid)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PowerOnVM", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).PowerOnVM), ctx, uuid)
 }
 
 // RemoveVmCustomAttributes mocks base method.
-func (m *MockVMs[VM]) RemoveVmCustomAttributes(ctx context.Context, uuid string, customAttributes []string) (*VM, error) {
+func (m *MockVMs[VM, NIC, VMDisk]) RemoveVmCustomAttributes(ctx context.Context, uuid string, customAttributes []string) (*VM, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RemoveVmCustomAttributes", ctx, uuid, customAttributes)
 	ret0, _ := ret[0].(*VM)
@@ -283,28 +388,28 @@ func (m *MockVMs[VM]) RemoveVmCustomAttributes(ctx context.Context, uuid string,
 }
 
 // RemoveVmCustomAttributes indicates an expected call of RemoveVmCustomAttributes.
-func (mr *MockVMsMockRecorder[VM]) RemoveVmCustomAttributes(ctx, uuid, customAttributes any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) RemoveVmCustomAttributes(ctx, uuid, customAttributes any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveVmCustomAttributes", reflect.TypeOf((*MockVMs[VM])(nil).RemoveVmCustomAttributes), ctx, uuid, customAttributes)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveVmCustomAttributes", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).RemoveVmCustomAttributes), ctx, uuid, customAttributes)
 }
 
 // RemoveVmCustomAttributesAsync mocks base method.
-func (m *MockVMs[VM]) RemoveVmCustomAttributesAsync(uuid string, customAttributes []string) (converged.Operation[VM], error) {
+func (m *MockVMs[VM, NIC, VMDisk]) RemoveVmCustomAttributesAsync(ctx context.Context, uuid string, customAttributes []string) (converged.Operation[VM], error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RemoveVmCustomAttributesAsync", uuid, customAttributes)
+	ret := m.ctrl.Call(m, "RemoveVmCustomAttributesAsync", ctx, uuid, customAttributes)
 	ret0, _ := ret[0].(converged.Operation[VM])
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // RemoveVmCustomAttributesAsync indicates an expected call of RemoveVmCustomAttributesAsync.
-func (mr *MockVMsMockRecorder[VM]) RemoveVmCustomAttributesAsync(uuid, customAttributes any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) RemoveVmCustomAttributesAsync(ctx, uuid, customAttributes any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveVmCustomAttributesAsync", reflect.TypeOf((*MockVMs[VM])(nil).RemoveVmCustomAttributesAsync), uuid, customAttributes)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveVmCustomAttributesAsync", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).RemoveVmCustomAttributesAsync), ctx, uuid, customAttributes)
 }
 
 // Update mocks base method.
-func (m *MockVMs[VM]) Update(ctx context.Context, uuid string, entity *VM) (*VM, error) {
+func (m *MockVMs[VM, NIC, VMDisk]) Update(ctx context.Context, uuid string, entity *VM) (*VM, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", ctx, uuid, entity)
 	ret0, _ := ret[0].(*VM)
@@ -313,13 +418,13 @@ func (m *MockVMs[VM]) Update(ctx context.Context, uuid string, entity *VM) (*VM,
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockVMsMockRecorder[VM]) Update(ctx, uuid, entity any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) Update(ctx, uuid, entity any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockVMs[VM])(nil).Update), ctx, uuid, entity)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).Update), ctx, uuid, entity)
 }
 
 // UpdateAsync mocks base method.
-func (m *MockVMs[VM]) UpdateAsync(ctx context.Context, uuid string, entity *VM) (converged.Operation[VM], error) {
+func (m *MockVMs[VM, NIC, VMDisk]) UpdateAsync(ctx context.Context, uuid string, entity *VM) (converged.Operation[VM], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateAsync", ctx, uuid, entity)
 	ret0, _ := ret[0].(converged.Operation[VM])
@@ -328,7 +433,7 @@ func (m *MockVMs[VM]) UpdateAsync(ctx context.Context, uuid string, entity *VM) 
 }
 
 // UpdateAsync indicates an expected call of UpdateAsync.
-func (mr *MockVMsMockRecorder[VM]) UpdateAsync(ctx, uuid, entity any) *gomock.Call {
+func (mr *MockVMsMockRecorder[VM, NIC, VMDisk]) UpdateAsync(ctx, uuid, entity any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAsync", reflect.TypeOf((*MockVMs[VM])(nil).UpdateAsync), ctx, uuid, entity)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAsync", reflect.TypeOf((*MockVMs[VM, NIC, VMDisk])(nil).UpdateAsync), ctx, uuid, entity)
 }

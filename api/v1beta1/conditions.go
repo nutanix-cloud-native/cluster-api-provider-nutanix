@@ -92,7 +92,9 @@ const (
 )
 
 const (
-	// ClusterCategoryCreatedCondition indicates the status of the category linked to the NutanixCluster
+	// ClusterCategoryCreatedCondition indicates the status of the default CAPX
+	// categories: set True by the machine reconciler on first successful
+	// create/get, flipped False by the cluster reconciler on delete.
 	ClusterCategoryCreatedCondition capiv1beta1.ConditionType = "ClusterCategoryCreated"
 
 	ClusterCategoryCreationFailed = "ClusterCategoryCreationFailed"

@@ -18,31 +18,31 @@ import (
 )
 
 // MockTemplates is a mock of Templates interface.
-type MockTemplates[Template any] struct {
+type MockTemplates[Template any, VM any, TemplateDeployParams any] struct {
 	ctrl     *gomock.Controller
-	recorder *MockTemplatesMockRecorder[Template]
+	recorder *MockTemplatesMockRecorder[Template, VM, TemplateDeployParams]
 	isgomock struct{}
 }
 
 // MockTemplatesMockRecorder is the mock recorder for MockTemplates.
-type MockTemplatesMockRecorder[Template any] struct {
-	mock *MockTemplates[Template]
+type MockTemplatesMockRecorder[Template any, VM any, TemplateDeployParams any] struct {
+	mock *MockTemplates[Template, VM, TemplateDeployParams]
 }
 
 // NewMockTemplates creates a new mock instance.
-func NewMockTemplates[Template any](ctrl *gomock.Controller) *MockTemplates[Template] {
-	mock := &MockTemplates[Template]{ctrl: ctrl}
-	mock.recorder = &MockTemplatesMockRecorder[Template]{mock}
+func NewMockTemplates[Template any, VM any, TemplateDeployParams any](ctrl *gomock.Controller) *MockTemplates[Template, VM, TemplateDeployParams] {
+	mock := &MockTemplates[Template, VM, TemplateDeployParams]{ctrl: ctrl}
+	mock.recorder = &MockTemplatesMockRecorder[Template, VM, TemplateDeployParams]{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockTemplates[Template]) EXPECT() *MockTemplatesMockRecorder[Template] {
+func (m *MockTemplates[Template, VM, TemplateDeployParams]) EXPECT() *MockTemplatesMockRecorder[Template, VM, TemplateDeployParams] {
 	return m.recorder
 }
 
 // Create mocks base method.
-func (m *MockTemplates[Template]) Create(ctx context.Context, entity *Template) (*Template, error) {
+func (m *MockTemplates[Template, VM, TemplateDeployParams]) Create(ctx context.Context, entity *Template) (*Template, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", ctx, entity)
 	ret0, _ := ret[0].(*Template)
@@ -51,13 +51,28 @@ func (m *MockTemplates[Template]) Create(ctx context.Context, entity *Template) 
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockTemplatesMockRecorder[Template]) Create(ctx, entity any) *gomock.Call {
+func (mr *MockTemplatesMockRecorder[Template, VM, TemplateDeployParams]) Create(ctx, entity any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockTemplates[Template])(nil).Create), ctx, entity)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockTemplates[Template, VM, TemplateDeployParams])(nil).Create), ctx, entity)
+}
+
+// DeployVmWithTemplate mocks base method.
+func (m *MockTemplates[Template, VM, TemplateDeployParams]) DeployVmWithTemplate(ctx context.Context, templateUUID string, params *TemplateDeployParams) (converged.Operation[VM], error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeployVmWithTemplate", ctx, templateUUID, params)
+	ret0, _ := ret[0].(converged.Operation[VM])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeployVmWithTemplate indicates an expected call of DeployVmWithTemplate.
+func (mr *MockTemplatesMockRecorder[Template, VM, TemplateDeployParams]) DeployVmWithTemplate(ctx, templateUUID, params any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeployVmWithTemplate", reflect.TypeOf((*MockTemplates[Template, VM, TemplateDeployParams])(nil).DeployVmWithTemplate), ctx, templateUUID, params)
 }
 
 // Get mocks base method.
-func (m *MockTemplates[Template]) Get(ctx context.Context, uuid string) (*Template, error) {
+func (m *MockTemplates[Template, VM, TemplateDeployParams]) Get(ctx context.Context, uuid string) (*Template, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", ctx, uuid)
 	ret0, _ := ret[0].(*Template)
@@ -66,13 +81,13 @@ func (m *MockTemplates[Template]) Get(ctx context.Context, uuid string) (*Templa
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockTemplatesMockRecorder[Template]) Get(ctx, uuid any) *gomock.Call {
+func (mr *MockTemplatesMockRecorder[Template, VM, TemplateDeployParams]) Get(ctx, uuid any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockTemplates[Template])(nil).Get), ctx, uuid)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockTemplates[Template, VM, TemplateDeployParams])(nil).Get), ctx, uuid)
 }
 
 // List mocks base method.
-func (m *MockTemplates[Template]) List(ctx context.Context, opts ...converged.ODataOption) ([]Template, error) {
+func (m *MockTemplates[Template, VM, TemplateDeployParams]) List(ctx context.Context, opts ...converged.ODataOption) ([]Template, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range opts {
@@ -85,14 +100,14 @@ func (m *MockTemplates[Template]) List(ctx context.Context, opts ...converged.OD
 }
 
 // List indicates an expected call of List.
-func (mr *MockTemplatesMockRecorder[Template]) List(ctx any, opts ...any) *gomock.Call {
+func (mr *MockTemplatesMockRecorder[Template, VM, TemplateDeployParams]) List(ctx any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockTemplates[Template])(nil).List), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockTemplates[Template, VM, TemplateDeployParams])(nil).List), varargs...)
 }
 
 // NewIterator mocks base method.
-func (m *MockTemplates[Template]) NewIterator(ctx context.Context, opts ...converged.ODataOption) converged.Iterator[Template] {
+func (m *MockTemplates[Template, VM, TemplateDeployParams]) NewIterator(ctx context.Context, opts ...converged.ODataOption) converged.Iterator[Template] {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx}
 	for _, a := range opts {
@@ -104,8 +119,8 @@ func (m *MockTemplates[Template]) NewIterator(ctx context.Context, opts ...conve
 }
 
 // NewIterator indicates an expected call of NewIterator.
-func (mr *MockTemplatesMockRecorder[Template]) NewIterator(ctx any, opts ...any) *gomock.Call {
+func (mr *MockTemplatesMockRecorder[Template, VM, TemplateDeployParams]) NewIterator(ctx any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewIterator", reflect.TypeOf((*MockTemplates[Template])(nil).NewIterator), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewIterator", reflect.TypeOf((*MockTemplates[Template, VM, TemplateDeployParams])(nil).NewIterator), varargs...)
 }
