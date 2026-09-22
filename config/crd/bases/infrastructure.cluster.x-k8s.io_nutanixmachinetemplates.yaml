@@ -508,6 +508,11 @@ spec:
                         description: ProviderID is the unique identifier as specified
                           by the cloud provider.
                         type: string
+                      secureBootEnabled:
+                        description: |-
+                          secureBootEnabled enables UEFI Secure Boot for the virtual machine.
+                          It requires bootType to be uefi.
+                        type: boolean
                       subnet:
                         description: |-
                           subnet is to identify the cluster's network subnet to use for the Machine's VM
@@ -608,6 +613,11 @@ spec:
                             forbidden otherwise'
                           rule: 'self.type == ''uuid'' ? has(self.uuid) && self.uuid.contains(''-'')
                             : !has(self.uuid)'
+                      vtpmEnabled:
+                        description: |-
+                          vtpmEnabled enables the virtual Trusted Platform Module for the virtual machine.
+                          It requires UEFI Secure Boot to be enabled.
+                        type: boolean
                     required:
                     - systemDiskSize
                     type: object
@@ -632,6 +642,13 @@ spec:
                       rule: '!has(self.vmProfile) ? (has(self.vcpusPerSocket) && self.vcpusPerSocket
                         > 0 && has(self.vcpuSockets) && self.vcpuSockets > 0 && has(self.memorySize)
                         && self.memorySize != "" && self.memorySize != "0") : true'
+                    - message: secureBootEnabled requires bootType to be uefi
+                      rule: '!has(self.secureBootEnabled) || !self.secureBootEnabled
+                        || self.bootType == ''uefi'''
+                    - message: vtpmEnabled requires bootType to be uefi and secureBootEnabled
+                        to be true
+                      rule: '!has(self.vtpmEnabled) || !self.vtpmEnabled || (self.bootType
+                        == ''uefi'' && has(self.secureBootEnabled) && self.secureBootEnabled)'
                 required:
                 - spec
                 type: object
