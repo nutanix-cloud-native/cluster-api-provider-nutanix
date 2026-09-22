@@ -81,7 +81,7 @@ CNI_PATH_CILIUM ?= "${E2E_DIR}/data/cni/cilium/cilium.yaml"
 CNI_PATH_CILIUM_NO_KUBEPROXY ?= "${E2E_DIR}/data/cni/cilium/cilium-no-kubeproxy.yaml"
 CNI_PATH_FLANNEL ?= "${E2E_DIR}/data/cni/flannel/flannel.yaml"
 CNI_PATH_KINDNET ?= "${E2E_DIR}/data/cni/kindnet/kindnet.yaml"
-CCM_VERSION ?= 0.7.0-alpha.1
+CCM_VERSION ?= 0.8.0-dev.1
 CCM_REPO ?= ghcr.io/nutanix-cloud-native/cloud-provider-nutanix/controller
 # Auto-select credential type: API key takes precedence when set.
 NUTANIX_CREDENTIALS_TYPE ?= $(if $(strip $(NUTANIX_API_KEY)),api_key,basic_auth)
