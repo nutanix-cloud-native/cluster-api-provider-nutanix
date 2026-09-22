@@ -99,6 +99,8 @@ type NutanixImageLookup struct {
 // NutanixMachineSpec defines the desired state of NutanixMachine
 // +kubebuilder:validation:XValidation:rule="has(self.image) != has(self.imageLookup)",message="Either 'image' or 'imageLookup' must be set, but not both"
 // +kubebuilder:validation:XValidation:rule="has(self.subnet) && size(self.subnet) > 1 ? self.subnet.all(x, self.subnet.exists_one(y, x == y)) : true",message="each subnet must be unique"
+// +kubebuilder:validation:XValidation:rule="!has(self.secureBootEnabled) || !self.secureBootEnabled || self.bootType == 'uefi'",message="secureBootEnabled requires bootType to be uefi"
+// +kubebuilder:validation:XValidation:rule="!has(self.vtpmEnabled) || !self.vtpmEnabled || (self.bootType == 'uefi' && has(self.secureBootEnabled) && self.secureBootEnabled)",message="vtpmEnabled requires bootType to be uefi and secureBootEnabled to be true"
 type NutanixMachineSpec struct {
 	// SPEC FIELDS - desired state of NutanixMachine
 	// Important: Run "make" to regenerate code after modifying this file
@@ -150,6 +152,16 @@ type NutanixMachineSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum:=legacy;uefi
 	BootType NutanixBootType `json:"bootType,omitempty"`
+	// secureBootEnabled enables UEFI Secure Boot for the virtual machine.
+	// It requires bootType to be uefi.
+	// +kubebuilder:validation:Optional
+	// +optional
+	SecureBootEnabled bool `json:"secureBootEnabled,omitempty"`
+	// vtpmEnabled enables the virtual Trusted Platform Module for the virtual machine.
+	// It requires UEFI Secure Boot to be enabled.
+	// +kubebuilder:validation:Optional
+	// +optional
+	VTPMEnabled bool `json:"vtpmEnabled,omitempty"`
 	// systemDiskSize is size (in Quantity format) of the system disk of the VM
 	// The minimum systemDiskSize is 20Gi bytes
 	// +kubebuilder:validation:Required

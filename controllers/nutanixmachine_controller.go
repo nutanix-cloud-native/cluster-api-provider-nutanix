@@ -2334,6 +2334,33 @@ func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.Mach
 
 func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
 	bootType := rctx.NutanixMachine.Spec.BootType
+	secureBootEnabled := rctx.NutanixMachine.Spec.SecureBootEnabled
+	vtpmEnabled := rctx.NutanixMachine.Spec.VTPMEnabled
+
+	if secureBootEnabled && bootType != infrav1.NutanixBootTypeUEFI {
+		errorMsg := fmt.Errorf("secure boot requires boot type %s", string(infrav1.NutanixBootTypeUEFI))
+		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VMBootTypeInvalid, capiv1beta1.ConditionSeverityError, "%s", errorMsg.Error())
+		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+			Type:    string(infrav1.VMProvisionedCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.VMBootTypeInvalid,
+			Message: errorMsg.Error(),
+		})
+		return errorMsg
+	}
+
+	if vtpmEnabled && !secureBootEnabled {
+		errorMsg := fmt.Errorf("vTPM requires secure boot to be enabled")
+		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VMBootTypeInvalid, capiv1beta1.ConditionSeverityError, "%s", errorMsg.Error())
+		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+			Type:    string(infrav1.VMProvisionedCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.VMBootTypeInvalid,
+			Message: errorMsg.Error(),
+		})
+		return errorMsg
+	}
+
 	// Defaults to legacy if boot type is not set.
 	if bootType != "" {
 		if bootType != infrav1.NutanixBootTypeLegacy && bootType != infrav1.NutanixBootTypeUEFI {
@@ -2355,6 +2382,11 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 		if bootType == infrav1.NutanixBootTypeUEFI {
 			uefi := vmmconfig.NewUefiBoot()
 			uefi.BootOrder = bootOrder
+			if secureBootEnabled {
+				uefi.IsSecureBootEnabled = ptr.To(true)
+				// Nutanix requires the Q35 machine type for Secure Boot.
+				vm.MachineType = ptr.To(vmmconfig.MACHINETYPE_Q35)
+			}
 			err := vm.BootConfig.SetValue(*uefi)
 			if err != nil {
 				return err
@@ -2367,6 +2399,11 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 				return err
 			}
 		}
+	}
+
+	if vtpmEnabled {
+		vm.VtpmConfig = vmmconfig.NewVtpmConfig()
+		vm.VtpmConfig.IsVtpmEnabled = ptr.To(true)
 	}
 
 	return nil

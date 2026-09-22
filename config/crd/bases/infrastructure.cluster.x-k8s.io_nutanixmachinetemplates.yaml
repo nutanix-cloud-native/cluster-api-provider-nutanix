@@ -452,6 +452,11 @@ spec:
                         description: ProviderID is the unique identifier as specified
                           by the cloud provider.
                         type: string
+                      secureBootEnabled:
+                        description: |-
+                          secureBootEnabled enables UEFI Secure Boot for the virtual machine.
+                          It requires bootType to be uefi.
+                        type: boolean
                       subnet:
                         description: |-
                           subnet is to identify the cluster's network subnet to use for the Machine's VM
@@ -513,6 +518,11 @@ spec:
                         format: int32
                         minimum: 1
                         type: integer
+                      vtpmEnabled:
+                        description: |-
+                          vtpmEnabled enables the virtual Trusted Platform Module for the virtual machine.
+                          It requires UEFI Secure Boot to be enabled.
+                        type: boolean
                     required:
                     - memorySize
                     - systemDiskSize
@@ -526,6 +536,13 @@ spec:
                     - message: each subnet must be unique
                       rule: 'has(self.subnet) && size(self.subnet) > 1 ? self.subnet.all(x,
                         self.subnet.exists_one(y, x == y)) : true'
+                    - message: secureBootEnabled requires bootType to be uefi
+                      rule: '!has(self.secureBootEnabled) || !self.secureBootEnabled
+                        || self.bootType == ''uefi'''
+                    - message: vtpmEnabled requires bootType to be uefi and secureBootEnabled
+                        to be true
+                      rule: '!has(self.vtpmEnabled) || !self.vtpmEnabled || (self.bootType
+                        == ''uefi'' && has(self.secureBootEnabled) && self.secureBootEnabled)'
                 required:
                 - spec
                 type: object
