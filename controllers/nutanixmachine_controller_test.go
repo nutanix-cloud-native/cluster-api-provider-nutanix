@@ -3447,11 +3447,13 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 				Namespace: "default",
 			},
 			Spec: infrav1.NutanixMachineSpec{
-				VCPUSockets:    2,
-				VCPUsPerSocket: 1,
-				MemorySize:     resource.MustParse("4Gi"),
-				SystemDiskSize: resource.MustParse("40Gi"),
-				BootType:       infrav1.NutanixBootTypeLegacy,
+				VCPUSockets:       2,
+				VCPUsPerSocket:    1,
+				MemorySize:        resource.MustParse("4Gi"),
+				SystemDiskSize:    resource.MustParse("40Gi"),
+				BootType:          infrav1.NutanixBootTypeUEFI,
+				SecureBootEnabled: true,
+				VTPMEnabled:       true,
 				Project: &infrav1.NutanixResourceIdentifier{
 					Type: infrav1.NutanixIdentifierName,
 					Name: &projectName,
@@ -3566,7 +3568,31 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		// that passes the plain ctx (and silently drops the key) fails here.
 		mockCreateOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
 		mockCreateOp.EXPECT().Wait(gomock.Any()).Return([]*vmmModels.Vm{createdVM}, nil)
-		mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctxWithRequestID(), gomock.Any()).Return(mockCreateOp, nil)
+		mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctxWithRequestID(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, request *vmmModels.Vm) (converged.Operation[vmmModels.Vm], error) {
+				require.NotNil(t, request.MachineType)
+				assert.Equal(t, vmmModels.MACHINETYPE_Q35, *request.MachineType)
+
+				require.NotNil(t, request.BootConfig)
+				uefi, ok := request.BootConfig.GetValue().(vmmModels.UefiBoot)
+				require.True(t, ok)
+				require.NotNil(t, uefi.IsSecureBootEnabled)
+				assert.True(t, *uefi.IsSecureBootEnabled)
+
+				require.NotNil(t, request.VtpmConfig)
+				require.NotNil(t, request.VtpmConfig.IsVtpmEnabled)
+				assert.True(t, *request.VtpmConfig.IsVtpmEnabled)
+
+				payload, err := json.Marshal(request)
+				require.NoError(t, err)
+				assert.Contains(t, string(payload), `"machineType":"Q35"`)
+				assert.Contains(t, string(payload), `"isSecureBootEnabled":true`)
+				assert.Contains(t, string(payload), `"vtpmConfig"`)
+				assert.Contains(t, string(payload), `"isVtpmEnabled":true`)
+
+				return mockCreateOp, nil
+			},
+		)
 
 		// Create machine context (PC 7.5 uses V3 project API, so ListAllProject mock is used)
 		rctx := &nctx.MachineContext{
@@ -4216,6 +4242,112 @@ func TestNutanixMachineReconciler_buildDeployParamsFromProfile_CategoryErrorHand
 		assert.Nil(t, rctx.NutanixMachine.Status.FailureReason)
 		assert.Nil(t, rctx.NutanixMachine.Status.FailureMessage)
 	})
+}
+
+func TestNutanixMachineReconciler_addBootTypeToVM(t *testing.T) {
+	tests := []struct {
+		name           string
+		spec           infrav1.NutanixMachineSpec
+		wantError      string
+		wantUEFI       bool
+		wantSecureBoot bool
+		wantVTPM       bool
+	}{
+		{
+			name: "leaves the Nutanix defaults unchanged when no boot security is configured",
+		},
+		{
+			name: "configures UEFI without Secure Boot",
+			spec: infrav1.NutanixMachineSpec{
+				BootType: infrav1.NutanixBootTypeUEFI,
+			},
+			wantUEFI: true,
+		},
+		{
+			name: "enables UEFI Secure Boot",
+			spec: infrav1.NutanixMachineSpec{
+				BootType:          infrav1.NutanixBootTypeUEFI,
+				SecureBootEnabled: true,
+			},
+			wantUEFI:       true,
+			wantSecureBoot: true,
+		},
+		{
+			name: "enables UEFI Secure Boot and vTPM",
+			spec: infrav1.NutanixMachineSpec{
+				BootType:          infrav1.NutanixBootTypeUEFI,
+				SecureBootEnabled: true,
+				VTPMEnabled:       true,
+			},
+			wantUEFI:       true,
+			wantSecureBoot: true,
+			wantVTPM:       true,
+		},
+		{
+			name: "rejects Secure Boot with legacy boot",
+			spec: infrav1.NutanixMachineSpec{
+				BootType:          infrav1.NutanixBootTypeLegacy,
+				SecureBootEnabled: true,
+			},
+			wantError: "secure boot requires boot type uefi",
+		},
+		{
+			name: "rejects vTPM without Secure Boot",
+			spec: infrav1.NutanixMachineSpec{
+				BootType:    infrav1.NutanixBootTypeUEFI,
+				VTPMEnabled: true,
+			},
+			wantError: "vTPM requires secure boot to be enabled",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reconciler := &NutanixMachineReconciler{}
+			machineContext := &nctx.MachineContext{
+				Context: context.Background(),
+				NutanixMachine: &infrav1.NutanixMachine{
+					Spec: tt.spec,
+				},
+			}
+			vm := vmmModels.NewVm()
+
+			err := reconciler.addBootTypeToVM(machineContext, vm)
+			if tt.wantError != "" {
+				require.EqualError(t, err, tt.wantError)
+				return
+			}
+			require.NoError(t, err)
+
+			if !tt.wantUEFI {
+				assert.Nil(t, vm.BootConfig)
+			} else {
+				require.NotNil(t, vm.BootConfig)
+				uefi, ok := vm.BootConfig.GetValue().(vmmModels.UefiBoot)
+				require.True(t, ok)
+				if tt.wantSecureBoot {
+					require.NotNil(t, uefi.IsSecureBootEnabled)
+					assert.True(t, *uefi.IsSecureBootEnabled)
+				} else {
+					assert.Nil(t, uefi.IsSecureBootEnabled)
+				}
+			}
+			if tt.wantSecureBoot {
+				require.NotNil(t, vm.MachineType)
+				assert.Equal(t, vmmModels.MACHINETYPE_Q35, *vm.MachineType)
+			} else {
+				assert.Nil(t, vm.MachineType)
+			}
+
+			if tt.wantVTPM {
+				require.NotNil(t, vm.VtpmConfig)
+				require.NotNil(t, vm.VtpmConfig.IsVtpmEnabled)
+				assert.True(t, *vm.VtpmConfig.IsVtpmEnabled)
+			} else {
+				assert.Nil(t, vm.VtpmConfig)
+			}
+		})
+	}
 }
 
 func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
