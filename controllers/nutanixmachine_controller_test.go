@@ -3033,11 +3033,13 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		// 2. GetTaskUUIDFromVM after VM creation returns task with UUID
 		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil)
 
-		// Mock CreateVM
+		// Mock CreateVM (async + wait)
 		createdVM := vmmModels.NewVm()
 		createdVM.Name = ptr.To(vmName)
 		createdVM.ExtId = ptr.To(vmUUID)
-		mockConvergedClient.MockVMs.EXPECT().Create(ctx, gomock.Any()).Return(createdVM, nil)
+		mockCreateOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
+		mockCreateOp.EXPECT().Wait(ctx).Return([]*vmmModels.Vm{createdVM}, nil)
+		mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctx, gomock.Any()).Return(mockCreateOp, nil)
 
 		// Create machine context
 		rctx := &nctx.MachineContext{
@@ -3306,6 +3308,82 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		assert.Nil(t, ntnxMachine.Status.FailureReason)
 		assert.Nil(t, ntnxMachine.Status.FailureMessage)
 	})
+}
+
+func Test_createAndWaitForVM(t *testing.T) {
+	ctx := context.Background()
+	vmName := "test-vm"
+	createdVM := vmmModels.NewVm()
+	createdVM.Name = ptr.To(vmName)
+	createdVM.ExtId = ptr.To("vm-uuid")
+
+	tests := []struct {
+		name           string
+		waitResult     []*vmmModels.Vm
+		wantErrSubstr  string
+		wantFailure    bool
+		wantReturnedVM bool
+	}{
+		{
+			name:           "returns the VM when wait yields exactly one",
+			waitResult:     []*vmmModels.Vm{createdVM},
+			wantReturnedVM: true,
+		},
+		{
+			name:          "fails when wait yields no VMs",
+			waitResult:    []*vmmModels.Vm{},
+			wantErrSubstr: "expected exactly 1 VM, got 0",
+			wantFailure:   true,
+		},
+		{
+			name:          "fails when wait yields a nil VM",
+			waitResult:    []*vmmModels.Vm{nil},
+			wantErrSubstr: "expected exactly 1 VM, got 1",
+			wantFailure:   true,
+		},
+		{
+			name:          "fails when wait yields more than one VM",
+			waitResult:    []*vmmModels.Vm{createdVM, createdVM},
+			wantErrSubstr: "expected exactly 1 VM, got 2",
+			wantFailure:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockConvergedClient := NewMockConvergedClient(ctrl)
+			mockCreateOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
+			mockCreateOp.EXPECT().Wait(ctx).Return(tt.waitResult, nil)
+			mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctx, gomock.Any()).Return(mockCreateOp, nil)
+
+			ntnxMachine := &infrav1.NutanixMachine{}
+			rctx := &nctx.MachineContext{
+				Context:         ctx,
+				NutanixMachine:  ntnxMachine,
+				ConvergedClient: mockConvergedClient.Client,
+			}
+
+			vm, err := createAndWaitForVM(ctx, rctx, vmmModels.NewVm(), vmName)
+			if tt.wantReturnedVM {
+				require.NoError(t, err)
+				require.NotNil(t, vm)
+				assert.Equal(t, createdVM, vm)
+				assert.Nil(t, ntnxMachine.Status.FailureReason)
+				return
+			}
+
+			require.Error(t, err)
+			assert.Nil(t, vm)
+			assert.ErrorContains(t, err, tt.wantErrSubstr)
+			if tt.wantFailure {
+				require.NotNil(t, ntnxMachine.Status.FailureReason)
+				assert.Equal(t, createErrorFailureReason, *ntnxMachine.Status.FailureReason)
+			}
+		})
+	}
 }
 
 func TestNutanixMachineReconciler_addCustomAttributes(t *testing.T) {

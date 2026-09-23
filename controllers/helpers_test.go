@@ -36,12 +36,12 @@ import (
 	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
+	dataPoliciesModels "github.com/nutanix/ntnx-api-golang-clients/datapolicies-go-client/v4/models/datapolicies/v4/config"
 	iamModels "github.com/nutanix/ntnx-api-golang-clients/iam-go-client/v4/models/iam/v4/authn"
 	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismNetworkingModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/prism/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	prismErrors "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/error"
-	dataPoliciesModels "github.com/nutanix/ntnx-api-golang-clients/datapolicies-go-client/v4/models/datapolicies/v4/config"
 	vmmModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 	policyModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/policies"
 	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
@@ -3371,4 +3371,139 @@ func TestGetVMUUID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEnrichTaskErrorWithFailedSubtasks(t *testing.T) {
+	parentUUID := "parent-create-vm"
+	childUUID := "child-vnic"
+	parentErr := errors.New("task parent-create-vm failed: Failed to perform the operation on the VM with UUID 'EMPTY' as '' is not defined")
+	dhcpMsg := "Cannot allocate address! No DHCP pool is defined or the DHCP pool is exhausted"
+
+	t.Run("appends failed child subtask errors from list", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockClient := NewMockConvergedClient(ctrl)
+		failedStatus := prismModels.TASKSTATUS_FAILED
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{
+			{
+				ExtId:                ptr.To(childUUID),
+				Status:               &failedStatus,
+				OperationDescription: ptr.To("Create VM vNIC port"),
+				ErrorMessages: []prismErrors.AppMessage{
+					{Message: ptr.To(dhcpMsg)},
+				},
+			},
+		}, nil)
+		// Nested collect for the failed child lists its own children.
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
+
+		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, parentErr.Error())
+		assert.ErrorContains(t, err, "failed_subtasks:")
+		assert.ErrorContains(t, err, dhcpMsg)
+		assert.ErrorContains(t, err, "Create VM vNIC port")
+	})
+
+	t.Run("does not fall back to Get when list returns empty", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockClient := NewMockConvergedClient(ctrl)
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
+
+		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
+		require.Error(t, err)
+		assert.Equal(t, parentErr, err)
+	})
+
+	t.Run("falls back to parent subtask references when list errors", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockClient := NewMockConvergedClient(ctrl)
+		failedStatus := prismModels.TASKSTATUS_FAILED
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("list failed"))
+		mockClient.MockTasks.EXPECT().Get(gomock.Any(), parentUUID).Return(&prismModels.Task{
+			ExtId: ptr.To(parentUUID),
+			SubTasks: []prismModels.TaskReferenceInternal{
+				{ExtId: ptr.To(childUUID)},
+			},
+		}, nil)
+		mockClient.MockTasks.EXPECT().Get(gomock.Any(), childUUID).Return(&prismModels.Task{
+			ExtId:                ptr.To(childUUID),
+			Status:               &failedStatus,
+			OperationDescription: ptr.To("Create VM vNIC port"),
+			LegacyErrorMessage:   ptr.To(dhcpMsg),
+		}, nil)
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
+
+		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, dhcpMsg)
+	})
+
+	t.Run("deduplicates identical ErrorMessages and LegacyErrorMessage", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockClient := NewMockConvergedClient(ctrl)
+		failedStatus := prismModels.TASKSTATUS_FAILED
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{
+			{
+				ExtId:                ptr.To(childUUID),
+				Status:               &failedStatus,
+				OperationDescription: ptr.To("Create VM vNIC port"),
+				ErrorMessages: []prismErrors.AppMessage{
+					{Message: ptr.To(dhcpMsg)},
+				},
+				LegacyErrorMessage: ptr.To(dhcpMsg),
+			},
+		}, nil)
+		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
+
+		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
+		require.Error(t, err)
+		assert.Equal(t, 1, strings.Count(err.Error(), dhcpMsg))
+	})
+
+	t.Run("returns original error when parent error is nil", func(t *testing.T) {
+		err := enrichTaskErrorWithFailedSubtasks(context.Background(), nil, parentUUID, nil)
+		assert.NoError(t, err)
+	})
+}
+
+func TestWaitForConvergedOperation_EnrichesFailedWait(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	parentUUID := "parent-task"
+	childUUID := "child-task"
+	waitErr := errors.New("task parent-task failed: generic parent error")
+	childMsg := "Cannot allocate address! No DHCP pool is defined or the DHCP pool is exhausted"
+
+	mockClient := NewMockConvergedClient(ctrl)
+	mockOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
+	mockOp.EXPECT().Wait(ctx).Return(nil, waitErr)
+	mockOp.EXPECT().UUID().Return(parentUUID)
+
+	failedStatus := prismModels.TASKSTATUS_FAILED
+	mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{
+		{
+			ExtId:                ptr.To(childUUID),
+			Status:               &failedStatus,
+			OperationDescription: ptr.To("Create VM vNIC port"),
+			ErrorMessages: []prismErrors.AppMessage{
+				{Message: ptr.To(childMsg)},
+			},
+		},
+	}, nil)
+	mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
+
+	_, err := waitForConvergedOperation(ctx, mockClient.Client, mockOp)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "generic parent error")
+	assert.ErrorContains(t, err, childMsg)
 }
