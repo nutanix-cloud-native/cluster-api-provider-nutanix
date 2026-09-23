@@ -1,0 +1,1121 @@
+14:35:12 --> 14:35:14
+Vijayaraghavan R: Hi, Shivendra.
+
+14:35:19 --> 14:35:21
+BLRPTP-3437-Sculptor: Your picture is here.
+
+14:35:22 --> 14:35:24
+BLRPTP-3437-Sculptor: Hey, Vijay, can you hear me?
+
+14:35:24 --> 14:35:26
+Vijayaraghavan R: Yeah, I will, yes.
+
+14:35:25 --> 14:35:27
+BLRPTP-3437-Sculptor: Okay, good.
+
+14:35:26 --> 14:35:28
+Vijayaraghavan R: Perfect.
+
+14:35:27 --> 14:35:29
+BLRPTP-3437-Sculptor: Hi. Hello.
+
+14:35:29 --> 14:35:41
+BLRPTP-3437-Sculptor: So, Vijay, before we start on this, on 2.19, there are three Jiras on your name and two Hrithabhai, so total five or six. Are we in control for Friday?
+
+14:35:30 --> 14:35:31
+Vijayaraghavan R: Thanks, Shivendra.
+
+14:35:41 --> 14:35:46
+BLRPTP-3437-Sculptor: It will be done by end of the day. End of the day. My changes will be done. Vijay, what about you?
+
+14:35:46 --> 14:35:54
+Vijayaraghavan R: Yeah, so I have one ticket in integrating state, it will be, uh, merged today, and another one, I'm trying to reproduce it.
+
+14:35:54 --> 14:35:59
+Vijayaraghavan R: I'm unable to reproduce. Maybe if I'm unable to reproduce we will close this.
+
+14:35:59 --> 14:36:00
+BLRPTP-3437-Sculptor: Hmm. Okay.
+
+14:36:00 --> 14:36:03
+Vijayaraghavan R: Saying that it is the only way to reproduce.
+
+14:36:04 --> 14:36:06
+BLRPTP-3437-Sculptor: There were three, right? I think, if I'm not wrong.
+
+14:36:07 --> 14:36:10
+BLRPTP-3437-Sculptor: Initiative on it.
+
+14:36:08 --> 14:36:14
+Vijayaraghavan R: One, we are referring it to 220 Viren. There is a generic issue.
+
+14:36:12 --> 14:36:15
+BLRPTP-3437-Sculptor: Okay, and QA is fine with it?
+
+14:36:16 --> 14:36:23
+Vijayaraghavan R: I just added a comment. I pinged Vijayanithi, so he's not available, looks like. I'll…
+
+14:36:17 --> 14:36:18
+BLRPTP-3437-Sculptor: This is…
+
+14:36:23 --> 14:36:27
+Vijayaraghavan R: I added a comment in the ticket. I'll confirm with them.
+
+14:36:27 --> 14:36:30
+BLRPTP-3437-Sculptor: This is the DNS one, or…
+
+14:36:31 --> 14:36:35
+Vijayaraghavan R: Yeah, code DNS, yes. Code DNS partition.
+
+14:36:32 --> 14:36:39
+BLRPTP-3437-Sculptor: Yeah. Okay. Sounds good. Okay. Okay. So now coming to this capex thing. So.
+
+14:36:39 --> 14:36:43
+BLRPTP-3437-Sculptor: The intent here is to basically really beat it up.
+
+14:36:43 --> 14:36:47
+BLRPTP-3437-Sculptor: the workflow all the way from Karen, not just CapEx.
+
+14:36:47 --> 14:36:54
+BLRPTP-3437-Sculptor: But I think the most common part that they're going to execute at Toyota, they're targeting Toyota. So it's going to be carrot and capex together.
+
+14:36:54 --> 14:36:59
+BLRPTP-3437-Sculptor: So before we general methodology, right, when you want to build up any system.
+
+14:36:59 --> 14:37:06
+BLRPTP-3437-Sculptor: The first thing is you should understand the business logic of the system. So, understanding the code is very, very critical, which I suppose you already know.
+
+14:37:06 --> 14:37:16
+BLRPTP-3437-Sculptor: And the second is, um, what potential use cases can be there? So, now given it is for Toyota, and they already know how they have been using it, so it's easier, that part.
+
+14:37:16 --> 14:37:21
+BLRPTP-3437-Sculptor: So my proposal will be, and then of course I'll lean on you to decide how to go further.
+
+14:37:21 --> 14:37:30
+BLRPTP-3437-Sculptor: Um, is to understand what our case and seeing if there is… of course, we take that case as is, and then what improvisation can we do on top of that.
+
+14:37:30 --> 14:37:35
+BLRPTP-3437-Sculptor: That's one. Second is general scale test for things like CapEx.
+
+14:37:35 --> 14:37:37
+BLRPTP-3437-Sculptor: And there, I think, um…
+
+14:37:37 --> 14:37:47
+BLRPTP-3437-Sculptor: Uh, we might have thought through, and Sid, I think he was also saying that he had some background and he had done some work, right? So either way. And then we talked to Gmail. Yeah, this is what we are thinking.
+
+14:37:47 --> 14:38:01
+BLRPTP-3437-Sculptor: But while we do that, we can start the background work in parallel. I don't want, so our approach would be start whatever we know and then continue discussion in parallel to evolve it further. Not like other way around where you just evolve, evolve, evolve.
+
+14:38:01 --> 14:38:09
+BLRPTP-3437-Sculptor: Freeze, and then you start. Not that way. Because discussions tend to take longer, and then nobody can converge everything in one meeting.
+
+14:38:09 --> 14:38:17
+BLRPTP-3437-Sculptor: So this should be like an offline conversation. So, so not, do not depend too much on one-on-one meetings because that'll be very difficult. You will get hardly once, not in a week.
+
+14:38:17 --> 14:38:26
+BLRPTP-3437-Sculptor: For someone like Jimmy. So, have more offline conversations, have your questions ready, have your things done, and then you drive it yourself. So, Jimmy's help is…
+
+14:38:26 --> 14:38:33
+BLRPTP-3437-Sculptor: a bonus. Without Gemini self-portrait, we should do it. So, this is background about the process.
+
+14:38:33 --> 14:38:36
+BLRPTP-3437-Sculptor: Maybe you can share what exactly you have in mind.
+
+14:38:41 --> 14:38:56
+BLRPTP-3437-Sculptor: Okay, so I'll start. So, uh, we have started looking into things. We know how system works, but we want to go beyond that. So, apart from our system, like, how our cycles work, or what we do, we want to also understand what PC does.
+
+14:38:56 --> 14:39:12
+BLRPTP-3437-Sculptor: For example, uh, let's say from… if we talk, like, we have already, uh, started up with the CAPEX. So what our approach is, instead of making any changes at this point in the system, because our system is… is already working, but we need to make it more.
+
+14:39:12 --> 14:39:31
+BLRPTP-3437-Sculptor: more proactive and better than what we have at… Robust. Yeah, robust, uh, what we have at this point of time. So instead of just going back and improving our cycles, first we are… first we are inspecting on the APIs that we consume from… from the PC side. For example, uh, in this… in this Toyota only that.
+
+14:39:31 --> 14:39:48
+BLRPTP-3437-Sculptor: case only, that we were working. So I think one of the tickets needs to go to 18.1, which I was working on. So we identified that we used to create machines via asynchronous calls, right? But when we, when we do such a call, there are 3.
+
+14:39:48 --> 14:40:03
+BLRPTP-3437-Sculptor: independent processes that that also execute inside the PC. That we have abstracted us from. So we are thinking in such a manner that we should be able to leverage those error messages and all, and and those tasks as well.
+
+14:40:03 --> 14:40:08
+BLRPTP-3437-Sculptor: So that we should clearly identify what the problem is in the first place.
+
+14:40:08 --> 14:40:29
+BLRPTP-3437-Sculptor: Once we have identified the cases which PC provides us, and what we can consume, then we will target it out. Are we going to keep them synchronous as they are, or we're going to convert them to asynchronous. That depends. That is like not not a call we're taking. That depends. Decision will be taken where. This will be taken after we have compiled all the error messages and all the sub subtasks.
+
+14:40:29 --> 14:40:40
+BLRPTP-3437-Sculptor: that are used by this… for doing that decision? I didn't understand. The thing is, uh, for example, when you create a VM create call you make, right? So, it creates 3 subtasks. So.
+
+14:40:40 --> 14:40:56
+BLRPTP-3437-Sculptor: Who powers? PC. PC side. That's internally. Yes, PC internally. Correct. And the right approach is, for us, it should be Blackbox. By design, it should be Blackbox. Yeah, exactly. It is Blackbox. Assuming the SDK. Yeah. So, only the thing which we should be… Yeah, which we should be worrying about.
+
+14:40:57 --> 14:41:02
+BLRPTP-3437-Sculptor: we should be having the task IDs, and we should be pulling on that task IDs.
+
+14:41:02 --> 14:41:17
+BLRPTP-3437-Sculptor: if something… error is there, our customer is not aware of that error, we should be again polling the sub-task for that task, and get all those things, and showcase which you are right now. Correct. This kind of approach, we should be following up. Okay.
+
+14:41:18 --> 14:41:22
+BLRPTP-3437-Sculptor: Yeah, this is something we should be following. So hang on, hang on.
+
+14:41:22 --> 14:41:39
+BLRPTP-3437-Sculptor: What is the subtask here in this case? That part we don't know. Maybe they won't give you subtasks. There's nothing like it doesn't work like that. No, no, it is there. They're giving subtasks. So the thing is, when you make any call, let's say, create subnet call you have made.
+
+14:41:39 --> 14:41:59
+BLRPTP-3437-Sculptor: PC internally creates five subtasks, but you have one pipeline task. Exactly. It will give you just that, it failed. But you never know, it failed because of the resources not there, which is… That is what they're supposed to give. It is not giving by default. For that, there is… So what is the API contract? There is a separate battle for that with v4 SDK APIs we are following. We're talking with them.
+
+14:41:59 --> 14:42:04
+BLRPTP-3437-Sculptor: I'm not talking right now, what is the documented API contract? That's my question.
+
+14:42:04 --> 14:42:19
+BLRPTP-3437-Sculptor: Documentary VPAY contract doesn't have a portal. Okay, so I'll share that with you. That doesn't have the much detail. Yeah, that doesn't have much detail. That will help out. So, in short, we know this particular issue. No, no, no. See, I'll tell you one thing.
+
+14:42:19 --> 14:42:24
+BLRPTP-3437-Sculptor: Um, any such long-running APIs, blocking APIs, if you make a call.
+
+14:42:24 --> 14:42:25
+BLRPTP-3437-Sculptor: Um, I'm…
+
+14:42:28 --> 14:42:43
+BLRPTP-3437-Sculptor: the API can give you two ways of execution. One is synchronous, another is asynchronous. Both are possible, right? Synchronous is simple. You wait, and it gives you success or errors. When there is an error, it will be exactly what is the error, and error code. Simple. But that is a problem, because then…
+
+14:42:43 --> 14:42:59
+BLRPTP-3437-Sculptor: You cannot have multiple thread programmer thread blocks. Yeah, it blocks for that. So what you want to do is that you want to make an asynchronous call, it gives you task ID, your request ID, whatever you call. That request ID, you can queue it somewhere, and the rethink can happen in separate threads, so that this thread can do something else. Yes, so this is what we are doing right now.
+
+14:42:59 --> 14:43:02
+BLRPTP-3437-Sculptor: So now, when you get a request ID.
+
+14:43:02 --> 14:43:15
+BLRPTP-3437-Sculptor: The guy who is speaking, he will either get a success or a failure. How do you do it? He just pull on it. So, let me complete. Okay. So, when you pull on it, and when it comes out that it has completed, but we don't know any other success, then…
+
+14:43:15 --> 14:43:27
+BLRPTP-3437-Sculptor: There is another API which says, okay, given a task, what is the error code? Correct. Okay, so there must be an API for that also. Correct. And that error code, if it comes, it will basically be able to make a decision, let me complete.
+
+14:43:27 --> 14:43:42
+BLRPTP-3437-Sculptor: But then to reach you this request again, so you can re attempt it, or you just give up and give an error back to the user. Now, to be able to do that, to give an error back to your original caller, you have to have infrastructure built for that also. Correct. Because that guy is waiting.
+
+14:43:42 --> 14:43:57
+BLRPTP-3437-Sculptor: You might also get a, either use conditional variable, wake up some guy who picks up and responds back to him, because everybody's a request ID. If it is a blocking call, right, then you have a problem. Now what happens? Your wrapper call is a blocking call, internally or asynchronous scenario.
+
+14:43:57 --> 14:44:07
+BLRPTP-3437-Sculptor: Right? Now, you cannot change the context over there. So, he's waiting on something.
+
+14:44:07 --> 14:44:23
+BLRPTP-3437-Sculptor: And then everything is happening in the background. So that program change you may have to make, which can take longer. So that is the reason I'm saying that depending on the contract that they are giving, they can decide what is the path forward. But to not get into a model, I'm specifically saying don't get into the model of.
+
+14:44:23 --> 14:44:26
+BLRPTP-3437-Sculptor: You getting a subtask ID, it does not make any sense.
+
+14:44:26 --> 14:44:41
+BLRPTP-3437-Sculptor: I understand, like, um, like, for example, uh, let's take a case for Toyota that we got for $218.
+
+14:44:47 --> 14:44:49
+Vijayaraghavan R: Can you hear me?
+
+14:44:48 --> 14:44:51
+BLRPTP-3437-Sculptor: Yeah, we can hear you now, Vijay.
+
+14:44:50 --> 14:44:52
+Vijayaraghavan R: Oh, okay.
+
+14:44:54 --> 14:44:59
+Vijayaraghavan R: So you are trying to show the code away now?
+
+14:44:55 --> 14:44:56
+BLRPTP-3437-Sculptor: Okay.
+
+14:44:58 --> 14:45:00
+BLRPTP-3437-Sculptor: I don't.
+
+14:44:59 --> 14:45:00
+Vijayaraghavan R: What is it?
+
+14:45:00 --> 14:45:19
+BLRPTP-3437-Sculptor: I don't want to go that one, but… Yeah, the point is, uh, this is how it is, right? You have one parent task. Out of five subtasks, anything can fail, and there is a specific reason for that failure. Ideally, PC's team responsibility is to aggregate those things and.
+
+14:45:03 --> 14:45:05
+Vijayaraghavan R: Yeah, maybe we can…
+
+14:45:19 --> 14:45:28
+BLRPTP-3437-Sculptor: Send it. Add, attach later to the parent subtask, and when you are polling for the parent subtask, you should be having the aggregated log of all the… Can you stop sharing, Vijay?
+
+14:45:28 --> 14:45:30
+Vijayaraghavan R: Sure, sure.
+
+14:45:30 --> 14:45:48
+BLRPTP-3437-Sculptor: They're not doing that, that is… Yes, they are not doing that, so there is no other way for us to exactly figure out what is going on over there. Mostly your subtasks need it, most likely. They are giving the subtasks, the problem is, I'm saying… So the thing is.
+
+14:45:48 --> 14:46:03
+BLRPTP-3437-Sculptor: you have sent a PVM create call, now you are getting the task ID. Now the thing is, let's say it is happening behind the scene for 4 minutes. Something fails. Right now, it just says it errored out. You don't have the exact.
+
+14:46:03 --> 14:46:19
+BLRPTP-3437-Sculptor: actionable item, because you are an NKP customer, you are not a PC customer. If you are a PC customer, you would have gone to the CLI login, run the CLI task ID, get the task description, then you will be having the… I understood that, okay. But right now, you are a NKP customer, you.
+
+14:46:19 --> 14:46:32
+BLRPTP-3437-Sculptor: don't have any visibility why my VM creates… That's okay, we'll be… a task ID is there, and what is API on task ID that we have? Uh, right now, we haven't… have not implemented anything. What is the API PC is providing on a task ID?
+
+14:46:32 --> 14:46:35
+BLRPTP-3437-Sculptor: That is something which he's implementing right now.
+
+14:46:35 --> 14:46:52
+BLRPTP-3437-Sculptor: You can't implement the PC API yourself. The PC API is there. This API is my question. That should have to get back to, like, see, this is the changes that we made. Okay, this is… Don't show me anything else. I want to first understand what is available on the PC side.
+
+14:46:52 --> 14:47:00
+BLRPTP-3437-Sculptor: Just open Nutanix.dev. I'm asking what we are doing right now. Then only I can do review of your work, right? Nutanix.dev.
+
+14:47:01 --> 14:47:03
+BLRPTP-3437-Sculptor: 3, 4 APIs.
+
+14:47:04 --> 14:47:06
+BLRPTP-3437-Sculptor: API references…
+
+14:47:07 --> 14:47:10
+BLRPTP-3437-Sculptor: Virtual machine management. Yeah.
+
+14:47:11 --> 14:47:14
+BLRPTP-3437-Sculptor: It's important. Task.
+
+14:47:14 --> 14:47:16
+BLRPTP-3437-Sculptor: Excellent.
+
+14:47:27 --> 14:47:28
+Vijayaraghavan R: Right, yeah.
+
+14:47:30 --> 14:47:31
+BLRPTP-3437-Sculptor: Here we go.
+
+14:47:30 --> 14:47:35
+Vijayaraghavan R: I think the task is a generic play, right? Maybe I'll try to find that section.
+
+14:47:33 --> 14:47:44
+BLRPTP-3437-Sculptor: Oh, in the… it will be a separate namespace, I guess. No, it's a… it's a diff… it's a… it's like its own… it's… it's named as… This is create…
+
+14:47:36 --> 14:47:38
+Vijayaraghavan R: Yeah, okay.
+
+14:47:46 --> 14:47:51
+BLRPTP-3437-Sculptor: And it's not good. I don't get documentation. Anything feedback, I don't go.
+
+14:47:52 --> 14:47:55
+BLRPTP-3437-Sculptor: This is not consumable by humans.
+
+14:47:55 --> 14:47:58
+BLRPTP-3437-Sculptor: We have implemented using this only.
+
+14:47:59 --> 14:48:02
+BLRPTP-3437-Sculptor: OK, this make let me know so the.
+
+14:48:02 --> 14:48:24
+BLRPTP-3437-Sculptor: The answer for this question is going to come on your Gemini or something. So, how to execute VM creation call in asynchronous fashion? So, we don't directly consume the SDK.
+
+14:48:24 --> 14:48:30
+BLRPTP-3437-Sculptor: We have a wrapper, Presumable Client, which consumes SDK, we consume the wrapper. Why we have the wrapper? Because…
+
+14:48:30 --> 14:48:46
+BLRPTP-3437-Sculptor: Currently, V4 is shared. So, we have V4, V3, and some customers… Because we are doing the same thing in CNOS and IronStack. So, we have VM creation. So, maybe you can just reuse the code that we have. So, it's better to use VM instead of Metal. That's the difference.
+
+14:48:46 --> 14:48:57
+BLRPTP-3437-Sculptor: But this particular Prismvo client does a lot of things apart from just the VM. Basically, it is a… Everything, all of APIs will be there, V4 APIs.
+
+14:48:59 --> 14:49:00
+BLRPTP-3437-Sculptor: Oh.
+
+14:49:00 --> 14:49:03
+BLRPTP-3437-Sculptor: There's no client you can open.
+
+14:49:03 --> 14:49:20
+BLRPTP-3437-Sculptor: Sure. So what we are, like, looking for, like, uh, I think right now the problem which he's… So, I made a mistake, actually. My point was, if it is an asynchronous call, just make sure that how do you consume that asynchronous thing, and how do you give that error back?
+
+14:49:20 --> 14:49:36
+BLRPTP-3437-Sculptor: to your caller. Definitely, that is… Just the thing is, the error doesn't have the right information. We have already implemented it. It is implemented… Many other products are using the same thing. It is already implemented in the Prismgo client also, in the NKP side also. Only the problem is.
+
+14:49:36 --> 14:49:51
+BLRPTP-3437-Sculptor: that error… error is not usable by the customer. That is the problem which we are facing. See, this is the wrapper that we have. We already have this asyn… asynchronous creator call. Yeah. This is… this is how we create an… What is the contract of this API interface?
+
+14:49:52 --> 14:49:55
+BLRPTP-3437-Sculptor: Okay, I'll show you, wait, just give me a second.
+
+14:50:03 --> 14:50:04
+BLRPTP-3437-Sculptor: Mmhm.
+
+14:50:04 --> 14:50:06
+BLRPTP-3437-Sculptor: Vm. Test. Maybe overshare it.
+
+14:50:06 --> 14:50:08
+BLRPTP-3437-Sculptor: Example.
+
+14:50:08 --> 14:50:12
+BLRPTP-3437-Sculptor: So this is the VLA sync, okay? It says call API…
+
+14:50:12 --> 14:50:27
+BLRPTP-3437-Sculptor: Task reference? Task reference is the main task fetcher. Subtask fetcher. Subtask error is the error. The aggregate error is the aggregate error. Who sets the task reference?
+
+14:50:27 --> 14:50:47
+BLRPTP-3437-Sculptor: PC does this. PC does this. Only problem is, it is written, only problem is, this, the error is of no use to the customer. Customer ko actionable item, ko actionable lebhaga, because error is so abstracted. Example. What is error coming? Error comes in the VM creation field, but you don't know why the VM creation has failed. Okay, so how do you get a specific error? Give me this example.
+
+14:50:47 --> 14:50:50
+BLRPTP-3437-Sculptor: Failed to perform the operation on the MDRD API, it is not defined.
+
+14:50:50 --> 14:51:07
+BLRPTP-3437-Sculptor: Yeah, this is the other customer is getting. Now, it doesn't have any action item over here. Now, when you poll based on that parent task ID, it will give you four or five subtasks. Then you exactly find which task has… Subtask will be given to you right up front.
+
+14:51:07 --> 14:51:27
+BLRPTP-3437-Sculptor: Then it… does it mean that you have to just iterate over them and see… Iterate over them and see which has failed, and then you will be having the exact error that you don't have the storage or blah blah blah. So what you do is that if there are four subtasks, the very first one that you have an error, you just return that one. No. No, that logic is up to Udhay what is… No, no, so not… so that is not what we are doing.
+
+14:51:27 --> 14:51:42
+BLRPTP-3437-Sculptor: No, no, I'm not asking what you're doing. What should be the ideal algorithm? The ideal way is because they're independent tasks, right? Oh, they have spin all of them together. Yeah, they're independent tasks. So, first, we're identifying, like, which task has a dependency. Can there be a case that if there are two tasks failed.
+
+14:51:42 --> 14:51:59
+BLRPTP-3437-Sculptor: How will you handle that? Let's say out of 4 to 2 failed. And what would you do in this case? So in this case, what we are doing is we're appending those dogs in an error list. We are aggregating it out, and then we are then we are giving to the customer, because there can be 2 issues, such as you do not have enough RAM, or you know what those tasks are for.
+
+14:52:00 --> 14:52:19
+BLRPTP-3437-Sculptor: No, that is not our… that is their logic. This is how… this is how we used to triage and do the inline key. If we just append the two string… error strings, is that good enough? Yes, at least a customer knows… at least customer knows what is actually failing.
+
+14:52:19 --> 14:52:36
+BLRPTP-3437-Sculptor: Then we make a decision based on those errors. Then we make a decision based on those errors. How do you make a decision? And then we have to find… Example, how do you make a decision? For example, agar man ki tell me ki si ek…
+
+14:52:36 --> 14:52:51
+BLRPTP-3437-Sculptor: task may like, we get a 500 internal error right instead of maybe Dhcp pool exhaust, or maybe Vm, like resource not available. So we have an example case such as this is a 500 internal error. This can be intermittent, so we can retry it.
+
+14:52:52 --> 14:53:07
+BLRPTP-3437-Sculptor: Right? I'm saying, if it isn't retriable, what do you do? If it's not retriable, definitely we have to error it out, right? How do you error it out? It's a question. The question is, two subtasks had an error. And let's say both of them were retriable.
+
+14:53:07 --> 14:53:10
+BLRPTP-3437-Sculptor: And what would you do? How do you percolate the error back?
+
+14:53:10 --> 14:53:19
+BLRPTP-3437-Sculptor: We will send that aggregator list out. How? So, you will have 4 answers given to customers? No, no. Or you will append them? Append, we'll append. That's exactly what I'm saying.
+
+14:53:19 --> 14:53:37
+BLRPTP-3437-Sculptor: That's exactly what I said in the very beginning. We'll aggregate it and then we'll translate it. Aggregating matlab kya? Aggregating is English word. Programming language, what has happened? Keep it simple, man. I'm a programmer too. Ah, no, I know. Okay, so this is what he's implementing right now, and this is… That makes sense. That's true.
+
+14:53:37 --> 14:53:53
+BLRPTP-3437-Sculptor: That what comes first in that appending thing, what comes first? It is a dumb logic. That is the experiment we are doing. So this is one thing. Okay, let's move on from here.
+
+14:53:53 --> 14:54:09
+BLRPTP-3437-Sculptor: So this is not going to be, this is going to improvise. So what is it fixing? It's fixing. But right now customer doesn't have the idea why error handling properly. Yeah, error handling handling. Yeah. But the larger question is, do you see any scale issue?
+
+14:54:09 --> 14:54:16
+BLRPTP-3437-Sculptor: No. Or, like, for example, the issue that Sid uncovered, where we were treating duplicate VMs. Why? Because we were not…
+
+14:54:16 --> 14:54:32
+BLRPTP-3437-Sculptor: utilizing the Vm. Latency behavior. That has been fixed in 2, 19. We are back. That's not the point. So what are such problems? You can see, and you may not even know. So you have to test it properly. So what are you doing is to test.
+
+14:54:32 --> 14:54:36
+BLRPTP-3437-Sculptor: So that you uncover these problems before they uncover it.
+
+14:54:36 --> 14:54:52
+BLRPTP-3437-Sculptor: That's my question. For example, in this, like, this is a phase one, like, what we're trying to, like, first, we are going with this. Second, what… What I mean by phases are experimentation.
+
+14:54:52 --> 14:55:03
+BLRPTP-3437-Sculptor: Not… not the product. One experiment can be a phase. A phase can have 10 experiments, and then you have another 10 experiments. So, but there are other 9 experiments you have. The second experiment is to identify these race conditions.
+
+14:55:03 --> 14:55:18
+BLRPTP-3437-Sculptor: we have identified a few. For example, yeah, for example, this, there's a race condition in creating categories as well. There is a race condition. Sorry. Yeah. So, for example, what happens is, in fact.
+
+14:55:18 --> 14:55:35
+BLRPTP-3437-Sculptor: Because you never know when there can be a latency between your PC API calls and your CAPEX, right? For example, I have fired a call to create a category. The category might be creating, and while its metadata appears on the PC, we fire a get.
+
+14:55:36 --> 14:55:38
+BLRPTP-3437-Sculptor: Category a category called.
+
+14:55:38 --> 14:55:46
+BLRPTP-3437-Sculptor: Right. Let's say at time t zero. But why are we doing a get call before the category? We have a full continuum of it soon.
+
+14:55:59 --> 14:56:18
+BLRPTP-3437-Sculptor: And we pulled it, and it only after task completion is there, then only you can do get category, right? Yeah, yeah, so, like, what I'm trying to say… Meantime, it will not show any case, and you are firing up again the call to create the category, so… Why would you do that? So, let's understand the problem of that VM duplication itself, right? Like, what was happening there was, that was.
+
+14:56:18 --> 14:56:28
+BLRPTP-3437-Sculptor: So now we have moved on to create asynchronous calls. Previously, it was a synchronous calls only, right? So let's say at T0, we were sending a call.
+
+14:56:28 --> 14:56:30
+BLRPTP-3437-Sculptor: Right? To create a VM.
+
+14:56:32 --> 14:56:40
+BLRPTP-3437-Sculptor: Correct? We are at RT0, we are sending a call to create a VM. RT1, we get PC says success.
+
+14:56:43 --> 14:56:49
+BLRPTP-3437-Sculptor: Correct. And at T2, what we are trying to do is, we are trying to get.
+
+14:56:49 --> 14:56:52
+BLRPTP-3437-Sculptor: This VM.
+
+14:56:52 --> 14:56:54
+BLRPTP-3437-Sculptor: Okay.
+
+14:56:54 --> 14:57:04
+BLRPTP-3437-Sculptor: So what… why… why that issue itself was occurring in the first place was that the time difference between these three calls is very low.
+
+14:57:04 --> 14:57:06
+BLRPTP-3437-Sculptor: So, in fact… And that's not the problem.
+
+14:57:06 --> 14:57:24
+BLRPTP-3437-Sculptor: The problem is, in T1, what you got as a success was a task taken success. It was not task completion success. Correct, correct, correct. So it is not the time, because T1, what you assumed as success VM, it is not a success of VM. VM is still under progress. Correct, correct. It did not check for the VMC success properly.
+
+14:57:24 --> 14:57:39
+BLRPTP-3437-Sculptor: So how do you check it? There are two ways to check it. Either you have a subtask, which is the last subtask, right? That VM is successful, then you will have a success. Or you just check that whatever VM that you intend to create, let's say it's based on the name or something, whether it exists or not.
+
+14:57:39 --> 14:57:54
+BLRPTP-3437-Sculptor: Yeah. So that is the problem. It is not the time. Time, it can take one hour. Why? Because the call goes to PC, then it goes to PE, PA does it, then PE upgrades its IDF, then IDF gets synced, and then you are getting a thing. Correct. Correct. The whole cycle is so large.
+
+14:57:54 --> 14:58:15
+BLRPTP-3437-Sculptor: So what you are doing programmatically is incorrect. Yeah, that's what I'm trying to say. So it's not. So again, I'm correcting you that it is not a time which is a problem. It is the way you are checking is the problem. That's a bug. Yeah, that's what I'm saying. Again, if it's wrong, if it's wrong, then it's a problem. I understand. I understand. But here at NC2 we have a problem.
+
+14:58:15 --> 14:58:30
+BLRPTP-3437-Sculptor: See, the reason I'm saying is, we are already doing it in NC2 project. There is a layer called IGW, Internet Gateway. In IGW, AOS, we have an API layer. Okay, add a disk, add, start AOS.
+
+14:58:30 --> 14:58:42
+BLRPTP-3437-Sculptor: Add a new node, worker node in the cluster. All of them are long-running calls. Like, adding a disk can take 10 minutes.
+
+14:58:42 --> 14:58:57
+BLRPTP-3437-Sculptor: So, how do you verify the disk edition? And then, there also, we were to see, so there are a lot of things that happens. So, this is exactly the problem we had faced, and we had fixed them. That's why I know it. Generally, we do fix it via some database, like in the…
+
+14:58:57 --> 14:59:12
+BLRPTP-3437-Sculptor: PC world, we have the IDF, we store the states in the IDF, and in the NK, this is how we implemented this thing, that was, it was deterministic. Here, we don't have any database. So, I think, we're just checking for the name existence.
+
+14:59:12 --> 14:59:18
+BLRPTP-3437-Sculptor: TXT ID is what he is using.
+
+14:59:18 --> 14:59:28
+BLRPTP-3437-Sculptor: Haan, toh wo e-x-t-i-d… But, it's may be malab… It's medium gaya e-x-t-i-d, nahaan. No matter how persistent… It technically checks.
+
+14:59:28 --> 14:59:42
+BLRPTP-3437-Sculptor: Toh category klebi ham sein hi use karenge. Kiye category jo idea name hai wo exist karte hi hi nahi karte hai. Category ham name sein use karenge, not will. It's okay. That's whatever is the unique thing. So, like… That is the way you will do.
+
+14:59:42 --> 14:59:59
+BLRPTP-3437-Sculptor: Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi, Abhi.
+
+14:59:59 --> 15:00:07
+BLRPTP-3437-Sculptor: So the parental success is just task taken. It is not completion.
+
+15:00:07 --> 15:00:26
+BLRPTP-3437-Sculptor: So, phone chisam karten. So, category mein saar, aur kahna hai mai saar, aur hai? VMS, yeh hai, category aur, aur? Fero, okay, category aur, aur? Feroes ke baad, we have recovery plans, protection policy. Sab mein same hai. Sab mein, like, overall behavior is same. Like, yeh bais hai example deh, aur.
+
+15:00:26 --> 15:00:32
+BLRPTP-3437-Sculptor: Okay, so now, okay, there are terminology corrections now.
+
+15:00:32 --> 15:00:52
+BLRPTP-3437-Sculptor: What you're doing is not idempotency. Idempotency is if you do the create again, it will succeed and say it already exists, but succeed. That's called idempotency. If you fail, then it is not idempotency. Idempotency is if you fail, then it is not idempotency. If you fail, then it is not idempotency. Idempotency is if you fail.
+
+15:00:52 --> 15:00:54
+BLRPTP-3437-Sculptor: Technically. Huh.
+
+15:00:54 --> 15:00:58
+BLRPTP-3437-Sculptor: Uh, so… so how many such calls are there?
+
+15:00:58 --> 15:01:13
+BLRPTP-3437-Sculptor: So, um, right now we have figured out six calls such, but we are thinking of… Six calls, okay, six calls. Then second is, um, when you have this VM creation request coming in parallel, parallel means parallel.
+
+15:01:13 --> 15:01:22
+BLRPTP-3437-Sculptor: What's the main consequence of this logic, other than these 5, 6, 6 that you described, what's it about? It's not that we call it PC, it's not that we call it PC, it's just.
+
+15:01:22 --> 15:01:26
+BLRPTP-3437-Sculptor: It is basically… Discuss the CAPEX functionality in a nutshell.
+
+15:01:26 --> 15:01:37
+BLRPTP-3437-Sculptor: how the state machine is. So, if you like… Because then I will ask you a question around crash scenarios. This is what I'm more interested in. Uh, crash, we have… we don't have a crash. We only have crash… Crash, crash.
+
+15:01:37 --> 15:01:46
+BLRPTP-3437-Sculptor: Yes, it's CapEx. It's CapEx. It's CapEx. It's CapEx. It's CapEx. It's CapEx. It's CapEx.
+
+15:01:47 --> 15:01:58
+BLRPTP-3437-Sculptor: There's a problem. So, let's say, uh… this is… that's why the sequence is very important. Can you just show me the sequence? Then I will explain you the problem.
+
+15:01:58 --> 15:02:06
+BLRPTP-3437-Sculptor: This way. I'll open this for you. This way. So make a capx component, make a current component.
+
+15:02:07 --> 15:02:09
+BLRPTP-3437-Sculptor: City of Dallas.
+
+15:02:10 --> 15:02:13
+BLRPTP-3437-Sculptor: Vijay, are you able to hear us?
+
+15:02:15 --> 15:02:18
+Vijayaraghavan R: Yes, Cyril, I can hear us.
+
+15:02:16 --> 15:02:19
+BLRPTP-3437-Sculptor: Okay. And there's a guarantee.
+
+15:02:18 --> 15:02:22
+Vijayaraghavan R: You guys, but can you just write on the right side of the book?
+
+15:02:20 --> 15:02:23
+BLRPTP-3437-Sculptor: The public ethic.
+
+15:02:27 --> 15:02:29
+BLRPTP-3437-Sculptor: So you got it, sir.
+
+15:02:30 --> 15:02:32
+BLRPTP-3437-Sculptor: You got an A.
+
+15:02:32 --> 15:02:34
+BLRPTP-3437-Sculptor: Not what I've got.
+
+15:02:36 --> 15:02:38
+BLRPTP-3437-Sculptor: And it's you or Kate? Si.
+
+15:02:39 --> 15:02:44
+BLRPTP-3437-Sculptor: So now let's say first call came and from here you start the operations and I will come to my questions.
+
+15:02:44 --> 15:02:46
+BLRPTP-3437-Sculptor: Yeah, whatever. Okay, I gotta go back now.
+
+15:02:46 --> 15:02:48
+BLRPTP-3437-Sculptor: It's the height of the business model.
+
+15:02:49 --> 15:02:52
+BLRPTP-3437-Sculptor: Awesome. Awesome. Five minutes.
+
+15:02:53 --> 15:02:59
+BLRPTP-3437-Sculptor: Akka taxi? Oh, man. Why don't you leave, man? Otherwise, we'll taxi.
+
+15:02:59 --> 15:03:01
+BLRPTP-3437-Sculptor: You got 50,000.
+
+15:03:01 --> 15:03:02
+BLRPTP-3437-Sculptor: Okay.
+
+15:03:02 --> 15:03:08
+BLRPTP-3437-Sculptor: See, but if you can understand the whole crash scenarios, we will try to.
+
+15:03:11 --> 15:03:18
+BLRPTP-3437-Sculptor: I don't know. I don't know. I don't know. I don't know. I don't know. I don't know.
+
+15:03:18 --> 15:03:21
+BLRPTP-3437-Sculptor: What is the API that CAPEX exposes to the caller?
+
+15:03:23 --> 15:03:25
+BLRPTP-3437-Sculptor: In PA.
+
+15:03:26 --> 15:03:28
+BLRPTP-3437-Sculptor: CapEx contract over 90 years ago.
+
+15:03:29 --> 15:03:36
+BLRPTP-3437-Sculptor: CAPE contract. CAPEX is implementation of CAPE.
+
+15:03:36 --> 15:03:51
+BLRPTP-3437-Sculptor: Create VM? Create VM as a contract? Create VM contract, mai hai. Haan ko contract provide karte in a form of CRs. Jaan maara para karte karte karte karte. That's fine. Karte karte karte, create Nutanix cluster.
+
+15:03:51 --> 15:04:02
+BLRPTP-3437-Sculptor: Okay, aur… Take care. First word. Only one, okay. To whose notariance cluster may they define the… Take great cluster aur kay aush ke laga, capex ka? Interfaces. Interfaces. Via the CR.
+
+15:04:02 --> 15:04:07
+BLRPTP-3437-Sculptor: Create cluster hai, faeroskabad machine hai.
+
+15:04:07 --> 15:04:15
+BLRPTP-3437-Sculptor: There's machine… Create machine. Create machine app. Then, uh, Uzgebaat, we have, uh, VHA domain failure domains.
+
+15:04:15 --> 15:04:31
+BLRPTP-3437-Sculptor: No, no. What is the intent? So, it's a noun. It's a verb. It's an API. It's a verb. It's either you create, or you delete, or you read. So, it's a verb. So, it's a domain. It's a verb. That is to create this, all this, uh…
+
+15:04:31 --> 15:04:46
+BLRPTP-3437-Sculptor: PC-based sources of protection policies, recovery plans, and the categories. And are this, so the caller, does the sequence in the caller happen, the calling entity calls? So create cluster, then does what? Or create machine, then create cluster?
+
+15:04:46 --> 15:05:04
+BLRPTP-3437-Sculptor: What is the calling entity going to make invocations of on Gavax? So basically, you do a call to create.
+
+15:05:04 --> 15:05:08
+BLRPTP-3437-Sculptor: Nutanix cluster. Okay. Clear cluster. Okay.
+
+15:05:09 --> 15:05:23
+BLRPTP-3437-Sculptor: What is the sequence of events? And if you want to read and come back, then also fine. No, no, I know, that's fine, I just want to show you.
+
+15:05:24 --> 15:05:26
+BLRPTP-3437-Sculptor: So that we are very…
+
+15:05:24 --> 15:05:39
+Vijayaraghavan R: Yeah, and before that, just help me to understand. So here, Viral, we don't have the actual APIs to create the cluster or the machines, okay? So here, all our servers that apply in Kubernetes, okay, for example, if we create the cluster resource.
+
+15:05:39 --> 15:05:40
+BLRPTP-3437-Sculptor: All right.
+
+15:05:39 --> 15:05:45
+Vijayaraghavan R: Kubernetes will watch for that resource, and then it will trigger the controllers. Controllers will do…
+
+15:05:43 --> 15:05:52
+BLRPTP-3437-Sculptor: So then the reconciler, which will look under CR object, it makes an invocation to CAPEX, right? My question is, the reconciler, what ABS is making to CAPEX? That.
+
+15:05:46 --> 15:05:47
+Vijayaraghavan R: Correct, correct.
+
+15:05:53 --> 15:06:00
+Vijayaraghavan R: Reconcilers are implemented in the CAPEX and then CAPE only. Reconciler resides in the… yeah.
+
+15:05:57 --> 15:06:03
+BLRPTP-3437-Sculptor: I see. Got it, got it. So, what are those interfaces within that? I understood.
+
+15:06:03 --> 15:06:08
+BLRPTP-3437-Sculptor: So, this is your, uh, like… Just highlight whatever you want to show.
+
+15:06:08 --> 15:06:10
+BLRPTP-3437-Sculptor: Yeah, this is the CR, okay.
+
+15:06:11 --> 15:06:26
+BLRPTP-3437-Sculptor: So here we talk about like what's the kind, what's the resources and all of this information about it. So when is, when the, so who operates this here? The outer entity? Yeah, outer entity has to be. So now when the API, so what are the implementations that we have?
+
+15:06:27 --> 15:06:42
+BLRPTP-3437-Sculptor: Create cluster within, which we'll look into this here and start invoking, right? So what are those interfaces? You said create cluster. Yes. Then machine. So machine will happen first, right? Because to create a cluster, you need a machine. No, this is an object. Machine has to reference this cluster.
+
+15:06:43 --> 15:06:52
+BLRPTP-3437-Sculptor: And that's the reference cluster, okay? So if you see, this is a Nutanix machine. These are all Nutanix machines. Okay. If I open one of these.
+
+15:06:52 --> 15:07:02
+BLRPTP-3437-Sculptor: you can see the kind. This is a Nutanix cluster. These are the labels. These are the annotations, like, which is… which group it belongs to for the request ID. Then…
+
+15:07:02 --> 15:07:08
+BLRPTP-3437-Sculptor: It goes to the owner reference, like, who's the owner of this? Is the machine virtual entity or a physical entity?
+
+15:07:08 --> 15:07:21
+BLRPTP-3437-Sculptor: Machine. Machine is like a template, or machine is like an actual instance of the machine? Machine is an actual instance of the machine. This is how you define a VM. No, because generally, you have one template, and then multiple instances of that template, right? That is called machine deployment and machine set.
+
+15:07:21 --> 15:07:27
+BLRPTP-3437-Sculptor: This is a machine. This is a machine, physical machine, which you see on a PC VM. This is exactly that machine.
+
+15:07:28 --> 15:07:35
+BLRPTP-3437-Sculptor: Okay, so to create a cluster, you create the machines first, and then you create a cluster on top of that.
+
+15:07:35 --> 15:07:54
+BLRPTP-3437-Sculptor: So, first, from the sequence we talk about, you first define a cluster. Like, this is a cluster. Then you define a machine deployment, which talks about a group of machines. That references to your cluster. Then you define… then in your… in that machine define… that machine deployment, act as a skeleton.
+
+15:07:54 --> 15:08:06
+BLRPTP-3437-Sculptor: from the machine for that groups. Then, when you scale it up, let's say you want two replicas, for example, then it creates a machine set for each of those machines. Why replica?
+
+15:08:06 --> 15:08:23
+BLRPTP-3437-Sculptor: Replica means how many, how many nodes like, how many? So this is a group, right? Like, let's say, machine deployment is a group. How many replicas of machine you want like, same, how many machines you want. So this is what each that each replica is a Nutanix machine. Okay.
+
+15:08:23 --> 15:08:25
+BLRPTP-3437-Sculptor: Yeah, that is one.
+
+15:08:23 --> 15:08:29
+Vijayaraghavan R: For example, in control plane, if you want 3 control planes, we call it as a 3 replicas.
+
+15:08:28 --> 15:08:32
+BLRPTP-3437-Sculptor: Understood. Okay. So now the question is, um…
+
+15:08:32 --> 15:08:51
+BLRPTP-3437-Sculptor: The reconciler does it all parallel, or in sequence, that he will first create a machine deploy… machine, then a machine deployment set, which is your replicas, and only after that, it basically creates a cluster on top of that, or it happens in parallel in every thread, so it's like multiple threads doing it together, and then one thread waits on something else to complete.
+
+15:08:52 --> 15:08:56
+Vijayaraghavan R: Now here we have some sequence of actions.
+
+15:08:54 --> 15:08:57
+BLRPTP-3437-Sculptor: Committing again. Oh man.
+
+15:08:58 --> 15:09:13
+BLRPTP-3437-Sculptor: Sorry. Let's think about this. I'll get your questions. If you can just like give me a brief. I have a question. I have a question. I have a question. How are we doing the testing of this? So, and then are we doing it enough?
+
+15:09:13 --> 15:09:24
+BLRPTP-3437-Sculptor: normally, what we do is, every line of code that we execute, we have to see that if this is going to be, uh, happening… Let me get… oh, thank you so much.
+
+15:09:24 --> 15:09:39
+BLRPTP-3437-Sculptor: So, if it is happening concurrently with anything else, then the other thread, if you kill it, then what happens to this guy? Or if you kill this guy, what happens to that guy? So, first of all, I haven't understood, like, how you're doing it in Pavlov. If it is in Pavlov.
+
+15:09:40 --> 15:09:50
+BLRPTP-3437-Sculptor: So so think about this. There are 4 threads going. Some of there is interdependency over there. Right? So whatever is the most dependent one, if you fail that, and then it restarts.
+
+15:09:50 --> 15:09:52
+BLRPTP-3437-Sculptor: What happens to other threads?
+
+15:09:52 --> 15:10:03
+BLRPTP-3437-Sculptor: So, do we have enough logic to be tolerant to that failure? That's number one that we want to do. Number two, if some thread takes an enormous amount of time, it doesn't complete.
+
+15:10:03 --> 15:10:09
+BLRPTP-3437-Sculptor: what happens to these other three threads? So the timeout, the reattempt, Mujhebatanal, right? That is the thing that you want to.
+
+15:10:09 --> 15:10:12
+BLRPTP-3437-Sculptor: The third thing is…
+
+15:10:12 --> 15:10:31
+BLRPTP-3437-Sculptor: when you are running this thing, like, in huge number of iterations, is there any garbage that gets piled up? Basically, there could be resources which could be remnant if we are not cleaning them. I'm not saying it is happening, it could be happening, so we just check that. And thing is that, uh, every thread, if it is creating resources, calling PC API part that you mentioned, right? Are we doing it right way?
+
+15:10:31 --> 15:10:36
+BLRPTP-3437-Sculptor: Correct. So, right, and then, uh, what if…
+
+15:10:36 --> 15:10:47
+BLRPTP-3437-Sculptor: this reconciler gets very large number of objects, and are we able to scale? So, for example, let's say you… one way is, um…
+
+15:10:47 --> 15:11:04
+BLRPTP-3437-Sculptor: This is happening on a management cluster. So let us say the user wants to create 100 workload clusters, right? So now are we doing one cluster at a time or we are doing all of them in parallel? I do not know what the logic is. If you're doing it in parallel, that's great. But then there are repercussions of that.
+
+15:11:04 --> 15:11:15
+BLRPTP-3437-Sculptor: problems with that. If it is sequence, again, it's good, but again, there is another problem over there. Yeah. So how are we tackling them? This is what I want to see, we test it out. And then, if there is a problem.
+
+15:11:15 --> 15:11:28
+BLRPTP-3437-Sculptor: then we fix it. And then Karen, the same problem. Karen is just about applying some flavor, right, on top of that. So Karen is not a scale challenge as such. But the only problem we saw with the Karen bug that FAIC fixed is…
+
+15:11:28 --> 15:11:34
+BLRPTP-3437-Sculptor: Um, we didn't have enough guardrail, because it was expecting some…
+
+15:11:34 --> 15:11:42
+BLRPTP-3437-Sculptor: some element to be present. It was not present, so it was asserting. Correct. You remember, just two weeks back.
+
+15:11:42 --> 15:11:50
+BLRPTP-3437-Sculptor: It was a customer escalation, actually. That is where it came out that, are we doing it enough? Sinha knows about it. Ah, maybe, I might… Sinha knows about it.
+
+15:11:51 --> 15:11:57
+BLRPTP-3437-Sculptor: Did you get it, Vijay, what I was saying? Yeah, yeah, yeah, we get it. So, like…
+
+15:11:55 --> 15:11:57
+Vijayaraghavan R: Yeah, yeah.
+
+15:11:57 --> 15:11:59
+BLRPTP-3437-Sculptor: Yeah, please. Yeah, go on.
+
+15:11:57 --> 15:11:59
+Vijayaraghavan R: Go ahead.
+
+15:11:59 --> 15:12:00
+BLRPTP-3437-Sculptor: No, please go on, please go on.
+
+15:12:00 --> 15:12:15
+Vijayaraghavan R: Yeah, but so here we are defining lot of problems, right? But just to step up. So we are trying to solve the issue, something related to the PC. Ap calls. So we are not trying to address the issues at the time.
+
+15:12:13 --> 15:12:23
+BLRPTP-3437-Sculptor: No, no, no, no. No, no, no. Right now, we are trying to find out the problem. So, what is the intent? The intent is, are we robust enough? Right now, we don't even know what problems are there, let's say.
+
+15:12:15 --> 15:12:17
+Vijayaraghavan R: I don't know.
+
+15:12:22 --> 15:12:30
+Vijayaraghavan R: Are we robust enough in that cluster? CapEx creations, CapEx handling site, okay? So CapEx is…
+
+15:12:23 --> 15:12:25
+BLRPTP-3437-Sculptor: One problem, you know, is, yeah.
+
+15:12:28 --> 15:12:45
+BLRPTP-3437-Sculptor: So I'm not concluding, that's what I'm saying. So you know one API, one problem, that is the way we are doing APIs and we are fixing them. That's good. It's a known problem. There could be unknown problems that we have not done enough testing, which we are waiting for the customers to find out. So the question is, before we find out in the customer side, can we do it internally?
+
+15:12:45 --> 15:13:02
+BLRPTP-3437-Sculptor: That is all the experiments we are doing and we are targeting those. And that is exactly what I was saying. These are the things that you want to see. Correct. The scale issues are there or some APIs take longer and et cetera, et cetera, right? The granularity of those experiments we don't have at the moment.
+
+15:12:47 --> 15:12:49
+Vijayaraghavan R: That's what we are trying to do.
+
+15:12:49 --> 15:12:50
+Vijayaraghavan R: Correct.
+
+15:13:02 --> 15:13:14
+BLRPTP-3437-Sculptor: that we can give you a confirmation that we are doing… So, how much time will it take to do that? We just started. We just started. That's not my question. So, my question is that it's okay, we'll start. Kitnat aam lagi gaad koske liy.
+
+15:13:14 --> 15:13:17
+BLRPTP-3437-Sculptor: So we're targeting two weeks for that. Two weeks. Okay.
+
+15:13:17 --> 15:13:19
+Vijayaraghavan R: Two weeks ago, I bought a WhatsApp.
+
+15:13:17 --> 15:13:20
+BLRPTP-3437-Sculptor: So, Shivendra, this is going to come, huh?
+
+15:13:20 --> 15:13:25
+Vijayaraghavan R: I just want to understand the… what was your question, Viren?
+
+15:13:21 --> 15:13:22
+BLRPTP-3437-Sculptor: Sorry, go on.
+
+15:13:21 --> 15:13:22
+Shivendra Singh: Mm-hmm.
+
+15:13:24 --> 15:13:30
+BLRPTP-3437-Sculptor: See, I want this experiment to be done in time-bound fashion, so that we deliver this.
+
+15:13:30 --> 15:13:40
+BLRPTP-3437-Sculptor: The question is, how much time would you require? Let's say this is a 5, 000 line of code, 6, 000 line of code, right? You want to test it out and find out the bugs in turn. That's our intent. We are not writing a brand.
+
+15:13:40 --> 15:13:47
+BLRPTP-3437-Sculptor: So to do this experiment and figure out the problems that we can fix later, it is like we are actually doing proper unit testing of this.
+
+15:13:47 --> 15:13:51
+BLRPTP-3437-Sculptor: Uh, what is the time required to complete that test?
+
+15:13:51 --> 15:13:54
+BLRPTP-3437-Sculptor: So that we can fix the problems that we identified.
+
+15:13:52 --> 15:13:53
+Vijayaraghavan R: I'm not…
+
+15:13:54 --> 15:14:03
+Vijayaraghavan R: Yeah. So here I share my screen just for the understanding purpose. Okay, so here we have identified some 45 Apis.
+
+15:14:00 --> 15:14:05
+BLRPTP-3437-Sculptor: You can't see your screen, Vijay. Vijay, can you share your screen, please?
+
+15:14:03 --> 15:14:04
+Vijayaraghavan R: Good.
+
+15:14:05 --> 15:14:06
+Vijayaraghavan R: Sure, okay.
+
+15:14:14 --> 15:14:15
+Vijayaraghavan R: Yeah. Okay.
+
+15:14:16 --> 15:14:21
+Vijayaraghavan R: So if you see here, we have almost 44 APIs, which are…
+
+15:14:21 --> 15:14:37
+Vijayaraghavan R: Which we have implemented in the CapEx site, okay? And if we see the error codes, we have almost 6,000 error codes in the VMM repo, and out of that, we have categorized those APIs, for example, it is a permanent API, or retrieval API, or it's a gap in the CapEx or not.
+
+15:14:37 --> 15:14:42
+Vijayaraghavan R: So, we are planning to understand these APIs, and we are trying to reproduce it.
+
+15:14:42 --> 15:14:58
+Vijayaraghavan R: explicitly, which means we are trying to call this Aps, and we are trying to reproduce it, and we need to identify the gaps in the cap rights. Okay, so that is what this is, what the approach we are trying to do. Okay, so we are not looking into the code, and we are not understanding the existing implementation. We are trying to.
+
+15:14:56 --> 15:14:59
+BLRPTP-3437-Sculptor: That you're supposed to do, that's the whole idea.
+
+15:14:59 --> 15:15:07
+BLRPTP-3437-Sculptor: No, no, that is what I'm saying, Vijay. If you're not doing it, then you should do it. Because it is not about how you are… complete your thought, sorry.
+
+15:14:59 --> 15:15:01
+Vijayaraghavan R: Yeah, that's the second step.
+
+15:15:03 --> 15:15:05
+Vijayaraghavan R: Thank you.
+
+15:15:07 --> 15:15:22
+Vijayaraghavan R: Yeah, correct. So if we take the code, we will just go around the code and what we have implemented in the code, we will try to improve that logic. But here, what we are planning to do is, we are planning to take all the possible scenarios and the also possible errors in the VM creation, let's say.
+
+15:15:22 --> 15:15:28
+Vijayaraghavan R: Okay? And we… after that, we are trying to compare it to the capex implementation. What is the gap?
+
+15:15:28 --> 15:15:43
+Vijayaraghavan R: which is that today? Okay, that is one step. Other step is, as you said, maybe we need to handle the crash scenario. For example, if we just kill the capax, and then we reset the capax, what will happen to the machine creations? And then, if we try to do the ma parallel things.
+
+15:15:43 --> 15:15:53
+Vijayaraghavan R: uh, what will happen to the, uh, cluster creation, and what are the URL scenarios we need to handle in the capex. Okay, for example, uh, let's…
+
+15:15:53 --> 15:16:06
+Vijayaraghavan R: Here, we are getting some issues, something like, because not enough storage, the VM is not created, okay? So these errors are not… We are not informing these errors to the customers also, that cluster creation is…
+
+15:16:03 --> 15:16:07
+BLRPTP-3437-Sculptor: Vijay, Vijay, Vijay, can I pause you here?
+
+15:16:07 --> 15:16:09
+Vijayaraghavan R: Sure.
+
+15:16:08 --> 15:16:16
+BLRPTP-3437-Sculptor: Okay, so I understood that we are not doing error handling of VMM creation only, VMM creation properly.
+
+15:16:16 --> 15:16:29
+BLRPTP-3437-Sculptor: So we discussed that, the first point, and I agree, and we also discussed how you will use the task ID, poll on their success, their completion, and then append or to retry, whatever is sufficient. That covers the first point. I understood that part.
+
+15:16:16 --> 15:16:17
+Vijayaraghavan R: Hmm. Okay.
+
+15:16:29 --> 15:16:35
+BLRPTP-3437-Sculptor: Now, question is, is this the only problem facing CapEx that could be facing CapEx? Answer is no.
+
+15:16:29 --> 15:16:30
+Vijayaraghavan R: Mmhm.
+
+15:16:35 --> 15:16:36
+Vijayaraghavan R: No.
+
+15:16:35 --> 15:16:45
+BLRPTP-3437-Sculptor: Okay, what is the intent of this exercise? Is the intent of exercise to make our VM creation and the failure handling properly? Is that the only intent? Answer is no.
+
+15:16:45 --> 15:16:46
+BLRPTP-3437-Sculptor: The answer is…
+
+15:16:46 --> 15:17:03
+BLRPTP-3437-Sculptor: Is my CapEx sufficient enough, good enough, very well written enough so that in case I have a scale handle, crash scenario handle, failure handle, and blocking handle, if I have to do all of that, is the business logic underneath this?
+
+15:17:03 --> 15:17:04
+BLRPTP-3437-Sculptor: Good enough.
+
+15:17:04 --> 15:17:17
+BLRPTP-3437-Sculptor: This is the intent of this exercise. So we are spending time in making CapEx 100% robust enterprise ready, which means any kind of error that comes while handling scale, right, while handling resources.
+
+15:17:17 --> 15:17:21
+BLRPTP-3437-Sculptor: We should be able to run in a predictive fashion. That's the intent of this exercise.
+
+15:17:22 --> 15:17:28
+Vijayaraghavan R: Yeah, correct. For that, the starting point should be… means we should make our course run, right?
+
+15:17:25 --> 15:17:34
+BLRPTP-3437-Sculptor: Starting point is this, but then we are… this is not a one-year exercise, that's what I'm trying to say. This has to be complete in a time-bound fashion, and we have to deliver this in.
+
+15:17:30 --> 15:17:32
+Vijayaraghavan R: Very good.
+
+15:17:34 --> 15:17:44
+BLRPTP-3437-Sculptor: Huh? 220 to 21. If you're thinking it is a six-month exercise, it's not going to be a six-month exercise. No, but it's, it's, is it, it's, it's definitely… 2.
+
+15:17:44 --> 15:17:47
+BLRPTP-3437-Sculptor: 220.x or 221.
+
+15:17:47 --> 15:17:52
+BLRPTP-3437-Sculptor: Right? And why this is important? Because the issue that we saw at Toyota.
+
+15:17:52 --> 15:18:04
+BLRPTP-3437-Sculptor: Maybe we will see something else in other testing or maybe something else because we never hit that kind of problem at runtime. So the idea is to hit all of them in our current effort and then fix them. Sure.
+
+15:18:04 --> 15:18:19
+BLRPTP-3437-Sculptor: Yeah, that's the intent, actually. Okay, so the question is, to finish your exercise and find out the potential things, that you have to do experiments and everything, right? So, reading the code, it will be required. So, the person who is doing this thing has to understand capex properly, and I think you already know that.
+
+15:18:19 --> 15:18:28
+BLRPTP-3437-Sculptor: Right? And then we basically unit tested properly. When I say unit testing, I'm talking about the CAPEX car model level testing. And then we figured out the problems.
+
+15:18:28 --> 15:18:36
+BLRPTP-3437-Sculptor: Yeah, right? Yeah, so, like, he's asking, like, what time… And then what is the timeline for this you have in mind? Because this is not a six-month exercise.
+
+15:18:36 --> 15:18:48
+BLRPTP-3437-Sculptor: Like, how much, like, how much time we need to experiment all these out, uh, including these APIs? Experiment and find out the issues. It is like, when you write the code for the very first time, you are… we are supposed to be running all of these tests.
+
+15:18:48 --> 15:18:49
+BLRPTP-3437-Sculptor: Yep.
+
+15:18:51 --> 15:18:56
+Vijayaraghavan R: Yeah, this we will, uh, let you know, Viral. Maybe, uh, we cannot give the timelines to…
+
+15:18:54 --> 15:19:07
+BLRPTP-3437-Sculptor: Yeah, so I want to know… so that's what I'm saying, let me tell you that it has to be done in time-bound fashion, because this is the first module. We have to do it for all other modules. Correct. To make it enterprise-ready. That's how the software will become enterprise-ready. Sure.
+
+15:19:08 --> 15:19:10
+BLRPTP-3437-Sculptor: That makes sense.
+
+15:19:10 --> 15:19:11
+Vijayaraghavan R: Yes.
+
+15:19:11 --> 15:19:24
+BLRPTP-3437-Sculptor: So, Shivendra, I think when you… I come to discuss, I don't want a date for a date, I want to know the final date. Okay, so you discuss this internally, and then give me a date, that how much time we will take to finalize the problems, and then fix them.
+
+15:19:18 --> 15:19:19
+Shivendra Singh: Sure.
+
+15:19:24 --> 15:19:28
+Shivendra Singh: Sure, I will discuss, and yeah, definitely.
+
+15:19:24 --> 15:19:26
+BLRPTP-3437-Sculptor: So they can plan the delivery of this.
+
+15:19:26 --> 15:19:27
+BLRPTP-3437-Sculptor: Okay.
+
+15:19:28 --> 15:19:35
+BLRPTP-3437-Sculptor: And Shivendra will do the similar access for other modules, so this is what we will start slowly. But luckily, for many other modules, we already have some…
+
+15:19:35 --> 15:19:47
+BLRPTP-3437-Sculptor: CFD is defined, or Jira's created, so we know what to fix. But is that it? No. So, we are finding new issues every time the customer uses us, and that is what we want to take care of now. Got it. Okay.
+
+15:19:50 --> 15:19:54
+BLRPTP-3437-Sculptor: I think we'll go with that, me and Vijay.
+
+15:19:50 --> 15:19:59
+Shivendra Singh: Perfect. Uh, one more… one question before we wrap up. Viral, do you think down the line CAPEX to be stateful or stateless?
+
+15:20:02 --> 15:20:07
+BLRPTP-3437-Sculptor: That question, you guys have to tell me, because this is the way you designed it. CapEx suddenly should be stateless.
+
+15:20:02 --> 15:20:04
+Shivendra Singh: Right click.
+
+15:20:07 --> 15:20:16
+BLRPTP-3437-Sculptor: It is stateless, right? It has to be stateless, because it's just a plugin, it's a reconciler. The moment you have a reconciler, it has to be very important. Normally, this is.
+
+15:20:16 --> 15:20:34
+BLRPTP-3437-Sculptor: Because you have the intent, Akiva's intent already here, right? And then you have to implement added borders so that in case you crash in between or restart, you want to resume from where you left off. So what do you do? You basically somehow check, because if you persist your intermediate states, it's going to be complicated.
+
+15:20:34 --> 15:20:46
+BLRPTP-3437-Sculptor: So then in your logic, only you have to figure out that, hey, for doing one thing, if I were to do 10 subtasks, in my last iteration, how many of them succeeded, so that I can resume from what I did not succeed, and then from that point on, I go on.
+
+15:20:47 --> 15:20:54
+BLRPTP-3437-Sculptor: And at least that way, we have implemented earlier reconcilers, and I have implemented the design of those other reconcilers.
+
+15:20:54 --> 15:21:10
+BLRPTP-3437-Sculptor: No, so, like, these components are pretty stateless. They do not need to ask… Generally, stateless are better to manage. They're easier to manage. They need, right? So, they act on the CRs, basically, that is created, and that is inside the system. So, any stateful component, Shivendra… Any stateful component…
+
+15:21:11 --> 15:21:22
+BLRPTP-3437-Sculptor: If you persist it, and then you recheck whether I persisted correctly or not, it is going to be a problematic thing, because then you need a transaction. Because, let's say you persisted something, and you crashed, even before you checked.
+
+15:21:15 --> 15:21:17
+Shivendra Singh: Mm-hmm.
+
+15:21:19 --> 15:21:20
+Shivendra Singh: Yep.
+
+15:21:22 --> 15:21:27
+BLRPTP-3437-Sculptor: You come back out. Now your thing says, oh, it is not completed, but actually it was completed.
+
+15:21:27 --> 15:21:32
+BLRPTP-3437-Sculptor: So that means you have to do this thing at a quantity anyway.
+
+15:21:32 --> 15:21:50
+BLRPTP-3437-Sculptor: But before you write, you crashed. You come back up. Now, you don't want to get duplicate VM. So, you have to check the IDF. Then, it itself proves that you don't want to do a persistent state in your reconciler. Let the other systems do it for you, and you just query that.
+
+15:21:50 --> 15:22:08
+BLRPTP-3437-Sculptor: Yeah, anyways, like all these controllers, right? Like their actions have a definitive reaction, right? For example, if you create a VM, either the VM is created or it is not created. There is nothing in between, right? So these things can be fetched from the CR.
+
+15:22:08 --> 15:22:25
+BLRPTP-3437-Sculptor: Plus our CR machine CRs and those VHA CRs. So they act on those like there is no need to persist any data and make it stateful here. Okay, so I think, Shivendra, does that answer your question? I don't know. I would say, okay, long answer short.
+
+15:22:24 --> 15:22:27
+Shivendra Singh: Yes!
+
+15:22:25 --> 15:22:28
+BLRPTP-3437-Sculptor: Keep it stateless. Keep it stateless.
+
+15:22:30 --> 15:22:33
+Shivendra Singh: sponsored to see your…
+
+15:22:34 --> 15:22:35
+Shivendra Singh: Okay.
+
+15:22:34 --> 15:22:37
+BLRPTP-3437-Sculptor: Yeah, breaking Shivendra may be the internet in the cab.
+
+15:22:37 --> 15:22:38
+Shivendra Singh: Yeah.
+
+15:22:39 --> 15:22:40
+Shivendra Singh: Yeah, yeah, yeah.
+
+15:22:39 --> 15:22:49
+BLRPTP-3437-Sculptor: No worries. Let's discuss it out. Like, it is stateless and it has to be stateless. That's the way these controllers should be.
+
+15:22:42 --> 15:22:46
+Shivendra Singh: I just wanted to check your opinion, that's all.
+
+15:22:46 --> 15:22:54
+Shivendra Singh: No, no, I was just saying that I just wanted to check your…
+
+15:22:58 --> 15:23:00
+BLRPTP-3437-Sculptor: No worries, okay, it's fine.
+
+15:23:00 --> 15:23:02
+BLRPTP-3437-Sculptor: No hassle.
+
+15:23:02 --> 15:23:13
+BLRPTP-3437-Sculptor: We'll talk with the team internally and we'll get your timeline. Which team? Me, Vijayashvindra. We are a team. Yeah, we are going work on.
+
+15:23:13 --> 15:23:14
+BLRPTP-3437-Sculptor: Okay.
+
+15:23:15 --> 15:23:18
+BLRPTP-3437-Sculptor: Okay, so when will we reconvene this discussion?
+
+15:23:19 --> 15:23:30
+BLRPTP-3437-Sculptor: Let's avoid tomorrow and day after tomorrow, because 219 things are still there, and we want to focus on… I know, you want to finish them. Yeah, let's connect anytime next week, you have time.
+
+15:23:30 --> 15:23:34
+BLRPTP-3437-Sculptor: If you want. Yeah, send out the invite. Any preferred date?
+
+15:23:34 --> 15:23:42
+BLRPTP-3437-Sculptor: Calendar. Look at my calendar. I think it's in here. Whenever you are ready, I'm ready. Just look at my calendar and see what… Let's meet.
+
+15:23:42 --> 15:23:46
+BLRPTP-3437-Sculptor: But that would be great. Yeah, check my calendar.
+
+15:23:46 --> 15:23:47
+BLRPTP-3437-Sculptor: Thanks.
+
+15:23:48 --> 15:23:50
+Shivendra Singh: Thank you, folks.
+
+15:23:49 --> 15:23:50
+BLRPTP-3437-Sculptor: Thank you.
+
+15:23:49 --> 15:23:52
+Vijayaraghavan R: Thank you. Thank you, Vivek.
+
+15:23:52 --> 15:23:54
+Vijayaraghavan R: Thank you.

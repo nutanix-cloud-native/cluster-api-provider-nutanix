@@ -1,0 +1,1616 @@
+15:30:26 --> 15:30:28
+Vijayaraghavan R: Probably be.
+
+15:30:35 --> 15:30:39
+Abhay Aggrawal: Hello, what's up? Still in office?
+
+15:30:38 --> 15:30:41
+Vijayaraghavan R: Yes, I have 4 o'clock time.
+
+15:30:41 --> 15:30:43
+Abhay Aggrawal: Oh.
+
+15:30:43 --> 15:30:45
+Vijayaraghavan R: Salam alaykum.
+
+15:30:45 --> 15:30:47
+Vijayaraghavan R: Will it take for you to reach home?
+
+15:30:48 --> 15:30:53
+Abhay Aggrawal: Usually, like, if I leave around 2 or 2.15, right, it's not gonna take more than 15 minutes for me.
+
+15:30:51 --> 15:30:52
+Vijayaraghavan R: Hmm. Okay.
+
+15:30:53 --> 15:30:55
+Vijayaraghavan R: Oh, okay.
+
+15:30:56 --> 15:31:02
+Abhay Aggrawal: That's why I don't come with cab, right? Because at 3, it's too hectic, too crowded.
+
+15:30:59 --> 15:31:01
+Vijayaraghavan R: Okay.
+
+15:31:01 --> 15:31:04
+Vijayaraghavan R: Got it, got it, got it, got it.
+
+15:31:16 --> 15:31:22
+Vijayaraghavan R: So, Siddhi Sabhi, I'm not sure whether he's available or not. Let's ping him.
+
+15:31:26 --> 15:31:31
+Abhay Aggrawal: Nobody's there. So do you start the conference page in the log?
+
+15:31:31 --> 15:31:34
+Vijayaraghavan R: Yes, I just created the conference page.
+
+15:31:35 --> 15:31:39
+Vijayaraghavan R: Okay, um… do you have the access to the contents page?
+
+15:31:35 --> 15:31:36
+Abhay Aggrawal: Okay.
+
+15:31:40 --> 15:31:42
+Abhay Aggrawal: Uh, can you share that with me?
+
+15:31:42 --> 15:31:44
+Vijayaraghavan R: Okay.
+
+15:31:53 --> 15:31:58
+Abhay Aggrawal: Sid seems to be offline. I'm not sure whether he'll be joining.
+
+15:32:00 --> 15:32:02
+Vijayaraghavan R: Yeah, it will be in the group.
+
+15:32:00 --> 15:32:01
+Abhay Aggrawal: that…
+
+15:32:02 --> 15:32:04
+Abhay Aggrawal: check if I can open that.
+
+15:32:08 --> 15:32:13
+Abhay Aggrawal: For some reason, since I joined, I don't have access to the confluence, you know.
+
+15:32:13 --> 15:32:18
+Vijayaraghavan R: I think you have to add this in Okta, actually.
+
+15:32:18 --> 15:32:21
+Vijayaraghavan R: Not, uh, I think…
+
+15:32:18 --> 15:32:20
+Abhay Aggrawal: Okay.
+
+15:32:21 --> 15:32:23
+Vijayaraghavan R: Okta, or…
+
+15:32:23 --> 15:32:25
+Vijayaraghavan R: Yeah, totally.
+
+15:32:28 --> 15:32:33
+Abhay Aggrawal: Let me check… okay, I don't have it in Okta.
+
+15:32:33 --> 15:32:36
+Abhay Aggrawal: I have to add, you know, the…
+
+15:32:42 --> 15:32:45
+Abhay Aggrawal: Of the, of the, of the…
+
+15:32:48 --> 15:32:51
+Abhay Aggrawal: Add apps, okay.
+
+15:32:51 --> 15:32:55
+Abhay Aggrawal: Con… Lowen's…
+
+15:32:56 --> 15:33:00
+Abhay Aggrawal: It's confluent or confluence.
+
+15:32:59 --> 15:33:03
+Vijayaraghavan R: confluence only, but I think that will show us confluence.
+
+15:33:03 --> 15:33:05
+Abhay Aggrawal: Okay.
+
+15:33:09 --> 15:33:14
+Abhay Aggrawal: Because I've asked Axis for this.
+
+15:33:14 --> 15:33:15
+Abhay Aggrawal: Let's see when I get it.
+
+15:33:16 --> 15:33:30
+Vijayaraghavan R: Yeah, it should be auto-replay only, okay? It should be approved automatically, maybe within a few minutes you should get access. Once you get access, just check this page, okay? This is auto-generated only, okay? Just check this page, and…
+
+15:33:30 --> 15:33:34
+Vijayaraghavan R: Just tell me what we need to update in the structure-wise.
+
+15:33:34 --> 15:33:39
+Vijayaraghavan R: Uh, just to start the discussion, I just added this table, okay? Uh…
+
+15:33:38 --> 15:33:40
+Abhay Aggrawal: Uh-huh.
+
+15:33:39 --> 15:33:46
+Vijayaraghavan R: Yeah, so once you have a look, maybe you just, uh, tell me we can update the tables.
+
+15:33:46 --> 15:33:48
+Vijayaraghavan R: On the data end of it, on the page.
+
+15:33:49 --> 15:33:58
+Abhay Aggrawal: Sure, sure, sure, sure. Let's get started with this. And the second thing is let's start with Doc as well.
+
+15:33:50 --> 15:33:52
+Vijayaraghavan R: Yeah.
+
+15:33:57 --> 15:33:59
+Vijayaraghavan R: Mm-hmm.
+
+15:33:58 --> 15:34:01
+Abhay Aggrawal: Okay, that will share across the team.
+
+15:34:02 --> 15:34:03
+Vijayaraghavan R: Yeah.
+
+15:34:03 --> 15:34:04
+Abhay Aggrawal: Right?
+
+15:34:04 --> 15:34:05
+Vijayaraghavan R: Mmhm.
+
+15:34:07 --> 15:34:08
+Vijayaraghavan R: Hi, Sid.
+
+15:34:07 --> 15:34:09
+Abhay Aggrawal: So…
+
+15:34:11 --> 15:34:12
+Sid Shukla: Hi, folks.
+
+15:34:12 --> 15:34:14
+Abhay Aggrawal: Hello, Sid.
+
+15:34:16 --> 15:34:18
+Sid Shukla: How you guys doing?
+
+15:34:19 --> 15:34:22
+Vijayaraghavan R: Doing great, Sid. How are you doing?
+
+15:34:25 --> 15:34:29
+Sid Shukla: I'm doing alright as well. Uh, just jumping meeting to meeting then.
+
+15:34:29 --> 15:34:30
+Sid Shukla: Okay.
+
+15:34:30 --> 15:34:31
+Vijayaraghavan R: Indeed.
+
+15:34:30 --> 15:34:32
+Sid Shukla: So.
+
+15:34:32 --> 15:34:36
+Sid Shukla: Alright, uh, are you… you were sharing something, right? Like, on the…
+
+15:34:37 --> 15:34:40
+Sid Shukla: Like, the Confluence page.
+
+15:34:40 --> 15:34:50
+Vijayaraghavan R: Yeah, correct. Actually, we just started the analysis, okay? I mean, I just started some analysis, obviously, with some, uh, thing else. Uh…
+
+15:34:46 --> 15:34:48
+Sid Shukla: Okay.
+
+15:34:50 --> 15:34:55
+Vijayaraghavan R: Maybe let me share my screen and then we can discuss.
+
+15:34:52 --> 15:34:54
+Sid Shukla: Okay.
+
+15:34:55 --> 15:34:56
+Sid Shukla: Yep.
+
+15:35:24 --> 15:35:26
+Vijayaraghavan R: Okay, so…
+
+15:35:26 --> 15:35:31
+Vijayaraghavan R: Currently, I have just captured the API calls from our CAPX code and the Prism Go client.
+
+15:35:31 --> 15:35:41
+Vijayaraghavan R: EP path, and then what is the, uh, request parameters in the body, and what kind of, uh, responses we are handling currently in the code.
+
+15:35:41 --> 15:35:45
+Vijayaraghavan R: Okay. And, um, the second thing is, I have just…
+
+15:35:46 --> 15:35:48
+Vijayaraghavan R: access the…
+
+15:35:49 --> 15:35:52
+Vijayaraghavan R: Yeah, maybe open, you can take this.
+
+15:35:55 --> 15:35:58
+Vijayaraghavan R: VMM, the namespace…
+
+15:35:58 --> 15:36:00
+Vijayaraghavan R: Codebase.
+
+15:35:59 --> 15:36:01
+Sid Shukla: Mm-hmm.
+
+15:36:00 --> 15:36:10
+Vijayaraghavan R: So, I have just captured the total number of errors, I mean, the possible kind of error codes and then error responses for this API.
+
+15:36:10 --> 15:36:13
+Vijayaraghavan R: And then specific to the cluster.
+
+15:36:13 --> 15:36:23
+Vijayaraghavan R: So, not ClusterCraft, but specifically to the VM create operation, and then specific operations, okay? Uh, maybe we can start the analysis from here.
+
+15:36:24 --> 15:36:29
+Vijayaraghavan R: So, what kind of errors are retrieval error, and what are the gaps in the CAPX?
+
+15:36:29 --> 15:36:46
+Vijayaraghavan R: And, uh, that's what I'm planning to do, uh, just to reproduce… reproduce in the sense of invoke the CAPS manually, and get these kind of error messages manually, and then compare it with the current CAPX code, and we need to segregate our, um, the document, what kind of the errors.
+
+15:36:46 --> 15:36:53
+Vijayaraghavan R: or retrieval errors, what kind of errors are permanent or terminal errors. We need to segregate, uh, those things.
+
+15:36:54 --> 15:37:01
+Vijayaraghavan R: Just to start the process, so that maybe I will get some more understanding once we start this, uh…
+
+15:37:01 --> 15:37:03
+Vijayaraghavan R: Exercise.
+
+15:37:09 --> 15:37:11
+Vijayaraghavan R: What do you think, Sid? Abhay?
+
+15:37:12 --> 15:37:15
+Sid Shukla: So this is what's coming out of the API VMM repo, yeah?
+
+15:37:15 --> 15:37:20
+Vijayaraghavan R: Correct, correct. So this is the repo, so this is created, generated based on this repo.
+
+15:37:24 --> 15:37:25
+Sid Shukla: Right.
+
+15:37:33 --> 15:37:38
+Sid Shukla: Okay, and do we have, like, whatever's coming…
+
+15:37:39 --> 15:37:41
+Sid Shukla: Uh…
+
+15:37:41 --> 15:37:45
+Sid Shukla: Like, coming back out of it, like, so, so…
+
+15:37:45 --> 15:37:47
+Sid Shukla: This is the…
+
+15:37:47 --> 15:37:52
+Sid Shukla: API which gets exposed on the v4 path.
+
+15:37:52 --> 15:37:54
+Vijayaraghavan R: Correct. Right.
+
+15:37:54 --> 15:37:56
+Sid Shukla: Okay. Gotcha.
+
+15:37:57 --> 15:38:04
+Abhay Aggrawal: So, this list, did you get it from the public one, or the internal one?
+
+15:38:04 --> 15:38:10
+Vijayaraghavan R: So, this is, I think, the V4 API code repo, uh, which the…
+
+15:38:11 --> 15:38:18
+Vijayaraghavan R: the team used for VM operator. I think this is… this is specific to the V4 namespace.
+
+15:38:18 --> 15:38:20
+Sid Shukla: Mm-hmm, yep.
+
+15:38:19 --> 15:38:20
+Vijayaraghavan R: From the Nutanix code.
+
+15:38:20 --> 15:38:22
+Sid Shukla: No.
+
+15:38:21 --> 15:38:23
+Vijayaraghavan R: Yep.
+
+15:38:24 --> 15:38:26
+Sid Shukla: Okay.
+
+15:38:28 --> 15:38:41
+Vijayaraghavan R: So, maybe I'm… I'm thinking this is the starting point, uh, for our analysis. Okay, maybe we can map this with our CAPEX, and then we can identify the gaps, and then what are the things already handled, and what are the missing cases.
+
+15:38:41 --> 15:38:43
+Vijayaraghavan R: Um…
+
+15:38:44 --> 15:38:47
+Vijayaraghavan R: Based on that, uh, we can…
+
+15:38:48 --> 15:38:49
+Vijayaraghavan R: Continue.
+
+15:38:57 --> 15:39:05
+Vijayaraghavan R: So this is how you are expecting to start, right, Sid? Or you were thinking something else for this, maybe starting point?
+
+15:38:57 --> 15:38:58
+Sid Shukla: Okay.
+
+15:39:05 --> 15:39:11
+Sid Shukla: No, no, like, this is, this is a good starting point, uh, that at least we, like, know.
+
+15:39:08 --> 15:39:10
+Vijayaraghavan R: Mmhm.
+
+15:39:11 --> 15:39:14
+Sid Shukla: How different errors?
+
+15:39:13 --> 15:39:15
+Vijayaraghavan R: Mm.
+
+15:39:14 --> 15:39:16
+Sid Shukla: are that the API can return.
+
+15:39:16 --> 15:39:17
+Vijayaraghavan R: Hmm. Okay.
+
+15:39:17 --> 15:39:19
+Sid Shukla: And how is each of them?
+
+15:39:20 --> 15:39:24
+Sid Shukla: Currently handled at a CAPX layer.
+
+15:39:24 --> 15:39:27
+Sid Shukla: Which of those are not handled at all?
+
+15:39:27 --> 15:39:28
+Vijayaraghavan R: Correct.
+
+15:39:27 --> 15:39:30
+Sid Shukla: Which of those are handled incorrectly?
+
+15:39:30 --> 15:39:38
+Sid Shukla: Which of those should be a terminal error and marked as such? Which of those should definitely not be a terminal error, but are being incorrectly marked as such?
+
+15:39:38 --> 15:39:40
+Vijayaraghavan R: Got it.
+
+15:39:43 --> 15:39:58
+Vijayaraghavan R: Yeah, maybe, uh, maybe we can start with this then. Okay, so it just categorized with the create error, retrieval error, or the gaps in CAPEX, and then the response. Uh, I just start with the success case, and then from there, I try to find.
+
+15:39:58 --> 15:40:00
+Vijayaraghavan R: the…
+
+15:40:00 --> 15:40:03
+Vijayaraghavan R: The gaps, and then the implementation-related things.
+
+15:40:03 --> 15:40:09
+Vijayaraghavan R: And then maybe tomorrow or day after tomorrow, maybe I will have some more understanding. Maybe we can discuss in detail.
+
+15:40:07 --> 15:40:08
+Sid Shukla: Mm-hmm.
+
+15:40:12 --> 15:40:13
+Sid Shukla: Right.
+
+15:40:14 --> 15:40:17
+Sid Shukla: It's an interesting one that they have, like, a…
+
+15:40:17 --> 15:40:20
+Sid Shukla: VM project migrate in progress error.
+
+15:40:21 --> 15:40:23
+Vijayaraghavan R: This one, right?
+
+15:40:23 --> 15:40:24
+Sid Shukla: Yeah.
+
+15:40:23 --> 15:40:26
+Vijayaraghavan R: Oh, that is migrating, correct.
+
+15:40:28 --> 15:40:29
+Sid Shukla: Like…
+
+15:40:30 --> 15:40:34
+Sid Shukla: This is something we don't even…
+
+15:40:34 --> 15:40:36
+Sid Shukla: I didn't even know I was supporting.
+
+15:40:37 --> 15:40:41
+Sid Shukla: Like migrating a VM to another project.
+
+15:40:43 --> 15:40:48
+Abhay Aggrawal: But do we have a use case for this, like in our scenarios?
+
+15:40:49 --> 15:40:52
+Sid Shukla: We do, um…
+
+15:40:53 --> 15:40:56
+Sid Shukla: So, the thing is that…
+
+15:40:56 --> 15:40:59
+Sid Shukla: For clusters that are.
+
+15:40:59 --> 15:41:04
+Sid Shukla: Currently spread out across multiple projects.
+
+15:41:05 --> 15:41:12
+Sid Shukla: Like, let's say you have one node pool in one project, and another node pool is in one project, and the control plane in another project.
+
+15:41:12 --> 15:41:22
+Sid Shukla: What we want to do is, going forward, we don't want to support the… support a NKP cluster in one project. So we basically ask the users to kind of…
+
+15:41:22 --> 15:41:28
+Sid Shukla: move their VMs, but the way you can't really move the VM, the way you do that is you change the…
+
+15:41:29 --> 15:41:31
+Sid Shukla: You change your spec.
+
+15:41:32 --> 15:41:34
+Sid Shukla: In your cluster.
+
+15:41:34 --> 15:41:35
+Sid Shukla: Right.
+
+15:41:35 --> 15:41:43
+Sid Shukla: Uh, to point to a project case in which new VMs will be created in this new project, and the older VMs will go away.
+
+15:41:43 --> 15:41:46
+Sid Shukla: Uh, that's how you kind of move, but…
+
+15:41:46 --> 15:41:51
+Sid Shukla: I was not aware that migrating an entity from one project to another project was supported.
+
+15:41:56 --> 15:41:57
+Vijayaraghavan R: Got it.
+
+15:42:12 --> 15:42:19
+Sid Shukla: But, like, do you have a link to this? You've already shared that, yeah. Is that linked to the Confluence as well?
+
+15:42:19 --> 15:42:25
+Vijayaraghavan R: Okay, so I just shared the Confluence page link, I will share the Canvas, maybe.
+
+15:42:24 --> 15:42:26
+Sid Shukla: Yes.
+
+15:42:29 --> 15:42:33
+Sid Shukla: So the, the, the Confluence page link is…
+
+15:42:33 --> 15:42:37
+Sid Shukla: Basically, kind of a more distilled version of this.
+
+15:42:37 --> 15:42:39
+Vijayaraghavan R: Correct, correct, correct.
+
+15:42:38 --> 15:42:40
+Sid Shukla: Okay, okay, that's fine.
+
+15:42:40 --> 15:42:45
+Sid Shukla: Uh, yeah, you can share the canvas separately as well, yeah.
+
+15:42:44 --> 15:42:46
+Vijayaraghavan R: Yeah, sure.
+
+15:42:45 --> 15:42:48
+Sid Shukla: This is a good start.
+
+15:43:00 --> 15:43:05
+Sid Shukla: But yeah, like, for each of those, right, like, I mean, I think we should, like, kind of…
+
+15:43:05 --> 15:43:09
+Sid Shukla: Be, like, go a bit deeper to explain…
+
+15:43:09 --> 15:43:13
+Sid Shukla: Like, what happens in the handling side of things.
+
+15:43:13 --> 15:43:16
+Vijayaraghavan R: Correct. That I will do.
+
+15:43:16 --> 15:43:17
+Sid Shukla: Yep.
+
+15:43:22 --> 15:43:31
+Vijayaraghavan R: Abhay, maybe I start this exercise, maybe once you finish that, um, the least privilege-related things.
+
+15:43:31 --> 15:43:33
+Vijayaraghavan R: Uh, you can join with me, okay?
+
+15:43:35 --> 15:43:38
+Abhay Aggrawal: Sure, I have no problem with that.
+
+15:43:37 --> 15:43:38
+Vijayaraghavan R: Hmm.
+
+15:43:38 --> 15:43:43
+Sid Shukla: By least privilege, I'm guessing you mean not that, you're actually talking about…
+
+15:43:43 --> 15:43:45
+Abhay Aggrawal: Coconut steak.
+
+15:43:44 --> 15:43:46
+Sid Shukla: I am talking exchange.
+
+15:43:46 --> 15:43:47
+Abhay Aggrawal: Yeah.
+
+15:43:47 --> 15:43:49
+Vijayaraghavan R: Yeah, okay.
+
+15:43:51 --> 15:43:52
+Sid Shukla: Okay.
+
+15:43:57 --> 15:44:09
+Vijayaraghavan R: So, I just shared it with the team, I'm not sure what that means. Should I share the link as well, or it will automatically share with our…
+
+15:44:09 --> 15:44:12
+Vijayaraghavan R: the NKP team or the group, any ideas?
+
+15:44:12 --> 15:44:18
+Vijayaraghavan R: I can share the link, I just want to understand what that published means.
+
+15:44:20 --> 15:44:24
+Sid Shukla: Uh, the published, I think…
+
+15:44:24 --> 15:44:28
+Sid Shukla: If we traverse that, we should be able to see that.
+
+15:44:29 --> 15:44:31
+Sid Shukla: on…
+
+15:44:32 --> 15:44:36
+Sid Shukla: I think technically anyone with the link can see it, let me…
+
+15:44:35 --> 15:44:37
+Vijayaraghavan R: Got it, okay, okay.
+
+15:44:36 --> 15:44:38
+Sid Shukla: Ugh.
+
+15:44:38 --> 15:44:42
+Sid Shukla: So if I open it in an incognito tab, I can see it, I think.
+
+15:44:42 --> 15:44:43
+Vijayaraghavan R: Okay.
+
+15:44:42 --> 15:44:45
+Sid Shukla: Oh, no, okay, I need to be logged in. It tells me to at least log in.
+
+15:44:45 --> 15:44:46
+Vijayaraghavan R: Okay.
+
+15:44:45 --> 15:44:48
+Sid Shukla: Alright. But then, I think…
+
+15:44:49 --> 15:44:52
+Sid Shukla: Anyone with a cursor account can see it.
+
+15:44:53 --> 15:44:54
+Sid Shukla: Yes.
+
+15:44:53 --> 15:44:54
+Vijayaraghavan R: Mmhm.
+
+15:44:54 --> 15:44:55
+Sid Shukla: Yeah.
+
+15:44:57 --> 15:44:58
+Vijayaraghavan R: Okay.
+
+15:44:58 --> 15:44:59
+Sid Shukla: Yep.
+
+15:45:01 --> 15:45:09
+Sid Shukla: I mean, it's an open source component, so that's not an issue, but it does have the VMM.
+
+15:45:05 --> 15:45:06
+Vijayaraghavan R: Mm-hmm.
+
+15:45:10 --> 15:45:13
+Sid Shukla: Side error codes.
+
+15:45:13 --> 15:45:15
+Sid Shukla: Um…
+
+15:45:17 --> 15:45:23
+Sid Shukla: So yeah, I mean, I think it's okay as long as it doesn't make it outside Nutanix.
+
+15:45:23 --> 15:45:24
+Sid Shukla: I guess.
+
+15:45:24 --> 15:45:33
+Vijayaraghavan R: I think it was just showing… let's see… shared with the team only, maybe I think it will share with… in Neutronics, looks like. All team members can view.
+
+15:45:34 --> 15:45:38
+Vijayaraghavan R: I think it will restrict the access only within Nutanix, looks like.
+
+15:45:38 --> 15:45:45
+Abhay Aggrawal: Why not add into a Google Docs in our org and then share it with people so that it does not make it to public?
+
+15:45:38 --> 15:45:39
+Sid Shukla: Yeah.
+
+15:45:46 --> 15:45:50
+Sid Shukla: No, I mean, it's an interactive thing, right? Like…
+
+15:45:48 --> 15:45:51
+Vijayaraghavan R: Yeah, correct. So here we can…
+
+15:45:51 --> 15:45:55
+Vijayaraghavan R: Change, and then we can see something like that away.
+
+15:45:55 --> 15:46:01
+Abhay Aggrawal: Okay, that is very nice, I think. It's a good user interface, I would say.
+
+15:46:01 --> 15:46:02
+Sid Shukla: Yeah.
+
+15:46:05 --> 15:46:09
+Sid Shukla: Yeah, but I think, like, we should at least link them to Confluence or something.
+
+15:46:08 --> 15:46:10
+Vijayaraghavan R: Yeah, yeah, correct, correct, I will do that.
+
+15:46:10 --> 15:46:12
+Sid Shukla: Yep.
+
+15:46:10 --> 15:46:12
+Vijayaraghavan R: I'd like to do that, yeah.
+
+15:46:12 --> 15:46:23
+Abhay Aggrawal: What's the lifespan of the space? Like, the link that you'll be adding, will it be, like, present all the time, or does that have any expiration?
+
+15:46:12 --> 15:46:14
+Sid Shukla: That one.
+
+15:46:23 --> 15:46:27
+Vijayaraghavan R: No idea. I will check, maybe.
+
+15:46:29 --> 15:46:30
+Vijayaraghavan R: Okay.
+
+15:46:31 --> 15:46:32
+Sid Shukla: Okay.
+
+15:46:32 --> 15:46:33
+Vijayaraghavan R: Yeah.
+
+15:46:32 --> 15:46:35
+Abhay Aggrawal: The only thing, I just don't want it to be lost.
+
+15:46:36 --> 15:46:44
+Vijayaraghavan R: Yeah, this is the same information I will capture in the conference as well as the static information. Okay, that could not be an interactive one.
+
+15:46:44 --> 15:46:48
+Vijayaraghavan R: Or I try to convert this as a HTML page, if that is supported.
+
+15:46:49 --> 15:46:51
+Abhay Aggrawal: Okay.
+
+15:46:56 --> 15:47:02
+Vijayaraghavan R: Yeah, okay, maybe I just proceed with this one, uh, Sid and Abhay, okay?
+
+15:47:02 --> 15:47:05
+Vijayaraghavan R: Maybe we can discuss.
+
+15:47:05 --> 15:47:08
+Vijayaraghavan R: More in detail tomorrow or after tomorrow.
+
+15:47:09 --> 15:47:14
+Abhay Aggrawal: So, like, just a heads up, uh, tomorrow, Viral also wants to discuss this.
+
+15:47:17 --> 15:47:20
+Vijayaraghavan R: What we are trying to do with this.
+
+15:47:20 --> 15:47:23
+Abhay Aggrawal: Yeah, it can affect the enterprise sector, yeah.
+
+15:47:20 --> 15:47:22
+Vijayaraghavan R: exercise, right? The implement.
+
+15:47:23 --> 15:47:25
+Sid Shukla: Is he in the office?
+
+15:47:25 --> 15:47:28
+Vijayaraghavan R: Yeah, he's in Bangalore office this week.
+
+15:47:25 --> 15:47:27
+Abhay Aggrawal: Yes, I have an office.
+
+15:47:27 --> 15:47:29
+Sid Shukla: Okay, gotcha.
+
+15:47:33 --> 15:47:39
+Abhay Aggrawal: I'll keep posting you guys, uh, Sid and Arvind, about, like, what his plans are and what he wants us to do.
+
+15:47:39 --> 15:47:42
+Sid Shukla: But is he planning on, like, joining tomorrow, or…
+
+15:47:39 --> 15:47:40
+Abhay Aggrawal: So that may be.
+
+15:47:42 --> 15:47:43
+Abhay Aggrawal: Yeah?
+
+15:47:43 --> 15:47:47
+Sid Shukla: Like, is he planning on joining this meeting tomorrow?
+
+15:47:46 --> 15:47:57
+Abhay Aggrawal: No, no, no, I asked him to join this meeting, but he said that he only wants to, like, tomorrow he only wants to discuss it with me and, uh, Vijay for once.
+
+15:47:57 --> 15:47:58
+Sid Shukla: Nice to know.
+
+15:47:57 --> 15:48:01
+Abhay Aggrawal: And then he can… he might join this meeting sometime later.
+
+15:48:02 --> 15:48:04
+Sid Shukla: I see, I see.
+
+15:48:04 --> 15:48:06
+Sid Shukla: That's okay.
+
+15:48:05 --> 15:48:12
+Abhay Aggrawal: Yeah, so that's why I said, like, I'll keep you guys posted about, like, what he… what his plans are and what he's intending.
+
+15:48:13 --> 15:48:14
+Sid Shukla: Yep.
+
+15:48:18 --> 15:48:20
+Sid Shukla: Okay.
+
+15:48:19 --> 15:48:32
+Vijayaraghavan R: Okay, uh, Sid, uh, other than this, we have an open PR, right? So you added the command for the provider ID and then VM EXT ID. Uh, so…
+
+15:48:30 --> 15:48:31
+Sid Shukla: Yep.
+
+15:48:34 --> 15:48:39
+Vijayaraghavan R: I just added the reply.
+
+15:48:39 --> 15:48:49
+Vijayaraghavan R: Yeah, that is… that is a separate thing, right? So, updating the bias UAD after UPFO operations is the thing definitely we have to do. So, this is something different.
+
+15:48:47 --> 15:48:53
+Sid Shukla: No, you don't. No, no, no, no, no. Biosite does not get updated, right?
+
+15:48:50 --> 15:48:51
+Vijayaraghavan R: Uh-huh.
+
+15:48:54 --> 15:48:57
+Vijayaraghavan R: Yeah, we have to implement that, that's what you're saying, right?
+
+15:48:57 --> 15:49:03
+Sid Shukla: No, no, so that is a separate thing. What I'm saying is that your provider ID is your BIOS ID.
+
+15:49:02 --> 15:49:04
+Vijayaraghavan R: Mm-hmm.
+
+15:49:03 --> 15:49:05
+Sid Shukla: Because it's coming from your system ID.
+
+15:49:05 --> 15:49:06
+Vijayaraghavan R: Mmhm.
+
+15:49:06 --> 15:49:07
+Sid Shukla: Hello?
+
+15:49:07 --> 15:49:13
+Sid Shukla: your VMX ID, like, the VM status UUID should be coming from the VMX ID.
+
+15:49:14 --> 15:49:20
+Sid Shukla: The spec.provider ID should be coming from VM's BIOS UUID.
+
+15:49:21 --> 15:49:23
+Vijayaraghavan R: Okay.
+
+15:49:23 --> 15:49:24
+Sid Shukla: Right?
+
+15:49:24 --> 15:49:25
+Vijayaraghavan R: Mmhm.
+
+15:49:27 --> 15:49:29
+Sid Shukla: And so…
+
+15:49:29 --> 15:49:35
+Sid Shukla: that provider ID, like, like that, those two, like, you cannot source one value from the other.
+
+15:49:36 --> 15:49:38
+Vijayaraghavan R: Got it, okay.
+
+15:49:42 --> 15:49:46
+Abhay Aggrawal: But thinking about this sheet, right, I think…
+
+15:49:43 --> 15:49:44
+Sid Shukla: But, like…
+
+15:49:44 --> 15:49:48
+Sid Shukla: Help me understand, why would you, like, in what case?
+
+15:49:48 --> 15:49:52
+Sid Shukla: Is spec absent to begin with? What are you trying to fix?
+
+15:49:52 --> 15:49:54
+Sid Shukla: When is this not there?
+
+15:49:57 --> 15:50:13
+Vijayaraghavan R: Yeah, so, based on my analysis, I'm unable to reproduce this issue, okay? QA team faced this issue. Their, uh, Nutanix machine, machine, and the node, all are getting created successfully, but the node is not able to map to the.
+
+15:50:13 --> 15:50:18
+Vijayaraghavan R: machine, because the VM provider UAD is MD.
+
+15:50:19 --> 15:50:24
+Vijayaraghavan R: node status is… I mean, the machine status is changed to ready.
+
+15:50:24 --> 15:50:25
+Vijayaraghavan R: Okay.
+
+15:50:25 --> 15:50:28
+Vijayaraghavan R: Uh, maybe I just open the ticket, and then…
+
+15:50:28 --> 15:50:29
+Vijayaraghavan R: That's good.
+
+15:50:36 --> 15:50:38
+Vijayaraghavan R: Yeah, this one.
+
+15:50:38 --> 15:50:40
+Vijayaraghavan R: So here…
+
+15:50:42 --> 15:50:49
+Vijayaraghavan R: Security control and machine, right? So, in machine, the machine status is changed to…
+
+15:50:49 --> 15:50:52
+Vijayaraghavan R: I think, ready… where is the admission status?
+
+15:50:58 --> 15:51:04
+Vijayaraghavan R: And this is almost similar to the issue which Abhay fixed, right, for the subnet and the cluster name.
+
+15:51:06 --> 15:51:09
+Vijayaraghavan R: Another beer.
+
+15:51:11 --> 15:51:17
+Vijayaraghavan R: Yeah, maybe the node is created, the second control plane node is created, and then…
+
+15:51:25 --> 15:51:31
+Vijayaraghavan R: Yeah, VMU ID is there, but the provider ID is not updated in the machine spec, Nutanix machine spec.
+
+15:51:33 --> 15:51:37
+Sid Shukla: Provider ID is not updated on the Nutanix machine spec.
+
+15:51:37 --> 15:51:38
+Vijayaraghavan R: Yes.
+
+15:51:45 --> 15:51:47
+Sid Shukla: Okay.
+
+15:51:48 --> 15:51:50
+Sid Shukla: And what about the machine spec?
+
+15:51:51 --> 15:51:57
+Vijayaraghavan R: Yeah, machine spec is waiting for the Nutanix machine, uh, to update the provider ID. It's kind of deadlocked here.
+
+15:51:58 --> 15:52:05
+Vijayaraghavan R: So, Nutanix machine is thinking that, um, machine is ready, so it is waiting for the machine to update the provider ID.
+
+15:52:05 --> 15:52:12
+Vijayaraghavan R: In the machine spec. And the machine is waiting for the Nutanix machine to update the provider in the Nutanix machine spec.
+
+15:52:15 --> 15:52:18
+Sid Shukla: And which build is this from?
+
+15:52:18 --> 15:52:20
+Vijayaraghavan R: Just do with the tea.
+
+15:52:20 --> 15:52:22
+Vijayaraghavan R: Row 33.
+
+15:52:27 --> 15:52:35
+Sid Shukla: Okay, this seems like a regression, man. So, provider ID is the first thing that gets updated. So, when you create a VM.
+
+15:52:34 --> 15:52:36
+Vijayaraghavan R: Mm.
+
+15:52:35 --> 15:52:39
+Sid Shukla: You get back a V M U U I D.
+
+15:52:39 --> 15:52:41
+Vijayaraghavan R: Correct.
+
+15:52:40 --> 15:52:41
+Sid Shukla: Okay.
+
+15:52:41 --> 15:52:42
+Vijayaraghavan R: Hmm?
+
+15:52:42 --> 15:52:45
+Sid Shukla: Well, so when you create a VM, you get a task.
+
+15:52:44 --> 15:52:46
+Vijayaraghavan R: Hmm. Okay.
+
+15:52:45 --> 15:52:47
+Sid Shukla: Right?
+
+15:52:46 --> 15:52:48
+Vijayaraghavan R: Yep.
+
+15:52:47 --> 15:52:48
+Sid Shukla: that task.
+
+15:52:48 --> 15:52:52
+Sid Shukla: Basically returns, uh…
+
+15:52:53 --> 15:52:54
+Sid Shukla: Like.
+
+15:52:54 --> 15:52:57
+Sid Shukla: when that task succeeds, you have a VM, basically.
+
+15:52:57 --> 15:52:58
+Vijayaraghavan R: Mmhm.
+
+15:52:58 --> 15:53:03
+Sid Shukla: And you have a VM XID. That XID, initially, is basically what you use.
+
+15:53:03 --> 15:53:08
+Sid Shukla: to populate the BIOS ID and the text ID.
+
+15:53:08 --> 15:53:09
+Vijayaraghavan R: Mmhm.
+
+15:53:09 --> 15:53:11
+Sid Shukla: Right.
+
+15:53:10 --> 15:53:12
+Vijayaraghavan R: Yeah?
+
+15:53:11 --> 15:53:14
+Sid Shukla: Uh, so… and then…
+
+15:53:14 --> 15:53:17
+Sid Shukla: I think, like, that's where we need to do a…
+
+15:53:19 --> 15:53:22
+Sid Shukla: Yeah, that's where we need to ensure…
+
+15:53:22 --> 15:53:24
+Sid Shukla: These are set.
+
+15:53:25 --> 15:53:27
+Sid Shukla: At that point in time.
+
+15:53:27 --> 15:53:31
+Sid Shukla: Like both the provider ID and the.
+
+15:53:31 --> 15:53:34
+Sid Shukla: VM UUID. The VM UUID…
+
+15:53:34 --> 15:53:38
+Sid Shukla: should be pointing to the XID, but this is a status property.
+
+15:53:38 --> 15:53:45
+Sid Shukla: Like, when something gets moved from one management cluster to another, this is not reliable.
+
+15:53:38 --> 15:53:41
+Vijayaraghavan R: Yeah, this is a status property, correct?
+
+15:53:43 --> 15:53:44
+Vijayaraghavan R: Mmhm.
+
+15:53:45 --> 15:53:46
+Vijayaraghavan R: Correct.
+
+15:53:45 --> 15:53:49
+Sid Shukla: This will get wiped out, but the reason why…
+
+15:53:49 --> 15:53:52
+Sid Shukla: The provider ID is kept in spec.
+
+15:53:52 --> 15:53:53
+Vijayaraghavan R: Hmm.
+
+15:53:52 --> 15:53:55
+Sid Shukla: It's so that it doesn't get wiped out.
+
+15:53:58 --> 15:53:59
+Vijayaraghavan R: Yeah. Okay.
+
+15:53:59 --> 15:54:01
+Vijayaraghavan R: Okay, correct.
+
+15:54:01 --> 15:54:03
+Sid Shukla: Yeah?
+
+15:54:03 --> 15:54:04
+Vijayaraghavan R: Yeah.
+
+15:54:04 --> 15:54:10
+Sid Shukla: Like, it's not something that gets set at the Nutanix machine template, it gets just set at the Nutanix machine.
+
+15:54:10 --> 15:54:15
+Sid Shukla: Uh, like, it first gets set to, like, some empty template.
+
+15:54:15 --> 15:54:16
+Vijayaraghavan R: Mm.
+
+15:54:16 --> 15:54:21
+Sid Shukla: Right? It's just Nutanix slash slash some, like, something.
+
+15:54:21 --> 15:54:22
+Vijayaraghavan R: Hmm.
+
+15:54:21 --> 15:54:24
+Sid Shukla: And then it's supposed to get over it, and…
+
+15:54:27 --> 15:54:31
+Sid Shukla: And if it's not getting overwritten, that means there's been a regression.
+
+15:54:34 --> 15:54:36
+Vijayaraghavan R: Okay.
+
+15:54:35 --> 15:54:39
+Sid Shukla: So tread very carefully right now on this.
+
+15:54:40 --> 15:54:44
+Sid Shukla: And never, please, try to…
+
+15:54:45 --> 15:54:47
+Sid Shukla: Fix things that you can't reproduce.
+
+15:54:47 --> 15:54:51
+Sid Shukla: Like, really understand the problem there.
+
+15:54:47 --> 15:54:49
+Vijayaraghavan R: Mmhm.
+
+15:54:53 --> 15:54:54
+Sid Shukla: Like…
+
+15:54:54 --> 15:54:56
+Vijayaraghavan R: Got it.
+
+15:54:55 --> 15:54:56
+Sid Shukla: Because…
+
+15:54:56 --> 15:55:00
+Sid Shukla: Somewhere here is a problem that is bigger than it seems.
+
+15:55:00 --> 15:55:01
+Vijayaraghavan R: Hmm.
+
+15:55:09 --> 15:55:12
+Abhay Aggrawal: So, basically, the floor is not…
+
+15:55:09 --> 15:55:11
+Vijayaraghavan R: Okay.
+
+15:55:10 --> 15:55:12
+Sid Shukla: I think we need to…
+
+15:55:13 --> 15:55:18
+Sid Shukla: I think what we need to do is evaluate your changes that you have made.
+
+15:55:19 --> 15:55:23
+Sid Shukla: And make sure that, like, they also don't result in.
+
+15:55:24 --> 15:55:28
+Sid Shukla: Like, this is secondary thing we'll have to do is, um…
+
+15:55:32 --> 15:55:36
+Sid Shukla: Uh, okay, wait, you texted something, yeah? Uh…
+
+15:55:36 --> 15:55:41
+Abhay Aggrawal: So, the provider ID is, like, uh, that flow has not changed.
+
+15:55:36 --> 15:55:38
+Sid Shukla: What is…
+
+15:55:41 --> 15:55:55
+Abhay Aggrawal: Right? Like, uh, everything that has been there, the only change here is, uh, is the one that belongs to you. I'll share your PR there.
+
+15:55:55 --> 15:55:59
+Abhay Aggrawal: I've shared your comment in the chat.
+
+15:55:59 --> 15:56:02
+Sid Shukla: Yeah, but that has been there for over a month and a half.
+
+15:55:59 --> 15:56:01
+Abhay Aggrawal: That's the…
+
+15:56:02 --> 15:56:10
+Abhay Aggrawal: Yeah, after that, nothing has changed, like, uh, I can see my code up and down yours, and it is, like, 7 months ago.
+
+15:56:13 --> 15:56:16
+Sid Shukla: Oh, I think that code… so that…
+
+15:56:16 --> 15:56:18
+Sid Shukla: Actually was a regression the the the.
+
+15:56:18 --> 15:56:22
+Sid Shukla: 7 months ago code you're talking about? That actually screwed things up, yeah?
+
+15:56:23 --> 15:56:27
+Sid Shukla: That moved that stopped setting spec. It had to be reset.
+
+15:56:32 --> 15:56:34
+Abhay Aggrawal: Sorry, I didn't get you.
+
+15:56:34 --> 15:56:36
+Sid Shukla: So…
+
+15:56:36 --> 15:56:41
+Sid Shukla: The code from seven months ago that you're pointing out actually introduced a regression.
+
+15:56:41 --> 15:56:49
+Sid Shukla: It was… it stopped setting spec.providerID before status, and then it tried to set spec via status.
+
+15:56:46 --> 15:56:47
+Abhay Aggrawal: But…
+
+15:56:49 --> 15:56:50
+Abhay Aggrawal: Correct.
+
+15:56:50 --> 15:56:56
+Sid Shukla: That is something never in your life should do, like, status should not be a source for spec.
+
+15:56:56 --> 15:57:09
+Sid Shukla: Okay? Like, and because of that, we had a regression where duplicate VMs could be created, because on copying over from bootstrap cluster to management cluster, like the Cluster Cuttle move operation, right?
+
+15:57:05 --> 15:57:06
+Vijayaraghavan R: Awesome, good.
+
+15:57:08 --> 15:57:10
+Abhay Aggrawal: Mm-hmm.
+
+15:57:09 --> 15:57:11
+Sid Shukla: That would fail.
+
+15:57:10 --> 15:57:11
+Vijayaraghavan R: Got it.
+
+15:57:11 --> 15:57:13
+Vijayaraghavan R: Hmm. Okay.
+
+15:57:11 --> 15:57:16
+Sid Shukla: Because, like, the status would get reset, and now there is no source for spec.
+
+15:57:16 --> 15:57:33
+Abhay Aggrawal: No, but we are not, like, the code I'm pointing to does not take it from starters. It is from create call. Create and wait for a VM call, like, this is added yesterday, but similarly, the code here was to create the VM in the synchronous manner.
+
+15:57:17 --> 15:57:20
+Vijayaraghavan R: Hey, boss. Yeah, don't worry about it.
+
+15:57:22 --> 15:57:24
+Vijayaraghavan R: Learn about it.
+
+15:57:24 --> 15:57:26
+Vijayaraghavan R: Okay, I don't need to give you.
+
+15:57:33 --> 15:57:38
+Abhay Aggrawal: And then from VM only, we were fetching the EXT ID, not from the status.
+
+15:57:44 --> 15:57:53
+Abhay Aggrawal: If you check the code path, uh, code number, line number from 2037 to 2052.
+
+15:57:52 --> 15:57:55
+Sid Shukla: Can you share your screen?
+
+15:57:53 --> 15:57:54
+Abhay Aggrawal: Right? There…
+
+15:57:55 --> 15:57:58
+Abhay Aggrawal: Uh, I think Vijay is sharing, right?
+
+15:57:59 --> 15:58:02
+Vijayaraghavan R: Yeah, you share the link. I just close.
+
+15:57:59 --> 15:58:02
+Abhay Aggrawal: Okay. Let me see.
+
+15:58:02 --> 15:58:03
+Sid Shukla: Mm-hmm.
+
+15:58:06 --> 15:58:08
+Abhay Aggrawal: So, this is what I'm talking about.
+
+15:58:08 --> 15:58:10
+Abhay Aggrawal: Nate?
+
+15:58:10 --> 15:58:12
+Sid Shukla: Yeah, okay.
+
+15:58:12 --> 15:58:18
+Abhay Aggrawal: So here, we are fetching it from vm.txt itself, we're not using status here.
+
+15:58:18 --> 15:58:26
+Abhay Aggrawal: So if the VM is created and the VM has a TXT ID, that is what we are trying to set as a provider ID.
+
+15:58:24 --> 15:58:28
+Sid Shukla: Yeah, that is on the create route, Abhay, that's on the create route.
+
+15:58:27 --> 15:58:29
+Abhay Aggrawal: Yeah.
+
+15:58:29 --> 15:58:32
+Abhay Aggrawal: You're talking about the reconcile route?
+
+15:58:31 --> 15:58:34
+Sid Shukla: Yeah, yeah, the reconciled route was screwed up.
+
+15:58:34 --> 15:58:38
+Sid Shukla: Like, that is what my PR also fixed.
+
+15:58:35 --> 15:58:37
+Abhay Aggrawal: Okay.
+
+15:58:39 --> 15:58:40
+Abhay Aggrawal: Got it.
+
+15:58:41 --> 15:58:48
+Sid Shukla: Uh, like, it was basically trying to set spec via status or something, if I recall correctly.
+
+15:58:48 --> 15:58:52
+Sid Shukla: And this is where we were seeing, like, um…
+
+15:58:52 --> 15:58:53
+Sid Shukla: During.
+
+15:58:57 --> 15:58:59
+Sid Shukla: Like, I think…
+
+15:58:59 --> 15:59:02
+Sid Shukla: 218 certain issues.
+
+15:59:06 --> 15:59:10
+Sid Shukla: But okay, like, that's… the point is, like, we don't want to do that again, like…
+
+15:59:11 --> 15:59:20
+Sid Shukla: Like, let's be very clear and understand what provider ID is. Provider ID is not VM UUID. Provider ID is BIOS ID.
+
+15:59:20 --> 15:59:22
+Abhay Aggrawal: Correct.
+
+15:59:21 --> 15:59:26
+Sid Shukla: That ID needs to stay stable, that cannot change on reconcile.
+
+15:59:26 --> 15:59:28
+Abhay Aggrawal: Right.
+
+15:59:28 --> 15:59:34
+Sid Shukla: Like, the only time it changes on reconcile is when it moves.
+
+15:59:34 --> 15:59:36
+Sid Shukla: From the default templated value it has.
+
+15:59:37 --> 15:59:38
+Sid Shukla: To.
+
+15:59:38 --> 15:59:41
+Sid Shukla: the text ID.
+
+15:59:42 --> 15:59:44
+Sid Shukla: That is it.
+
+15:59:45 --> 15:59:47
+Abhay Aggrawal: Okay.
+
+15:59:50 --> 15:59:51
+Abhay Aggrawal: Makes sense.
+
+15:59:52 --> 15:59:53
+Sid Shukla: Yeah?
+
+15:59:53 --> 15:59:54
+Abhay Aggrawal: Yes.
+
+15:59:54 --> 16:00:00
+Sid Shukla: Now, let's try to understand, back to Vijay, your problem, right? Like, um…
+
+15:59:59 --> 16:00:00
+Vijayaraghavan R: Yep.
+
+16:00:00 --> 16:00:04
+Sid Shukla: Why do we have the spec not being set?
+
+16:00:05 --> 16:00:08
+Sid Shukla: So I think like for that we need to.
+
+16:00:10 --> 16:00:15
+Sid Shukla: Try to understand from the code point of view what would have happened.
+
+16:00:16 --> 16:00:18
+Sid Shukla: To cause that.
+
+16:00:22 --> 16:00:24
+Sid Shukla: like…
+
+16:00:25 --> 16:00:28
+Sid Shukla: It's one thing to, like…
+
+16:00:28 --> 16:00:31
+Sid Shukla: Put a bandage on a cut.
+
+16:00:31 --> 16:00:36
+Sid Shukla: But if a cut keeps reappearing, you should start questioning what's causing the cut.
+
+16:00:39 --> 16:00:44
+Sid Shukla: Yeah, maybe the problem is you're not using moisturizers enough.
+
+16:00:44 --> 16:00:45
+Abhay Aggrawal: Hmm.
+
+16:00:45 --> 16:00:47
+Sid Shukla: Like…
+
+16:00:47 --> 16:00:50
+Sid Shukla: That's my point, like, uh…
+
+16:00:51 --> 16:00:55
+Vijayaraghavan R: Yeah, I understand, that's it. Maybe I try to…
+
+16:00:55 --> 16:00:59
+Vijayaraghavan R: reproduce it first, or understand it from the code perspective. Okay?
+
+16:00:58 --> 16:00:59
+Sid Shukla: Yeah.
+
+16:00:59 --> 16:01:03
+Vijayaraghavan R: Yeah, then we can come up with a solution.
+
+16:01:08 --> 16:01:12
+Abhay Aggrawal: Can it be a case where they're being…
+
+16:01:09 --> 16:01:11
+Sid Shukla: Because something, something…
+
+16:01:11 --> 16:01:13
+Sid Shukla: Yeah?
+
+16:01:12 --> 16:01:24
+Abhay Aggrawal: Uh, can it be a case, like, where the VM, uh, create call was triggered, and then the CAPX, uh, actually died? Like, it was killed, or, like, maybe resorted?
+
+16:01:23 --> 16:01:24
+Sid Shukla: Mm-hmm.
+
+16:01:25 --> 16:01:27
+Sid Shukla: Uh…
+
+16:01:25 --> 16:01:29
+Abhay Aggrawal: then, like, before connecting the provider ID, it might have crashed.
+
+16:01:34 --> 16:01:35
+Sid Shukla: Right.
+
+16:01:40 --> 16:01:42
+Abhay Aggrawal: Okay.
+
+16:01:47 --> 16:01:54
+Vijayaraghavan R: So, if we… let's say if we find that, uh, cause for that issue, uh, what would be the solution? We have to fix that.
+
+16:01:54 --> 16:02:02
+Vijayaraghavan R: root cause, or if that is not possible, let's say that CAPEX is restarted or something happens, maybe we have to call the…
+
+16:02:02 --> 16:02:07
+Vijayaraghavan R: VM, and then we need to get the BIOS UAD, and then we need to set it in the provider.
+
+16:02:07 --> 16:02:09
+Sid Shukla: Yep.
+
+16:02:10 --> 16:02:11
+Vijayaraghavan R: Okay.
+
+16:02:11 --> 16:02:18
+Abhay Aggrawal: But, like, Sid, like, the question I have here is that, uh, right now, we just cannot think from the perspective of 7.6, right?
+
+16:02:18 --> 16:02:25
+Abhay Aggrawal: From the perspective of 7.5, the BIOS UUID itself is still not a stable identifier.
+
+16:02:25 --> 16:02:26
+Abhay Aggrawal: Bye.
+
+16:02:27 --> 16:02:33
+Sid Shukla: Yeah, case in which you set it on create, but you don't update it ever.
+
+16:02:31 --> 16:02:32
+Vijayaraghavan R: Got it.
+
+16:02:35 --> 16:02:36
+Abhay Aggrawal: Okay.
+
+16:02:38 --> 16:02:48
+Abhay Aggrawal: So in that case, I was wondering if this ID is not there, how are you going to populate it out in 7.6 and vice versa on 7.5?
+
+16:02:47 --> 16:02:50
+Sid Shukla: I mean, it's always there, yeah.
+
+16:02:51 --> 16:02:56
+Abhay Aggrawal: Buyer's ID is there, but I'm just talking about the stable… stability of that.
+
+16:02:56 --> 16:02:57
+Sid Shukla: Right.
+
+16:02:58 --> 16:03:01
+Sid Shukla: No, but you said that on create, right?
+
+16:03:00 --> 16:03:02
+Abhay Aggrawal: Mm-hmm.
+
+16:03:02 --> 16:03:05
+Sid Shukla: At which point it's the same.
+
+16:03:05 --> 16:03:07
+Abhay Aggrawal: Yeah, that's true.
+
+16:03:07 --> 16:03:09
+Abhay Aggrawal: Okay.
+
+16:03:08 --> 16:03:09
+Sid Shukla: So…
+
+16:03:11 --> 16:03:16
+Sid Shukla: Like, after create, this shouldn't silently drop out, like, that's the point.
+
+16:03:16 --> 16:03:21
+Abhay Aggrawal: Yeah, that's true. That should be the intended behavior.
+
+16:03:20 --> 16:03:23
+Sid Shukla: Like, what's happening is that, like…
+
+16:03:23 --> 16:03:25
+Sid Shukla: At least…
+
+16:03:25 --> 16:03:27
+Sid Shukla: From what I can gather.
+
+16:03:27 --> 16:03:28
+Sid Shukla: is…
+
+16:03:34 --> 16:03:38
+Sid Shukla: Somehow, that spec isn't didn't get set.
+
+16:03:40 --> 16:03:43
+Sid Shukla: And, like, this is happening…
+
+16:03:43 --> 16:03:47
+Sid Shukla: Like, you tried reproducing this and this didn't happen, right?
+
+16:03:46 --> 16:03:48
+Vijayaraghavan R: Yeah, correct.
+
+16:03:47 --> 16:03:48
+Sid Shukla: Okay.
+
+16:03:49 --> 16:03:53
+Sid Shukla: Like, in your tests, it was there.
+
+16:03:49 --> 16:03:51
+Vijayaraghavan R: I…
+
+16:03:53 --> 16:03:55
+Vijayaraghavan R: Yeah.
+
+16:03:55 --> 16:04:00
+Vijayaraghavan R: Both provider AD and then, um, spec status UAD both are present.
+
+16:04:01 --> 16:04:16
+Abhay Aggrawal: Even for that, right, like, we never saw those failures in our CI test as well. Like, CI has been, like, executing on all the PRs. Like, we have never seen that case as well, where the provider ID is not attached to the spec.
+
+16:04:20 --> 16:04:22
+Sid Shukla: And how would that…
+
+16:04:21 --> 16:04:23
+Vijayaraghavan R: And with the same…
+
+16:04:25 --> 16:04:27
+Vijayaraghavan R: Go ahead, sir.
+
+16:04:26 --> 16:04:27
+Sid Shukla: is…
+
+16:04:27 --> 16:04:28
+Sid Shukla: So.
+
+16:04:28 --> 16:04:32
+Sid Shukla: How did the QA specify how they landed up here?
+
+16:04:34 --> 16:04:49
+Vijayaraghavan R: So he was, I mean, Vijinini was just trying to deploy the cluster with dev33, and then he just faced this issue, and then he posted the ticket. And I think others also tried to reproduce and then create the cluster. For others, it was working fine, they were able to create the cluster.
+
+16:04:49 --> 16:04:53
+Vijayaraghavan R: With the same build, I try to create the cluster.
+
+16:04:53 --> 16:04:56
+Vijayaraghavan R: Uh, I didn't get… face this issue.
+
+16:04:59 --> 16:05:01
+Sid Shukla: I see.
+
+16:05:00 --> 16:05:01
+Vijayaraghavan R: Yep.
+
+16:05:01 --> 16:05:03
+Sid Shukla: Okay.
+
+16:05:03 --> 16:05:05
+Sid Shukla: I see. Okay, and.
+
+16:05:07 --> 16:05:11
+Sid Shukla: This is Dev33, like, it's…
+
+16:05:11 --> 16:05:14
+Sid Shukla: Can we try doing the same, but on his PC?
+
+16:05:14 --> 16:05:20
+Vijayaraghavan R: Yeah, that I will do. Maybe today I will, uh, do that. In his PC, I try to create the cluster, yes.
+
+16:05:17 --> 16:05:19
+Sid Shukla: Yep.
+
+16:05:20 --> 16:05:34
+Sid Shukla: Yeah, just see if it's an environment… if that issue only pops up during an environment that is specific, and if so, what is special about that environment? Because that would seem like a case we might not be handling correctly.
+
+16:05:22 --> 16:05:23
+Vijayaraghavan R: Mm-hmm.
+
+16:05:25 --> 16:05:26
+Vijayaraghavan R: Mm, mm.
+
+16:05:30 --> 16:05:31
+Vijayaraghavan R: I mean…
+
+16:05:33 --> 16:05:35
+Vijayaraghavan R: Correct. Correct.
+
+16:05:36 --> 16:05:48
+Abhay Aggrawal: Yeah, he raised that point that his environment might be a bit dicey, right? So, the other thing here can be that the EXT ID that we are getting from his environment after a VM create is empty.
+
+16:05:55 --> 16:05:58
+Vijayaraghavan R: Thank you.
+
+16:06:03 --> 16:06:04
+Sid Shukla: the…
+
+16:06:05 --> 16:06:07
+Sid Shukla: VM create is empty.
+
+16:06:09 --> 16:06:12
+Sid Shukla: Like, how would that be? Like, a create always returns a…
+
+16:06:09 --> 16:06:10
+Abhay Aggrawal: Yep.
+
+16:06:15 --> 16:06:17
+Sid Shukla: Response, yeah, like…
+
+16:06:16 --> 16:06:17
+Abhay Aggrawal: Yep.
+
+16:06:17 --> 16:06:27
+Abhay Aggrawal: Yeah, no, response would be there, but the EXT ID that was published by that response, that might be empty or that might have been dropped.
+
+16:06:27 --> 16:06:28
+Sid Shukla: Mm-hmm.
+
+16:06:27 --> 16:06:28
+Abhay Aggrawal: Somehow.
+
+16:06:40 --> 16:06:41
+Sid Shukla: Okay.
+
+16:06:43 --> 16:06:45
+Sid Shukla: So basically…
+
+16:06:45 --> 16:06:50
+Sid Shukla: But see, that would not even work, so in the current mechanism, yeah?
+
+16:06:50 --> 16:06:51
+Abhay Aggrawal: Mm-hmm.
+
+16:06:52 --> 16:06:57
+Sid Shukla: That would imply that you get back a task on create.
+
+16:06:57 --> 16:07:00
+Sid Shukla: But then, before…
+
+16:07:01 --> 16:07:04
+Sid Shukla: That actually ever gets persisted.
+
+16:07:05 --> 16:07:09
+Sid Shukla: Like, before the patch machine call happens.

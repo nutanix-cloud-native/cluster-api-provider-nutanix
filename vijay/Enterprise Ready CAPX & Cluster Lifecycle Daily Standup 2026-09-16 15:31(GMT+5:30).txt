@@ -1,0 +1,1235 @@
+15:31:16 --> 15:31:18
+Sid Shukla: Right.
+
+15:31:19 --> 15:31:24
+Sid Shukla: Because I thought, like, Arvind had updated slash adjusted that.
+
+15:31:29 --> 15:31:33
+Sid Shukla: I think it was mostly because, like, the initial phase, at least to begin with.
+
+15:31:34 --> 15:31:39
+Sid Shukla: Uh, should have been focusing a lot more on… on just the researchy bits.
+
+15:31:42 --> 15:31:51
+Abhay Aggrawal: Yeah, I hope so. Vijay is doing that because I'm working on the token exchange, so I didn't get the time to actually look at it.
+
+15:31:50 --> 15:31:53
+Sid Shukla: I see, I see. Hey, Vijay.
+
+15:31:52 --> 15:31:54
+Abhay Aggrawal: Mm-hmm.
+
+15:31:54 --> 15:31:56
+Vijayaraghavan R: Hey, Sid. Hey, Abhay.
+
+15:31:55 --> 15:31:57
+Sid Shukla: How are you doing, man?
+
+15:31:57 --> 15:31:59
+Vijayaraghavan R: Doing great, Sid. How are you?
+
+15:31:59 --> 15:32:01
+Sid Shukla: I'm doing great as well.
+
+15:32:03 --> 15:32:04
+Sid Shukla: um…
+
+15:32:05 --> 15:32:19
+Sid Shukla: so we did, like, over the… I mean, I guess, like, whatever time you had away from Metro, I don't know how much was that since last week, especially because, like, I guess, like, the longer weekend and everything, but did you manage to…
+
+15:32:20 --> 15:32:21
+Sid Shukla: Um…
+
+15:32:21 --> 15:32:27
+Sid Shukla: Kind of like, think more about the problem in general, think more about…
+
+15:32:27 --> 15:32:29
+Vijayaraghavan R: Yeah, correct, so…
+
+15:32:27 --> 15:32:30
+Sid Shukla: Uh, upload this to it.
+
+15:32:30 --> 15:32:45
+Vijayaraghavan R: That got very little time, so still we have some issues with Metro, or we are focusing on that Metro fixes only, but apart from that, I just started understanding about the CAPE contract, and then what CAPE expects in the basic level.
+
+15:32:42 --> 15:32:43
+Sid Shukla: Thank you.
+
+15:32:45 --> 15:32:46
+Sid Shukla: Yep.
+
+15:32:45 --> 15:32:46
+Vijayaraghavan R: So…
+
+15:32:46 --> 15:32:59
+Vijayaraghavan R: few places, maybe you pointed out, uh, in one of the PR, right? So, something like, uh, failure domains. So, if you have failure domains, and we should not populate the, uh, PE, and then subnet name in the… the spec.
+
+15:32:59 --> 15:33:01
+Sid Shukla: Yeah.
+
+15:32:59 --> 15:33:13
+Vijayaraghavan R: the missions back in the middle. So, we are violating those kind of contracts, right? So, I'm trying to understand from the CAPI perspective what CAPI expects and what… what are the, uh, expectations from the infrastructure provider side. So, I just…
+
+15:33:11 --> 15:33:15
+Sid Shukla: They are violating that contract. Why?
+
+15:33:14 --> 15:33:15
+Vijayaraghavan R: Got it.
+
+15:33:15 --> 15:33:26
+Vijayaraghavan R: We are validating contract in the sense that this is how it was implemented in the CAPX site, while creating the new transaction machine. So, we are populating both, yeah. Yeah, correct.
+
+15:33:23 --> 15:33:28
+Sid Shukla: Oh, right, I remember, I remember that, like, the cluster gets populated for some reason.
+
+15:33:27 --> 15:33:31
+Vijayaraghavan R: Correct. Correct, correct, correct. It's true. The PE Cluster name, and then subnet.
+
+15:33:31 --> 15:33:34
+Vijayaraghavan R: Or the failure domain machines.
+
+15:33:32 --> 15:33:35
+Sid Shukla: But it doesn't actually get used.
+
+15:33:35 --> 15:33:39
+Vijayaraghavan R: We are using it still for the fellow domain validations.
+
+15:33:39 --> 15:33:42
+Vijayaraghavan R: Okay, so we are validating the subnets.
+
+15:33:41 --> 15:33:44
+Sid Shukla: So it's basically not part of the template, but part of the machine.
+
+15:33:44 --> 15:33:46
+Vijayaraghavan R: Got it. Got it.
+
+15:33:46 --> 15:33:56
+Vijayaraghavan R: Another new transmission. Okay, so I just… that is just one example, right? So still, I'm trying to understand from the CAPX perspective. Okay, and uh…
+
+15:33:48 --> 15:33:49
+Sid Shukla: Okay.
+
+15:33:55 --> 15:34:02
+Sid Shukla: I don't think, like, that… so that part is, like, very much something CAPEX is doing. I don't think CAPI cares about that a whole lot.
+
+15:34:02 --> 15:34:08
+Sid Shukla: That is Nutanix machine specifically, right? That Nutanix machine controller is doing certain things.
+
+15:34:04 --> 15:34:05
+Vijayaraghavan R: Correct.
+
+15:34:07 --> 15:34:08
+Vijayaraghavan R: Mmhm.
+
+15:34:08 --> 15:34:19
+Sid Shukla: But from a CAPI perspective, as long as there is a Nutanix machine template that can be used to create Nutanix machines, that's all CAPI cares about. CAPI doesn't care about what.
+
+15:34:17 --> 15:34:18
+Vijayaraghavan R: Okay.
+
+15:34:19 --> 15:34:24
+Sid Shukla: fields exist within the Nutanix machine, as long as you get the data that I'm giving.
+
+15:34:21 --> 15:34:23
+Vijayaraghavan R: Yeah, this is not…
+
+15:34:24 --> 15:34:39
+Vijayaraghavan R: Correct, but still, it is a violation from the CAPX side, right? So, we are violating the basic, uh, the contract, right? So, CAPX contract. So, that is one example. So, I just remembered when I was started looking into the CAPX-related things.
+
+15:34:38 --> 15:34:40
+Sid Shukla: Mm-hmm.
+
+15:34:39 --> 15:34:47
+Vijayaraghavan R: Yeah, today when I started looking into that perspective, maybe it will take some time for me to understand that.
+
+15:34:47 --> 15:34:48
+Sid Shukla: Mm-hmm.
+
+15:34:47 --> 15:35:06
+Vijayaraghavan R: Uh, from the basic. Uh, yeah, uh, maybe if we talk in the plan or the phase-wise executions, um, uh, first we need to understand the CAPE contract and the expectation as a northbound expectation, as you said in the previous meeting, said, uh, from the CAPE perspective, and then we need to, uh, we can understand the.
+
+15:34:49 --> 15:34:50
+Sid Shukla: Yep.
+
+15:34:55 --> 15:34:56
+Sid Shukla: Mm-hmm.
+
+15:35:06 --> 15:35:08
+Sid Shukla: Mm-hmm.
+
+15:35:07 --> 15:35:23
+Vijayaraghavan R: the particular VM creation, and then the failure models, failure modes for the VM creation operations. In the high level, I had a discussion with Sitish about that VM-related operations, and then the failure models.
+
+15:35:23 --> 15:35:26
+Vijayaraghavan R: So, most of the things he already covered in the VM operator.
+
+15:35:26 --> 15:35:28
+Sid Shukla: Mm-hmm.
+
+15:35:26 --> 15:35:36
+Vijayaraghavan R: So, maybe we can take that as a reference, um, the first level reference for the failure domain and, uh, failure modes understanding for the VM creation part.
+
+15:35:36 --> 15:35:48
+Vijayaraghavan R: Okay, so it is not still structured one, uh, from my perspective. So, maybe once we, uh, give full time into this, maybe we can plan something, uh.
+
+15:35:48 --> 15:35:54
+Vijayaraghavan R: The proper, proper, uh… we can plan properly for this one, from the execution wise.
+
+15:35:56 --> 15:35:58
+Sid Shukla: Okay.
+
+15:35:59 --> 15:36:02
+Sid Shukla: Gotcha. Um…
+
+15:36:02 --> 15:36:07
+Sid Shukla: Besides the CAPI contract, like, did you have time to dig into…
+
+15:36:08 --> 15:36:12
+Sid Shukla: uh… I guess, like, the APIs…
+
+15:36:12 --> 15:36:16
+Sid Shukla: behind the… behind each of the components that we…
+
+15:36:17 --> 15:36:19
+Sid Shukla: Like, Lifecycle Manage.
+
+15:36:20 --> 15:36:26
+Vijayaraghavan R: No, I didn't get that much time to look into that one, so… yeah.
+
+15:36:24 --> 15:36:26
+Sid Shukla: I see. Okay.
+
+15:36:27 --> 15:36:43
+Vijayaraghavan R: Yeah, maybe tomorrow or from next week, once we complete the… we have a couple of tickets open in Metro, so we're still working on the closures. Maybe… maybe tomorrow, and then Friday will be on holiday, right? So, maybe tomorrow or from next week, maybe we can focus on these things.
+
+15:36:27 --> 15:36:28
+Sid Shukla: Not.
+
+15:36:33 --> 15:36:34
+Sid Shukla: Mm-hmm.
+
+15:36:42 --> 15:36:43
+Sid Shukla: Mm-hmm.
+
+15:36:44 --> 15:36:45
+Sid Shukla: Okay.
+
+15:36:47 --> 15:36:48
+Sid Shukla: All right.
+
+15:36:50 --> 15:36:57
+Abhay Aggrawal: One thing I, uh, realized while working on a PR which I sent, right, like, uh, about, uh.
+
+15:36:57 --> 15:36:59
+Abhay Aggrawal: That error logging.
+
+15:36:59 --> 15:37:00
+Sid Shukla: Mm-hmm.
+
+15:36:59 --> 15:37:04
+Abhay Aggrawal: It's like, we are using, uh, synchronous APIs everywhere in CAPX.
+
+15:37:04 --> 15:37:06
+Sid Shukla: Yep.
+
+15:37:04 --> 15:37:11
+Abhay Aggrawal: Right? That, uh, is sometimes, like, what is happening is that creates.
+
+15:37:11 --> 15:37:16
+Abhay Aggrawal: Uh, the resources we want, but that gives a very high-level error message to us.
+
+15:37:16 --> 15:37:17
+Sid Shukla: Yep.
+
+15:37:16 --> 15:37:28
+Abhay Aggrawal: about why the task failed. So, uh, maybe we should start using more of the asynchronous APIs, and, uh, start fetching the subtasks also.
+
+15:37:28 --> 15:37:29
+Sid Shukla: Mm-hmm.
+
+15:37:28 --> 15:37:39
+Abhay Aggrawal: which are part of the primary task, and that way I think we can, uh, like, uh, highly increase the login part and, uh, depict the failures, like, the exact failures.
+
+15:37:30 --> 15:37:32
+Sid Shukla: Mm-hmm.
+
+15:37:39 --> 15:37:48
+Abhay Aggrawal: Right? The only challenge there would be to manage such that, like, even if the controller crashes at some point.
+
+15:37:39 --> 15:37:41
+Sid Shukla: Did I…
+
+15:37:48 --> 15:37:50
+Abhay Aggrawal: We're able to retrieve, uh…
+
+15:37:50 --> 15:37:57
+Abhay Aggrawal: our, uh, operations, like, where we… where we were by the, uh, uh, Pentanoprash.
+
+15:37:59 --> 15:38:02
+Sid Shukla: So, if you do a create VM call.
+
+15:38:02 --> 15:38:03
+Abhay Aggrawal: Mm-hmm.
+
+15:38:02 --> 15:38:05
+Sid Shukla: You get back a task.
+
+15:38:05 --> 15:38:06
+Abhay Aggrawal: Got it.
+
+15:38:06 --> 15:38:08
+Sid Shukla: And…
+
+15:38:08 --> 15:38:12
+Sid Shukla: If some task or some subtask fails.
+
+15:38:12 --> 15:38:13
+Abhay Aggrawal: Yeah.
+
+15:38:13 --> 15:38:18
+Sid Shukla: And eventually, your VM isn't really created.
+
+15:38:18 --> 15:38:19
+Abhay Aggrawal: Yep.
+
+15:38:20 --> 15:38:22
+Sid Shukla: Then…
+
+15:38:22 --> 15:38:24
+Sid Shukla: You can't really retry it.
+
+15:38:26 --> 15:38:27
+Abhay Aggrawal: Thank you.
+
+15:38:29 --> 15:38:34
+Sid Shukla: Because, um, we are now setting these idempotency headers.
+
+15:38:35 --> 15:38:36
+Abhay Aggrawal: Mm-hmm.
+
+15:38:35 --> 15:38:41
+Sid Shukla: Uh, which basically, like, before a cluster…
+
+15:38:41 --> 15:38:46
+Sid Shukla: So, let's say when a machine, like a Nutanix machine, needs to be created.
+
+15:38:47 --> 15:38:50
+Sid Shukla: we've added logic that we will generate a UUID.
+
+15:38:51 --> 15:38:58
+Sid Shukla: Set it on the Nutanix machine, and then use that UUID as an idempotency identifier for the create VM call.
+
+15:38:58 --> 15:39:00
+Sid Shukla: What that does…
+
+15:38:58 --> 15:39:00
+Abhay Aggrawal: Good day.
+
+15:39:00 --> 15:39:02
+Sid Shukla: is that…
+
+15:39:03 --> 15:39:05
+Sid Shukla: If that…
+
+15:39:05 --> 15:39:09
+Sid Shukla: If the create VM call is called twice.
+
+15:39:09 --> 15:39:12
+Sid Shukla: But with the same idempotency identifier.
+
+15:39:12 --> 15:39:13
+Abhay Aggrawal: Yeah.
+
+15:39:12 --> 15:39:17
+Sid Shukla: it always returns the same task. So instead of re-triggering a Create VM.
+
+15:39:18 --> 15:39:29
+Sid Shukla: It will go into its own cache, it'll be like, oh, I know this call, I know this idempotency identifier, this has already been attempted, I'll give back the same response I gave back last time, which is, here's the task ID.
+
+15:39:30 --> 15:39:34
+Sid Shukla: And it would be the older task ID, which would have failed for whatever reason.
+
+15:39:34 --> 15:39:35
+Abhay Aggrawal: Yeah.
+
+15:39:36 --> 15:39:39
+Abhay Aggrawal: So we have to mitigate that situation as well.
+
+15:39:39 --> 15:39:51
+Abhay Aggrawal: And, uh, like, the more probably where I'm coming from is, like, suppose we did fire a synchronous call, and we were waiting for the task to complete, but at that time, uh, you know, uh.
+
+15:39:51 --> 15:39:53
+Abhay Aggrawal: The… the controller have crashed.
+
+15:39:54 --> 15:39:59
+Abhay Aggrawal: And what so might have happened that the VM might not have created?
+
+15:39:59 --> 15:40:09
+Abhay Aggrawal: I think, in that sense, if the VM is not put in, I don't, uh… is it, like, uh… the ident potency metrics will have that catch as well?
+
+15:40:10 --> 15:40:11
+Sid Shukla: Yeah. Okay.
+
+15:40:10 --> 15:40:18
+Abhay Aggrawal: Or are we populating the cache only when, uh, you know, uh, the VM is, uh, created and is ready?
+
+15:40:15 --> 15:40:19
+Sid Shukla: No, it's when a request is… it's when a request is made.
+
+15:40:20 --> 15:40:21
+Abhay Aggrawal: Okay.
+
+15:40:21 --> 15:40:28
+Abhay Aggrawal: So I think that is something also we would need to, uh, look into, like, how can we, like, better that situation.
+
+15:40:36 --> 15:40:42
+Sid Shukla: Okay, I mean, how would you propose you go about that? So, the whole idea is that, like, each Nutanix.
+
+15:40:42 --> 15:40:51
+Sid Shukla: So, so the general semantic we're going for, right, like, the reason we switched to that is that the reason we had duplicate VMs to begin with is because…
+
+15:40:51 --> 15:40:57
+Sid Shukla: we had, like, at least one kind of semantic on CreateVM.
+
+15:40:56 --> 15:40:57
+Abhay Aggrawal: Thank you.
+
+15:40:57 --> 15:40:59
+Sid Shukla: Where?
+
+15:40:59 --> 15:41:07
+Sid Shukla: for any given Nutanix machine, it would just keep trying to create VMs until it finds a matching VM existing.
+
+15:41:07 --> 15:41:14
+Sid Shukla: Based on some criteria. When we introduced the idempotency identifier, the whole purpose of that was to.
+
+15:41:14 --> 15:41:18
+Sid Shukla: have at most once kind of semantic on a Create Wear.
+
+15:41:16 --> 15:41:17
+Abhay Aggrawal: Yeah.
+
+15:41:18 --> 15:41:23
+Sid Shukla: Right. So, how do you preserve an Atmos 1 semantic?
+
+15:41:24 --> 15:41:26
+Sid Shukla: If you…
+
+15:41:26 --> 15:41:31
+Sid Shukla: Like, I mean, you can't have both, like, that's what I'm saying, it's mutually.
+
+15:41:31 --> 15:41:39
+Abhay Aggrawal: Yeah, but, like, that is also a very rivet case, right? Like, if the preparation fails and we still have that new ID.
+
+15:41:39 --> 15:41:40
+Abhay Aggrawal: Um, okay.
+
+15:41:41 --> 15:41:43
+Abhay Aggrawal: With us, right? So…
+
+15:41:44 --> 15:41:49
+Abhay Aggrawal: Then, like, how would it do a retry if the controller crashes and comes back again?
+
+15:41:58 --> 15:42:03
+Sid Shukla: Well, so if the controller crashes, right, the idea is that.
+
+15:42:03 --> 15:42:08
+Sid Shukla: The idempotency identifier would have been set.
+
+15:42:08 --> 15:42:09
+Abhay Aggrawal: Mm-hmm.
+
+15:42:09 --> 15:42:12
+Sid Shukla: Like, that would have been cute, yeah?
+
+15:42:11 --> 15:42:12
+Abhay Aggrawal: No?
+
+15:42:12 --> 15:42:23
+Sid Shukla: So the Nutanix machine object would already have that idempotency identifier. So the next time the machine gets reconciled, it would see there's an idempotency identifier already there, and it would use it.
+
+15:42:24 --> 15:42:27
+Sid Shukla: Instead of recreating an idempotency identifier.
+
+15:42:24 --> 15:42:25
+Abhay Aggrawal: What was it?
+
+15:42:26 --> 15:42:33
+Abhay Aggrawal: use it to have a task, right? The task ID, and if it checks that the task ID is failed.
+
+15:42:34 --> 15:42:37
+Abhay Aggrawal: Then it will go on with recreating again, right?
+
+15:42:38 --> 15:42:43
+Sid Shukla: No, it's failed, it's failed, like, that's it, your create VM call failed, nothing to do there.
+
+15:42:44 --> 15:42:46
+Abhay Aggrawal: Okay.
+
+15:42:45 --> 15:42:48
+Sid Shukla: Like, that's a terminal failure.
+
+15:42:52 --> 15:42:57
+Abhay Aggrawal: Maybe I'll need a bit more time to understand it effectively.
+
+15:42:59 --> 15:43:06
+Sid Shukla: Like, the idea is that for any given Nutanix machine, yeah? Like, if that happens, that's a terminal failure, because your create VM failed.
+
+15:43:02 --> 15:43:04
+Abhay Aggrawal: Thank you.
+
+15:43:06 --> 15:43:11
+Abhay Aggrawal: But there can be cases, right? Like, where this area is intermittent.
+
+15:43:11 --> 15:43:18
+Abhay Aggrawal: due to some PC problems, right? Like, then I think that is something that we're beginning to identify, like.
+
+15:43:18 --> 15:43:21
+Sid Shukla: Yeah, then you can have a new Nutanix machine.
+
+15:43:22 --> 15:43:24
+Abhay Aggrawal: Okay.
+
+15:43:26 --> 15:43:28
+Sid Shukla: Yep.
+
+15:43:29 --> 15:43:34
+Sid Shukla: Like, if the create VM is failing due to some intermittent PC issue, then…
+
+15:43:34 --> 15:43:41
+Sid Shukla: That should be retried in a secondary… like, I mean, that's exactly what we're trying to prevent against, right? Like…
+
+15:43:41 --> 15:43:50
+Sid Shukla: An intermittent PC issue is what caused duplicate VMs in the first place, because of this logic we had that we would keep retrying.
+
+15:43:50 --> 15:43:56
+Abhay Aggrawal: Yeah, so, like, that is where this is coming from, right? Like, if you're waiting for all the subtasks as well, right?
+
+15:43:56 --> 15:44:04
+Abhay Aggrawal: Then we will have a clear point until and unless, like, the task has progressed.
+
+15:44:05 --> 15:44:09
+Abhay Aggrawal: We are not just firing the call and waiting for it to exist.
+
+15:44:09 --> 15:44:19
+Abhay Aggrawal: So, if all the subtasks is completed, uh, within 3 AM, I'm hoping that the next… after the async is completed in the task.
+
+15:44:19 --> 15:44:25
+Abhay Aggrawal: progress is done, I'm hoping that the getVM call will give us the VM that we created.
+
+15:44:25 --> 15:44:34
+Abhay Aggrawal: Or is it, like, there is some time gap between the GetVM and even if the task is complete?
+
+15:44:31 --> 15:44:32
+Sid Shukla: Yep.
+
+15:44:34 --> 15:44:39
+Sid Shukla: There's… there's… there happens sometimes to be read-after-write inconsistencies.
+
+15:44:38 --> 15:44:40
+Abhay Aggrawal: Wonderful.
+
+15:44:41 --> 15:44:46
+Abhay Aggrawal: then that is something we have… that is, I think, the main thing that we need to look into.
+
+15:44:51 --> 15:44:56
+Sid Shukla: And, like, that's kind of the whole purpose right away, like, this is why we want to go to these at most one semantics.
+
+15:44:54 --> 15:44:56
+Abhay Aggrawal: Makes sense.
+
+15:44:59 --> 15:45:03
+Sid Shukla: Like, stay on the cautious side, rather than…
+
+15:45:03 --> 15:45:08
+Sid Shukla: Like, on the overeager side, on the… in this situation.
+
+15:45:08 --> 15:45:12
+Sid Shukla: It's okay to, like, fail early, and fail clearly.
+
+15:45:12 --> 15:45:16
+Sid Shukla: So, so, to your point, like, on keeping track of all…
+
+15:45:16 --> 15:45:20
+Sid Shukla: Subtasks. That helps in terms of…
+
+15:45:20 --> 15:45:27
+Sid Shukla: When we fail, how do we communicate the failure? Can we be more descriptive about the failure, and so on, right?
+
+15:45:25 --> 15:45:26
+Abhay Aggrawal: Mm-hmm.
+
+15:45:28 --> 15:45:36
+Sid Shukla: So that's good, but, like, if we're… if we're failing, we just communicate that failure, and we… we're like, okay, that is it, this failed, like.
+
+15:45:36 --> 15:45:39
+Sid Shukla: Next time you wanna try, like…
+
+15:45:39 --> 15:45:41
+Sid Shukla: Should be with a new Nutanix machine.
+
+15:45:39 --> 15:45:40
+Abhay Aggrawal: Today.
+
+15:45:41 --> 15:45:44
+Sid Shukla: This is a terminal field for this Nutanix machine.
+
+15:45:46 --> 15:45:48
+Abhay Aggrawal: Okay.
+
+15:45:51 --> 15:45:53
+Abhay Aggrawal: Pardon?
+
+15:45:54 --> 15:45:56
+Abhay Aggrawal: Mm-hmm.
+
+15:45:55 --> 15:45:57
+Sid Shukla: Like, on the, on the create path?
+
+15:45:57 --> 15:46:01
+Sid Shukla: We should be open to the idea of, like.
+
+15:46:01 --> 15:46:05
+Sid Shukla: Having terminal failures where possible.
+
+15:46:03 --> 15:46:04
+Abhay Aggrawal: Okay.
+
+15:46:06 --> 15:46:11
+Sid Shukla: Uh, on the… like, on any regular reconcile path.
+
+15:46:11 --> 15:46:14
+Sid Shukla: We should not have terminal failures.
+
+15:46:15 --> 15:46:17
+Abhay Aggrawal: Which is, uh, on…
+
+15:46:17 --> 15:46:21
+Abhay Aggrawal: On the reconciled path, it should not have a terminal folder, right?
+
+15:46:17 --> 15:46:20
+Sid Shukla: That's the general idea.
+
+15:46:22 --> 15:46:24
+Abhay Aggrawal: Thank you.
+
+15:46:23 --> 15:46:25
+Sid Shukla: On non-create reconcile path.
+
+15:46:26 --> 15:46:32
+Sid Shukla: Because that would then kind of toss out your machine and force creation of a new one unnecessarily.
+
+15:46:31 --> 15:46:32
+Abhay Aggrawal: To do that.
+
+15:46:34 --> 15:46:40
+Sid Shukla: Or, like, we should be very, very mindful of, like, when an existing machine is marked as a terminal failure.
+
+15:46:39 --> 15:46:40
+Abhay Aggrawal: Good.
+
+15:46:42 --> 15:46:47
+Sid Shukla: Like, it should happen in extreme rare situations that we…
+
+15:46:47 --> 15:46:51
+Sid Shukla: Have collectively decided that, yes, that should be a terminal failure.
+
+15:46:51 --> 15:47:01
+Abhay Aggrawal: Like, that is, uh, some… some… I think that is some scrutiny we have to do with the API responses, right? Like, what we're getting, 429, 500…
+
+15:46:58 --> 15:47:00
+Sid Shukla: Got it.
+
+15:47:00 --> 15:47:02
+Sid Shukla: Got it.
+
+15:47:03 --> 15:47:09
+Sid Shukla: Not just API responses, how the system behaves underneath. This is what I'm pointing out, right? Like…
+
+15:47:09 --> 15:47:18
+Sid Shukla: based on how the VMM side of things work, when… like, how… what are the failures, modalities, like, what happens if the…
+
+15:47:18 --> 15:47:24
+Sid Shukla: the GPU attached to your VM fails? What happens? Like, I mean, those are the kind of details we need to get into.
+
+15:47:22 --> 15:47:23
+Abhay Aggrawal: Got it.
+
+15:47:24 --> 15:47:26
+Sid Shukla: Right.
+
+15:47:25 --> 15:47:27
+Abhay Aggrawal: Excellent.
+
+15:47:36 --> 15:47:38
+Sid Shukla: Alright.
+
+15:47:39 --> 15:47:46
+Sid Shukla: Uh, I did get pinged by Arvind, he says he won't be able to join the call anyway, uh, today, for this one.
+
+15:47:47 --> 15:47:48
+Sid Shukla: Um…
+
+15:47:49 --> 15:47:50
+Sid Shukla: But…
+
+15:47:52 --> 15:47:54
+Sid Shukla: I think…
+
+15:47:54 --> 15:47:58
+Sid Shukla: For now, we're good. Do you… I think we can…
+
+15:47:59 --> 15:48:02
+Sid Shukla: already get a…
+
+15:48:02 --> 15:48:05
+Sid Shukla: Confluence page going, at least.
+
+15:48:06 --> 15:48:09
+Sid Shukla: Uh, to keep track of…
+
+15:48:26 --> 15:48:28
+Sid Shukla: Keep track of this effort.
+
+15:48:29 --> 15:48:30
+Sid Shukla: Um, okay.
+
+15:48:35 --> 15:48:41
+Sid Shukla: Now, one thing that I've noticed also is that the CAPX weekly, kind of, the meeting that we used to have.
+
+15:48:42 --> 15:48:45
+Sid Shukla: Hasn't been happening for, like…
+
+15:48:45 --> 15:48:48
+Sid Shukla: The past 2 months or so.
+
+15:48:48 --> 15:48:51
+Sid Shukla: Um… I think…
+
+15:48:51 --> 15:48:56
+Sid Shukla: part of the reason was that the US side of the meeting was not really…
+
+15:48:57 --> 15:49:04
+Sid Shukla: Happening at all, like, it was multiple instances in a row, like, for a month plus.
+
+15:49:04 --> 15:49:07
+Sid Shukla: Where no one had really showed up. Um…
+
+15:49:08 --> 15:49:12
+Sid Shukla: Because they were probably busy with their own feeds and so on.
+
+15:49:13 --> 15:49:30
+Sid Shukla: I wanted to discuss, like, how the revival of that would look like, and I kind of wanted to see if you guys would be on board with actually owning that and running that going forward, and whether should it be a weekly or even, like, twice a week, and then we can kind of merge this meeting and that meeting together.
+
+15:49:31 --> 15:49:37
+Sid Shukla: So, talk about any general, broader CAPEX side issues, but also…
+
+15:49:37 --> 15:49:39
+Sid Shukla: Just focus on…
+
+15:49:39 --> 15:49:41
+Sid Shukla: this effort.
+
+15:49:42 --> 15:49:44
+Sid Shukla: As well.
+
+15:49:44 --> 15:49:51
+Sid Shukla: While having… while inviting anyone else who's interested in it to come chime in their perspective. What do you guys think?
+
+15:49:52 --> 15:49:59
+Vijayaraghavan R: And maybe we can, um, restart that one instead of weekly, maybe we can have bi-weekly, or two weeks once.
+
+15:49:59 --> 15:50:09
+Vijayaraghavan R: Uh, we can discuss about the general CAPEX things, and maybe we can give updates about this, uh, thing as well, the work which we are going to do, right?
+
+15:50:05 --> 15:50:07
+Sid Shukla: Mmm.
+
+15:50:09 --> 15:50:10
+Sid Shukla: Okay.
+
+15:50:09 --> 15:50:11
+Vijayaraghavan R: We can give regular updates to the team.
+
+15:50:12 --> 15:50:14
+Sid Shukla: Okay.
+
+15:50:15 --> 15:50:17
+Sid Shukla: Yep, sure.
+
+15:50:17 --> 15:50:20
+Sid Shukla: Reddy, do you want to own that meeting going forward?
+
+15:50:19 --> 15:50:22
+Vijayaraghavan R: Yeah, sure. We can do that.
+
+15:50:22 --> 15:50:25
+Sid Shukla: So, I'll share with you the…
+
+15:50:27 --> 15:50:29
+Sid Shukla: Uh…
+
+15:50:35 --> 15:50:39
+Sid Shukla: This is the weekly meeting agenda.
+
+15:50:45 --> 15:50:55
+Sid Shukla: Yeah, you can make it, like, bi-weekly. I used to run it, like, IST and PST both, but then, for consistently quite some time, there was no real PST one.
+
+15:50:55 --> 15:51:01
+Sid Shukla: So I stopped the PST one, and then the IST one also, the calendar invite ended, and then…
+
+15:51:02 --> 15:51:04
+Sid Shukla: Hasn't really…
+
+15:51:03 --> 15:51:05
+Vijayaraghavan R: Okay.
+
+15:51:06 --> 15:51:10
+Sid Shukla: It was also an experiment at that time, to just see…
+
+15:51:11 --> 15:51:14
+Sid Shukla: Like, who notices if it's not happening?
+
+15:51:17 --> 15:51:19
+Sid Shukla: Uh…
+
+15:51:20 --> 15:51:28
+Sid Shukla: It's not that the problems that would otherwise be highlighted don't get worked on, they do. It's just that that discussion happens in a closed room without…
+
+15:51:28 --> 15:51:31
+Sid Shukla: Without much documentation, so…
+
+15:51:31 --> 15:51:32
+Vijayaraghavan R: Okay.
+
+15:51:32 --> 15:51:34
+Sid Shukla: Uh-huh.
+
+15:51:34 --> 15:51:38
+Sid Shukla: That way, at least, we leave a paper trail.
+
+15:51:38 --> 15:51:41
+Sid Shukla: Of all the discussions and the work we're doing.
+
+15:51:46 --> 15:51:48
+Vijayaraghavan R: Yeah, this one, okay.
+
+15:51:48 --> 15:51:53
+Sid Shukla: But yeah, feel free to send out, like, you know, starting next week or so, like, bi-weekly.
+
+15:51:53 --> 15:51:55
+Vijayaraghavan R: Yeah, yeah, sure.
+
+15:51:55 --> 15:51:57
+Sid Shukla: And then…
+
+15:52:07 --> 15:52:09
+Vijayaraghavan R: And, uh…
+
+15:52:09 --> 15:52:15
+Vijayaraghavan R: Is this the same… can you share the other conference page as well, where we are tracking the…
+
+15:52:15 --> 15:52:18
+Vijayaraghavan R: effort we are putting in this epic.
+
+15:52:17 --> 15:52:22
+Sid Shukla: Yeah, so that we need to create. Let me create one.
+
+15:52:18 --> 15:52:19
+Vijayaraghavan R: This one.
+
+15:52:20 --> 15:52:23
+Vijayaraghavan R: Oh, okay. Oh, okay.
+
+15:52:25 --> 15:52:28
+Vijayaraghavan R: Maybe we can create that as well.
+
+15:52:27 --> 15:52:31
+Sid Shukla: So, CAPX, um…
+
+15:52:32 --> 15:52:35
+Sid Shukla: Multi… backend…
+
+15:52:35 --> 15:52:39
+Sid Shukla: Or, like, let's call it something else. Let's call it…
+
+15:52:40 --> 15:52:43
+Sid Shukla: Yeah, thanks. That was silly. Let's see.
+
+15:52:47 --> 15:52:48
+Sid Shukla: Mmhm.
+
+15:53:57 --> 15:54:00
+Sid Shukla: Okay. Um…
+
+15:54:01 --> 15:54:04
+Sid Shukla: That's good. So this is the page.
+
+15:54:05 --> 15:54:11
+Sid Shukla: Let me… it's now on… so we have, like, a general Nutanix Cloud Native Confluence, yeah?
+
+15:54:12 --> 15:54:13
+Vijayaraghavan R: Okay.
+
+15:54:12 --> 15:54:18
+Sid Shukla: And so, in that Nutanix Cloud Native Confluence, we have NKP, and we have, like, CAPX.
+
+15:54:18 --> 15:54:22
+Sid Shukla: partnerships, and then the NKE archive, and so on.
+
+15:54:24 --> 15:54:25
+Sid Shukla: Correct.
+
+15:54:25 --> 15:54:27
+Vijayaraghavan R: Yeah, okay, yeah.
+
+15:54:27 --> 15:54:36
+Sid Shukla: Um, so if you go into the meetings, like, there's now… there's a weekly agenda in minutes, and there's, like, CAPX weekly, and…
+
+15:54:36 --> 15:54:39
+Sid Shukla: Uh, resiliency and error handling.
+
+15:54:39 --> 15:54:40
+Vijayaraghavan R: Okay.
+
+15:54:41 --> 15:54:44
+Sid Shukla: Like, this is the broader Nutanix Cloud Native.
+
+15:54:44 --> 15:54:45
+Sid Shukla: Space.
+
+15:54:50 --> 15:54:51
+Vijayaraghavan R: Got it.
+
+15:55:11 --> 15:55:15
+Vijayaraghavan R: This is okay, and uh… for the other thing…
+
+15:55:17 --> 15:55:25
+Vijayaraghavan R: In one of the meetings, you suggested to have a discussion with the VMM team, right? So, just to understand the API structures and then the failure modes.
+
+15:55:21 --> 15:55:22
+Sid Shukla: Yep.
+
+15:55:25 --> 15:55:36
+Vijayaraghavan R: Um, so we can do that, but, uh, is it okay to get the code base from them, and then we can, um, use Cursor to generate the document, so that…
+
+15:55:26 --> 15:55:27
+Sid Shukla: Yeah.
+
+15:55:36 --> 15:55:39
+Vijayaraghavan R: It can generate the…
+
+15:55:39 --> 15:55:50
+Vijayaraghavan R: all possible error scenarios, and then maybe we can discuss with them with that document. We can review with them, then meeting, instead of blindly go and then discussing in the high level, right?
+
+15:55:47 --> 15:55:51
+Sid Shukla: Yeah, yeah, of course, of course, of course. I think that's how we should be doing it.
+
+15:55:51 --> 15:55:52
+Vijayaraghavan R: Yeah, mm-hmm.
+
+15:55:52 --> 15:55:54
+Vijayaraghavan R: Okay, fine.
+
+15:56:00 --> 15:56:02
+Vijayaraghavan R: Abhay, you want to discuss anything else?
+
+15:56:02 --> 15:56:04
+Vijayaraghavan R: I'm good.
+
+15:56:04 --> 15:56:07
+Abhay Aggrawal: No, I don't have anything to play.
+
+15:56:11 --> 15:56:14
+Sid Shukla: Alright, folks, then, I think, for now…
+
+15:56:13 --> 15:56:15
+Vijayaraghavan R: Okay, sir.
+
+15:56:15 --> 15:56:19
+Sid Shukla: That's about it. Um…
+
+15:56:19 --> 15:56:21
+Sid Shukla: I don't think we need…
+
+15:56:23 --> 15:56:28
+Sid Shukla: I think we can call it apps on this meeting for now. Uh… we'll, uh…
+
+15:56:23 --> 15:56:24
+Abhay Aggrawal: Yep.
+
+15:56:26 --> 15:56:27
+Vijayaraghavan R: Thank you.
+
+15:56:29 --> 15:56:31
+Sid Shukla: We'll update the…
+
+15:56:29 --> 15:56:31
+Abhay Aggrawal: I would still let…
+
+15:56:31 --> 15:56:38
+Abhay Aggrawal: Yeah. I would say let's connect, uh, next week, maybe Monday or Tuesday. We can skip the instance for tomorrow.
+
+15:56:31 --> 15:56:32
+Sid Shukla: Yep.
+
+15:56:36 --> 15:56:37
+Sid Shukla: Yep.
+
+15:56:39 --> 15:56:41
+Sid Shukla: Yeah, that sounds good.
+
+15:56:41 --> 15:56:44
+Abhay Aggrawal: Fridays, anyways, are holiday, right?
+
+15:56:45 --> 15:56:47
+Sid Shukla: Uh, what's the Friday holiday for?
+
+15:56:47 --> 15:56:49
+Vijayaraghavan R: It's a wellness holiday.
+
+15:56:49 --> 15:56:52
+Sid Shukla: Oh, it's available, right, okay.
+
+15:56:49 --> 15:56:51
+Vijayaraghavan R: Intercom, yeah.
+
+15:56:52 --> 15:56:54
+Sid Shukla: Gotcha.
+
+15:56:54 --> 15:56:57
+Sid Shukla: Cool. I hope you guys spend some time…
+
+15:56:57 --> 15:57:01
+Sid Shukla: Taking care of your mental well-being and your physical well-being.
+
+15:57:01 --> 15:57:04
+Abhay Aggrawal: I have one call. I'm on hold.
+
+15:57:02 --> 15:57:03
+Vijayaraghavan R: Okay. No.
+
+15:57:03 --> 15:57:05
+Vijayaraghavan R: Haha.
+
+15:57:07 --> 15:57:09
+Abhay Aggrawal: If on calls, like…
+
+15:57:08 --> 15:57:12
+Sid Shukla: How does it work for an on-call, like, do you then get to take some other day off?
+
+15:57:13 --> 15:57:16
+Abhay Aggrawal: No, we get paid, no.
+
+15:57:16 --> 15:57:19
+Sid Shukla: Oh, I see, right. You guys get paid for on-call, right.
+
+15:57:19 --> 15:57:24
+Abhay Aggrawal: We get paid for on-calls that are on holidays.
+
+15:57:24 --> 15:57:26
+Sid Shukla: Gotcha, gotcha.
+
+15:57:26 --> 15:57:29
+Abhay Aggrawal: So that'd be so… yeah, but, like, usually it's still…
+
+15:57:29 --> 15:57:31
+Sid Shukla: Yep.
+
+15:57:29 --> 15:57:36
+Abhay Aggrawal: The only problem is if some on-calls, like the one that came on Monday, that Broadridge Financials.
+
+15:57:35 --> 15:57:37
+Sid Shukla: Yep.
+
+15:57:37 --> 15:57:40
+Abhay Aggrawal: Like, such on-calls are a headache.
+
+15:57:40 --> 15:57:47
+Sid Shukla: Right, right. Like, I mean, specifically because we also lack a lot of context on, like, those really old versions.
+
+15:57:42 --> 15:57:43
+Abhay Aggrawal: But…
+
+15:57:47 --> 15:57:54
+Abhay Aggrawal: Yeah, true, true. So, like, I was trying to fix the cluster, but, like, eventually now the discussion is going more about…
+
+15:57:54 --> 15:57:56
+Abhay Aggrawal: Uh, right, like, whether…
+
+15:57:56 --> 15:58:00
+Abhay Aggrawal: We should let them upgrade to a newer version.
+
+15:58:00 --> 15:58:02
+Sid Shukla: Yep.
+
+15:58:01 --> 15:58:05
+Abhay Aggrawal: So, like, these calls, uh, making such…
+
+15:58:03 --> 15:58:08
+Sid Shukla: I'll just create a new cluster on a newer version, and just migrate the workloads.
+
+15:58:06 --> 15:58:08
+Abhay Aggrawal: Mmm…
+
+15:58:08 --> 15:58:16
+Abhay Aggrawal: So that's the thing, like, making such calls, uh, is hard for India team to really honest, for such old customers.
+
+15:58:17 --> 15:58:25
+Sid Shukla: So, I would say, Abhay, like, in future, you see that kind of a thing, right? Alert leadership first.
+
+15:58:23 --> 15:58:24
+Abhay Aggrawal: Mm-hmm.
+
+15:58:25 --> 15:58:29
+Sid Shukla: So, instead of just immediately trying to fix it, right, like…
+
+15:58:25 --> 15:58:27
+Abhay Aggrawal: Yeah, okay.
+
+15:58:30 --> 15:58:42
+Sid Shukla: realize, like, okay, we are looking at a 273 cluster now. Like, this is basically unsupported, so why are we looking at it? Yeah? Why am I being asked to spend time on this?
+
+15:58:39 --> 15:58:40
+Abhay Aggrawal: Correct.
+
+15:58:42 --> 15:58:45
+Sid Shukla: And the reason is probably because someone…
+
+15:58:45 --> 15:58:50
+Sid Shukla: In that chain, made a call and didn't communicate.
+
+15:58:51 --> 15:59:01
+Sid Shukla: So, Broadridge Financial, I reached out to the account manager, uh, and to get an understanding of what is going on there.
+
+15:59:01 --> 15:59:04
+Sid Shukla: And they are an old DKP customer.
+
+15:59:04 --> 15:59:08
+Sid Shukla: And they actually have paid for, like.
+
+15:59:08 --> 15:59:19
+Sid Shukla: some… their current entitlement is, I think, somewhere around 675 cores or something. So it's close to 200K a year customer. It's not big, but it's also not nothing.
+
+15:59:19 --> 15:59:23
+Sid Shukla: Um, and…
+
+15:59:19 --> 15:59:21
+Abhay Aggrawal: Got it.
+
+15:59:23 --> 15:59:28
+Sid Shukla: That 200K a year is coming from a kind of single team.
+
+15:59:28 --> 15:59:32
+Sid Shukla: At Broadridge Financial, which is their middleware engineering team.
+
+15:59:32 --> 15:59:36
+Sid Shukla: Uh… whereas the broader…
+
+15:59:36 --> 15:59:42
+Sid Shukla: Uh… Broadridge Financial Team, they use the VMware Tanzu.
+
+15:59:42 --> 15:59:45
+Sid Shukla: Uh, for the Kubernetes.
+
+15:59:45 --> 15:59:47
+Sid Shukla: And so…
+
+15:59:49 --> 15:59:59
+Sid Shukla: this, like, I mean, the reason we're kind of trying to go out of band and try… I think, like, Sonali had kind of promised them that, like, we'd help them.
+
+15:59:59 --> 16:00:02
+Sid Shukla: Uh, migrate. I think what happened was that, like.
+
+16:00:04 --> 16:00:11
+Sid Shukla: the account team only realized that, like, these guys are on a very unsupported version of Kubernetes.
+
+16:00:11 --> 16:00:16
+Sid Shukla: and of NKP, after support team started pushing back.
+
+16:00:16 --> 16:00:18
+Abhay Aggrawal: Yeah.
+
+16:00:17 --> 16:00:19
+Sid Shukla: On their own calls.
+
+16:00:19 --> 16:00:28
+Sid Shukla: And this is because, like, whatever subscription account managers, right, like the guys responsible for renewals, etc, they didn't alert anyone.
+
+16:00:28 --> 16:00:38
+Sid Shukla: Like, they were like, yeah, as long as the customer renews, we don't care. Like, that shouldn't be the case, yeah? Like, subscription account managers that are at the top of the game should, like, know exactly what, like.
+
+16:00:33 --> 16:00:34
+Abhay Aggrawal: Mm-hmm.
+
+16:00:38 --> 16:00:47
+Sid Shukla: versions the customer is on if they're air-gapped, because, like, we have no telemetry on air-gapped customers. So that is something I already reached out to Dan for. I was like, man, like…
+
+16:00:47 --> 16:00:55
+Sid Shukla: Work with the field team, who's on the sales side and the subscriptions renewal side, like, this is their jam, you know, like…
+
+16:00:55 --> 16:01:06
+Sid Shukla: They should… like, product team should have insights on all clusters, air gap or not, with regards to what versions things are on, and if telemetry can't do that, then that needs to be manual survey-based, but it needs to be there.
+
+16:01:06 --> 16:01:08
+Abhay Aggrawal: Correct.
+
+16:01:07 --> 16:01:16
+Sid Shukla: Um, but yeah, the main thing is that, like, because it's actually… today it's a 200K customer, but the potential upside is quite large.
+
+16:01:16 --> 16:01:25
+Sid Shukla: Because the potential upside is in millions, uh, in ARR, if, like, we are… if we manage to convince them that, like, we are a team that…
+
+16:01:17 --> 16:01:19
+Abhay Aggrawal: Correct.
+
+16:01:26 --> 16:01:30
+Sid Shukla: Uh, provides them better service than whatever they've been getting out of Tanzu.
+
+16:01:32 --> 16:01:45
+Sid Shukla: So this is why the whole effort to kind of, like, continue supporting this upgrade and get them into a 216, 217, 218 kind of situation. Let's see how it goes. There's a lot of things at play there.
+
+16:01:32 --> 16:01:33
+Abhay Aggrawal: True that.
+
+16:01:45 --> 16:01:47
+Sid Shukla: Uh, but…
+
+16:01:47 --> 16:01:52
+Sid Shukla: Like, usually, in an alert like that, first things first, like, involve Shivendra and…
+
+16:01:53 --> 16:01:54
+Sid Shukla: the…
+
+16:01:54 --> 16:02:01
+Sid Shukla: involve… involve Arvind, yeah, be like, hey, this is going on, I think, like, this is…
+
+16:01:55 --> 16:01:57
+Abhay Aggrawal: Arvind.
+
+16:02:01 --> 16:02:05
+Sid Shukla: This is beyond, uh, beyond my, uh…
+
+16:02:05 --> 16:02:09
+Sid Shukla: Like, this is beyond my capacity at the moment to, like, pull off.
+
+16:02:09 --> 16:02:10
+Sid Shukla: So…
+
+16:02:11 --> 16:02:15
+Sid Shukla: They'll at least be able to provide you some firepower to push back and so on, yeah.
+
+16:02:15 --> 16:02:20
+Abhay Aggrawal: The problem is, like, when such problems come during a holiday, you know?
+
+16:02:20 --> 16:02:25
+Sid Shukla: Yeah, that's true. But, like, nonetheless, always bring your manager, yeah.
+
+16:02:22 --> 16:02:24
+Abhay Aggrawal: Yep.
+
+16:02:25 --> 16:02:27
+Abhay Aggrawal: Okay. Got it.
+
+16:02:32 --> 16:02:33
+Abhay Aggrawal: Okay.
