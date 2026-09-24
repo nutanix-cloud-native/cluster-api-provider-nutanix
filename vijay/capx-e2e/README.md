@@ -20,6 +20,7 @@ reading the code.
 | 8 | [08-other-controllers.md](08-other-controllers.md) | FailureDomain, MachineTemplate, VirtualHADomain, Metro controllers (summary) |
 | 9 | [09-findings.md](09-findings.md) | Gaps and bugs found, with evidence, impact, and how to reproduce |
 | 10 | [10-quick-answers.md](10-quick-answers.md) | One-paragraph answers to questions you will likely be asked |
+| 11 | [11-vmm-server-side.md](11-vmm-server-side.md) | The PC side of VM create (metropolis, Ergon, Narsil): request-id replay, dedup window, task states, what FAILED means; new findings S-01..S-04 |
 
 ## Code versions these references point at
 
@@ -31,6 +32,8 @@ reading the code.
 | Nutanix Prism Go SDK | `~/go/pkg/mod/github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4@v4.4.1` | v4.4.1 |
 | Cluster API | `~/go/pkg/mod/sigs.k8s.io/cluster-api@v1.13.6` | v1.13.6 |
 | VMM API definitions | `nutanix-core/ntnx-api-vmm/` | commit `82d220fc` |
+| VMM v4 server (metropolis) | `main` repo, branch `origin/ctrl-plane-pc-master` | commit `302b06fb` |
+| Ergon (tasks, v4 Tasks API) | `main` repo, branch `origin/ergon-master` | commit `f91b4c83` |
 
 Line numbers drift as code changes. Re-check them if you read this against a newer commit.
 

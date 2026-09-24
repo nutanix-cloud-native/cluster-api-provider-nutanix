@@ -11,9 +11,9 @@ classification or retry behaviour with a real user impact. **Low** = hygiene, cl
 | [F-01](#f-01) | providerID never set when the VM is found instead of created → Ready without providerID → deadlock | High | Verified (repro pending) |
 | [F-02](#f-02) | CAPX uses the v1beta1 contract; its "terminal failure" has no effect in CAPI v1.13; compat removed ~Apr 2027 | High | Verified |
 | [F-03](#f-03) | VM-profile create path has no idempotency key, no subtask errors, deferred providerID persist | High | Verified |
-| [F-04](#f-04) | A FAILED create task is treated as retryable → endless retry of the same failed request | High | Verified (PC replay semantics: hypothesis) |
+| [F-04](#f-04) | A FAILED create task is treated as retryable → endless retry of the same failed request | High | Verified (PC replay semantics confirmed in ch. 11) |
 | [F-05](#f-05) | Post-create entity fetch errors are dropped → "0 VMs" → TERMINAL while the VM exists → orphan | High | Verified |
-| [F-06](#f-06) | Task wait has no timeout and never exits on CANCELED/SUSPENDED/UNKNOWN or FAILED-without-messages | High | Verified |
+| [F-06](#f-06) | Task wait has no timeout and never exits on CANCELED/SUSPENDED/UNKNOWN or FAILED-without-messages | High | Verified (FAILED-without-messages ruled out in ch. 11) |
 | [F-07](#f-07) | ETag races on power-on / custom-attributes can go TERMINAL | Medium | Hypothesis |
 | [F-08](#f-08) | Category get-or-create is list-then-create with no "already exists" handling | Low | Hypothesis |
 | [F-09](#f-09) | 401/403 are terminal → a credential rotation fails in-flight machines | Medium | Verified |
