@@ -53,6 +53,7 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/version"
 	"github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
@@ -2472,7 +2473,7 @@ func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.Nutan
 	v3Client, err := nutanixclient.NutanixClientCache.GetOrCreate(&nutanixclient.CacheParams{
 		NutanixCluster:          cluster,
 		PrismManagementEndpoint: managementEndpoint,
-	})
+	}, prismclientv3.WithUserAgent(version.UserAgent()))
 	if err != nil {
 		log.Error(err, "error occurred while getting nutanix prism v3 Client from cache")
 		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())

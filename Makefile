@@ -241,12 +241,12 @@ update-cni-manifests: update-calico-cni update-cilium-cni update-flannel-cni upd
 .PHONY: build
 build: generate ## Build manager binary.
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
-	CGO_ENABLED=0 go build -ldflags "-X main.gitCommitHash=${GIT_COMMIT_HASH}" -o bin/manager main.go
+	CGO_ENABLED=0 go build -ldflags "-X main.gitCommitHash=${GIT_COMMIT_HASH} -X github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/version.GitCommit=${GIT_COMMIT_HASH}" -o bin/manager main.go
 
 .PHONY: build-e2e
 build-e2e: generate ## Build e2e binary.
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
-	CGO_ENABLED=0 go build -ldflags "-X main.gitCommitHash=${GIT_COMMIT_HASH}" -tags=e2e -o bin/e2e test/e2e/*.go
+	CGO_ENABLED=0 go build -ldflags "-X main.gitCommitHash=${GIT_COMMIT_HASH} -X github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/version.GitCommit=${GIT_COMMIT_HASH}" -tags=e2e -o bin/e2e test/e2e/*.go
 
 .PHONY: run
 run: manifests generate ## Run a controller from your host.
@@ -256,12 +256,12 @@ run: manifests generate ## Run a controller from your host.
 docker-build: ## Build docker image with the manager.
 	$(select_container_engine)
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
-	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-buildvcs=false -ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS} -t ${IMG_TAG} .
+	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-buildvcs=false -ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH} -X=github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/version.GitCommit=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push
 docker-push:  ## Push docker image with the manager.
 	$(select_container_engine)
-	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=${IMG_REPO} GOFLAGS="-buildvcs=false -ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
+	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=${IMG_REPO} GOFLAGS="-buildvcs=false -ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH} -X=github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/version.GitCommit=${GIT_COMMIT_HASH}" ko build --bare --platform=${PLATFORMS} -t ${IMG_TAG} .
 
 .PHONY: docker-push-kind
 docker-push-kind:  ## Make docker image available to kind cluster.
@@ -357,7 +357,7 @@ cluster-templates: ## Generate cluster templates for all flavors
 docker-build-e2e: ## Build docker image with the manager with e2e tag.
 	$(select_container_engine)
 	echo "Git commit hash: ${GIT_COMMIT_HASH}"
-	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-buildvcs=false -ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS_E2E} -t ${IMG_TAG} .
+	DOCKER_HOST=$(DOCKER_SOCKET) KO_DOCKER_REPO=ko.local GOFLAGS="-buildvcs=false -ldflags=-X=main.gitCommitHash=${GIT_COMMIT_HASH} -X=github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/version.GitCommit=${GIT_COMMIT_HASH}" ko build -B --platform=${PLATFORMS_E2E} -t ${IMG_TAG} .
 	docker tag ko.local/cluster-api-provider-nutanix:${IMG_TAG} ${IMG_REPO}:${IMG_TAG}
 
 .PHONY: prepare-local-clusterctl
