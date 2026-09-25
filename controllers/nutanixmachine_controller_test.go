@@ -3304,6 +3304,8 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, vm)
 		assert.Equal(t, vmName, *vm.Name)
+		assert.Equal(t, fmt.Sprintf("nutanix://%s", vmUUID), ntnxMachine.Spec.ProviderID)
+		assert.Equal(t, vmUUID, ntnxMachine.Status.VmUUID)
 	})
 
 	t.Run("should return existing VM even when it is powered off", func(t *testing.T) {
@@ -6182,6 +6184,46 @@ func TestSetFailureDomainCustomAttributes(t *testing.T) {
 			require.Equal(t, tt.wantAttrs, tt.vm.CustomAttributes)
 		})
 	}
+}
+
+func TestReconcileNormal_readyRestoresMissingProviderID(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+	vmUUID := "1c5ed72c-f191-44aa-7f19-9269d6813439"
+
+	ntnxMachine := &infrav1.NutanixMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cp-1",
+			Namespace: "default",
+		},
+		Status: infrav1.NutanixMachineStatus{
+			Ready:  true,
+			VmUUID: vmUUID,
+		},
+	}
+	machine := &capiv1beta2.Machine{
+		ObjectMeta: metav1.ObjectMeta{Name: "cp-1", Namespace: "default"},
+	}
+	cluster := &capiv1beta2.Cluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "c", Namespace: "default"},
+		Status: capiv1beta2.ClusterStatus{
+			Initialization: capiv1beta2.ClusterInitializationStatus{
+				InfrastructureProvisioned: ptr.To(true),
+			},
+		},
+	}
+
+	reconciler := &NutanixMachineReconciler{}
+	result, err := reconciler.reconcileNormal(&nctx.MachineContext{
+		Context:        ctx,
+		Cluster:        cluster,
+		Machine:        machine,
+		NutanixMachine: ntnxMachine,
+	})
+
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(ntnxMachine.Spec.ProviderID).To(Equal(GenerateProviderID(vmUUID)))
+	g.Expect(result.RequeueAfter).To(Equal(5 * time.Second))
 }
 
 func TestCheckFailureDomainStatus_MetroComparesSubnetNetworks(t *testing.T) {
