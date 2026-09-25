@@ -28,6 +28,7 @@ import (
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 	"github.com/nutanix-cloud-native/prism-go-client/converged"
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	v3models "github.com/nutanix-cloud-native/prism-go-client/v3/models"
 	dpModels "github.com/nutanix/ntnx-api-golang-clients/datapolicies-go-client/v4/models/datapolicies/v4/config"
 	dpCommon "github.com/nutanix/ntnx-api-golang-clients/datapolicies-go-client/v4/models/dataprotection/v4/common"
@@ -367,21 +368,29 @@ func (r *NutanixVirtualHADomainReconciler) ensureVHADomainPCResources(
 		return fmt.Errorf("vHA domain requires a metro with exactly 2 failure domains, got %d", len(failureDomains))
 	}
 
+	// Pair the two failure domains' subnets by L2 network (network layer, VLAN
+	// ID/VNI and CIDR). Only subnets that have a matching peer on the other PE are
+	// kept; any extra, unpaired subnet on either failure domain is ignored. The
+	// returned subnetNames are aligned so subnetNames[0][j] and subnetNames[1][j]
+	// describe the same L2 network on their respective PEs. This runs before the
+	// ready short-circuit so a metro whose subnets no longer share any L2 network
+	// fails reconciliation even after the vHA domain has been marked ready.
+	subnetNames, err := pairVHADomainSubnetsByL2(rctx.Context, rctx.ConvergedClient, failureDomains)
+	if err != nil {
+		return err
+	}
+
 	if rctx.VHADomain.Status.Ready {
 		log.Info("vHADomain is ready, validating PC resources still exist")
 		return r.validateVHADomainPCResources(rctx, failureDomains)
 	}
 
-	// Resolve the PE UUID, name and subnet for each failure domain, preserving
-	// the metro's failure-domain ordering (used as the per-PE index for the
-	// generated categories and recovery plans).
-	// These slices are positionally indexed by failure-domain order: peUUIDs[i], peNames[i] and
-	// subnetNames[i] all describe failureDomains[i]. subnetNames must therefore be index-assigned
-	// (not conditionally appended) so a failure domain without subnets does not shift the entries of
-	// the others and map the wrong subnet to a PE in the recovery plan network mapping.
+	// Resolve the PE UUID and name for each failure domain, preserving the metro's
+	// failure-domain ordering (used as the per-PE index for the generated categories
+	// and recovery plans). subnetNames is aligned to that same order: subnetNames[i][j]
+	// is failureDomains[i]'s subnet in L2 pair j.
 	peUUIDs := make([]string, len(failureDomains))
 	peNames := make([]string, len(failureDomains))
-	subnetNames := make([]string, len(failureDomains))
 	for i, fd := range failureDomains {
 		// VHA domains always use the default project (nil resource group)
 		peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient, nil,
@@ -391,9 +400,6 @@ func (r *NutanixVirtualHADomainReconciler) ensureVHADomainPCResources(
 		}
 		peUUIDs[i] = peUUID
 		peNames[i] = fd.Spec.PrismElementCluster.String()
-		if len(fd.Spec.Subnets) > 0 {
-			subnetNames[i] = fd.Spec.Subnets[0].String()
-		}
 	}
 
 	azURL, err := getDomainManagerExtId(rctx)
@@ -793,7 +799,7 @@ func (r *NutanixVirtualHADomainReconciler) getOrCreateVHADomainRecoveryPlan(
 	group string,
 	peUUIDs []string,
 	peNames []string,
-	subnetNames []string,
+	subnetNames [][]string,
 	primaryIndex int,
 	azURL string,
 ) (*infrav1.NutanixResourceIdentifier, error) {
@@ -823,30 +829,7 @@ func (r *NutanixVirtualHADomainReconciler) getOrCreateVHADomainRecoveryPlan(
 		return nil, err
 	}
 
-	networkMappingAZList := make(
-		[]*v3models.RecoveryPlanResourcesParametersNetworkMappingListItems0AvailabilityZoneNetworkMappingListItems0,
-		0, len(peUUIDs),
-	)
-	for i := range peUUIDs {
-		subnetName := ""
-		if i < len(subnetNames) {
-			subnetName = subnetNames[i]
-		}
-		networkMappingAZList = append(networkMappingAZList,
-			&v3models.RecoveryPlanResourcesParametersNetworkMappingListItems0AvailabilityZoneNetworkMappingListItems0{
-				AvailabilityZoneURL: ptr.To(azURL),
-				ClusterReferenceList: []*v3models.ClusterReference{
-					{Kind: "cluster", Name: peNames[i], UUID: ptr.To(peUUIDs[i])},
-				},
-				RecoveryNetwork: &v3models.RecoveryPlanNetwork{
-					Name:       subnetName,
-					SubnetList: []*v3models.RecoveryPlanSubnetConfig{},
-				},
-				RecoveryIPAssignmentList: []*v3models.RecoveryPlanVMIPAssignment{},
-				TestIPAssignmentList:     []*v3models.RecoveryPlanVMIPAssignment{},
-			},
-		)
-	}
+	networkMappingList := vhaRecoveryPlanNetworkMappings(peUUIDs, peNames, subnetNames, azURL)
 
 	rpInput := &v3models.RecoveryPlanIntentInput{
 		APIVersion: "3.1",
@@ -891,11 +874,7 @@ func (r *NutanixVirtualHADomainReconciler) getOrCreateVHADomainRecoveryPlan(
 					PrimaryLocationIndex:     int64(primaryIndex),
 					DataServiceIPMappingList: []*v3models.RecoveryPlanResourcesParametersDataServiceIPMappingListItems0{},
 					FloatingIPAssignmentList: []*v3models.RecoveryPlanResourcesParametersFloatingIPAssignmentListItems0{},
-					NetworkMappingList: []*v3models.RecoveryPlanResourcesParametersNetworkMappingListItems0{
-						{
-							AvailabilityZoneNetworkMappingList: networkMappingAZList,
-						},
-					},
+					NetworkMappingList:       networkMappingList,
 					WitnessConfigurationList: []*v3models.WitnessConfiguration{
 						{
 							WitnessAddress:             azURL,
@@ -1095,6 +1074,134 @@ func findProtectionPolicyByName(rctx *nctx.VHADomainContext, name string) (*dpMo
 		}
 	}
 	return nil, nil
+}
+
+// vhaRecoveryPlanNetworkMappings builds a single recovery plan's NetworkMappingList.
+// One list entry is created per subnet index so every FD subnet is included in the
+// same plan: subnet j of PE 0 maps to subnet j of PE 1.
+func vhaRecoveryPlanNetworkMappings(
+	peUUIDs, peNames []string,
+	subnetNames [][]string,
+	azURL string,
+) []*v3models.RecoveryPlanResourcesParametersNetworkMappingListItems0 {
+	mappingCount := 1
+	for _, names := range subnetNames {
+		if len(names) > mappingCount {
+			mappingCount = len(names)
+		}
+	}
+	networkMappingList := make([]*v3models.RecoveryPlanResourcesParametersNetworkMappingListItems0, 0, mappingCount)
+	for subnetIdx := 0; subnetIdx < mappingCount; subnetIdx++ {
+		networkMappingAZList := make(
+			[]*v3models.RecoveryPlanResourcesParametersNetworkMappingListItems0AvailabilityZoneNetworkMappingListItems0,
+			0, len(peUUIDs),
+		)
+		for i := range peUUIDs {
+			subnetName := ""
+			if i < len(subnetNames) && subnetIdx < len(subnetNames[i]) {
+				subnetName = subnetNames[i][subnetIdx]
+			}
+			networkMappingAZList = append(networkMappingAZList,
+				&v3models.RecoveryPlanResourcesParametersNetworkMappingListItems0AvailabilityZoneNetworkMappingListItems0{
+					AvailabilityZoneURL: ptr.To(azURL),
+					ClusterReferenceList: []*v3models.ClusterReference{
+						{Kind: "cluster", Name: peNames[i], UUID: ptr.To(peUUIDs[i])},
+					},
+					RecoveryNetwork: &v3models.RecoveryPlanNetwork{
+						Name:       subnetName,
+						SubnetList: []*v3models.RecoveryPlanSubnetConfig{},
+					},
+					RecoveryIPAssignmentList: []*v3models.RecoveryPlanVMIPAssignment{},
+					TestIPAssignmentList:     []*v3models.RecoveryPlanVMIPAssignment{},
+				},
+			)
+		}
+		networkMappingList = append(networkMappingList, &v3models.RecoveryPlanResourcesParametersNetworkMappingListItems0{
+			AvailabilityZoneNetworkMappingList: networkMappingAZList,
+		})
+	}
+	return networkMappingList
+}
+
+// pairVHADomainSubnetsByL2 pairs the two metro failure domains' subnets by L2
+// network (network layer, VLAN ID/VNI and CIDR) via subnetNetworkKeys. Prism
+// names/UUIDs may differ between the two PEs, so subnets are matched on their L2
+// key rather than by list position.
+//
+// Only subnets that have a matching peer on the other failure domain are kept:
+// if fd0 lists 2 subnets and fd1 lists 3, and 2 of them share L2 networks, the
+// unpaired subnet is ignored and only the 2 matched pairs are returned. The two
+// failure domains therefore no longer need to list the same number of subnets.
+//
+// The returned slice is positionally aligned to failureDomains order:
+// subnetNames[0][j] and subnetNames[1][j] describe the same L2 network on
+// failureDomains[0] and failureDomains[1] respectively. It returns an error when
+// no shared L2 network exists, since a metro vHA recovery plan requires at least
+// one common network to map between the PEs.
+func pairVHADomainSubnetsByL2(
+	ctx context.Context,
+	client *v4Converged.Client,
+	failureDomains []*infrav1.NutanixFailureDomain,
+) ([][]string, error) {
+	if len(failureDomains) != 2 {
+		return nil, fmt.Errorf("vHA domain requires a metro with exactly 2 failure domains, got %d", len(failureDomains))
+	}
+	fd0, fd1 := failureDomains[0], failureDomains[1]
+
+	keys0, err := subnetNetworkKeys(ctx, client, fd0.Spec.Subnets, fd0.Spec.PrismElementCluster)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve subnet network keys for failure domain %s: %w", fd0.Name, err)
+	}
+	keys1, err := subnetNetworkKeys(ctx, client, fd1.Spec.Subnets, fd1.Spec.PrismElementCluster)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve subnet network keys for failure domain %s: %w", fd1.Name, err)
+	}
+
+	// Pair fd0's subnets against fd1's subnets by L2 key. Each fd1 subnet is
+	// consumed at most once so duplicate L2 networks pair one-to-one.
+	fd0Paired := make([]bool, len(keys0))
+	fd1Used := make([]bool, len(keys1))
+	names0 := make([]string, 0, len(keys0))
+	names1 := make([]string, 0, len(keys0))
+	for i, k0 := range keys0 {
+		for j, k1 := range keys1 {
+			if fd1Used[j] || k0 != k1 {
+				continue
+			}
+			fd0Paired[i] = true
+			fd1Used[j] = true
+			names0 = append(names0, fd0.Spec.Subnets[i].String())
+			names1 = append(names1, fd1.Spec.Subnets[j].String())
+			break
+		}
+	}
+
+	if len(names0) == 0 {
+		return nil, fmt.Errorf(
+			"vHA recovery plan requires the two failure domains to share at least one L2 network (layer, VLAN ID/VNI, CIDR): %s has %v, %s has %v",
+			fd0.Name, keys0, fd1.Name, keys1,
+		)
+	}
+
+	// Warn about any subnet that has no L2 peer on the other failure domain and is
+	// therefore dropped from the recovery plan network mapping.
+	log := ctrl.LoggerFrom(ctx)
+	warnUnpaired := func(fd *infrav1.NutanixFailureDomain, keys []string, paired []bool) {
+		for i, done := range paired {
+			if done {
+				continue
+			}
+			log.Info("Ignoring failure domain subnet with no matching L2 network on the peer failure domain; it will not be included in the vHA recovery plan network mapping",
+				"warning", true,
+				"failureDomain", fd.Name,
+				"subnet", fd.Spec.Subnets[i].DisplayString(),
+				"l2NetworkKey", keys[i])
+		}
+	}
+	warnUnpaired(fd0, keys0, fd0Paired)
+	warnUnpaired(fd1, keys1, fd1Used)
+
+	return [][]string{names0, names1}, nil
 }
 
 func findRecoveryPlanByName(rctx *nctx.VHADomainContext, name string) (*v3models.RecoveryPlanIntentResource, error) {
