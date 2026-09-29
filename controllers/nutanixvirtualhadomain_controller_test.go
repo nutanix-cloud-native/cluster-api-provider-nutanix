@@ -20,6 +20,8 @@ import (
 	"context"
 	"testing"
 
+	clustermgmtconfig "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
+	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
@@ -373,4 +375,173 @@ func TestVHADomainEnsurePCResources_RequiresTwoFailureDomains(t *testing.T) {
 	err := r.ensureVHADomainPCResources(rctx, fds)
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(ContainSubstring("exactly 2 failure domains"))
+}
+
+func TestVHARecoveryPlanNetworkMappings_AllSubnetsInOnePlan(t *testing.T) {
+	peUUIDs := []string{"pe-uuid-0", "pe-uuid-1"}
+	peNames := []string{"pe-0", "pe-1"}
+	azURL := "az://local"
+
+	t.Run("single subnet per PE keeps one mapping", func(t *testing.T) {
+		g := NewWithT(t)
+		mappings := vhaRecoveryPlanNetworkMappings(peUUIDs, peNames, [][]string{
+			{"site-a-net"},
+			{"site-b-net"},
+		}, azURL)
+		g.Expect(mappings).To(HaveLen(1))
+		g.Expect(mappings[0].AvailabilityZoneNetworkMappingList).To(HaveLen(2))
+		g.Expect(mappings[0].AvailabilityZoneNetworkMappingList[0].RecoveryNetwork.Name).To(Equal("site-a-net"))
+		g.Expect(mappings[0].AvailabilityZoneNetworkMappingList[1].RecoveryNetwork.Name).To(Equal("site-b-net"))
+	})
+
+	t.Run("two subnets per PE stay in one plan as two mappings", func(t *testing.T) {
+		g := NewWithT(t)
+		mappings := vhaRecoveryPlanNetworkMappings(peUUIDs, peNames, [][]string{
+			{"fd0-net0", "fd0-net1"},
+			{"fd1-net0", "fd1-net1"},
+		}, azURL)
+		g.Expect(mappings).To(HaveLen(2), "one NetworkMappingList entry per subnet index, same recovery plan")
+		g.Expect(mappings[0].AvailabilityZoneNetworkMappingList[0].RecoveryNetwork.Name).To(Equal("fd0-net0"))
+		g.Expect(mappings[0].AvailabilityZoneNetworkMappingList[1].RecoveryNetwork.Name).To(Equal("fd1-net0"))
+		g.Expect(mappings[1].AvailabilityZoneNetworkMappingList[0].RecoveryNetwork.Name).To(Equal("fd0-net1"))
+		g.Expect(mappings[1].AvailabilityZoneNetworkMappingList[1].RecoveryNetwork.Name).To(Equal("fd1-net1"))
+
+		g.Expect(mappings[0].AvailabilityZoneNetworkMappingList[0].ClusterReferenceList[0].UUID).To(Equal(ptr.To("pe-uuid-0")))
+		g.Expect(mappings[0].AvailabilityZoneNetworkMappingList[1].ClusterReferenceList[0].UUID).To(Equal(ptr.To("pe-uuid-1")))
+	})
+
+	t.Run("empty subnet lists still emit one mapping with empty names", func(t *testing.T) {
+		g := NewWithT(t)
+		mappings := vhaRecoveryPlanNetworkMappings(peUUIDs, peNames, [][]string{nil, nil}, azURL)
+		g.Expect(mappings).To(HaveLen(1))
+		g.Expect(mappings[0].AvailabilityZoneNetworkMappingList[0].RecoveryNetwork.Name).To(BeEmpty())
+		g.Expect(mappings[0].AvailabilityZoneNetworkMappingList[1].RecoveryNetwork.Name).To(BeEmpty())
+	})
+
+	t.Run("uneven subnet counts pad the shorter PE", func(t *testing.T) {
+		g := NewWithT(t)
+		mappings := vhaRecoveryPlanNetworkMappings(peUUIDs, peNames, [][]string{
+			{"fd0-net0", "fd0-net1"},
+			{"fd1-net0"},
+		}, azURL)
+		g.Expect(mappings).To(HaveLen(2))
+		g.Expect(mappings[1].AvailabilityZoneNetworkMappingList[0].RecoveryNetwork.Name).To(Equal("fd0-net1"))
+		g.Expect(mappings[1].AvailabilityZoneNetworkMappingList[1].RecoveryNetwork.Name).To(BeEmpty())
+	})
+}
+
+func TestPairVHADomainSubnetsByL2(t *testing.T) {
+	ctx := context.Background()
+	pe0 := "00000000-0000-0000-0000-000000000010"
+	pe1 := "00000000-0000-0000-0000-000000000011"
+	subnet0a := "00000000-0000-0000-0000-0000000000a1"
+	subnet0b := "00000000-0000-0000-0000-0000000000a2"
+	subnet0c := "00000000-0000-0000-0000-0000000000a3"
+	subnet1a := "00000000-0000-0000-0000-0000000000b1"
+	subnet1b := "00000000-0000-0000-0000-0000000000b2"
+	vlan := subnetModels.SUBNETTYPE_VLAN
+
+	fd := func(name, peUUID string, subnetUUIDs ...string) *infrav1.NutanixFailureDomain {
+		subnets := make([]infrav1.NutanixResourceIdentifier, len(subnetUUIDs))
+		for i, u := range subnetUUIDs {
+			subnets[i] = infrav1.NutanixResourceIdentifier{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(u)}
+		}
+		return &infrav1.NutanixFailureDomain{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: vhaNamespace},
+			Spec: infrav1.NutanixFailureDomainSpec{
+				PrismElementCluster: infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(peUUID),
+				},
+				Subnets: subnets,
+			},
+		}
+	}
+
+	// subnet describes a single Get expectation for one subnet UUID.
+	type subnet struct {
+		uuid string
+		name string
+		vlan int
+		cidr string
+	}
+	setup := func(t *testing.T, subnets ...subnet) *MockConvergedClientWrapper {
+		ctrl := gomock.NewController(t)
+		client := NewMockConvergedClient(ctrl)
+		client.MockClusters.EXPECT().Get(gomock.Any(), pe0).Return(&clustermgmtconfig.Cluster{ExtId: ptr.To(pe0)}, nil).AnyTimes()
+		client.MockClusters.EXPECT().Get(gomock.Any(), pe1).Return(&clustermgmtconfig.Cluster{ExtId: ptr.To(pe1)}, nil).AnyTimes()
+		for _, s := range subnets {
+			s := s
+			client.MockSubnets.EXPECT().Get(gomock.Any(), s.uuid).Return(&subnetModels.Subnet{
+				ExtId: ptr.To(s.uuid), Name: ptr.To(s.name), SubnetType: &vlan, NetworkId: ptr.To(s.vlan), IpPrefix: ptr.To(s.cidr),
+			}, nil)
+		}
+		return client
+	}
+
+	t.Run("pairs index-aligned L2 networks with different Prism names", func(t *testing.T) {
+		client := setup(t,
+			subnet{subnet0a, "vlan-100-site-a", 100, "10.0.0.0/24"},
+			subnet{subnet0b, "vlan-200-site-a", 200, "10.0.1.0/24"},
+			subnet{subnet1a, "vlan-100-site-b", 100, "10.0.0.0/24"},
+			subnet{subnet1b, "vlan-200-site-b", 200, "10.0.1.0/24"},
+		)
+
+		names, err := pairVHADomainSubnetsByL2(ctx, client.Client, []*infrav1.NutanixFailureDomain{
+			fd("fd-a", pe0, subnet0a, subnet0b),
+			fd("fd-b", pe1, subnet1a, subnet1b),
+		})
+		require.NoError(t, err)
+		require.Equal(t, [][]string{{subnet0a, subnet0b}, {subnet1a, subnet1b}}, names)
+	})
+
+	t.Run("pairs by L2 regardless of list order", func(t *testing.T) {
+		// fd-b lists the two subnets in the opposite order; they must still pair by L2.
+		client := setup(t,
+			subnet{subnet0a, "vlan-100-site-a", 100, "10.0.0.0/24"},
+			subnet{subnet0b, "vlan-200-site-a", 200, "10.0.1.0/24"},
+			subnet{subnet1a, "vlan-200-site-b", 200, "10.0.1.0/24"},
+			subnet{subnet1b, "vlan-100-site-b", 100, "10.0.0.0/24"},
+		)
+
+		names, err := pairVHADomainSubnetsByL2(ctx, client.Client, []*infrav1.NutanixFailureDomain{
+			fd("fd-a", pe0, subnet0a, subnet0b),
+			fd("fd-b", pe1, subnet1a, subnet1b),
+		})
+		require.NoError(t, err)
+		// fd0 order drives the pairing: subnet0a(vlan100)->subnet1b, subnet0b(vlan200)->subnet1a.
+		require.Equal(t, [][]string{{subnet0a, subnet0b}, {subnet1b, subnet1a}}, names)
+	})
+
+	t.Run("ignores the extra unpaired subnet when counts differ", func(t *testing.T) {
+		// fd-a has 2 subnets, fd-b has 3; only the 2 shared L2 networks are paired and
+		// the third fd-b subnet is dropped.
+		client := setup(t,
+			subnet{subnet0a, "vlan-100-site-a", 100, "10.0.0.0/24"},
+			subnet{subnet0b, "vlan-200-site-a", 200, "10.0.1.0/24"},
+			subnet{subnet1a, "vlan-100-site-b", 100, "10.0.0.0/24"},
+			subnet{subnet1b, "vlan-200-site-b", 200, "10.0.1.0/24"},
+			subnet{subnet0c, "vlan-300-site-b", 300, "10.0.2.0/24"},
+		)
+
+		names, err := pairVHADomainSubnetsByL2(ctx, client.Client, []*infrav1.NutanixFailureDomain{
+			fd("fd-a", pe0, subnet0a, subnet0b),
+			fd("fd-b", pe1, subnet1a, subnet1b, subnet0c),
+		})
+		require.NoError(t, err)
+		require.Equal(t, [][]string{{subnet0a, subnet0b}, {subnet1a, subnet1b}}, names)
+	})
+
+	t.Run("errors when the failure domains share no L2 network", func(t *testing.T) {
+		client := setup(t,
+			subnet{subnet0a, "vlan-100-site-a", 100, "10.0.0.0/24"},
+			subnet{subnet1a, "vlan-999-site-b", 999, "10.9.9.0/24"},
+		)
+
+		_, err := pairVHADomainSubnetsByL2(ctx, client.Client, []*infrav1.NutanixFailureDomain{
+			fd("fd-a", pe0, subnet0a),
+			fd("fd-b", pe1, subnet1a),
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "share at least one L2 network")
+	})
 }

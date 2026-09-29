@@ -1234,7 +1234,10 @@ func (r *NutanixMachineReconciler) resolveMetroPlacementFailureDomainFromRecover
 		return nil, err
 	}
 	if latestJob == nil {
-		return nil, nil
+		// No job has run for this recovery plan. An explicitly unreachable native Prism Element
+		// still cannot take the VM, so place it on the paired site. A lookup error or a missing
+		// isAvailable field keeps the native site: callers place there when this returns nil.
+		return pairedFailureDomainIfNativePEUnavailable(rctx, nativeFd, fdObjs), nil
 	}
 
 	activePEUUID := activePlacementPEUUIDFromRecoveryPlanJob(latestJob)
@@ -1257,6 +1260,53 @@ func (r *NutanixMachineReconciler) resolveMetroPlacementFailureDomainFromRecover
 	}
 
 	return nil, nil
+}
+
+// pairedFailureDomainIfNativePEUnavailable returns the other metro failure domain when the native
+// Prism Element reports config.isAvailable == false. It returns nil when the site is available,
+// availability is unset, the lookup fails, or there is no paired failure domain. Callers treat nil
+// as "place on the native failure domain".
+func pairedFailureDomainIfNativePEUnavailable(
+	rctx *nctx.MachineContext,
+	nativeFd *infrav1.NutanixFailureDomain,
+	fdObjs []*infrav1.NutanixFailureDomain,
+) *infrav1.NutanixFailureDomain {
+	if rctx == nil || nativeFd == nil || rctx.ConvergedClient == nil {
+		return nil
+	}
+
+	log := ctrl.LoggerFrom(rctx.Context)
+	pe := nativeFd.Spec.PrismElementCluster
+	peCluster, err := GetPEClusterByIdentifier(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
+	if err != nil {
+		log.Error(err, "Failed to read native Prism Element availability with no Recovery Plan Job; keeping native placement", "failureDomain", nativeFd.Name)
+		return nil
+	}
+	if peCluster == nil || peCluster.Config == nil || peCluster.Config.IsAvailable == nil || *peCluster.Config.IsAvailable {
+		var isAvailable *bool
+		if peCluster != nil && peCluster.Config != nil {
+			isAvailable = peCluster.Config.IsAvailable
+		}
+		log.Info("Recovery Plan Job list is empty; keeping native placement",
+			"failureDomain", nativeFd.Name,
+			"prismElement", pe.String(),
+			"isAvailable", isAvailable,
+		)
+		return nil
+	}
+
+	for _, fdObj := range fdObjs {
+		if fdObj == nil || fdObj.Name == nativeFd.Name {
+			continue
+		}
+		log.Info("Recovery Plan Job list is empty and native Prism Element is unavailable; placing on paired failure domain",
+			"nativeFailureDomain", nativeFd.Name,
+			"placementFailureDomain", fdObj.Name,
+		)
+		return fdObj
+	}
+
+	return nil
 }
 
 func findMetroRecoveryPlanUUIDByFailureDomain(
