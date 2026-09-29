@@ -47,6 +47,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
@@ -5966,6 +5967,210 @@ func TestGetMetroSiteFailureDomainSpec_FallbacksToNativeWhenRecoveryPlanJobLooku
 	g.Expect(ptr.Deref(fdSpec.PrismElementCluster.UUID, "")).To(Equal(fd0PEUUID))
 	g.Expect(rctx.NutanixMachine.Labels[metroNativeFailureDomainLabelKey]).To(Equal(fd0Name))
 	g.Expect(ptr.Deref(rctx.Datastore[nctx.MetroPreferredFailureDomainName], "")).To(Equal(fd0Name))
+}
+
+func TestGetMetroSiteFailureDomainSpec_EmptyRecoveryPlanJobPlacesOnPairedSiteWhenNativePEUnavailable(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	g := NewWithT(t)
+
+	const (
+		ns          = "default"
+		metroName   = "metro-empty-rpj"
+		metroSite   = "metrosite-empty-rpj"
+		fd0Name     = "fd-0"
+		fd1Name     = "fd-1"
+		fd0PEUUID   = "00000000-0000-0000-0000-000000000040"
+		fd1PEUUID   = "00000000-0000-0000-0000-000000000041"
+		recoveryPID = "rp-native-fd0-empty"
+	)
+
+	_, fd1, fakeClient, nutanixCluster := metroSitePlacementObjects(t, ns, metroName, metroSite, fd0Name, fd1Name, fd0PEUUID, fd1PEUUID, recoveryPID, "cluster-empty-rpj")
+
+	mockConvergedClient := NewMockConvergedClient(ctrl)
+	mockConvergedClient.MockClusters.EXPECT().Get(gomock.Any(), fd0PEUUID).Return(
+		&clustermgmtconfig.Cluster{ExtId: ptr.To(fd0PEUUID), Config: &clustermgmtconfig.ClusterConfigReference{IsAvailable: ptr.To(false)}}, nil,
+	).AnyTimes()
+	mockConvergedClient.MockClusters.EXPECT().Get(gomock.Any(), fd1PEUUID).Return(
+		&clustermgmtconfig.Cluster{ExtId: ptr.To(fd1PEUUID), Config: &clustermgmtconfig.ClusterConfigReference{IsAvailable: ptr.To(true)}}, nil,
+	).AnyTimes()
+
+	mockV3Client := mocknutanixv3.NewMockService(ctrl)
+	mockV3Client.EXPECT().ListRecoveryPlanJobs(gomock.Any(), gomock.Any()).Return(&prismclientv3.RecoveryPlanJobListResponse{}, nil)
+
+	rctx := &nctx.MachineContext{
+		Context:         context.Background(),
+		NutanixClient:   &prismclientv3.Client{V3: mockV3Client},
+		ConvergedClient: mockConvergedClient.Client,
+		Cluster:         &capiv1beta2.Cluster{ObjectMeta: metav1.ObjectMeta{Name: nutanixCluster.Name, Namespace: ns}},
+		Machine:         &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: "machine-empty-rpj", Namespace: ns}},
+		NutanixCluster:  nutanixCluster,
+		NutanixMachine:  &infrav1.NutanixMachine{ObjectMeta: metav1.ObjectMeta{Name: "nm-empty-rpj", Namespace: ns}},
+	}
+
+	reconciler := &NutanixMachineReconciler{Client: fakeClient}
+	fdSpec, err := reconciler.getMetroSiteFailureDomainSpec(rctx, metroSite)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(ptr.Deref(fdSpec.PrismElementCluster.UUID, "")).To(Equal(fd1PEUUID))
+	g.Expect(rctx.NutanixMachine.Labels[metroNativeFailureDomainLabelKey]).To(Equal(fd0Name))
+	g.Expect(ptr.Deref(rctx.Datastore[nctx.MetroPreferredFailureDomainName], "")).To(Equal(fd0Name))
+	g.Expect(rctx.NutanixMachine.Annotations[metroActivePlacementPEAnnotation]).To(Equal(fd1.Spec.PrismElementCluster.String()))
+}
+
+func TestResolveMetroPlacementFailureDomainFromRecoveryPlanJob_EmptyJob(t *testing.T) {
+	const (
+		ns          = "default"
+		metroName   = "metro-empty-rpj-resolver"
+		metroSite   = "metrosite-empty-rpj-resolver"
+		fd0Name     = "fd-0"
+		fd1Name     = "fd-1"
+		fd0PEUUID   = "00000000-0000-0000-0000-000000000050"
+		fd1PEUUID   = "00000000-0000-0000-0000-000000000051"
+		recoveryPID = "rp-native-fd0-resolver"
+	)
+
+	tests := []struct {
+		name         string
+		nativePE     *clustermgmtconfig.Cluster
+		nativeGetErr error
+		fdObjs       func(fd0, fd1 *infrav1.NutanixFailureDomain) []*infrav1.NutanixFailureDomain
+		wantName     string
+	}{
+		{
+			name:     "available native PE stays unset so the caller keeps the native site",
+			nativePE: &clustermgmtconfig.Cluster{ExtId: ptr.To(fd0PEUUID), Config: &clustermgmtconfig.ClusterConfigReference{IsAvailable: ptr.To(true)}},
+		},
+		{
+			name:     "missing isAvailable stays unset",
+			nativePE: &clustermgmtconfig.Cluster{ExtId: ptr.To(fd0PEUUID), Config: &clustermgmtconfig.ClusterConfigReference{}},
+		},
+		{
+			name:     "missing cluster config stays unset",
+			nativePE: &clustermgmtconfig.Cluster{ExtId: ptr.To(fd0PEUUID)},
+		},
+		{
+			name:         "availability lookup error stays unset",
+			nativeGetErr: fmt.Errorf("temporary prism error"),
+		},
+		{
+			name:     "unavailable native PE returns the paired failure domain",
+			nativePE: &clustermgmtconfig.Cluster{ExtId: ptr.To(fd0PEUUID), Config: &clustermgmtconfig.ClusterConfigReference{IsAvailable: ptr.To(false)}},
+			wantName: fd1Name,
+		},
+		{
+			name:     "unavailable native PE with no paired failure domain stays unset",
+			nativePE: &clustermgmtconfig.Cluster{ExtId: ptr.To(fd0PEUUID), Config: &clustermgmtconfig.ClusterConfigReference{IsAvailable: ptr.To(false)}},
+			fdObjs: func(fd0, _ *infrav1.NutanixFailureDomain) []*infrav1.NutanixFailureDomain {
+				return []*infrav1.NutanixFailureDomain{fd0}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+			g := NewWithT(t)
+
+			fd0, fd1, fakeClient, nutanixCluster := metroSitePlacementObjects(t, ns, metroName, metroSite, fd0Name, fd1Name, fd0PEUUID, fd1PEUUID, recoveryPID, "cluster-empty-rpj-resolver")
+
+			mockConvergedClient := NewMockConvergedClient(mockCtrl)
+			mockConvergedClient.MockClusters.EXPECT().Get(gomock.Any(), fd0PEUUID).Return(tt.nativePE, tt.nativeGetErr)
+
+			mockV3Client := mocknutanixv3.NewMockService(mockCtrl)
+			mockV3Client.EXPECT().ListRecoveryPlanJobs(gomock.Any(), gomock.Any()).Return(&prismclientv3.RecoveryPlanJobListResponse{}, nil)
+
+			rctx := &nctx.MachineContext{
+				Context:         context.Background(),
+				NutanixClient:   &prismclientv3.Client{V3: mockV3Client},
+				ConvergedClient: mockConvergedClient.Client,
+				NutanixCluster:  nutanixCluster,
+			}
+			fdObjs := []*infrav1.NutanixFailureDomain{fd0, fd1}
+			if tt.fdObjs != nil {
+				fdObjs = tt.fdObjs(fd0, fd1)
+			}
+
+			reconciler := &NutanixMachineReconciler{Client: fakeClient}
+			got, err := reconciler.resolveMetroPlacementFailureDomainFromRecoveryPlanJob(rctx, metroName, fd0, fdObjs)
+			g.Expect(err).ToNot(HaveOccurred())
+			if tt.wantName == "" {
+				g.Expect(got).To(BeNil())
+				return
+			}
+			g.Expect(got).ToNot(BeNil())
+			g.Expect(got.Name).To(Equal(tt.wantName))
+		})
+	}
+}
+
+func metroSitePlacementObjects(
+	t *testing.T,
+	ns, metroName, metroSite, fd0Name, fd1Name, fd0PEUUID, fd1PEUUID, recoveryPID, clusterName string,
+) (*infrav1.NutanixFailureDomain, *infrav1.NutanixFailureDomain, client.Client, *infrav1.NutanixCluster) {
+	t.Helper()
+	g := NewWithT(t)
+
+	scheme := runtime.NewScheme()
+	g.Expect(infrav1.AddToScheme(scheme)).To(Succeed())
+	g.Expect(capiv1beta2.AddToScheme(scheme)).To(Succeed())
+
+	fd0 := &infrav1.NutanixFailureDomain{
+		ObjectMeta: metav1.ObjectMeta{Name: fd0Name, Namespace: ns},
+		Spec: infrav1.NutanixFailureDomainSpec{
+			PrismElementCluster: infrav1.NutanixResourceIdentifier{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(fd0PEUUID)},
+		},
+	}
+	fd1 := &infrav1.NutanixFailureDomain{
+		ObjectMeta: metav1.ObjectMeta{Name: fd1Name, Namespace: ns},
+		Spec: infrav1.NutanixFailureDomainSpec{
+			PrismElementCluster: infrav1.NutanixResourceIdentifier{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(fd1PEUUID)},
+		},
+	}
+	metro := &infrav1.NutanixMetro{
+		ObjectMeta: metav1.ObjectMeta{Name: metroName, Namespace: ns},
+		Spec: infrav1.NutanixMetroSpec{
+			FailureDomains: []corev1.LocalObjectReference{{Name: fd0Name}, {Name: fd1Name}},
+		},
+	}
+	metrositeObj := &infrav1.NutanixMetroSite{
+		ObjectMeta: metav1.ObjectMeta{Name: metroSite, Namespace: ns},
+		Spec: infrav1.NutanixMetroSiteSpec{
+			MetroRef:               corev1.LocalObjectReference{Name: metroName},
+			PreferredFailureDomain: corev1.LocalObjectReference{Name: fd0Name},
+		},
+	}
+	nutanixCluster := &infrav1.NutanixCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: ns, UID: apitypes.UID(clusterName)},
+	}
+	vha := &infrav1.NutanixVirtualHADomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      clusterName + "-vha",
+			Namespace: ns,
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: infrav1.GroupVersion.String(),
+				Kind:       infrav1.NutanixClusterKind,
+				Name:       nutanixCluster.Name,
+				UID:        nutanixCluster.UID,
+			}},
+		},
+		Spec: infrav1.NutanixVirtualHADomainSpec{
+			MetroRef: corev1.LocalObjectReference{Name: metroName},
+			MovementGroups: []infrav1.NutanixMovementGroup{{
+				Name: clusterScopeMovementGroupName,
+				CategoryRecoveryPlans: []infrav1.NutanixCategoryRecoveryPlan{
+					{
+						FailureDomainRef: corev1.LocalObjectReference{Name: fd0Name},
+						RecoveryPlan:     infrav1.NutanixResourceIdentifier{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(recoveryPID)},
+					},
+				},
+			}},
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).
+		WithObjects(fd0, fd1, metro, metrositeObj, nutanixCluster, vha).Build()
+	return fd0, fd1, fakeClient, nutanixCluster
 }
 
 func newRecoveryPlanJobIntentResponse(recoveryPlanUUID, activePEUUID string) *prismclientv3.RecoveryPlanJobIntentResponse {
