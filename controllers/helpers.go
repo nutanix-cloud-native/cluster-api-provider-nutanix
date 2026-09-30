@@ -219,6 +219,16 @@ func GenerateProviderID(uuid string) string {
 	return fmt.Sprintf("%s%s", providerIdPrefix, uuid)
 }
 
+// ensureProviderID sets spec.providerID from vmUUID when the field is empty.
+// Topology can wipe CAPX-assigned spec fields; CAPI will not copy providerID onto the
+// Machine until NutanixMachine.spec.providerID is set.
+func ensureProviderID(nm *infrav1.NutanixMachine, vmUUID string) {
+	if nm == nil || nm.Spec.ProviderID != "" || vmUUID == "" {
+		return
+	}
+	nm.Spec.ProviderID = GenerateProviderID(vmUUID)
+}
+
 // GetVMUUID returns the UUID of the VM.
 func GetVMUUID(machine *capiv1beta2.Machine, nutanixMachine *infrav1.NutanixMachine) (string, error) {
 	// First, try to get the systemUUID from Machine.Status.NodeInfo
