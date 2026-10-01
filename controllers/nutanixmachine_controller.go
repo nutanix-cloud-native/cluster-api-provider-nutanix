@@ -1891,6 +1891,13 @@ func (r *NutanixMachineReconciler) getOrMintVMCreationRequestID(rctx *nctx.Machi
 	// silently defeating the "persist before anything else" guarantee this function exists
 	// to provide.
 	before := rctx.NutanixMachine.DeepCopy()
+	// ensureBootstrapRef sets spec.bootstrapRef in memory before this patch, and that
+	// value is not on the API object yet. client.Patch zeros the local object before
+	// decoding the response, so a field left out of the patch comes back nil.
+	// addGuestCustomizationToVM then panics on bootstrapRef.Kind and the VM is not
+	// created. Drop it from the baseline so this patch stores it and the decoded
+	// object still has it.
+	before.Spec.BootstrapRef = nil
 
 	requestID := uuid.NewString()
 	if rctx.NutanixMachine.Annotations == nil {
@@ -2446,6 +2453,9 @@ func (r *NutanixMachineReconciler) logProfileNicMapping(
 func (r *NutanixMachineReconciler) addGuestCustomizationToDeployParams(rctx *nctx.MachineContext, params *vmmconfig.DeployVmFromVmProfileParams) error {
 	// Get the bootstrapData
 	bootstrapRef := rctx.NutanixMachine.Spec.BootstrapRef
+	if bootstrapRef == nil {
+		return errors.New("NutanixMachine spec.BootstrapRef is nil.")
+	}
 	if bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindSecret {
 		bootstrapData, err := r.getBootstrapData(rctx)
 		if err != nil {
@@ -2536,6 +2546,9 @@ func (r *NutanixMachineReconciler) powerOnVM(rctx *nctx.MachineContext, vmUUID, 
 func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
 	// Get the bootstrapData
 	bootstrapRef := rctx.NutanixMachine.Spec.BootstrapRef
+	if bootstrapRef == nil {
+		return errors.New("NutanixMachine spec.BootstrapRef is nil.")
+	}
 	if bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindSecret {
 		bootstrapData, err := r.getBootstrapData(rctx)
 		if err != nil {

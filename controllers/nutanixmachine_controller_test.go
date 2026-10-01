@@ -3169,6 +3169,60 @@ func TestNutanixMachineReconciler_getOrMintVMCreationRequestID(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, existingRequestID, requestID)
 	})
+
+	t.Run("keeps in-memory bootstrapRef after the request-id patch", func(t *testing.T) {
+		ctx := context.Background()
+		// API object does not have bootstrapRef yet. ensureBootstrapRef sets it
+		// in memory before this patch runs.
+		stored := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+			},
+		}
+		scheme := runtime.NewScheme()
+		require.NoError(t, infrav1.AddToScheme(scheme))
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(stored).Build()
+
+		live := stored.DeepCopy()
+		live.Spec.BootstrapRef = &corev1.ObjectReference{
+			APIVersion: "v1",
+			Kind:       infrav1.NutanixMachineBootstrapRefKindSecret,
+			Name:       "bootstrap-secret",
+			Namespace:  "default",
+		}
+
+		reconciler := &NutanixMachineReconciler{Client: fakeClient}
+		rctx := &nctx.MachineContext{Context: ctx, NutanixMachine: live}
+
+		requestID, err := reconciler.getOrMintVMCreationRequestID(rctx)
+		require.NoError(t, err)
+		require.NotNil(t, live.Spec.BootstrapRef, "in-memory bootstrapRef must survive the patch response")
+		assert.Equal(t, "bootstrap-secret", live.Spec.BootstrapRef.Name)
+		assert.Equal(t, infrav1.NutanixMachineBootstrapRefKindSecret, live.Spec.BootstrapRef.Kind)
+		assert.Equal(t, requestID, live.Annotations[VMCreationRequestIDAnnotation])
+
+		persisted := &infrav1.NutanixMachine{}
+		require.NoError(t, fakeClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "test-machine"}, persisted))
+		require.NotNil(t, persisted.Spec.BootstrapRef)
+		assert.Equal(t, "bootstrap-secret", persisted.Spec.BootstrapRef.Name)
+		assert.Equal(t, requestID, persisted.Annotations[VMCreationRequestIDAnnotation])
+	})
+}
+
+func TestAddGuestCustomizationNilBootstrapRef(t *testing.T) {
+	reconciler := &NutanixMachineReconciler{}
+	rctx := &nctx.MachineContext{
+		Context:        context.Background(),
+		NutanixMachine: &infrav1.NutanixMachine{},
+		Machine:        &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: "test-machine"}},
+	}
+
+	err := reconciler.addGuestCustomizationToVM(rctx, vmmModels.NewVm())
+	require.Error(t, err)
+
+	err = reconciler.addGuestCustomizationToDeployParams(rctx, vmmModels.NewDeployVmFromVmProfileParams())
+	require.Error(t, err)
 }
 
 func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
