@@ -1,0 +1,68 @@
+$kind: http-request
+description: |-
+  B4. Set basicAuthUsername and basicAuthPassword to a user who cannot create VMs, in a separate environment. Expect 403.
+url: '{{baseUrl}}/api/vmm/v4.3/ahv/config/vms'
+method: POST
+order: 1000
+settings:
+  strictSSL: false
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Accept
+    value: 'application/json'
+  - key: NTNX-Request-Id
+    value: '{{REQ_ID}}'
+body:
+  type: json
+  content: |-
+    {
+      "name": "capx-vmm-{{REQ_ID}}",
+      "memorySizeBytes": 4294967296,
+      "numSockets": 2,
+      "numCoresPerSocket": 2,
+      "hardwareClockTimezone": "UTC",
+      "cluster": { "extId": "{{PE_UUID}}" },
+      "nics": [{
+        "nicNetworkInfo": {
+          "$objectType": "vmm.v4.ahv.config.VirtualEthernetNicNetworkInfo",
+          "subnet": { "extId": "{{SUBNET_UUID}}" }
+        }
+      }],
+      "disks": [{
+        "backingInfo": {
+          "$objectType": "vmm.v4.ahv.config.VmDisk",
+          "diskSizeBytes": 21474836480,
+          "dataSource": {
+            "reference": {
+              "$objectType": "vmm.v4.ahv.config.ImageReference",
+              "imageExtId": "{{IMAGE_UUID}}"
+            }
+          }
+        }
+      }]
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const id = pm.variables.replaceIn('{{$guid}}');
+      pm.environment.set('REQ_ID', id);
+      pm.request.headers.upsert({ key: 'NTNX-Request-Id', value: id });
+      const raw = pm.request.body && pm.request.body.raw;
+      if (raw) {
+        const body = JSON.parse(raw);
+        if (body && typeof body === 'object' && !Array.isArray(body)) {
+          body.name = 'capx-vmm-' + id;
+          const next = JSON.stringify(body);
+          pm.request.body.update(next);
+          pm.environment.set('LAST_CREATE_BODY', next);
+        }
+      }
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('manual case recorded', function () {
+        console.log('HTTP', pm.response.code, pm.response.text().slice(0, 800));
+        pm.expect(pm.response.code).to.be.oneOf([200, 202, 400, 401, 403, 404, 409, 429, 500, 503]);
+      });

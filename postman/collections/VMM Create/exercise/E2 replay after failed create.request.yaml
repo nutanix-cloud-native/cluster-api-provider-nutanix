@@ -1,0 +1,73 @@
+$kind: http-request
+description: |-
+  E2. Replay the D2 request id. Expect the same HTTP status and, if a task was returned, the same task UUID.
+url: '{{baseUrl}}/api/vmm/v4.3/ahv/config/vms'
+method: POST
+order: 19000
+settings:
+  strictSSL: false
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Accept
+    value: 'application/json'
+  - key: NTNX-Request-Id
+    value: '{{REQ_ID}}'
+body:
+  type: json
+  content: |-
+    {
+      "name": "capx-vmm-{{REQ_ID}}",
+      "memorySizeBytes": 2199023255552,
+      "numSockets": 256,
+      "numCoresPerSocket": 2,
+      "hardwareClockTimezone": "UTC",
+      "cluster": {
+        "extId": "{{PE_UUID}}"
+      },
+      "nics": [
+        {
+          "nicNetworkInfo": {
+            "$objectType": "vmm.v4.ahv.config.VirtualEthernetNicNetworkInfo",
+            "subnet": {
+              "extId": "{{SUBNET_UUID}}"
+            }
+          }
+        }
+      ],
+      "disks": [
+        {
+          "backingInfo": {
+            "$objectType": "vmm.v4.ahv.config.VmDisk",
+            "diskSizeBytes": 21474836480,
+            "dataSource": {
+              "reference": {
+                "$objectType": "vmm.v4.ahv.config.ImageReference",
+                "imageExtId": "{{IMAGE_UUID}}"
+              }
+            }
+          }
+        }
+      ]
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const id = pm.environment.get('REQ_ID_D2');
+      pm.environment.set('REQ_ID', id);
+      pm.request.headers.upsert({ key: 'NTNX-Request-Id', value: id });
+      const raw = pm.environment.get('LAST_CREATE_BODY_D2');
+      if (raw) pm.request.body.update(raw);
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      let json = {};
+      try { json = pm.response.json(); } catch (e) { json = {}; }
+      pm.test('E2 replay does not start a new create', function () {
+        const first = pm.environment.get('D2_HTTP');
+        pm.expect(String(pm.response.code)).to.eql(first);
+        if (first === '202') {
+          pm.expect(json.data && json.data.extId).to.eql(pm.environment.get('TASK_ID_D2'));
+        }
+      });

@@ -1,0 +1,9 @@
+localResources:
+  collections:
+    - ../vijay/CAPX.postman_collection.json
+    - ../postman/collections/VMM Create
+workspace:
+  id: ""
+resourceNameMappings:
+  specs:
+    - ../postman/specs/vmm-create.openapi.yaml: VMM Create

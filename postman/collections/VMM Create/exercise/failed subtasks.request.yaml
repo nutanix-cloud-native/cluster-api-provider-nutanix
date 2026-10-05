@@ -1,0 +1,22 @@
+$kind: http-request
+description: |-
+  Failed children of the current TASK_ID. This is the text CAPX appends onto a failed Wait.
+url: '{{baseUrl}}/api/prism/v4.4/config/tasks?$filter=parentTask/extId eq ''{{TASK_ID}}'' and status eq Prism.Config.TaskStatus''FAILED'''
+method: GET
+order: 20000
+settings:
+  strictSSL: false
+headers:
+  - key: Accept
+    value: 'application/json'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      let json = {};
+      try { json = pm.response.json(); } catch (e) { json = {}; }
+      pm.test('failed subtask list is readable', function () {
+        pm.response.to.have.status(200);
+      });
+      const rows = Array.isArray(json.data) ? json.data : [];
+      rows.forEach((row) => console.log('subtask', row.operation || row.name, JSON.stringify(row.errorMessages || row.message || '').slice(0, 400)));

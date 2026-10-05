@@ -1,0 +1,14 @@
+$kind: http-request
+description: ""
+url: "{{baseUrl}}/api/vmm/v4.3/ahv/config/vms/:vmExtId"
+method: GET
+headers:
+  Accept: application/json
+pathVariables:
+  - key: vmExtId
+    value: fbef745d-3548-24dd-7570-1da3ec58ab47
+    disabled: false
+    description: "(Required) "
+settings: {}
+examples: ./.resources/Get a VM.resources/examples
+order: 1000

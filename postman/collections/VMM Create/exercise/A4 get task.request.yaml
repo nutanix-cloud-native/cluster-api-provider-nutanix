@@ -1,0 +1,22 @@
+$kind: http-request
+description: |-
+  A4. Read the A1 task again. This is the controller-crash analogue: resume the same task, do not create.
+url: '{{baseUrl}}/api/prism/v4.4/config/tasks/{{TASK_ID}}'
+method: GET
+order: 4000
+settings:
+  strictSSL: false
+headers:
+  - key: Accept
+    value: 'application/json'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      let json = {};
+      try { json = pm.response.json(); } catch (e) { json = {}; }
+      pm.test('A4 task is still the A1 task', function () {
+        pm.response.to.have.status(200);
+        pm.expect(json.data && json.data.extId).to.eql(pm.environment.get('TASK_ID'));
+        pm.expect(json.data && json.data.status).to.be.oneOf(['SUCCEEDED', 'RUNNING', 'QUEUED', 'FAILED']);
+      });

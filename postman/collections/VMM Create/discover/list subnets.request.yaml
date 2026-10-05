@@ -1,0 +1,27 @@
+$kind: http-request
+description: |-
+  Saves the first subnet extId as SUBNET_UUID.
+url: '{{baseUrl}}/api/networking/v4.0/config/subnets'
+method: GET
+order: 2000
+settings:
+  strictSSL: false
+headers:
+  - key: Accept
+    value: 'application/json'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      let json = {};
+      try { json = pm.response.json(); } catch (e) { json = {}; }
+      const rows = Array.isArray(json.data) ? json.data : [];
+      pm.test('subnet list', function () {
+        pm.response.to.have.status(200);
+        pm.expect(rows.length).to.be.above(0);
+      });
+      const row = rows.find((item) => item && item.extId) || {};
+      if (row.extId) {
+        pm.environment.set('SUBNET_UUID', row.extId);
+        console.log('SUBNET_UUID', row.extId, row.name || '');
+      }

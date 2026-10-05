@@ -1,0 +1,3 @@
+$kind: collection
+description: Runnable create cases. A1 creates one VM. Replay rows reuse that request id.
+order: 2000

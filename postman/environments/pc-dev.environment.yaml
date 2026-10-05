@@ -1,0 +1,26 @@
+name: pc-dev
+values:
+  - key: baseUrl
+    value: 'https://pc.dev.nkp.sh:9440'
+    enabled: true
+    type: default
+  - key: basicAuthUsername
+    value: ''
+    enabled: true
+    type: secret
+  - key: basicAuthPassword
+    value: ''
+    enabled: true
+    type: secret
+  - key: PE_UUID
+    value: ''
+    enabled: true
+    type: default
+  - key: SUBNET_UUID
+    value: ''
+    enabled: true
+    type: default
+  - key: IMAGE_UUID
+    value: ''
+    enabled: true
+    type: default

@@ -1,0 +1,61 @@
+$kind: http-request
+description: |-
+  A2. Same NTNX-Request-Id and body as A1. Expect the same task UUID.
+url: '{{baseUrl}}/api/vmm/v4.3/ahv/config/vms'
+method: POST
+order: 5000
+settings:
+  strictSSL: false
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Accept
+    value: 'application/json'
+  - key: NTNX-Request-Id
+    value: '{{REQ_ID}}'
+body:
+  type: json
+  content: |-
+    {
+      "name": "capx-vmm-{{REQ_ID}}",
+      "memorySizeBytes": 4294967296,
+      "numSockets": 2,
+      "numCoresPerSocket": 2,
+      "hardwareClockTimezone": "UTC",
+      "cluster": { "extId": "{{PE_UUID}}" },
+      "nics": [{
+        "nicNetworkInfo": {
+          "$objectType": "vmm.v4.ahv.config.VirtualEthernetNicNetworkInfo",
+          "subnet": { "extId": "{{SUBNET_UUID}}" }
+        }
+      }],
+      "disks": [{
+        "backingInfo": {
+          "$objectType": "vmm.v4.ahv.config.VmDisk",
+          "diskSizeBytes": 21474836480,
+          "dataSource": {
+            "reference": {
+              "$objectType": "vmm.v4.ahv.config.ImageReference",
+              "imageExtId": "{{IMAGE_UUID}}"
+            }
+          }
+        }
+      }]
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const id = pm.environment.get('REQ_ID');
+      pm.request.headers.upsert({ key: 'NTNX-Request-Id', value: id });
+      const raw = pm.environment.get('LAST_CREATE_BODY');
+      if (raw) pm.request.body.update(raw);
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      let json = {};
+      try { json = pm.response.json(); } catch (e) { json = {}; }
+      pm.test('replay returns the same task', function () {
+        pm.response.to.have.status(202);
+        pm.expect(json.data && json.data.extId).to.eql(pm.environment.get('TASK_ID'));
+      });

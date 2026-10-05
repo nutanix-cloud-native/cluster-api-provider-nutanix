@@ -1,0 +1,79 @@
+$kind: http-example
+name: |-
+  Request was not accepted. Expected codes include VMM-30400 (missing
+  NTNX-Request-Id), VMM-30401 (request id is not a UUID), VMM-30102
+  (zero sockets or memory), VMM-30109 (powerState ON on create),
+  VMM-30106 (unknown cluster), VMM-30604 (unknown subnet),
+  VMM-31201 (unknown image), and VMM-10011 / VMM-10012 (retryable).
+request:
+  url: "{{baseUrl}}/api/vmm/v4.3/ahv/config/vms"
+  method: POST
+  headers:
+    - key: Authorization
+      value: Basic <credentials>
+      description: "Added as a part of security scheme: basic"
+    - key: NTNX-Request-Id
+      value: fbef745d-3548-24dd-7570-1da3ec58ab47
+      disabled: false
+      description: UUID v4. Omit it to observe VMM-30400. Replay reuses the same value.
+    - key: Accept
+      value: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "name": "create-vm",
+        "memorySizeBytes": 4294967296,
+        "numSockets": 2,
+        "numCoresPerSocket": 2,
+        "hardwareClockTimezone": "UTC",
+        "cluster": {
+          "extId": "00000000-0000-0000-0000-000000000000"
+        },
+        "nics": [
+          {
+            "nicNetworkInfo": {
+              "$objectType": "vmm.v4.ahv.config.VirtualEthernetNicNetworkInfo",
+              "subnet": {
+                "extId": "00000000-0000-0000-0000-000000000000"
+              }
+            }
+          }
+        ],
+        "disks": [
+          {
+            "backingInfo": {
+              "$objectType": "vmm.v4.ahv.config.VmDisk",
+              "diskSizeBytes": 21474836480,
+              "dataSource": {
+                "reference": {
+                  "$objectType": "vmm.v4.ahv.config.ImageReference",
+                  "imageExtId": "00000000-0000-0000-0000-000000000000"
+                }
+              }
+            }
+          }
+        ]
+      }
+response:
+  statusCode: 400
+  statusText: Bad Request
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "$dataItemDiscriminator": "vmm.v4.error.ErrorResponse",
+        "data": {
+          "error": [
+            {
+              "$objectType": "vmm.v4.error.AppMessage",
+              "code": "VMM-30400",
+              "errorGroup": "VM_MISSING_REQUEST_ID_HEADER",
+              "message": "NTNX-Request-Id header is required"
+            }
+          ]
+        }
+      }
+order: 2000

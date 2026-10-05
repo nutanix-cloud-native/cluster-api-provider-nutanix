@@ -1,0 +1,22 @@
+$kind: http-request
+description: |-
+  A3. GET the VM from A1. Does not create again.
+url: '{{baseUrl}}/api/vmm/v4.3/ahv/config/vms/{{VM_UUID}}'
+method: GET
+order: 3000
+settings:
+  strictSSL: false
+headers:
+  - key: Accept
+    value: 'application/json'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      let json = {};
+      try { json = pm.response.json(); } catch (e) { json = {}; }
+      pm.test('A3 get VM', function () {
+        pm.response.to.have.status(200);
+        pm.expect(json.data && json.data.$objectType).to.eql('vmm.v4.ahv.config.Vm');
+        pm.expect(json.data && json.data.extId).to.eql(pm.environment.get('VM_UUID'));
+      });

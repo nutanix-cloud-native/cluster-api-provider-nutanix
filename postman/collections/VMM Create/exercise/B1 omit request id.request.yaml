@@ -1,0 +1,57 @@
+$kind: http-request
+description: |-
+  B1. No NTNX-Request-Id. Expect 400 VMM-30400.
+url: '{{baseUrl}}/api/vmm/v4.3/ahv/config/vms'
+method: POST
+order: 6000
+settings:
+  strictSSL: false
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Accept
+    value: 'application/json'
+  - key: NTNX-Request-Id
+    value: '{{REQ_ID}}'
+    disabled: true
+body:
+  type: json
+  content: |-
+    {
+      "name": "capx-vmm-{{REQ_ID}}",
+      "memorySizeBytes": 4294967296,
+      "numSockets": 2,
+      "numCoresPerSocket": 2,
+      "hardwareClockTimezone": "UTC",
+      "cluster": { "extId": "{{PE_UUID}}" },
+      "nics": [{
+        "nicNetworkInfo": {
+          "$objectType": "vmm.v4.ahv.config.VirtualEthernetNicNetworkInfo",
+          "subnet": { "extId": "{{SUBNET_UUID}}" }
+        }
+      }],
+      "disks": [{
+        "backingInfo": {
+          "$objectType": "vmm.v4.ahv.config.VmDisk",
+          "diskSizeBytes": 21474836480,
+          "dataSource": {
+            "reference": {
+              "$objectType": "vmm.v4.ahv.config.ImageReference",
+              "imageExtId": "{{IMAGE_UUID}}"
+            }
+          }
+        }
+      }]
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      let json = {};
+      try { json = pm.response.json(); } catch (e) { json = {}; }
+      pm.test('B1 missing request id', function () {
+        pm.response.to.have.status(400);
+        const err = json && json.data && json.data.error;
+        const msg = Array.isArray(err) ? err[0] : err;
+        pm.expect(msg && msg.code, 'error code').to.eql('VMM-30400');
+      });

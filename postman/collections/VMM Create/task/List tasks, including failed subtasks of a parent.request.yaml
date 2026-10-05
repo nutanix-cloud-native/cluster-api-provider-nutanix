@@ -1,0 +1,14 @@
+$kind: http-request
+description: ""
+url: "{{baseUrl}}/api/prism/v4.4/config/tasks?$filter=string"
+method: GET
+headers:
+  Accept: application/json
+queryParams:
+  - key: $filter
+    value: string
+    disabled: false
+    description: OData filter. Failed children use parentTask/extId and status.
+settings: {}
+examples: ./.resources/List tasks, including failed subtasks of a parent.resources/examples
+order: 2000

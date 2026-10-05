@@ -1,0 +1,38 @@
+$kind: http-example
+name: VM. data.$objectType is vmm.v4.ahv.config.Vm.
+request:
+  url: "{{baseUrl}}/api/vmm/v4.3/ahv/config/vms/:vmExtId"
+  method: GET
+  headers:
+    - key: Authorization
+      value: Basic <credentials>
+      description: "Added as a part of security scheme: basic"
+    - key: Accept
+      value: application/json
+  pathVariables:
+    - key: vmExtId
+      value: fbef745d-3548-24dd-7570-1da3ec58ab47
+      disabled: false
+      description: "(Required) "
+  body:
+    type: text
+    content: ""
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "extId": "string",
+          "$objectType": "string",
+          "key_0": false,
+          "key_1": 1244
+        },
+        "key_0": "string",
+        "key_1": false
+      }
+order: 1000

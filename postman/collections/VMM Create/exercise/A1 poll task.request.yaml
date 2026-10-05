@@ -1,0 +1,45 @@
+$kind: http-request
+description: |-
+  A1 continued. Polls the parent task until SUCCEEDED and saves VM_UUID.
+url: '{{baseUrl}}/api/prism/v4.4/config/tasks/{{TASK_ID}}'
+method: GET
+order: 2000
+settings:
+  strictSSL: false
+headers:
+  - key: Accept
+    value: 'application/json'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      const taskId = pm.environment.get('TASK_ID');
+      const base = pm.collectionVariables.get('baseUrl');
+      const user = pm.environment.get('basicAuthUsername');
+      const pass = pm.environment.get('basicAuthPassword');
+      const auth = 'Basic ' + Buffer.from(user + ':' + pass).toString('base64');
+
+      pm.test('A1 task succeeds and names the VM', async function () {
+        pm.expect(taskId, 'TASK_ID from A1').to.be.a('string').and.not.empty;
+        let status = '';
+        let last = {};
+        for (let i = 0; i < 40; i++) {
+          const res = await new Promise((resolve, reject) => {
+            pm.sendRequest({
+              url: base + '/api/prism/v4.4/config/tasks/' + taskId,
+              method: 'GET',
+              header: { Authorization: auth, Accept: 'application/json' }
+            }, (err, response) => (err ? reject(err) : resolve(response)));
+          });
+          last = res.json();
+          status = last && last.data && last.data.status;
+          if (status === 'SUCCEEDED' || status === 'FAILED' || status === 'CANCELED' || status === 'ABORTED') break;
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+        }
+        pm.environment.set('TASK_STATUS', status || '');
+        pm.expect(status, 'parent task status').to.eql('SUCCEEDED');
+        const entities = (last.data && last.data.entitiesAffected) || [];
+        const vm = entities.find((entity) => entity && entity.rel === 'vmm:ahv:config:vm');
+        pm.expect(vm && vm.extId, 'vm extId').to.be.a('string').and.not.empty;
+        pm.environment.set('VM_UUID', vm.extId);
+      });

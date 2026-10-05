@@ -1,0 +1,25 @@
+$kind: collection
+description: |-
+  Prism Central calls used to study VM create for CAPX.
+  Scope is POST /api/vmm/v4.3/ahv/config/vms, the parent task, and Get VM.
+  Error codes are the ones the create exercise expects. Live bodies are saved
+  as Postman examples after a run against Prism Central.
+variables:
+  baseUrl: https://10.116.60.167:9440
+  PE_UUID: ""
+  SUBNET_UUID: ""
+  IMAGE_UUID: ""
+  REQ_ID: ""
+  TASK_ID: ""
+  VM_UUID: ""
+  REQ_ID_C5: ""
+  REQ_ID_D2: ""
+  DENIED_SUBNET_UUID: ""
+  EXHAUSTED_SUBNET_UUID: ""
+auth:
+  - id: e453d2b9-5f3e-448e-a84e-adeebca319ec
+    type: basic
+    name: basic auth
+    credentials:
+      username: "{{basicAuthUsername}}"
+      password: "{{basicAuthPassword}}"

@@ -1,0 +1,3 @@
+$kind: collection
+description: Fill PE_UUID, SUBNET_UUID, and IMAGE_UUID before the exercise pass.
+order: 4000

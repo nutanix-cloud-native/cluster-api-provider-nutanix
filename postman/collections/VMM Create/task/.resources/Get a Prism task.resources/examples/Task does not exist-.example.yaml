@@ -1,0 +1,47 @@
+$kind: http-example
+name: Task does not exist.
+request:
+  url: "{{baseUrl}}/api/prism/v4.4/config/tasks/:taskExtId"
+  method: GET
+  headers:
+    - key: Authorization
+      value: Basic <credentials>
+      description: "Added as a part of security scheme: basic"
+    - key: Accept
+      value: application/json
+  pathVariables:
+    - key: taskExtId
+      value: fbef745d-3548-24dd-7570-1da3ec58ab47
+      disabled: false
+      description: "(Required) "
+  body:
+    type: text
+    content: ""
+response:
+  statusCode: 404
+  statusText: Not Found
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "error": [
+            {
+              "code": "string",
+              "errorGroup": "string",
+              "message": "string",
+              "key_0": false
+            },
+            {
+              "code": "string",
+              "errorGroup": "string",
+              "message": "string"
+            }
+          ],
+          "key_0": 6125.803883187473
+        },
+        "key_0": 20.687640644609928
+      }
+order: 2000

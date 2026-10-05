@@ -1,0 +1,38 @@
+$kind: http-example
+name: Task list.
+request:
+  url: "{{baseUrl}}/api/prism/v4.4/config/tasks?$filter=string"
+  method: GET
+  headers:
+    - key: Authorization
+      value: Basic <credentials>
+      description: "Added as a part of security scheme: basic"
+    - key: Accept
+      value: application/json
+  queryParams:
+    $filter: string
+  body:
+    type: text
+    content: ""
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": [
+          {
+            "key_0": 8375.30384073034,
+            "key_1": "string",
+            "key_2": false,
+            "key_3": 4357.234376948327
+          },
+          {
+            "key_0": 9811.05390470475
+          }
+        ]
+      }
+order: 1000

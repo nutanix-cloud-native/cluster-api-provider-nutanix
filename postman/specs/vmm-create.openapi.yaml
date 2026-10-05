@@ -1,0 +1,318 @@
+openapi: 3.1.0
+info:
+  title: VMM Create
+  version: 0.1.0
+  description: |-
+    Prism Central calls used to study VM create for CAPX.
+    Scope is POST /api/vmm/v4.3/ahv/config/vms, the parent task, and Get VM.
+    Error codes are the ones the create exercise expects. Live bodies are saved
+    as Postman examples after a run against Prism Central.
+servers:
+  - url: https://pc.dev.nkp.sh:9440
+    description: pc-dev
+security:
+  - basicAuth: []
+tags:
+  - name: create
+  - name: task
+  - name: vm
+paths:
+  /api/vmm/v4.3/ahv/config/vms:
+    post:
+      tags: [create]
+      operationId: createVm
+      summary: Create an AHV VM
+      description: |-
+        Accepts the create and returns a task reference. The same NTNX-Request-Id
+        must return that task again and must not create a second VM.
+      parameters:
+        - $ref: '#/components/parameters/NtnxRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VmCreate'
+            examples:
+              happy:
+                summary: Baseline create
+                value:
+                  name: create-vm
+                  memorySizeBytes: 4294967296
+                  numSockets: 2
+                  numCoresPerSocket: 2
+                  hardwareClockTimezone: UTC
+                  cluster:
+                    extId: 00000000-0000-0000-0000-000000000000
+                  nics:
+                    - nicNetworkInfo:
+                        $objectType: vmm.v4.ahv.config.VirtualEthernetNicNetworkInfo
+                        subnet:
+                          extId: 00000000-0000-0000-0000-000000000000
+                  disks:
+                    - backingInfo:
+                        $objectType: vmm.v4.ahv.config.VmDisk
+                        diskSizeBytes: 21474836480
+                        dataSource:
+                          reference:
+                            $objectType: vmm.v4.ahv.config.ImageReference
+                            imageExtId: 00000000-0000-0000-0000-000000000000
+      responses:
+        '202':
+          description: Create accepted. data.extId is the parent task.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskAccepted'
+              examples:
+                accepted:
+                  value:
+                    data:
+                      extId: 11111111-1111-1111-1111-111111111111
+        '400':
+          description: |-
+            Request was not accepted. Expected codes include VMM-30400 (missing
+            NTNX-Request-Id), VMM-30401 (request id is not a UUID), VMM-30102
+            (zero sockets or memory), VMM-30109 (powerState ON on create),
+            VMM-30106 (unknown cluster), VMM-30604 (unknown subnet),
+            VMM-31201 (unknown image), and VMM-10011 / VMM-10012 (retryable).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingRequestId:
+                  value:
+                    $dataItemDiscriminator: vmm.v4.error.ErrorResponse
+                    data:
+                      error:
+                        - $objectType: vmm.v4.error.AppMessage
+                          code: VMM-30400
+                          errorGroup: VM_MISSING_REQUEST_ID_HEADER
+                          message: NTNX-Request-Id header is required
+        '401':
+          description: Missing or rejected credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Caller is not allowed to create a VM.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limited. CAPX treats this as retryable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Prism internal error. CAPX treats this as retryable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Prism unavailable. CAPX treats this as retryable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/prism/v4.4/config/tasks/{taskExtId}:
+    get:
+      tags: [task]
+      operationId: getTask
+      summary: Get a Prism task
+      parameters:
+        - $ref: '#/components/parameters/TaskExtId'
+      responses:
+        '200':
+          description: Parent task. VM UUID is under entitiesAffected when status is SUCCEEDED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: Task does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/prism/v4.4/config/tasks:
+    get:
+      tags: [task]
+      operationId: listTasks
+      summary: List tasks, including failed subtasks of a parent
+      parameters:
+        - name: $filter
+          in: query
+          required: false
+          schema:
+            type: string
+          description: OData filter. Failed children use parentTask/extId and status.
+      responses:
+        '200':
+          description: Task list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskList'
+  /api/vmm/v4.3/ahv/config/vms/{vmExtId}:
+    get:
+      tags: [vm]
+      operationId: getVm
+      summary: Get a VM
+      parameters:
+        - $ref: '#/components/parameters/VmExtId'
+      responses:
+        '200':
+          description: VM. data.$objectType is vmm.v4.ahv.config.Vm.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vm'
+        '404':
+          description: VM is not visible yet, or does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+  parameters:
+    NtnxRequestId:
+      name: NTNX-Request-Id
+      in: header
+      required: false
+      description: UUID v4. Omit it to observe VMM-30400. Replay reuses the same value.
+      schema:
+        type: string
+        format: uuid
+    TaskExtId:
+      name: taskExtId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    VmExtId:
+      name: vmExtId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    VmCreate:
+      type: object
+      additionalProperties: true
+      properties:
+        name:
+          type: string
+        memorySizeBytes:
+          type: integer
+        numSockets:
+          type: integer
+        numCoresPerSocket:
+          type: integer
+        hardwareClockTimezone:
+          type: string
+        powerState:
+          type: string
+          description: ON on create is rejected with VMM-30109.
+        cluster:
+          type: object
+          properties:
+            extId:
+              type: string
+        nics:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        disks:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        gpus:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    TaskAccepted:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            extId:
+              type: string
+    Task:
+      type: object
+      additionalProperties: true
+      properties:
+        data:
+          type: object
+          additionalProperties: true
+          properties:
+            extId:
+              type: string
+            status:
+              type: string
+            entitiesAffected:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+    TaskList:
+      type: object
+      additionalProperties: true
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    Vm:
+      type: object
+      additionalProperties: true
+      properties:
+        data:
+          type: object
+          additionalProperties: true
+          properties:
+            extId:
+              type: string
+            $objectType:
+              type: string
+    ErrorResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        data:
+          type: object
+          additionalProperties: true
+          properties:
+            error:
+              oneOf:
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/AppMessage'
+                - type: object
+                  additionalProperties: true
+    AppMessage:
+      type: object
+      additionalProperties: true
+      properties:
+        code:
+          type: string
+        errorGroup:
+          type: string
+        message:
+          type: string

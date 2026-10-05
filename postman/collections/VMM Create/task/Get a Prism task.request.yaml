@@ -1,0 +1,14 @@
+$kind: http-request
+description: ""
+url: "{{baseUrl}}/api/prism/v4.4/config/tasks/:taskExtId"
+method: GET
+headers:
+  Accept: application/json
+pathVariables:
+  - key: taskExtId
+    value: fbef745d-3548-24dd-7570-1da3ec58ab47
+    disabled: false
+    description: "(Required) "
+settings: {}
+examples: ./.resources/Get a Prism task.resources/examples
+order: 1000

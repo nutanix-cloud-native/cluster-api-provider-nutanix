@@ -1,0 +1,55 @@
+$kind: http-request
+description: |-
+  Accepts the create and returns a task reference. The same NTNX-Request-Id
+  must return that task again and must not create a second VM.
+url: "{{baseUrl}}/api/vmm/v4.3/ahv/config/vms"
+method: POST
+headers:
+  - key: NTNX-Request-Id
+    value: fbef745d-3548-24dd-7570-1da3ec58ab47
+    disabled: false
+    description: UUID v4. Omit it to observe VMM-30400. Replay reuses the same value.
+  - key: Content-Type
+    value: application/json
+  - key: Accept
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "create-vm",
+      "memorySizeBytes": 4294967296,
+      "numSockets": 2,
+      "numCoresPerSocket": 2,
+      "hardwareClockTimezone": "UTC",
+      "cluster": {
+        "extId": "00000000-0000-0000-0000-000000000000"
+      },
+      "nics": [
+        {
+          "nicNetworkInfo": {
+            "$objectType": "vmm.v4.ahv.config.VirtualEthernetNicNetworkInfo",
+            "subnet": {
+              "extId": "00000000-0000-0000-0000-000000000000"
+            }
+          }
+        }
+      ],
+      "disks": [
+        {
+          "backingInfo": {
+            "$objectType": "vmm.v4.ahv.config.VmDisk",
+            "diskSizeBytes": 21474836480,
+            "dataSource": {
+              "reference": {
+                "$objectType": "vmm.v4.ahv.config.ImageReference",
+                "imageExtId": "00000000-0000-0000-0000-000000000000"
+              }
+            }
+          }
+        }
+      ]
+    }
+settings: {}
+examples: ./.resources/Create an AHV VM.resources/examples
+order: 1000

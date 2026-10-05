@@ -1,0 +1,87 @@
+$kind: http-request
+description: |-
+  D7. Sends 30 creates with distinct request ids and prints the status histogram. Can create VMs. Run it on its own.
+url: '{{baseUrl}}/api/vmm/v4.3/ahv/config/vms'
+method: POST
+order: 8000
+settings:
+  strictSSL: false
+headers:
+  - key: Content-Type
+    value: 'application/json'
+  - key: Accept
+    value: 'application/json'
+  - key: NTNX-Request-Id
+    value: '{{REQ_ID}}'
+body:
+  type: json
+  content: |-
+    {
+      "name": "capx-vmm-{{REQ_ID}}",
+      "memorySizeBytes": 4294967296,
+      "numSockets": 2,
+      "numCoresPerSocket": 2,
+      "hardwareClockTimezone": "UTC",
+      "cluster": { "extId": "{{PE_UUID}}" },
+      "nics": [{
+        "nicNetworkInfo": {
+          "$objectType": "vmm.v4.ahv.config.VirtualEthernetNicNetworkInfo",
+          "subnet": { "extId": "{{SUBNET_UUID}}" }
+        }
+      }],
+      "disks": [{
+        "backingInfo": {
+          "$objectType": "vmm.v4.ahv.config.VmDisk",
+          "diskSizeBytes": 21474836480,
+          "dataSource": {
+            "reference": {
+              "$objectType": "vmm.v4.ahv.config.ImageReference",
+              "imageExtId": "{{IMAGE_UUID}}"
+            }
+          }
+        }
+      }]
+    }
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const base = pm.collectionVariables.get('baseUrl');
+      const user = pm.environment.get('basicAuthUsername');
+      const pass = pm.environment.get('basicAuthPassword');
+      const auth = 'Basic ' + Buffer.from(user + ':' + pass).toString('base64');
+      const pe = pm.environment.get('PE_UUID');
+      const subnet = pm.environment.get('SUBNET_UUID');
+      const image = pm.environment.get('IMAGE_UUID');
+      const counts = {};
+      pm.test('D7 burst of 30 creates', async function () {
+        const jobs = [];
+        for (let i = 0; i < 30; i++) {
+          const id = pm.variables.replaceIn('{{$guid}}');
+          const payload = {
+            name: 'capx-vmm-burst-' + id,
+            memorySizeBytes: 4294967296,
+            numSockets: 1,
+            numCoresPerSocket: 1,
+            hardwareClockTimezone: 'UTC',
+            cluster: { extId: pe },
+            nics: [{ nicNetworkInfo: { $objectType: 'vmm.v4.ahv.config.VirtualEthernetNicNetworkInfo', subnet: { extId: subnet } } }],
+            disks: [{ backingInfo: { $objectType: 'vmm.v4.ahv.config.VmDisk', diskSizeBytes: 21474836480, dataSource: { reference: { $objectType: 'vmm.v4.ahv.config.ImageReference', imageExtId: image } } } }]
+          };
+          jobs.push(new Promise((resolve, reject) => {
+            pm.sendRequest({
+              url: base + '/api/vmm/v4.3/ahv/config/vms',
+              method: 'POST',
+              header: { Authorization: auth, Accept: 'application/json', 'Content-Type': 'application/json', 'NTNX-Request-Id': id },
+              body: { mode: 'raw', raw: JSON.stringify(payload) }
+            }, (err, response) => (err ? reject(err) : resolve(response.code)));
+          }));
+        }
+        const codes = await Promise.all(jobs);
+        codes.forEach((code) => { counts[code] = (counts[code] || 0) + 1; });
+        console.log('D7 status counts', JSON.stringify(counts));
+        pm.expect(codes.length).to.eql(30);
+      });
+      if (pm.execution && typeof pm.execution.skipRequest === 'function') {
+        pm.execution.skipRequest();
+      }

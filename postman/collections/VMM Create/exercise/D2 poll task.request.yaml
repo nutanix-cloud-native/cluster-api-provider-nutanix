@@ -1,0 +1,47 @@
+$kind: http-request
+description: |-
+  D2 continued. If create returned 202, poll until FAILED and list the parent text.
+url: '{{baseUrl}}/api/prism/v4.4/config/tasks/{{TASK_ID_D2}}'
+method: GET
+order: 16000
+settings:
+  strictSSL: false
+headers:
+  - key: Accept
+    value: 'application/json'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      const taskId = pm.environment.get('TASK_ID_D2');
+      if (!taskId) {
+        pm.test('D2 did not return a task', function () {
+          pm.expect(pm.environment.get('D2_HTTP')).to.eql('400');
+        });
+      } else {
+        const base = pm.collectionVariables.get('baseUrl');
+        const user = pm.environment.get('basicAuthUsername');
+        const pass = pm.environment.get('basicAuthPassword');
+        const auth = 'Basic ' + Buffer.from(user + ':' + pass).toString('base64');
+        pm.test('D2 task is FAILED', async function () {
+          let status = '';
+          let last = {};
+          for (let i = 0; i < 40; i++) {
+            const res = await new Promise((resolve, reject) => {
+              pm.sendRequest({
+                url: base + '/api/prism/v4.4/config/tasks/' + taskId,
+                method: 'GET',
+                header: { Authorization: auth, Accept: 'application/json' }
+              }, (err, response) => (err ? reject(err) : resolve(response)));
+            });
+            last = res.json();
+            status = last && last.data && last.data.status;
+            if (status === 'SUCCEEDED' || status === 'FAILED' || status === 'CANCELED' || status === 'ABORTED') break;
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+          }
+          pm.environment.set('TASK_STATUS_D2', status || '');
+          const text = JSON.stringify(last);
+          console.log('D2 parent', status, text.slice(0, 1500));
+          pm.expect(status).to.eql('FAILED');
+        });
+      }

@@ -1,0 +1,47 @@
+$kind: http-example
+name: Parent task. VM UUID is under entitiesAffected when status is SUCCEEDED.
+request:
+  url: "{{baseUrl}}/api/prism/v4.4/config/tasks/:taskExtId"
+  method: GET
+  headers:
+    - key: Authorization
+      value: Basic <credentials>
+      description: "Added as a part of security scheme: basic"
+    - key: Accept
+      value: application/json
+  pathVariables:
+    - key: taskExtId
+      value: fbef745d-3548-24dd-7570-1da3ec58ab47
+      disabled: false
+      description: "(Required) "
+  body:
+    type: text
+    content: ""
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "extId": "string",
+          "status": "string",
+          "entitiesAffected": [
+            {
+              "key_0": 8820
+            },
+            {
+              "key_0": false,
+              "key_1": 9196,
+              "key_2": "string",
+              "key_3": 786
+            }
+          ],
+          "key_0": 6205
+        },
+        "key_0": 5676.66825838387
+      }
+order: 1000

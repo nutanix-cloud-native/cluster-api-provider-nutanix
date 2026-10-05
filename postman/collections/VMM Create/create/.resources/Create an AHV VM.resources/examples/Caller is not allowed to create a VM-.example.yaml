@@ -1,0 +1,80 @@
+$kind: http-example
+name: Caller is not allowed to create a VM.
+request:
+  url: "{{baseUrl}}/api/vmm/v4.3/ahv/config/vms"
+  method: POST
+  headers:
+    - key: Authorization
+      value: Basic <credentials>
+      description: "Added as a part of security scheme: basic"
+    - key: NTNX-Request-Id
+      value: fbef745d-3548-24dd-7570-1da3ec58ab47
+      disabled: false
+      description: UUID v4. Omit it to observe VMM-30400. Replay reuses the same value.
+    - key: Accept
+      value: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "name": "create-vm",
+        "memorySizeBytes": 4294967296,
+        "numSockets": 2,
+        "numCoresPerSocket": 2,
+        "hardwareClockTimezone": "UTC",
+        "cluster": {
+          "extId": "00000000-0000-0000-0000-000000000000"
+        },
+        "nics": [
+          {
+            "nicNetworkInfo": {
+              "$objectType": "vmm.v4.ahv.config.VirtualEthernetNicNetworkInfo",
+              "subnet": {
+                "extId": "00000000-0000-0000-0000-000000000000"
+              }
+            }
+          }
+        ],
+        "disks": [
+          {
+            "backingInfo": {
+              "$objectType": "vmm.v4.ahv.config.VmDisk",
+              "diskSizeBytes": 21474836480,
+              "dataSource": {
+                "reference": {
+                  "$objectType": "vmm.v4.ahv.config.ImageReference",
+                  "imageExtId": "00000000-0000-0000-0000-000000000000"
+                }
+              }
+            }
+          }
+        ]
+      }
+response:
+  statusCode: 403
+  statusText: Forbidden
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "error": [
+            {
+              "code": "string",
+              "errorGroup": "string",
+              "message": "string",
+              "key_0": false
+            },
+            {
+              "code": "string",
+              "errorGroup": "string",
+              "message": "string"
+            }
+          ],
+          "key_0": 6125.803883187473
+        },
+        "key_0": 20.687640644609928
+      }
+order: 4000

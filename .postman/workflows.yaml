@@ -1,0 +1,6 @@
+workflows:
+  syncSpecToCollection:
+    - spec: ../postman/specs/vmm-create.openapi.yaml
+      collection: ../postman/collections/VMM Create
+      options:
+        folderStrategy: Tags

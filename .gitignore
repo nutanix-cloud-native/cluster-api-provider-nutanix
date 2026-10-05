@@ -114,6 +114,7 @@ coverage.xml
 # env files that usually contain secrets or local config
 .env
 .envrc
+postman/environments/pc-dev.local.environment.yaml
 
 # local dev files
 clusterctl.yaml
