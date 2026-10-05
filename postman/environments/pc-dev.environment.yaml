@@ -1,7 +1,7 @@
 name: pc-dev
 values:
   - key: baseUrl
-    value: 'https://pc.dev.nkp.sh:9440'
+    value: 'https://10.116.60.127:9440'
     enabled: true
     type: default
   - key: basicAuthUsername

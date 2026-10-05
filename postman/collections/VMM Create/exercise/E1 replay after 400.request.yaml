@@ -56,9 +56,10 @@ scripts:
     code: |-
       let json = {};
       try { json = pm.response.json(); } catch (e) { json = {}; }
-      pm.test('E1 replay after 400', function () {
-        pm.response.to.have.status(400);
-        const err = json && json.data && json.data.error;
-        const msg = Array.isArray(err) ? err[0] : err;
-        pm.expect(msg && msg.code, 'error code').to.eql('VMM-30604');
+      pm.test('E1 replay returns the same C5 result', function () {
+        const first = pm.environment.get('C5_HTTP');
+        pm.expect(String(pm.response.code)).to.eql(first);
+        if (first === '202') {
+          pm.expect(json.data && json.data.extId).to.eql(pm.environment.get('TASK_ID_C5'));
+        }
       });

@@ -46,7 +46,7 @@ scripts:
   - type: beforeRequest
     language: text/javascript
     code: |-
-      const base = pm.collectionVariables.get('baseUrl');
+      const base = pm.variables.get('baseUrl');
       const user = pm.environment.get('basicAuthUsername');
       const pass = pm.environment.get('basicAuthPassword');
       const auth = 'Basic ' + Buffer.from(user + ':' + pass).toString('base64');

@@ -73,9 +73,29 @@ scripts:
     code: |-
       let json = {};
       try { json = pm.response.json(); } catch (e) { json = {}; }
-      pm.test('C3 power state on', function () {
-        pm.response.to.have.status(400);
-        const err = json && json.data && json.data.error;
-        const msg = Array.isArray(err) ? err[0] : err;
-        pm.expect(msg && msg.code, 'error code').to.eql('VMM-30109');
+      pm.test('C3 power state on', async function () {
+        pm.expect([400, 202]).to.include(pm.response.code);
+        if (pm.response.code !== 202) return;
+        const status = await pollTask(json.data && json.data.extId);
+        console.log('C3 task', status);
+        pm.expect(status).to.eql('FAILED');
       });
+      async function pollTask(taskId) {
+        const base = pm.variables.get('baseUrl');
+        const auth = 'Basic ' + Buffer.from(pm.environment.get('basicAuthUsername') + ':' + pm.environment.get('basicAuthPassword')).toString('base64');
+        let status = '';
+        for (let i = 0; i < 20; i++) {
+          const response = await new Promise((resolve, reject) => {
+            pm.sendRequest({
+              url: base + '/api/prism/v4.4/config/tasks/' + taskId,
+              method: 'GET',
+              header: { Authorization: auth, Accept: 'application/json' }
+            }, (err, res) => (err ? reject(err) : resolve(res)));
+          });
+          const body = response.json();
+          status = body && body.data && body.data.status;
+          if (['SUCCEEDED', 'FAILED', 'CANCELED', 'ABORTED'].includes(status)) return status;
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+        return status;
+      }

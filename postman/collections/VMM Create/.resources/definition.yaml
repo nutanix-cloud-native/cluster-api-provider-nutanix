@@ -5,7 +5,7 @@ description: |-
   Error codes are the ones the create exercise expects. Live bodies are saved
   as Postman examples after a run against Prism Central.
 variables:
-  baseUrl: https://10.116.60.167:9440
+  baseUrl: https://10.116.60.127:9440
   PE_UUID: ""
   SUBNET_UUID: ""
   IMAGE_UUID: ""
@@ -16,10 +16,16 @@ variables:
   REQ_ID_D2: ""
   DENIED_SUBNET_UUID: ""
   EXHAUSTED_SUBNET_UUID: ""
-auth:
-  - id: e453d2b9-5f3e-448e-a84e-adeebca319ec
-    type: basic
-    name: basic auth
-    credentials:
-      username: "{{basicAuthUsername}}"
-      password: "{{basicAuthPassword}}"
+scripts:
+  - type: http:beforeRequest
+    language: text/javascript
+    code: |-
+      const hdr = pm.request.headers.get('Authorization') || '';
+      if (hdr.indexOf('bm9ib2R5On') !== -1) return;
+      const user = pm.environment.get('basicAuthUsername');
+      const pass = pm.environment.get('basicAuthPassword');
+      if (!user || !pass) return;
+      pm.request.headers.upsert({
+        key: 'Authorization',
+        value: 'Basic ' + Buffer.from(user + ':' + pass).toString('base64')
+      });

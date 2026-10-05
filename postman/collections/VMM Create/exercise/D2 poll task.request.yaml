@@ -19,7 +19,7 @@ scripts:
           pm.expect(pm.environment.get('D2_HTTP')).to.eql('400');
         });
       } else {
-        const base = pm.collectionVariables.get('baseUrl');
+        const base = pm.variables.get('baseUrl');
         const user = pm.environment.get('basicAuthUsername');
         const pass = pm.environment.get('basicAuthPassword');
         const auth = 'Basic ' + Buffer.from(user + ':' + pass).toString('base64');

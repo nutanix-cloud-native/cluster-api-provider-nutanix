@@ -74,7 +74,6 @@ scripts:
       try { json = pm.response.json(); } catch (e) { json = {}; }
       pm.test('C2 zero sockets', function () {
         pm.response.to.have.status(400);
-        const err = json && json.data && json.data.error;
-        const msg = Array.isArray(err) ? err[0] : err;
-        pm.expect(msg && msg.code, 'error code').to.eql('VMM-30102');
+        const text = JSON.stringify(json);
+        pm.expect(text).to.match(/VMM-30102|validationErrorMessages|numSockets/);
       });

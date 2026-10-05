@@ -1,9 +1,11 @@
 $kind: http-request
 description: |-
   B3. Rejected credentials. Expect 401.
+  This request is first in the folder. The Postman CLI keeps the first
+  Authorization header for later requests in the same run.
 url: '{{baseUrl}}/api/vmm/v4.3/ahv/config/vms'
 method: POST
-order: 8000
+order: 500
 settings:
   strictSSL: false
 headers:
@@ -43,10 +45,7 @@ body:
       }]
     }
 auth:
-  type: basic
-  credentials:
-    username: '{{basicAuthUsername}}'
-    password: 'wrong-password'
+  type: noauth
 scripts:
   - type: beforeRequest
     language: text/javascript
@@ -54,6 +53,11 @@ scripts:
       const id = pm.variables.replaceIn('{{$guid}}');
       pm.environment.set('REQ_ID', id);
       pm.request.headers.upsert({ key: 'NTNX-Request-Id', value: id });
+      pm.request.auth = { type: 'noauth' };
+      pm.request.headers.upsert({
+        key: 'Authorization',
+        value: 'Basic ' + Buffer.from('nobody:wrong-password').toString('base64')
+      });
       const raw = pm.request.body && pm.request.body.raw;
       if (raw) {
         const body = JSON.parse(raw);

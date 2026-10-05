@@ -52,7 +52,7 @@ body:
       "gpus": [
         {
           "$objectType": "vmm.v4.ahv.config.Gpu",
-          "mode": "PASSTHROUGH",
+          "mode": "PASSTHROUGH_COMPUTE",
           "vendor": "NVIDIA",
           "deviceId": 0
         }
