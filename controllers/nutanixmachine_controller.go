@@ -1885,22 +1885,25 @@ func (r *NutanixMachineReconciler) getOrMintVMCreationRequestID(rctx *nctx.Machi
 		return requestID, nil
 	}
 
-	// Snapshot the object *before* mutating it: patchMachine builds its diff baseline from
-	// rctx.NutanixMachine at the time it's called, so if we mutated it first, the baseline
-	// would already contain the new annotation and the resulting patch would be a no-op -
-	// silently defeating the "persist before anything else" guarantee this function exists
-	// to provide.
-	before := rctx.NutanixMachine.DeepCopy()
-
+	// Patch a copy, not rctx.NutanixMachine. The client overwrites the object it is given
+	// with the API server's response, which would discard every change made in memory
+	// earlier in this reconcile that is not persisted yet (the finalizer, spec.bootstrapRef).
+	// Those stay on rctx.NutanixMachine and are persisted by the deferred patch in Reconcile.
 	requestID := uuid.NewString()
+	patched := rctx.NutanixMachine.DeepCopy()
+	if patched.Annotations == nil {
+		patched.Annotations = map[string]string{}
+	}
+	patched.Annotations[VMCreationRequestIDAnnotation] = requestID
+
+	if err := r.Patch(rctx.Context, patched, client.MergeFrom(rctx.NutanixMachine)); err != nil {
+		return "", fmt.Errorf("failed to persist vm creation request id: %w", err)
+	}
+
 	if rctx.NutanixMachine.Annotations == nil {
 		rctx.NutanixMachine.Annotations = map[string]string{}
 	}
 	rctx.NutanixMachine.Annotations[VMCreationRequestIDAnnotation] = requestID
-
-	if err := r.Patch(rctx.Context, rctx.NutanixMachine, client.MergeFrom(before)); err != nil {
-		return "", fmt.Errorf("failed to persist vm creation request id: %w", err)
-	}
 
 	return requestID, nil
 }
@@ -2446,6 +2449,9 @@ func (r *NutanixMachineReconciler) logProfileNicMapping(
 func (r *NutanixMachineReconciler) addGuestCustomizationToDeployParams(rctx *nctx.MachineContext, params *vmmconfig.DeployVmFromVmProfileParams) error {
 	// Get the bootstrapData
 	bootstrapRef := rctx.NutanixMachine.Spec.BootstrapRef
+	if bootstrapRef == nil {
+		return errors.New("NutanixMachine spec.BootstrapRef is nil.")
+	}
 	if bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindSecret {
 		bootstrapData, err := r.getBootstrapData(rctx)
 		if err != nil {
@@ -2536,6 +2542,9 @@ func (r *NutanixMachineReconciler) powerOnVM(rctx *nctx.MachineContext, vmUUID, 
 func (r *NutanixMachineReconciler) addGuestCustomizationToVM(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
 	// Get the bootstrapData
 	bootstrapRef := rctx.NutanixMachine.Spec.BootstrapRef
+	if bootstrapRef == nil {
+		return errors.New("NutanixMachine spec.BootstrapRef is nil.")
+	}
 	if bootstrapRef.Kind == infrav1.NutanixMachineBootstrapRefKindSecret {
 		bootstrapData, err := r.getBootstrapData(rctx)
 		if err != nil {
