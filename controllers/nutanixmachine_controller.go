@@ -1885,29 +1885,25 @@ func (r *NutanixMachineReconciler) getOrMintVMCreationRequestID(rctx *nctx.Machi
 		return requestID, nil
 	}
 
-	// Snapshot the object *before* mutating it: patchMachine builds its diff baseline from
-	// rctx.NutanixMachine at the time it's called, so if we mutated it first, the baseline
-	// would already contain the new annotation and the resulting patch would be a no-op -
-	// silently defeating the "persist before anything else" guarantee this function exists
-	// to provide.
-	before := rctx.NutanixMachine.DeepCopy()
-	// ensureBootstrapRef sets spec.bootstrapRef in memory before this patch, and that
-	// value is not on the API object yet. client.Patch zeros the local object before
-	// decoding the response, so a field left out of the patch comes back nil.
-	// addGuestCustomizationToVM then panics on bootstrapRef.Kind and the VM is not
-	// created. Drop it from the baseline so this patch stores it and the decoded
-	// object still has it.
-	before.Spec.BootstrapRef = nil
-
+	// Patch a copy, not rctx.NutanixMachine. The client overwrites the object it is given
+	// with the API server's response, which would discard every change made in memory
+	// earlier in this reconcile that is not persisted yet (the finalizer, spec.bootstrapRef).
+	// Those stay on rctx.NutanixMachine and are persisted by the deferred patch in Reconcile.
 	requestID := uuid.NewString()
+	patched := rctx.NutanixMachine.DeepCopy()
+	if patched.Annotations == nil {
+		patched.Annotations = map[string]string{}
+	}
+	patched.Annotations[VMCreationRequestIDAnnotation] = requestID
+
+	if err := r.Patch(rctx.Context, patched, client.MergeFrom(rctx.NutanixMachine)); err != nil {
+		return "", fmt.Errorf("failed to persist vm creation request id: %w", err)
+	}
+
 	if rctx.NutanixMachine.Annotations == nil {
 		rctx.NutanixMachine.Annotations = map[string]string{}
 	}
 	rctx.NutanixMachine.Annotations[VMCreationRequestIDAnnotation] = requestID
-
-	if err := r.Patch(rctx.Context, rctx.NutanixMachine, client.MergeFrom(before)); err != nil {
-		return "", fmt.Errorf("failed to persist vm creation request id: %w", err)
-	}
 
 	return requestID, nil
 }

@@ -3115,7 +3115,7 @@ func TestNutanixMachineReconciler_getOrMintVMCreationRequestID(t *testing.T) {
 		mockK8sClient := mockctlclient.NewMockClient(ctrl)
 
 		var appliedPatch []byte
-		mockK8sClient.EXPECT().Patch(ctx, ntnxMachine, gomock.Any()).DoAndReturn(
+		mockK8sClient.EXPECT().Patch(ctx, gomock.AssignableToTypeOf(&infrav1.NutanixMachine{}), gomock.Any()).DoAndReturn(
 			func(_ context.Context, obj client.Object, patch client.Patch, _ ...client.PatchOption) error {
 				data, err := patch.Data(obj)
 				require.NoError(t, err)
@@ -3170,10 +3170,10 @@ func TestNutanixMachineReconciler_getOrMintVMCreationRequestID(t *testing.T) {
 		assert.Equal(t, existingRequestID, requestID)
 	})
 
-	t.Run("keeps in-memory bootstrapRef after the request-id patch", func(t *testing.T) {
+	t.Run("keeps unpersisted in-memory changes across the request-id patch", func(t *testing.T) {
 		ctx := context.Background()
-		// API object does not have bootstrapRef yet. ensureBootstrapRef sets it
-		// in memory before this patch runs.
+		// The API object has neither the finalizer nor bootstrapRef yet. reconcileNormal
+		// and ensureBootstrapRef set them in memory before this patch runs.
 		stored := &infrav1.NutanixMachine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-machine",
@@ -3185,6 +3185,7 @@ func TestNutanixMachineReconciler_getOrMintVMCreationRequestID(t *testing.T) {
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(stored).Build()
 
 		live := stored.DeepCopy()
+		live.Finalizers = []string{infrav1.NutanixMachineFinalizer}
 		live.Spec.BootstrapRef = &corev1.ObjectReference{
 			APIVersion: "v1",
 			Kind:       infrav1.NutanixMachineBootstrapRefKindSecret,
@@ -3199,13 +3200,11 @@ func TestNutanixMachineReconciler_getOrMintVMCreationRequestID(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, live.Spec.BootstrapRef, "in-memory bootstrapRef must survive the patch response")
 		assert.Equal(t, "bootstrap-secret", live.Spec.BootstrapRef.Name)
-		assert.Equal(t, infrav1.NutanixMachineBootstrapRefKindSecret, live.Spec.BootstrapRef.Kind)
+		assert.Equal(t, []string{infrav1.NutanixMachineFinalizer}, live.Finalizers, "in-memory finalizer must survive the patch response")
 		assert.Equal(t, requestID, live.Annotations[VMCreationRequestIDAnnotation])
 
 		persisted := &infrav1.NutanixMachine{}
 		require.NoError(t, fakeClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "test-machine"}, persisted))
-		require.NotNil(t, persisted.Spec.BootstrapRef)
-		assert.Equal(t, "bootstrap-secret", persisted.Spec.BootstrapRef.Name)
 		assert.Equal(t, requestID, persisted.Annotations[VMCreationRequestIDAnnotation])
 	})
 }
