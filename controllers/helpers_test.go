@@ -4248,6 +4248,33 @@ func TestSubnetBelongsToCluster(t *testing.T) {
 	}
 }
 
+func TestEnsureProviderID(t *testing.T) {
+	vmUUID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+
+	t.Run("sets providerID from vmUUID when empty", func(t *testing.T) {
+		nm := &infrav1.NutanixMachine{}
+		ensureProviderID(nm, vmUUID)
+		assert.Equal(t, GenerateProviderID(vmUUID), nm.Spec.ProviderID)
+	})
+
+	t.Run("does not overwrite an existing providerID", func(t *testing.T) {
+		existing := "nutanix://already-set"
+		nm := &infrav1.NutanixMachine{Spec: infrav1.NutanixMachineSpec{ProviderID: existing}}
+		ensureProviderID(nm, vmUUID)
+		assert.Equal(t, existing, nm.Spec.ProviderID)
+	})
+
+	t.Run("no-op when vmUUID is empty", func(t *testing.T) {
+		nm := &infrav1.NutanixMachine{}
+		ensureProviderID(nm, "")
+		assert.Empty(t, nm.Spec.ProviderID)
+	})
+
+	t.Run("no-op when NutanixMachine is nil", func(t *testing.T) {
+		ensureProviderID(nil, vmUUID)
+	})
+}
+
 func TestGetVMUUID(t *testing.T) {
 	validUUID := "550e8400-e29b-41d4-a716-446655440000"
 	invalidUUID := "not-a-valid-uuid"
