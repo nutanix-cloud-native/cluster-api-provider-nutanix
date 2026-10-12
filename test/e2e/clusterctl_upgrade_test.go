@@ -56,7 +56,7 @@ var _ = Describe("clusterctl upgrade CAPX (v1.9.2 => current)", Label("clusterct
 	})
 
 	BeforeEach(func() {
-		os.Setenv("KUBERNETES_VERSION", kubernetesVersion)
+		os.Setenv("KUBERNETES_VERSION", e2eConfig.MustGetVariable("INIT_WITH_KUBERNETES_VERSION"))
 		os.Setenv("NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME", nutanixMachineTemplateImageUpgradeFrom)
 	})
 
@@ -90,12 +90,13 @@ var _ = Describe("clusterctl upgrade CAPX (v1.9.2 => current)", Label("clusterct
 			BootstrapClusterProxy:           bootstrapClusterProxy,
 			ArtifactFolder:                  artifactFolder,
 			SkipCleanup:                     skipCleanup,
-			InitWithBinary:                  "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.12.2/clusterctl-{OS}-{ARCH}",
-			InitWithKubernetesVersion:       kubernetesVersion,
+			InitWithBinary:                  e2eConfig.MustGetVariable("INIT_WITH_BINARY"),
+			InitWithKubernetesVersion:       e2eConfig.MustGetVariable("INIT_WITH_KUBERNETES_VERSION"),
 			InitWithCoreProvider:            "cluster-api:v1.13.1",
 			InitWithBootstrapProviders:      []string{"kubeadm:v1.13.1"},
 			InitWithControlPlaneProviders:   []string{"kubeadm:v1.13.1"},
 			InitWithInfrastructureProviders: []string{"nutanix:v1.9.2"},
+			WorkloadKubernetesVersion:       e2eConfig.MustGetVariable("INIT_WITH_KUBERNETES_VERSION"),
 			PreWaitForCluster:               preWaitForCluster,
 			PostUpgrade:                     postUpgradeFunc,
 		}

@@ -158,6 +158,7 @@ func GetRemoteClient(ctx context.Context, client ctlclient.Client, clusterKey ct
 	if ok {
 		return remoteClient, nil
 	}
+	//nolint:staticcheck // retain the existing remote client cache until its ClusterCache migration
 	remoteClient, err := remote.NewClusterClient(ctx, "remote-cluster-cache", client, clusterKey)
 	if err != nil {
 		return nil, err
