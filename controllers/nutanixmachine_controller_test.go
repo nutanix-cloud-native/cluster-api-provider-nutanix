@@ -21,6 +21,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -6643,4 +6647,290 @@ func ctxWithRequestID() gomock.Matcher {
 	return gomock.Cond(func(c context.Context) bool {
 		return marker != "" && strings.Contains(fmt.Sprint(c), marker)
 	})
+}
+
+func machineCondition(nm *infrav1.NutanixMachine, condType capiv1beta1.ConditionType) *capiv1beta1.Condition {
+	for i := range nm.Status.Conditions {
+		if nm.Status.Conditions[i].Type == condType {
+			return &nm.Status.Conditions[i]
+		}
+	}
+	return nil
+}
+
+// newPrismCredentialInformers stubs the secret informer so Reconcile can build
+// Prism clients without contacting Prism Central.
+func newPrismCredentialInformers(t *testing.T, ctrl *gomock.Controller) (*mockk8sclient.MockSecretInformer, *mockk8sclient.MockConfigMapInformer) {
+	t.Helper()
+	creds := []credentialTypes.Credential{{
+		Type: credentialTypes.BasicAuthCredentialType,
+		Data: []byte(`{"prismCentral":{"username":"user","password":"password"}}`),
+	}}
+	credsMarshal, err := json.Marshal(creds)
+	require.NoError(t, err)
+	secret := &corev1.Secret{Data: map[string][]byte{credentialTypes.KeyName: credsMarshal}}
+
+	secretNamespaceLister := mockk8sclient.NewMockSecretNamespaceLister(ctrl)
+	secretNamespaceLister.EXPECT().Get("test-credential").Return(secret, nil).AnyTimes()
+	secretLister := mockk8sclient.NewMockSecretLister(ctrl)
+	secretLister.EXPECT().Secrets("test-ns").Return(secretNamespaceLister).AnyTimes()
+	secretInformer := mockk8sclient.NewMockSecretInformer(ctrl)
+	secretInformer.EXPECT().Lister().Return(secretLister).AnyTimes()
+
+	return secretInformer, mockk8sclient.NewMockConfigMapInformer(ctrl)
+}
+
+// localPrism serves the session-auth probe that v3 client creation issues, so
+// Reconcile tests can build Prism clients without a real Prism Central.
+func localPrism(t *testing.T) (address string, port int32) {
+	t.Helper()
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/nutanix/v3/users/me" {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+	parsed, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	parsedPort, err := strconv.Atoi(parsed.Port())
+	require.NoError(t, err)
+	return parsed.Hostname(), int32(parsedPort)
+}
+
+func testNutanixCluster(t *testing.T) *infrav1.NutanixCluster {
+	t.Helper()
+	address, port := localPrism(t)
+	return &infrav1.NutanixCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"},
+		Spec: infrav1.NutanixClusterSpec{
+			PrismCentral: &credentialTypes.NutanixPrismEndpoint{
+				Address:  address,
+				Port:     port,
+				Insecure: true,
+				CredentialRef: &credentialTypes.NutanixCredentialReference{
+					Kind:      credentialTypes.SecretKind,
+					Name:      "test-credential",
+					Namespace: "test-ns",
+				},
+			},
+		},
+	}
+}
+
+func TestReconcileSkipsDeferredPatchWhenReconcileReturnsError(t *testing.T) {
+	gctrl := gomock.NewController(t)
+	defer gctrl.Finish()
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, infrav1.AddToScheme(scheme))
+	require.NoError(t, capiv1beta2.AddToScheme(scheme))
+
+	machine := &capiv1beta2.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "machine-a",
+			Namespace: "default",
+			UID:       "machine-uid",
+			Labels:    map[string]string{capiv1beta2.ClusterNameLabel: "test-cluster"},
+		},
+	}
+	cluster := &capiv1beta2.Cluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"},
+		Spec: capiv1beta2.ClusterSpec{
+			InfrastructureRef: capiv1beta2.ContractVersionedObjectReference{Name: "test-cluster"},
+		},
+	}
+	ntnxCluster := testNutanixCluster(t)
+	ntnxMachine := &infrav1.NutanixMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "machine-a",
+			Namespace:         "default",
+			Finalizers:        []string{infrav1.NutanixMachineFinalizer},
+			DeletionTimestamp: &metav1.Time{Time: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)},
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: capiv1beta2.GroupVersion.String(),
+				Kind:       "Machine",
+				Name:       machine.Name,
+				UID:        machine.UID,
+			}},
+		},
+		Status: infrav1.NutanixMachineStatus{VmUUID: "not-a-uuid"},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(machine, cluster, ntnxCluster, ntnxMachine).
+		WithStatusSubresource(ntnxMachine).
+		Build()
+	secretInformer, mapInformer := newPrismCredentialInformers(t, gctrl)
+	reconciler := &NutanixMachineReconciler{
+		Client:            fakeClient,
+		SecretInformer:    secretInformer,
+		ConfigMapInformer: mapInformer,
+	}
+
+	_, err := reconciler.Reconcile(context.Background(), reconcile.Request{
+		NamespacedName: apitypes.NamespacedName{Namespace: ntnxMachine.Namespace, Name: ntnxMachine.Name},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not a valid UUID")
+
+	stored := &infrav1.NutanixMachine{}
+	require.NoError(t, fakeClient.Get(context.Background(), client.ObjectKeyFromObject(ntnxMachine), stored))
+	cond := machineCondition(stored, infrav1.VMProvisionedCondition)
+	if cond != nil {
+		assert.NotEqual(t, string(capiv1beta1.DeletingReason), string(cond.Reason),
+			"delete failure is assigned to err, so the deferred patch must not persist the in-memory Deleting condition")
+	}
+}
+
+func TestReconcilePatchesWhenReconcileSucceeds(t *testing.T) {
+	gctrl := gomock.NewController(t)
+	defer gctrl.Finish()
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, infrav1.AddToScheme(scheme))
+	require.NoError(t, capiv1beta2.AddToScheme(scheme))
+
+	machine := &capiv1beta2.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "machine-a",
+			Namespace: "default",
+			UID:       "machine-uid",
+			Labels:    map[string]string{capiv1beta2.ClusterNameLabel: "test-cluster"},
+		},
+	}
+	cluster := &capiv1beta2.Cluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"},
+		Spec: capiv1beta2.ClusterSpec{
+			InfrastructureRef: capiv1beta2.ContractVersionedObjectReference{Name: "test-cluster"},
+		},
+	}
+	ntnxCluster := testNutanixCluster(t)
+	ntnxMachine := &infrav1.NutanixMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "machine-a",
+			Namespace: "default",
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: capiv1beta2.GroupVersion.String(),
+				Kind:       "Machine",
+				Name:       machine.Name,
+				UID:        machine.UID,
+			}},
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(machine, cluster, ntnxCluster, ntnxMachine).
+		WithStatusSubresource(ntnxMachine).
+		Build()
+	secretInformer, mapInformer := newPrismCredentialInformers(t, gctrl)
+	reconciler := &NutanixMachineReconciler{
+		Client:            fakeClient,
+		SecretInformer:    secretInformer,
+		ConfigMapInformer: mapInformer,
+	}
+
+	_, err := reconciler.Reconcile(context.Background(), reconcile.Request{
+		NamespacedName: apitypes.NamespacedName{Namespace: ntnxMachine.Namespace, Name: ntnxMachine.Name},
+	})
+	require.NoError(t, err)
+
+	stored := &infrav1.NutanixMachine{}
+	require.NoError(t, fakeClient.Get(context.Background(), client.ObjectKeyFromObject(ntnxMachine), stored))
+	assert.Contains(t, stored.Finalizers, infrav1.NutanixMachineFinalizer)
+	cond := machineCondition(stored, infrav1.VMProvisionedCondition)
+	require.NotNil(t, cond)
+	assert.Equal(t, infrav1.ClusterInfrastructureNotReady, string(cond.Reason))
+}
+
+func TestDeployVMFromProfilePersistsProviderID(t *testing.T) {
+	gctrl := gomock.NewController(t)
+	defer gctrl.Finish()
+
+	const (
+		vmName        = "test-vm"
+		vmUUID        = "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+		vmProfileUUID = "a19f0e7a-4a53-4edc-8da7-9f5a48ea8a01"
+		peUUID        = "00056024-f4f2-a6f6-0000-00000000e7f4"
+		clusterName   = "test-cluster"
+	)
+	imageUUID := "c5e4c5e4-c5e4-c5e4-c5e4-c5e4c5e4c5e4"
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(gctrl)
+	projectExtID := "00000000-0000-0000-0000-0000000000aa"
+	profile := vmmModels.NewVmProfile()
+	profile.ExtId = ptr.To(vmProfileUUID)
+	profile.ProjectExtId = &projectExtID
+	mockClient.MockVMProfiles.EXPECT().Get(ctx, vmProfileUUID).Return(profile, nil)
+
+	categoryExtID := "category-ext-id"
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{
+		ExtId: &categoryExtID,
+		Key:   ptr.To(infrav1.DefaultCAPICategoryKeyForName),
+		Value: ptr.To(clusterName),
+	}}, nil).AnyTimes()
+
+	mockClient.MockImages.EXPECT().Get(ctx, imageUUID).Return(&imageModels.Image{ExtId: &imageUUID}, nil)
+	mockClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil)
+
+	createdVM := vmmModels.NewVm()
+	createdVM.Name = ptr.To(vmName)
+	createdVM.ExtId = ptr.To(vmUUID)
+	mockOp := mockconverged.NewMockOperation[vmmModels.Vm](gctrl)
+	mockOp.EXPECT().Wait(ctx).Return([]*vmmModels.Vm{createdVM}, nil)
+	mockClient.MockVMProfiles.EXPECT().DeployVmWithVmProfile(ctx, vmProfileUUID, gomock.Any()).Return(mockOp, nil)
+
+	ntnxMachine := &infrav1.NutanixMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-machine", Namespace: "default"},
+		Spec: infrav1.NutanixMachineSpec{
+			SystemDiskSize: resource.MustParse("40Gi"),
+			Image: &infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierUUID,
+				UUID: ptr.To(imageUUID),
+			},
+			VMProfile: &infrav1.NutanixResourceIdentifier{
+				Type: infrav1.NutanixIdentifierUUID,
+				UUID: ptr.To(vmProfileUUID),
+			},
+			BootstrapRef: &corev1.ObjectReference{Kind: infrav1.NutanixMachineBootstrapRefKindImage},
+		},
+	}
+	scheme := runtime.NewScheme()
+	require.NoError(t, infrav1.AddToScheme(scheme))
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(ntnxMachine).WithStatusSubresource(ntnxMachine).Build()
+
+	rctx := &nctx.MachineContext{
+		Context: ctx,
+		Cluster: &capiv1beta2.Cluster{ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: "default"}},
+		Machine: &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName, Namespace: "default"}},
+		NutanixCluster: &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: "default"},
+			Status: infrav1.NutanixClusterStatus{
+				Conditions: capiv1beta1.Conditions{
+					{Type: infrav1.ClusterCategoryCreatedCondition, Status: corev1.ConditionTrue},
+				},
+			},
+		},
+		NutanixMachine:  ntnxMachine,
+		ConvergedClient: mockClient.Client,
+	}
+	reconciler := &NutanixMachineReconciler{Client: fakeClient}
+
+	vm, err := reconciler.deployVMFromProfile(rctx, vmName, peUUID, nil, &nctx.ProjectInfo{
+		ExtID: &projectExtID,
+		Name:  ptr.To("test-project"),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, vm)
+	assert.Equal(t, fmt.Sprintf("nutanix://%s", vmUUID), ntnxMachine.Spec.ProviderID)
+
+	stored := &infrav1.NutanixMachine{}
+	require.NoError(t, fakeClient.Get(ctx, client.ObjectKeyFromObject(ntnxMachine), stored))
+	assert.Equal(t, vmUUID, stored.Status.VmUUID)
+	assert.Equal(t, fmt.Sprintf("nutanix://%s", vmUUID), stored.Spec.ProviderID)
 }

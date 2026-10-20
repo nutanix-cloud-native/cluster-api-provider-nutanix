@@ -313,13 +313,15 @@ func (r *NutanixMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}()
 
-	// Handle deleted machines
+	// Assign into err, not only the named reterr. The deferred patch above skips
+	// when err is set. A bare return stores the reconcile error in reterr and
+	// leaves err nil, so the defer would still patch after a failure.
 	if !ntxMachine.DeletionTimestamp.IsZero() {
-		return r.reconcileDelete(rctx)
+		res, err = r.reconcileDelete(rctx)
+		return res, err
 	}
-
-	// Handle non-deleted machines
-	return r.reconcileNormal(rctx)
+	res, err = r.reconcileNormal(rctx)
+	return res, err
 }
 
 func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (reconcile.Result, error) {
@@ -2205,9 +2207,17 @@ func (r *NutanixMachineReconciler) deployVMFromProfile(rctx *nctx.MachineContext
 	}
 	log.V(1).Info(fmt.Sprintf("Deployed VM %s from profile. Got the vm UUID: %s, power state: %s", vmName, vmUuid, powerState))
 
-	// set the VM UUID on the nutanix machine as soon as it is available. VM UUID can be used for cleanup in case of failure
+	// Snapshot before assigning providerID. patchMachine diffs against this copy.
+	// Assigning first and then building the helper makes the merge diff empty, so
+	// the UUID never reaches the API and cleanup cannot find the VM if a later
+	// step fails and the deferred patch is skipped.
+	before := rctx.NutanixMachine.DeepCopy()
 	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUuid)
 	rctx.NutanixMachine.Status.VmUUID = vmUuid
+	if err := r.patchMachine(rctx, before); err != nil {
+		log.Error(err, "failed to patch NutanixMachine after setting VmUUID")
+		return nil, err
+	}
 
 	v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
 	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
