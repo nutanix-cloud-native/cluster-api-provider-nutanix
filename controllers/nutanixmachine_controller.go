@@ -2207,10 +2207,7 @@ func (r *NutanixMachineReconciler) deployVMFromProfile(rctx *nctx.MachineContext
 	}
 	log.V(1).Info(fmt.Sprintf("Deployed VM %s from profile. Got the vm UUID: %s, power state: %s", vmName, vmUuid, powerState))
 
-	// Snapshot before assigning providerID. patchMachine diffs against this copy.
-	// Assigning first and then building the helper makes the merge diff empty, so
-	// the UUID never reaches the API and cleanup cannot find the VM if a later
-	// step fails and the deferred patch is skipped.
+	// set the VM UUID on the nutanix machine as soon as it is available. VM UUID can be used for cleanup in case of failure
 	before := rctx.NutanixMachine.DeepCopy()
 	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUuid)
 	rctx.NutanixMachine.Status.VmUUID = vmUuid
