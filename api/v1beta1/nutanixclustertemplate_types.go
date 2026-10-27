@@ -18,6 +18,8 @@ package v1beta1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 )
 
 // NutanixClusterTemplateSpec defines the desired state of NutanixClusterTemplate
@@ -51,5 +53,10 @@ func init() {
 
 // NutanixClusterTemplateResource describes the data needed to create a NutanixCluster from a template.
 type NutanixClusterTemplateResource struct {
+	// Standard object metadata.
+	// Ref: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+	// +optional
+	ObjectMeta capiv1beta1.ObjectMeta `json:"metadata,omitempty"`
+	// Spec is the specification of the desired behavior of the cluster.
 	Spec NutanixClusterSpec `json:"spec"`
 }
