@@ -46,6 +46,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: "${{ github.event.pull_request.head.sha }}"
+          allow-unsafe-pr-checkout: ${{ contains(github.event.pull_request.labels.*.name, 'integration-test') }}
 
       - name: Install devbox
         uses: jetify-com/devbox-install-action@v0.14.0
