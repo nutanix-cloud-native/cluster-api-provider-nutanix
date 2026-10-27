@@ -138,7 +138,7 @@ variables:
   # allowing the same e2e config file to be re-used in different Prow jobs e.g. each one with a K8s version permutation.
   # The following Kubernetes versions should be the latest versions with already published kindest/node images.
   # This avoids building node images in the default case which improves the test duration significantly.
-  KUBERNETES_VERSION_MANAGEMENT: "v1.36.1"
+  KUBERNETES_VERSION_MANAGEMENT: "v1.37.0"
   IP_FAMILY: "IPv4"
   CLUSTERCTL_LOG_LEVEL: 10
   CLUSTER_TOPOLOGY: "true"
@@ -159,18 +159,18 @@ variables:
   IMAGE_LOOKUP_FORMAT: "\"{{.BaseOS}}-kube-v{{.K8sVersion}}.*\""
   NUTANIX_INSECURE: true
   NUTANIX_ADDITIONAL_TRUST_BUNDLE: ""
-  KUBERNETES_VERSION: "v1.36.5"
+  KUBERNETES_VERSION: "v1.37.0"
   NUTANIX_SSH_AUTHORIZED_KEY: "fake-key"
   CONTROL_PLANE_ENDPOINT_IP: ""
   CONTROL_PLANE_ENDPOINT_IP_V124: ""
   CONTROL_PLANE_MACHINE_COUNT: 1
   WORKER_MACHINE_COUNT: 1
   NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ""
-  NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: "rockylinux-9-kube-v1.36.5.qcow2"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: "rockylinux-9-kube-v1.37.0.qcow2"
   CONTROL_PLANE_MACHINE_TEMPLATE_UPGRADE_TO: "cluster-upgrade-conformance"
   WORKERS_MACHINE_TEMPLATE_UPGRADE_TO: "cluster-upgrade-conformance"
-  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_TO: "rockylinux-9-kube-v1.36.5.qcow2"
-  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_FROM: "rockylinux-9-kube-v1.35.3.qcow2"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_TO: "rockylinux-9-kube-v1.37.0.qcow2"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_FROM: "rockylinux-9-kube-v1.36.4.qcow2"
   NUTANIX_SUBNET_NAME: ""
   # NOTE: 'NUTANIX_ADDITIONAL_SUBNET_NAME' is required for multi network interface e2e tests
   NUTANIX_ADDITIONAL_SUBNET_NAME: ""
@@ -185,10 +185,10 @@ variables:
   EXP_CLUSTER_TOPOLOGY: "true"
   EXP_MACHINE_TAINT_PROPAGATION: "true"
   DOCKER_POD_CIDRS: "192.168.0.0/16"
-  KUBERNETES_VERSION_UPGRADE_TO: "v1.36.5"
-  KUBERNETES_VERSION_UPGRADE_FROM: "v1.35.3"
-  ETCD_VERSION_UPGRADE_TO: "3.6.10-0"
-  COREDNS_VERSION_UPGRADE_TO: "v1.14.2"
+  KUBERNETES_VERSION_UPGRADE_TO: "v1.37.0"
+  KUBERNETES_VERSION_UPGRADE_FROM: "v1.36.4"
+  ETCD_VERSION_UPGRADE_TO: "3.7.0-0"
+  COREDNS_VERSION_UPGRADE_TO: "v1.14.6"
   KUBETEST_CONFIGURATION: "./data/kubetest/conformance.yaml"
   # NOTE: Following parameters are required for CSI flavor testing
   WEBHOOK_CA: ""
@@ -212,7 +212,7 @@ variables:
   # the management cluster to be upgraded.
   # NOTE: We test the latest release with a previous contract.
   INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.13.1/clusterctl-{OS}-{ARCH}"
-  INIT_WITH_KUBERNETES_VERSION: "v1.35.3"
+  INIT_WITH_KUBERNETES_VERSION: "v1.36.4"
   # NOTE: Following parameters are required for GPU testing.
   # The '*_NAME' values are AHV *device* names, used for the name/deviceID based
   # GPU tests, and are looked up per Prism Element.

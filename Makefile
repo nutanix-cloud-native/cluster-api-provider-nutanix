@@ -57,7 +57,7 @@ PLATFORMS_E2E ?= linux/amd64,linux/arm64,linux/arm
 KIND_CLUSTER_NAME ?= capi-test
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.36
+ENVTEST_K8S_VERSION = 1.37
 
 #
 # Directories.
