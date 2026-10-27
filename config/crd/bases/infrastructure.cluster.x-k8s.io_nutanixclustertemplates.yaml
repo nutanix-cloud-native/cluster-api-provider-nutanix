@@ -46,8 +46,33 @@ spec:
                 description: NutanixClusterTemplateResource describes the data needed
                   to create a NutanixCluster from a template.
                 properties:
+                  metadata:
+                    description: |-
+                      Standard object metadata.
+                      Ref: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          annotations is an unstructured key value map stored with a resource that may be
+                          set by external tools to store and retrieve arbitrary metadata. They are not
+                          queryable and should be preserved when modifying objects.
+                          More info: http://kubernetes.io/docs/user-guide/annotations
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          labels is a map of string keys and values that can be used to organize and categorize
+                          (scope and select) objects. May match selectors of replication controllers
+                          and services.
+                          More info: http://kubernetes.io/docs/user-guide/labels
+                        type: object
+                    type: object
                   spec:
-                    description: NutanixClusterSpec defines the desired state of NutanixCluster
+                    description: Spec is the specification of the desired behavior
+                      of the cluster.
                     properties:
                       controlPlaneEndpoint:
                         description: |-
