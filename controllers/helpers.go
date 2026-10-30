@@ -357,6 +357,10 @@ func FindVMByName(ctx context.Context, client *v4Converged.Client, vmName string
 		return nil, nil
 	}
 
+	if vms[0].ExtId == nil {
+		return nil, fmt.Errorf("vm with name %s has a nil ExtId", vmName)
+	}
+
 	return FindVMByUUID(ctx, client, *vms[0].ExtId, projectExtID, pcVersion)
 }
 
@@ -1342,6 +1346,12 @@ func GetImageByLookup(
 	project *nctx.ProjectInfo,
 	pcVersion string,
 ) (*imageModels.Image, error) {
+	if imageTemplate == nil || imageLookupBaseOS == nil || k8sVersion == nil {
+		return nil, fmt.Errorf(
+			"image lookup requires non-nil imageTemplate, imageLookupBaseOS, and k8sVersion",
+		)
+	}
+
 	var projectExtID *string
 	if project != nil {
 		projectExtID = project.ExtID
@@ -1374,7 +1384,10 @@ func GetImageByLookup(
 	// we fall back to the legacy (unscoped) lookup behavior.
 	projectAware := isPCVersionHigherThan75(pcVersion) && projectExtID != nil
 
-	re := regexp.MustCompile(templateBytes.String())
+	re, err := regexp.Compile(templateBytes.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile image lookup regex %q: %w", templateBytes.String(), err)
+	}
 	// Partition the regex survivors into images owned by this project versus
 	// images merely shared with it. When not project-aware everything lands in
 	// owned, preserving the legacy behavior.
@@ -2254,6 +2267,7 @@ func getGPUFromProfile(ctx context.Context, client *v4Converged.Client, peUUID s
 }
 
 func GetGPUsForPE(ctx context.Context, client *v4Converged.Client, peUUID string, gpu infrav1.NutanixGPU) ([]*vmmconfig.Gpu, error) {
+	log := ctrl.LoggerFrom(ctx)
 	var filter string
 	var gpus []*vmmconfig.Gpu
 
@@ -2268,18 +2282,31 @@ func GetGPUsForPE(ctx context.Context, client *v4Converged.Client, peUUID string
 		return nil, err
 	}
 	for _, physicalGPU := range physicalGPUs {
-		if physicalGPU.PhysicalGpuConfig.IsInUse != nil && *physicalGPU.PhysicalGpuConfig.IsInUse {
+		cfg := physicalGPU.PhysicalGpuConfig
+		if cfg == nil {
+			log.V(1).Info("skipping physical GPU with nil PhysicalGpuConfig")
+			continue
+		}
+		if cfg.IsInUse != nil && *cfg.IsInUse {
+			continue
+		}
+		if cfg.DeviceId == nil || cfg.VendorName == nil {
+			log.V(1).Info("skipping physical GPU missing deviceId or vendorName")
+			continue
+		}
+		if int64(int(*cfg.DeviceId)) != *cfg.DeviceId {
+			log.V(1).Info(fmt.Sprintf("skipping physical GPU with deviceId %d outside platform int range", *cfg.DeviceId))
 			continue
 		}
 
 		vmGpu := vmmconfig.NewGpu()
-		vmGpu.Name = physicalGPU.PhysicalGpuConfig.DeviceName
-		vmGpu.DeviceId = ptr.To(int(*physicalGPU.PhysicalGpuConfig.DeviceId))
+		vmGpu.Name = cfg.DeviceName
+		vmGpu.DeviceId = ptr.To(int(*cfg.DeviceId))
 		vmGpu.Mode = vmmconfig.GPUMODE_PASSTHROUGH_COMPUTE.Ref()
-		if physicalGPU.PhysicalGpuConfig.Type != nil && *physicalGPU.PhysicalGpuConfig.Type == clusterModels.GPUTYPE_PASSTHROUGH_GRAPHICS {
+		if cfg.Type != nil && *cfg.Type == clusterModels.GPUTYPE_PASSTHROUGH_GRAPHICS {
 			vmGpu.Mode = vmmconfig.GPUMODE_PASSTHROUGH_GRAPHICS.Ref()
 		}
-		vmGpu.Vendor = gpuVendorStringToGpuVendor(*physicalGPU.PhysicalGpuConfig.VendorName)
+		vmGpu.Vendor = gpuVendorStringToGpuVendor(*cfg.VendorName)
 		gpus = append(gpus, vmGpu)
 	}
 
@@ -2294,15 +2321,28 @@ func GetGPUsForPE(ctx context.Context, client *v4Converged.Client, peUUID string
 		return nil, err
 	}
 	for _, virtualGPU := range virtualGPUs {
-		if virtualGPU.VirtualGpuConfig.IsInUse != nil && *virtualGPU.VirtualGpuConfig.IsInUse {
+		cfg := virtualGPU.VirtualGpuConfig
+		if cfg == nil {
+			log.V(1).Info("skipping virtual GPU with nil VirtualGpuConfig")
+			continue
+		}
+		if cfg.IsInUse != nil && *cfg.IsInUse {
+			continue
+		}
+		if cfg.DeviceId == nil || cfg.VendorName == nil {
+			log.V(1).Info("skipping virtual GPU missing deviceId or vendorName")
+			continue
+		}
+		if int64(int(*cfg.DeviceId)) != *cfg.DeviceId {
+			log.V(1).Info(fmt.Sprintf("skipping virtual GPU with deviceId %d outside platform int range", *cfg.DeviceId))
 			continue
 		}
 
 		vmGpu := vmmconfig.NewGpu()
-		vmGpu.Name = virtualGPU.VirtualGpuConfig.DeviceName
-		vmGpu.DeviceId = ptr.To(int(*virtualGPU.VirtualGpuConfig.DeviceId))
+		vmGpu.Name = cfg.DeviceName
+		vmGpu.DeviceId = ptr.To(int(*cfg.DeviceId))
 		vmGpu.Mode = vmmconfig.GPUMODE_VIRTUAL.Ref()
-		vmGpu.Vendor = gpuVendorStringToGpuVendor(*virtualGPU.VirtualGpuConfig.VendorName)
+		vmGpu.Vendor = gpuVendorStringToGpuVendor(*cfg.VendorName)
 		gpus = append(gpus, vmGpu)
 	}
 	return gpus, nil
@@ -2558,6 +2598,10 @@ func detachVolumeGroupsFromVM(ctx context.Context, client *v4Converged.Client, v
 		}
 
 		volumeGroup := disk.GetBackingInfo().(vmmconfig.ADSFVolumeGroupReference)
+		if volumeGroup.VolumeGroupExtId == nil {
+			log.Info(fmt.Sprintf("skipping volume group with nil ExtId on virtual machine %s", vmName))
+			continue
+		}
 		volumeGroupExtId := *volumeGroup.VolumeGroupExtId
 
 		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroupExtId, vmName))
