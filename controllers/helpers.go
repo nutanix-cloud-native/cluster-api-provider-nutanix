@@ -30,6 +30,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	multidomainModels "github.com/nutanix/ntnx-api-golang-clients/multidomain-go-client/v4/models/multidomain/v4/config"
@@ -2287,27 +2288,13 @@ func GetGPUsForPE(ctx context.Context, client *v4Converged.Client, peUUID string
 			log.V(1).Info("skipping physical GPU with nil PhysicalGpuConfig")
 			continue
 		}
-		if cfg.IsInUse != nil && *cfg.IsInUse {
-			continue
-		}
-		if cfg.DeviceId == nil || cfg.VendorName == nil {
-			log.V(1).Info("skipping physical GPU missing deviceId or vendorName")
-			continue
-		}
-		if int64(int(*cfg.DeviceId)) != *cfg.DeviceId {
-			log.V(1).Info(fmt.Sprintf("skipping physical GPU with deviceId %d outside platform int range", *cfg.DeviceId))
-			continue
-		}
-
-		vmGpu := vmmconfig.NewGpu()
-		vmGpu.Name = cfg.DeviceName
-		vmGpu.DeviceId = ptr.To(int(*cfg.DeviceId))
-		vmGpu.Mode = vmmconfig.GPUMODE_PASSTHROUGH_COMPUTE.Ref()
+		mode := vmmconfig.GPUMODE_PASSTHROUGH_COMPUTE.Ref()
 		if cfg.Type != nil && *cfg.Type == clusterModels.GPUTYPE_PASSTHROUGH_GRAPHICS {
-			vmGpu.Mode = vmmconfig.GPUMODE_PASSTHROUGH_GRAPHICS.Ref()
+			mode = vmmconfig.GPUMODE_PASSTHROUGH_GRAPHICS.Ref()
 		}
-		vmGpu.Vendor = gpuVendorStringToGpuVendor(*cfg.VendorName)
-		gpus = append(gpus, vmGpu)
+		if vmGpu := gpuConfigToVMGpu(log, "physical", cfg.DeviceName, cfg.DeviceId, cfg.VendorName, cfg.IsInUse, mode); vmGpu != nil {
+			gpus = append(gpus, vmGpu)
+		}
 	}
 
 	if gpu.Name != nil {
@@ -2326,26 +2313,37 @@ func GetGPUsForPE(ctx context.Context, client *v4Converged.Client, peUUID string
 			log.V(1).Info("skipping virtual GPU with nil VirtualGpuConfig")
 			continue
 		}
-		if cfg.IsInUse != nil && *cfg.IsInUse {
-			continue
+		if vmGpu := gpuConfigToVMGpu(log, "virtual", cfg.DeviceName, cfg.DeviceId, cfg.VendorName, cfg.IsInUse, vmmconfig.GPUMODE_VIRTUAL.Ref()); vmGpu != nil {
+			gpus = append(gpus, vmGpu)
 		}
-		if cfg.DeviceId == nil || cfg.VendorName == nil {
-			log.V(1).Info("skipping virtual GPU missing deviceId or vendorName")
-			continue
-		}
-		if int64(int(*cfg.DeviceId)) != *cfg.DeviceId {
-			log.V(1).Info(fmt.Sprintf("skipping virtual GPU with deviceId %d outside platform int range", *cfg.DeviceId))
-			continue
-		}
-
-		vmGpu := vmmconfig.NewGpu()
-		vmGpu.Name = cfg.DeviceName
-		vmGpu.DeviceId = ptr.To(int(*cfg.DeviceId))
-		vmGpu.Mode = vmmconfig.GPUMODE_VIRTUAL.Ref()
-		vmGpu.Vendor = gpuVendorStringToGpuVendor(*cfg.VendorName)
-		gpus = append(gpus, vmGpu)
 	}
 	return gpus, nil
+}
+
+// gpuConfigToVMGpu builds a *vmmconfig.Gpu from the common fields of a physical
+// or virtual GPU config returned by Prism Central. It returns nil (and logs the
+// reason) when the GPU should be skipped: it is already in use, is missing a
+// deviceId/vendorName, or has a deviceId that does not fit the platform int.
+// kind is used only for log messages ("physical" / "virtual").
+func gpuConfigToVMGpu(log logr.Logger, kind string, deviceName *string, deviceID *int64, vendorName *string, isInUse *bool, mode *vmmconfig.GpuMode) *vmmconfig.Gpu {
+	if isInUse != nil && *isInUse {
+		return nil
+	}
+	if deviceID == nil || vendorName == nil {
+		log.V(1).Info(fmt.Sprintf("skipping %s GPU missing deviceId or vendorName", kind))
+		return nil
+	}
+	if int64(int(*deviceID)) != *deviceID {
+		log.V(1).Info(fmt.Sprintf("skipping %s GPU with deviceId %d outside platform int range", kind, *deviceID))
+		return nil
+	}
+
+	vmGpu := vmmconfig.NewGpu()
+	vmGpu.Name = deviceName
+	vmGpu.DeviceId = ptr.To(int(*deviceID))
+	vmGpu.Mode = mode
+	vmGpu.Vendor = gpuVendorStringToGpuVendor(*vendorName)
+	return vmGpu
 }
 
 func gpuVendorStringToGpuVendor(vendor string) *vmmconfig.GpuVendor {
