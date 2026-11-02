@@ -2480,6 +2480,110 @@ func TestGetOrCreateCategories_DoesNotSetProjectWhenUnscoped(t *testing.T) {
 	assert.Equal(t, createdCategoryExtID, *got[0].ExtId)
 }
 
+func TestExistingCategoryExtID(t *testing.T) {
+	extID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	got, ok, err := existingCategoryExtID(fmt.Errorf("400 InvalidArgument: Operation failed as a category with the provided key and value already exists with extId: %s", extID))
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, extID, got)
+
+	got, ok, err = existingCategoryExtID(errors.New("category with the provided key and value already exists"))
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Empty(t, got)
+
+	_, ok, err = existingCategoryExtID(errors.New("prism unavailable"))
+	require.NoError(t, err)
+	assert.False(t, ok)
+	_, ok, err = existingCategoryExtID(nil)
+	require.NoError(t, err)
+	assert.False(t, ok)
+}
+
+func TestGetOrCreateCategories_CreateAlreadyExists(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+	existingCategoryExtID := "existing-category"
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	// List misses the category (for example a concurrent create). Create then fails
+	// with Prism's already-exists error, which carries the existing extId and no body.
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
+		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
+			assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, *in.Key)
+			assert.Equal(t, "my-cluster", *in.Value)
+			assert.Nil(t, in.ProjectExtId)
+			return nil, fmt.Errorf("400 InvalidArgument: Operation failed as a category with the provided key and value already exists with extId: %s", existingCategoryExtID)
+		},
+	)
+
+	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.NotNil(t, got[0])
+	assert.Equal(t, existingCategoryExtID, *got[0].ExtId)
+	assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, *got[0].Key)
+	assert.Equal(t, "my-cluster", *got[0].Value)
+}
+
+func TestGetOrCreateCategoriesForProject_CreateAlreadyExists(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+	targetProjectExtID := "target-project"
+	existingCategoryExtID := "existing-project-category"
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
+		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
+			require.NotNil(t, in.ProjectExtId)
+			assert.Equal(t, targetProjectExtID, *in.ProjectExtId)
+			return nil, errors.New("400 InvalidArgument: Operation failed as a category with the provided key and value already exists with extId: " + existingCategoryExtID)
+		},
+	)
+
+	got, err := GetOrCreateCategoriesForProject(ctx, mockClient.Client, ids, ptr.To(targetProjectExtID))
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.NotNil(t, got[0])
+	assert.Equal(t, existingCategoryExtID, *got[0].ExtId)
+	assert.Equal(t, targetProjectExtID, *got[0].ProjectExtId)
+}
+
+func TestGetOrCreateCategories_CreateFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(nil, errors.New("prism unavailable"))
+
+	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
+	require.Error(t, err)
+	assert.Empty(t, got)
+	assert.Contains(t, err.Error(), "failed to create category with key")
+	assert.Contains(t, err.Error(), "prism unavailable")
+}
+
 func TestGetPrismReferencesOfCategoryIdentifiersForProject_UsesSharedCategory(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

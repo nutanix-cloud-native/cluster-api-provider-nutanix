@@ -1782,12 +1782,51 @@ func getOrCreateCategoryForProject(
 			ProjectExtId: category.ProjectExtId,
 		})
 		if err != nil {
+			// Prism returns this when the key-value was created between List and Create.
+			// The response has no category body; the existing extId is only in the message:
+			// "400 InvalidArgument: Operation failed as a category with the provided key and value already exists with extId: <extId>"
+			extID, alreadyExists, parseErr := existingCategoryExtID(err)
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			if alreadyExists {
+				log.V(1).Info(fmt.Sprintf("Category with key %s and value %s already exists.", categoryIdentifier.Key, categoryIdentifier.Value))
+				if prismCategory != nil && prismCategory.ExtId != nil {
+					return prismCategory, nil
+				}
+				if extID == "" {
+					return nil, fmt.Errorf("category with key %s and value %s already exists, but the error did not include an extId: %w", categoryIdentifier.Key, categoryIdentifier.Value, err)
+				}
+				category.ExtId = ptr.To(extID)
+				return category, nil
+			}
 			errorMsg := fmt.Errorf("failed to create category with key %s and value %s. error: %w", categoryIdentifier.Key, categoryIdentifier.Value, err)
 			log.Error(errorMsg, "failed to create category")
 			return nil, errorMsg
 		}
 	}
 	return prismCategory, nil
+}
+
+const categoryAlreadyExistsMessage = "category with the provided key and value already exists"
+
+const categoryAlreadyExistsExtIDPattern = `already exists with extId:\s*(\S+)`
+
+// existingCategoryExtID reports whether err is Prism's "category already exists"
+// response and, when present, the extId embedded in that message.
+func existingCategoryExtID(err error) (string, bool, error) {
+	if err == nil || !strings.Contains(err.Error(), categoryAlreadyExistsMessage) {
+		return "", false, nil
+	}
+	re, compileErr := regexp.Compile(categoryAlreadyExistsExtIDPattern)
+	if compileErr != nil {
+		return "", false, fmt.Errorf("failed to compile category already-exists regex: %w", compileErr)
+	}
+	matches := re.FindStringSubmatch(err.Error())
+	if len(matches) < 2 {
+		return "", true, nil
+	}
+	return strings.TrimRight(matches[1], ".,;"), true, nil
 }
 
 func isCategoryUsableForProject(category *prismModels.Category, projectExtID string) bool {
@@ -1857,20 +1896,26 @@ func GetPrismReferencesOfCategoryIdentifiersForProject(
 	return categoryReferences, nil
 }
 
-// Regex for PC version format 202x.xx.xx.xx.
-var pcVersion202xRe = regexp.MustCompile(`^202(\d(\.\d+)+)$`)
+const pcVersion202xPattern = `^202(\d(\.\d+)+)$`
 
-// Regex for PC version format 7.xx.xx.
-var pcVersion7xRe = regexp.MustCompile(`^7((\.\d+)+)$`)
+const pcVersion7xPattern = `^7((\.\d+)+)$`
 
 // is202XPcVersion checks if the version is of the format 202x.xx.xx..
-func is202XPcVersion(version string) bool {
-	return pcVersion202xRe.MatchString(version)
+func is202XPcVersion(version string) (bool, error) {
+	re, err := regexp.Compile(pcVersion202xPattern)
+	if err != nil {
+		return false, fmt.Errorf("failed to compile PC 202x version regex: %w", err)
+	}
+	return re.MatchString(version), nil
 }
 
 // is7XPcVersion checks if the version is of the format 7.xx.xx..
-func is7XPcVersion(version string) bool {
-	return pcVersion7xRe.MatchString(version)
+func is7XPcVersion(version string) (bool, error) {
+	re, err := regexp.Compile(pcVersion7xPattern)
+	if err != nil {
+		return false, fmt.Errorf("failed to compile PC 7.x version regex: %w", err)
+	}
+	return re.MatchString(version), nil
 }
 
 // CleanPCVersion normalizes a Prism Central version string by trimming whitespace,
@@ -1941,19 +1986,37 @@ func CompareVersions(v1, v2 string) int {
 // branch can't be parsed is if the cluster is running master, or some other
 // non-release branch. This is only expected in a test/debug situation and is
 // the motivation for making an unparseable format greater.
-func ComparePCVersions(v1, v2 string) int {
+// A non-nil error means a version-format regex failed to compile.
+func ComparePCVersions(v1, v2 string) (int, error) {
 	cleanV1 := CleanPCVersion(v1)
 	cleanV2 := CleanPCVersion(v2)
 
-	// Special case for comparing PC versions of format 7.xx and 202x.xx.xx
-	if is7XPcVersion(cleanV1) && is202XPcVersion(cleanV2) {
-		return 1
+	v1Is7, err := is7XPcVersion(cleanV1)
+	if err != nil {
+		return 0, err
 	}
-	if is7XPcVersion(cleanV2) && is202XPcVersion(cleanV1) {
-		return -1
+	v2Is202, err := is202XPcVersion(cleanV2)
+	if err != nil {
+		return 0, err
+	}
+	// Special case for comparing PC versions of format 7.xx and 202x.xx.xx
+	if v1Is7 && v2Is202 {
+		return 1, nil
 	}
 
-	return CompareVersions(cleanV1, cleanV2)
+	v2Is7, err := is7XPcVersion(cleanV2)
+	if err != nil {
+		return 0, err
+	}
+	v1Is202, err := is202XPcVersion(cleanV1)
+	if err != nil {
+		return 0, err
+	}
+	if v2Is7 && v1Is202 {
+		return -1, nil
+	}
+
+	return CompareVersions(cleanV1, cleanV2), nil
 }
 
 // isPCVersionHigherThan75 returns true if the PC version is >= 7.6. Version may include a "pc." prefix (e.g. "pc.7.6.0.5").
