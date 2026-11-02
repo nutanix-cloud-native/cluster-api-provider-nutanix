@@ -2097,10 +2097,8 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 		return nil, err
 	}
 
-	if vm.ExtId == nil {
-		errorMsg := fmt.Errorf("created VM %s has a nil ExtId", vmName)
-		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
-		return nil, errorMsg
+	if vm == nil || vm.ExtId == nil {
+		return nil, fmt.Errorf("created VM %s returned a nil VM or ExtId; will retry to adopt it", vmName)
 	}
 	vmUuid := *vm.ExtId
 	powerState := "UNKNOWN"
@@ -2208,10 +2206,8 @@ func (r *NutanixMachineReconciler) deployVMFromProfile(rctx *nctx.MachineContext
 	}
 	vm := vmCreatedList[0]
 
-	if vm.ExtId == nil {
-		errorMsg := fmt.Errorf("VM %s deployed from profile %s has a nil ExtId", vmName, vmProfileUUID)
-		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
-		return nil, errorMsg
+	if vm == nil || vm.ExtId == nil {
+		return nil, fmt.Errorf("VM %s deployed from profile %s returned a nil VM or ExtId; will retry to adopt it", vmName, vmProfileUUID)
 	}
 	vmUuid := *vm.ExtId
 	powerState := "UNKNOWN"
@@ -2240,11 +2236,15 @@ func (r *NutanixMachineReconciler) addCustomAttributes(rctx *nctx.MachineContext
 	log := ctrl.LoggerFrom(ctx)
 	convergedClient := rctx.ConvergedClient
 
-	if vm.ExtId == nil {
-		return fmt.Errorf("cannot add custom attributes: VM %s has a nil ExtId", ptr.Deref(vm.Name, rctx.Machine.Name))
+	machineName := ""
+	if rctx.Machine != nil {
+		machineName = rctx.Machine.Name
 	}
+	vmName := ptr.Deref(vm.Name, machineName)
 
-	vmName := ptr.Deref(vm.Name, rctx.Machine.Name)
+	if vm.ExtId == nil {
+		return fmt.Errorf("cannot add custom attributes: VM %s has a nil ExtId", vmName)
+	}
 
 	if slices.ContainsFunc(vm.CustomAttributes, func(attr string) bool {
 		return strings.HasPrefix(attr, vmCustomAttributePrefix4ProviderID)
@@ -2906,14 +2906,18 @@ func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineCo
 		addresses = append(addresses, getAddressesFromNic(nic)...)
 	}
 
-	vmName := ptr.Deref(vm.Name, rctx.Machine.Name)
+	machineName := ""
+	if rctx.Machine != nil {
+		machineName = rctx.Machine.Name
+	}
+	vmName := ptr.Deref(vm.Name, machineName)
 
 	if len(addresses) == 0 {
 		return fmt.Errorf("unable to determine network interfaces from VM: %s. Retrying", vmName)
 	}
 
 	if vm.Name == nil {
-		return fmt.Errorf("unable to determine hostname from VM %s: nil Name. Retrying", rctx.Machine.Name)
+		return fmt.Errorf("unable to determine hostname from VM %s: nil Name. Retrying", machineName)
 	}
 
 	addresses = append(addresses, capiv1beta1.MachineAddress{
