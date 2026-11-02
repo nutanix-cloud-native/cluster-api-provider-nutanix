@@ -3692,6 +3692,185 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		assert.NotEmpty(t, persisted.Annotations[VMCreationRequestIDAnnotation])
 	})
 
+	t.Run("should return retryable error without failing the machine when created VM has nil ExtId", func(t *testing.T) {
+		// Regression test for the resource-leak guard: if PC creates the VM but the
+		// response carries a nil ExtId, getOrCreateVM must NOT set a terminal failure
+		// status. reconcileNormal skips machines with a failure status, which would
+		// orphan (leak) the VM that already exists in PC. Instead it returns a
+		// retryable error so the next reconcile adopts the VM by name.
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		vmName := "test-vm"
+		peUUID := "00056024-f4f2-a6f6-0000-00000000e7f4"
+		subnetUUID := "b8c6d9f0-4c5e-4c5e-8c5e-4c5e4c5e4c5e"
+		imageUUID := "c5e4c5e4-c5e4-c5e4-c5e4-c5e4c5e4c5e4"
+		clusterName := "test-cluster"
+		projectUUID := "c5e4c5e4-c5e4-c5e4-c5e4-c5e4c5e4cabc"
+		projectName := "test-project"
+
+		ntnxMachine := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+			},
+			Spec: infrav1.NutanixMachineSpec{
+				VCPUSockets:    2,
+				VCPUsPerSocket: 1,
+				MemorySize:     resource.MustParse("4Gi"),
+				SystemDiskSize: resource.MustParse("40Gi"),
+				BootType:       infrav1.NutanixBootTypeLegacy,
+				Project: &infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierName,
+					Name: &projectName,
+				},
+				Image: &infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierUUID,
+					UUID: &imageUUID,
+				},
+				Cluster: infrav1.NutanixResourceIdentifier{
+					Type: infrav1.NutanixIdentifierUUID,
+					UUID: &peUUID,
+				},
+				Subnets: []infrav1.NutanixResourceIdentifier{
+					{
+						Type: infrav1.NutanixIdentifierUUID,
+						UUID: &subnetUUID,
+					},
+				},
+				BootstrapRef: &corev1.ObjectReference{
+					Kind:      infrav1.NutanixMachineBootstrapRefKindSecret,
+					Name:      "bootstrap-secret",
+					Namespace: "default",
+				},
+			},
+		}
+
+		machine := &capiv1beta2.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: vmName,
+			},
+			Spec: capiv1beta2.MachineSpec{
+				Version: "v1.28.0",
+			},
+		}
+
+		cluster := &capiv1beta2.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      clusterName,
+				Namespace: "default",
+			},
+		}
+
+		ntnxCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      clusterName,
+				Namespace: "default",
+			},
+			Status: infrav1.NutanixClusterStatus{
+				Conditions: capiv1beta1.Conditions{
+					{Type: infrav1.ClusterCategoryCreatedCondition, Status: corev1.ConditionTrue},
+				},
+			},
+		}
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockV3Client := mocknutanixv3.NewMockService(ctrl)
+		v3Client := &prismclientv3.Client{V3: mockV3Client}
+
+		// FindVMByName returns empty (VM not found) so creation proceeds.
+		mockConvergedClient.MockVMs.EXPECT().List(ctx, gomock.Any()).Return([]vmmModels.Vm{}, nil)
+
+		mockConvergedClient.MockResourceGroups.EXPECT().ListPrismElements(ctx, "rg-uuid").Return(
+			[]converged.PrismElementInfo{
+				{ExtId: peUUID, Name: "pe_cluster"},
+			}, nil)
+
+		mockConvergedClient.MockSubnets.EXPECT().Get(ctx, subnetUUID).Return(&subnetModels.Subnet{
+			ExtId: &subnetUUID,
+		}, nil)
+
+		categoryExtId := "category-ext-id"
+		createdCategory := &prismModels.Category{
+			ExtId: &categoryExtId,
+			Key:   ptr.To(infrav1.DefaultCAPICategoryKeyForName),
+			Value: ptr.To(clusterName),
+		}
+		gomock.InOrder(
+			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil),
+			mockConvergedClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(createdCategory, nil),
+			mockConvergedClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{*createdCategory}, nil).AnyTimes(),
+		)
+
+		mockConvergedClient.MockImages.EXPECT().Get(ctx, imageUUID).Return(&imageModels.Image{
+			ExtId: &imageUUID,
+		}, nil)
+
+		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil)
+
+		// The VM is created in PC but the response carries a nil ExtId.
+		createdVM := vmmModels.NewVm()
+		createdVM.Name = ptr.To(vmName)
+		createdVM.ExtId = nil
+		mockCreateOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
+		mockCreateOp.EXPECT().Wait(gomock.Any()).Return([]*vmmModels.Vm{createdVM}, nil)
+		mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctxWithRequestID(), gomock.Any()).Return(mockCreateOp, nil)
+
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Cluster:         cluster,
+			Machine:         machine,
+			NutanixMachine:  ntnxMachine,
+			NutanixCluster:  ntnxCluster,
+			NutanixClient:   v3Client,
+			ConvergedClient: mockConvergedClient.Client,
+			PCVersion:       "pc.7.5.0.5",
+		}
+
+		bootstrapSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "bootstrap-secret",
+				Namespace: "default",
+			},
+			Data: map[string][]byte{
+				"value": []byte("#!/bin/bash\necho 'bootstrap'"),
+			},
+		}
+
+		scheme := runtime.NewScheme()
+		_ = infrav1.AddToScheme(scheme)
+		_ = capiv1beta2.AddToScheme(scheme)
+		_ = corev1.AddToScheme(scheme)
+
+		fakeClient := fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(ntnxMachine, bootstrapSecret).
+			WithStatusSubresource(ntnxMachine).
+			Build()
+
+		reconciler := &NutanixMachineReconciler{
+			Client: fakeClient,
+		}
+
+		vm, err := reconciler.getOrCreateVM(rctx, &nctx.ProjectInfo{ExtID: &projectUUID, Name: &projectName}, &projectModels.ResourceGroup{ExtId: ptr.To("rg-uuid")})
+
+		// A nil ExtId must surface as a (retryable) error and no VM.
+		require.Error(t, err)
+		assert.Nil(t, vm)
+		assert.Contains(t, err.Error(), "nil VM or ExtId")
+
+		// Critically, the machine must NOT be marked as terminally failed, otherwise
+		// reconcileNormal would never retry and the created VM would leak in PC.
+		assert.Nil(t, ntnxMachine.Status.FailureReason, "machine must not be marked failed on nil ExtId")
+		assert.Nil(t, ntnxMachine.Status.FailureMessage, "machine must not be marked failed on nil ExtId")
+
+		persisted := &infrav1.NutanixMachine{}
+		require.NoError(t, fakeClient.Get(ctx, client.ObjectKeyFromObject(ntnxMachine), persisted))
+		assert.Nil(t, persisted.Status.FailureReason)
+		assert.Nil(t, persisted.Status.FailureMessage)
+	})
+
 	t.Run("should set failure status when category lookup returns not found", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()

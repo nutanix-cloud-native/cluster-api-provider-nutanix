@@ -3994,15 +3994,17 @@ func TestDetachVolumeGroupsFromVM(t *testing.T) {
 		// Build a disk with volume group reference but nil ExtId
 		disk := vmmModels.NewDisk()
 		ref := vmmModels.NewADSFVolumeGroupReference()
-		ref.VolumeGroupExtId = nil // Nil ExtId should cause panic or error
+		ref.VolumeGroupExtId = nil // Nil ExtId must be skipped, not dereferenced
 		err := disk.SetBackingInfo(*ref)
 		require.NoError(t, err)
 
 		vmDisks := []vmmModels.Disk{*disk}
 
-		// This should panic when trying to dereference nil VolumeGroupExtId
-		assert.Panics(t, func() {
-			_ = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+		// A nil VolumeGroupExtId should be skipped gracefully without panicking
+		// or calling DetachFromVM (no mock expectation is set).
+		assert.NotPanics(t, func() {
+			err := detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+			assert.NoError(t, err)
 		})
 	})
 }

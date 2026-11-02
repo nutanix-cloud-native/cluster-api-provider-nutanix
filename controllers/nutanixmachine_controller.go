@@ -688,6 +688,11 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		log.Error(err, fmt.Sprintf("Failed to create VM %s.", rctx.Machine.Name))
 		return reconcile.Result{}, err
 	}
+	if vm.ExtId == nil {
+		err := fmt.Errorf("VM %s returned from getOrCreateVM has a nil ExtId", rctx.Machine.Name)
+		log.Error(err, "unexpected nil VM UUID")
+		return reconcile.Result{}, err
+	}
 	log.V(1).Info(fmt.Sprintf("Found VM with name: %s, vmUUID: %s", rctx.Machine.Name, *vm.ExtId))
 
 	// API errors are retried on the next loop without blocking VM provisioning progress.
@@ -1932,7 +1937,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 
 	// if VM exists
 	if vmFound != nil {
-		log.Info(fmt.Sprintf("vm %s found with UUID %s", *vmFound.Name, rctx.NutanixMachine.Status.VmUUID))
+		log.Info(fmt.Sprintf("vm %s found with UUID %s", ptr.Deref(vmFound.Name, vmName), rctx.NutanixMachine.Status.VmUUID))
 		markVMProvisioned(rctx)
 		return vmFound, nil
 	}
@@ -2092,6 +2097,9 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 		return nil, err
 	}
 
+	if vm == nil || vm.ExtId == nil {
+		return nil, fmt.Errorf("created VM %s returned a nil VM or ExtId; will retry to adopt it", vmName)
+	}
 	vmUuid := *vm.ExtId
 	powerState := "UNKNOWN"
 	if vm.PowerState != nil {
@@ -2198,6 +2206,9 @@ func (r *NutanixMachineReconciler) deployVMFromProfile(rctx *nctx.MachineContext
 	}
 	vm := vmCreatedList[0]
 
+	if vm == nil || vm.ExtId == nil {
+		return nil, fmt.Errorf("VM %s deployed from profile %s returned a nil VM or ExtId; will retry to adopt it", vmName, vmProfileUUID)
+	}
 	vmUuid := *vm.ExtId
 	powerState := "UNKNOWN"
 	if vm.PowerState != nil {
@@ -2225,7 +2236,15 @@ func (r *NutanixMachineReconciler) addCustomAttributes(rctx *nctx.MachineContext
 	log := ctrl.LoggerFrom(ctx)
 	convergedClient := rctx.ConvergedClient
 
-	vmName := *vm.Name
+	machineName := ""
+	if rctx.Machine != nil {
+		machineName = rctx.Machine.Name
+	}
+	vmName := ptr.Deref(vm.Name, machineName)
+
+	if vm.ExtId == nil {
+		return fmt.Errorf("cannot add custom attributes: VM %s has a nil ExtId", vmName)
+	}
 
 	if slices.ContainsFunc(vm.CustomAttributes, func(attr string) bool {
 		return strings.HasPrefix(attr, vmCustomAttributePrefix4ProviderID)
@@ -2887,8 +2906,18 @@ func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineCo
 		addresses = append(addresses, getAddressesFromNic(nic)...)
 	}
 
+	machineName := ""
+	if rctx.Machine != nil {
+		machineName = rctx.Machine.Name
+	}
+	vmName := ptr.Deref(vm.Name, machineName)
+
 	if len(addresses) == 0 {
-		return fmt.Errorf("unable to determine network interfaces from VM: %s. Retrying", *vm.Name)
+		return fmt.Errorf("unable to determine network interfaces from VM: %s. Retrying", vmName)
+	}
+
+	if vm.Name == nil {
+		return fmt.Errorf("unable to determine hostname from VM %s: nil Name. Retrying", machineName)
 	}
 
 	addresses = append(addresses, capiv1beta1.MachineAddress{
