@@ -13,17 +13,26 @@ images:
     loadBehavior: mustLoad
   # ## PLEASE KEEP THESE UP TO DATE WITH THE COMPONENTS
   # Cluster API v1beta1 Preloads
-  - name: registry.k8s.io/cluster-api/cluster-api-controller:v1.13.1
+  - name: registry.k8s.io/cluster-api/cluster-api-controller:v1.14.3
     loadBehavior: tryLoad
-  - name: registry.k8s.io/cluster-api/kubeadm-bootstrap-controller:v1.13.1
+  - name: registry.k8s.io/cluster-api/kubeadm-bootstrap-controller:v1.14.3
     loadBehavior: tryLoad
-  - name: registry.k8s.io/cluster-api/kubeadm-control-plane-controller:v1.13.1
+  - name: registry.k8s.io/cluster-api/kubeadm-control-plane-controller:v1.14.3
     loadBehavior: tryLoad
 
 providers:
   - name: cluster-api
     type: CoreProvider
     versions:
+      - name: v1.14.3
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.14.3/core-components.yaml"
+        type: "url"
+        contract: v1beta1
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
       - name: v1.13.1
         # Use manifest from source files
         value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.13.1/core-components.yaml"
@@ -37,6 +46,15 @@ providers:
   - name: kubeadm
     type: BootstrapProvider
     versions:
+      - name: v1.14.3
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.14.3/bootstrap-components.yaml"
+        type: "url"
+        contract: v1beta1
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
       - name: v1.13.1
         # Use manifest from source files
         value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.13.1/bootstrap-components.yaml"
@@ -50,6 +68,15 @@ providers:
   - name: kubeadm
     type: ControlPlaneProvider
     versions:
+      - name: v1.14.3
+        value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.14.3/control-plane-components.yaml"
+        type: "url"
+        contract: v1beta1
+        files:
+          - sourcePath: "../data/shared/metadata.yaml"
+        replacements:
+          - old: "imagePullPolicy: Always"
+            new: "imagePullPolicy: IfNotPresent"
       - name: v1.13.1
         # Use manifest from source files
         value: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.13.1/control-plane-components.yaml"
@@ -86,8 +113,11 @@ providers:
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-secret.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-nutanix-cluster.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-additional-categories.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-vmprofile.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-nmt.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-no-nmt-project-scoped-user.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-project.yaml"
+          - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-project-scoped-user.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-upgrades.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-md-remediation.yaml"
           - sourcePath: "../data/infrastructure-nutanix/v1beta1/cluster-template-md-taints.yaml"
@@ -108,7 +138,7 @@ variables:
   # allowing the same e2e config file to be re-used in different Prow jobs e.g. each one with a K8s version permutation.
   # The following Kubernetes versions should be the latest versions with already published kindest/node images.
   # This avoids building node images in the default case which improves the test duration significantly.
-  KUBERNETES_VERSION_MANAGEMENT: "v1.35.0"
+  KUBERNETES_VERSION_MANAGEMENT: "v1.37.0"
   IP_FAMILY: "IPv4"
   CLUSTERCTL_LOG_LEVEL: 10
   CLUSTER_TOPOLOGY: "true"
@@ -120,23 +150,27 @@ variables:
   NUTANIX_USER: ""
   NUTANIX_PASSWORD: ""
   NUTANIX_API_KEY: ""
+  # NOTE: 'NUTANIX_PROJECT_SCOPE_USER'/'NUTANIX_PROJECT_SCOPE_PASSWORD' are required for the
+  # project-scoped-user e2e tests; this user is restricted to NUTANIX_PROJECT_NAME.
+  NUTANIX_PROJECT_SCOPE_USER: ""
+  NUTANIX_PROJECT_SCOPE_PASSWORD: ""
   NUTANIX_PORT: "9440"
   IMAGE_LOOKUP_BASE_OS: "rockylinux-9"
   IMAGE_LOOKUP_FORMAT: "\"{{.BaseOS}}-kube-v{{.K8sVersion}}.*\""
   NUTANIX_INSECURE: true
   NUTANIX_ADDITIONAL_TRUST_BUNDLE: ""
-  KUBERNETES_VERSION: "v1.35.3"
+  KUBERNETES_VERSION: "v1.37.0"
   NUTANIX_SSH_AUTHORIZED_KEY: "fake-key"
   CONTROL_PLANE_ENDPOINT_IP: ""
   CONTROL_PLANE_ENDPOINT_IP_V124: ""
   CONTROL_PLANE_MACHINE_COUNT: 1
   WORKER_MACHINE_COUNT: 1
   NUTANIX_PRISM_ELEMENT_CLUSTER_NAME: ""
-  NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: "rockylinux-9-kube-v1.35.3.qcow2"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME: "rockylinux-9-kube-v1.37.0.qcow2"
   CONTROL_PLANE_MACHINE_TEMPLATE_UPGRADE_TO: "cluster-upgrade-conformance"
   WORKERS_MACHINE_TEMPLATE_UPGRADE_TO: "cluster-upgrade-conformance"
-  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_TO: "rockylinux-9-kube-v1.35.3.qcow2"
-  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_FROM: "rockylinux-9-kube-v1.34.0.qcow2"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_TO: "rockylinux-9-kube-v1.37.0.qcow2"
+  NUTANIX_MACHINE_TEMPLATE_IMAGE_UPGRADE_FROM: "rockylinux-9-kube-v1.36.4.qcow2"
   NUTANIX_SUBNET_NAME: ""
   # NOTE: 'NUTANIX_ADDITIONAL_SUBNET_NAME' is required for multi network interface e2e tests
   NUTANIX_ADDITIONAL_SUBNET_NAME: ""
@@ -151,10 +185,10 @@ variables:
   EXP_CLUSTER_TOPOLOGY: "true"
   EXP_MACHINE_TAINT_PROPAGATION: "true"
   DOCKER_POD_CIDRS: "192.168.0.0/16"
-  KUBERNETES_VERSION_UPGRADE_TO: "v1.35.3"
-  KUBERNETES_VERSION_UPGRADE_FROM: "v1.34.0"
-  ETCD_VERSION_UPGRADE_TO: "3.6.10-0"
-  COREDNS_VERSION_UPGRADE_TO: "v1.14.2"
+  KUBERNETES_VERSION_UPGRADE_TO: "v1.37.0"
+  KUBERNETES_VERSION_UPGRADE_FROM: "v1.36.4"
+  ETCD_VERSION_UPGRADE_TO: "3.7.0-0"
+  COREDNS_VERSION_UPGRADE_TO: "v1.14.6"
   KUBETEST_CONFIGURATION: "./data/kubetest/conformance.yaml"
   # NOTE: Following parameters are required for CSI flavor testing
   WEBHOOK_CA: ""
@@ -178,15 +212,24 @@ variables:
   # the management cluster to be upgraded.
   # NOTE: We test the latest release with a previous contract.
   INIT_WITH_BINARY: "https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.13.1/clusterctl-{OS}-{ARCH}"
-  INIT_WITH_KUBERNETES_VERSION: "v1.35.3"
-  # NOTE: Following parameters are required for GPU testing
+  INIT_WITH_KUBERNETES_VERSION: "v1.36.4"
+  # NOTE: Following parameters are required for GPU testing.
+  # The '*_NAME' values are AHV *device* names, used for the name/deviceID based
+  # GPU tests, and are looked up per Prism Element.
   NUTANIX_GPU_PASSTHROUGH_VENDOR: "NVIDIA"
   NUTANIX_GPU_PASSTHROUGH_NAME: "Ampere 40"
   NUTANIX_GPU_VIRTUAL_VENDOR: "NVIDIA"
   NUTANIX_GPU_VIRTUAL_NAME: "NVIDIA A40-1Q"
+  # The '*_PROFILE_NAME' values are AHV *GPU profile* names, a distinct namespace
+  # from the device names above; they are resolved via the named GPU profile APIs
+  # and are only supported on PC 7.6 or later.
+  NUTANIX_GPU_PHYSICAL_PROFILE_NAME: "NVIDIA Corporation GA102GL [A40]"
+  NUTANIX_GPU_VIRTUAL_PROFILE_NAME: "NVIDIA A40-1B"
+  # NOTE: Following parameter is required for VMProfile testing
+  NUTANIX_VM_PROFILE_NAME: ""
   # NOTE: Following parameters are required for Autoscaler testing
   AUTOSCALER_WORKLOAD: "./data/infrastructure-nutanix/v1beta1/autoscaler-to-management-cluster.yaml"
-  AUTOSCALER_VERSION: "v1.35.0"
+  AUTOSCALER_VERSION: "v1.36.1"
 
 intervals:
   default/wait-controllers: ["3m", "10s"]

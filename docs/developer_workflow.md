@@ -89,7 +89,7 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
     export NUTANIX_PORT='9440'
     
     
-    export KUBERNETES_VERSION="v1.33.0"
+    export KUBERNETES_VERSION="v1.37.0"
     export NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME="image-name-on-prism-central"
     
     export NUTANIX_SSH_AUTHORIZED_KEY='your-ssh-key'
@@ -244,7 +244,7 @@ This will configure [kubectl](https://kubernetes.io/docs/reference/kubectl/) for
     export NUTANIX_PORT='9440'
     
     
-    export KUBERNETES_VERSION="v1.33.0"
+    export KUBERNETES_VERSION="v1.37.0"
     export NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME="image-name-on-prism-central"
     
     export NUTANIX_SSH_AUTHORIZED_KEY='your-ssh-key'

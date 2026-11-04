@@ -200,7 +200,7 @@ data:
               key: node.kubernetes.io/not-ready
               operator: Exists
           containers:
-            - image: "${CCM_REPO=ghcr.io/nutanix-cloud-native/cloud-provider-nutanix/controller}:${CCM_TAG=0.7.0-alpha.1}"
+            - image: "${CCM_REPO=ghcr.io/nutanix-cloud-native/cloud-provider-nutanix/controller}:${CCM_TAG=0.8.0-dev.1}"
               imagePullPolicy: IfNotPresent
               name: nutanix-cloud-controller-manager
               env:
@@ -653,7 +653,7 @@ metadata:
 spec:
   template:
     spec:
-      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=legacy}
+      bootType: ${NUTANIX_MACHINE_BOOT_TYPE=uefi}
       image:
         name: ${NUTANIX_MACHINE_TEMPLATE_IMAGE_NAME:=placeholder-image}
         type: name

@@ -20,6 +20,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -27,13 +28,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
+	"sigs.k8s.io/cluster-api/util"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
 const (
-	defaultNonExistingAdditionalCategoryKey   = "nonExistingCategoryKeyCAPX"
-	defaultNonExistingAdditionalCategoryValue = "nonExistingCategoryValueCAPX"
+	nonExistingAdditionalCategoryKeyPrefix   = "nonExistingCategoryKeyCAPX"
+	nonExistingAdditionalCategoryValuePrefix = "nonExistingCategoryValueCAPX"
 )
 
 var _ = Describe("Nutanix categories", Label("nutanix-feature-test", "categories"), func() {
@@ -137,12 +139,19 @@ var _ = Describe("Nutanix categories", Label("nutanix-feature-test", "categories
 		flavor = "no-nmt"
 		Expect(namespace).NotTo(BeNil())
 
+		// Generate a unique key/value per test run so the category is guaranteed
+		// not to exist on the shared test Prism Central. Using a hard-coded
+		// constant has historically allowed orphaned categories on the PC to
+		// satisfy the lookup, masking the failure path under test.
+		nonExistingKey := fmt.Sprintf("%s-%s", nonExistingAdditionalCategoryKeyPrefix, util.RandomString(8))
+		nonExistingValue := fmt.Sprintf("%s-%s", nonExistingAdditionalCategoryValuePrefix, util.RandomString(8))
+
 		By("Creating Nutanix Machine Template with invalid categories", func() {
 			invalidProjectNMT := testHelper.createDefaultNMT(clusterName, namespace.Name)
 			invalidProjectNMT.Spec.Template.Spec.AdditionalCategories = []infrav1.NutanixCategoryIdentifier{
 				{
-					Key:   defaultNonExistingAdditionalCategoryKey,
-					Value: defaultNonExistingAdditionalCategoryValue,
+					Key:   nonExistingKey,
+					Value: nonExistingValue,
 				},
 			}
 			testHelper.createCapiObject(ctx, createCapiObjectParams{

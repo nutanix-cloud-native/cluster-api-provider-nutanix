@@ -157,10 +157,10 @@ var _ = Describe("Migrating nutanix failure domains", Label("capx-feature-test",
 
 		By("Verifying if validated failure domains condition is set on cluster", func() {
 			testHelper.verifyConditionOnNutanixCluster(verifyConditionParams{
-				bootstrapClusterProxy,
-				clusterName,
-				namespace,
-				capiv1beta1.Condition{
+				bootstrapClusterProxy: bootstrapClusterProxy,
+				clusterName:           clusterName,
+				namespace:             namespace,
+				expectedCondition: capiv1beta1.Condition{
 					Type:   infrav1.FailureDomainsValidatedCondition,
 					Status: corev1.ConditionTrue,
 				},

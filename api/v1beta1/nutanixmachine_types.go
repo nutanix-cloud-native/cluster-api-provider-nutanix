@@ -99,6 +99,10 @@ type NutanixImageLookup struct {
 // NutanixMachineSpec defines the desired state of NutanixMachine
 // +kubebuilder:validation:XValidation:rule="has(self.image) != has(self.imageLookup)",message="Either 'image' or 'imageLookup' must be set, but not both"
 // +kubebuilder:validation:XValidation:rule="has(self.subnet) && size(self.subnet) > 1 ? self.subnet.all(x, self.subnet.exists_one(y, x == y)) : true",message="each subnet must be unique"
+// NOTE: For non-pointer scalar fields (e.g. int32/string aliases), CEL has(...) can
+// evaluate as present due zero-value decoding in CRDs. Use value checks instead.
+// +kubebuilder:validation:XValidation:rule="has(self.vmProfile) ? ((!has(self.vcpusPerSocket) || self.vcpusPerSocket == 0) && (!has(self.vcpuSockets) || self.vcpuSockets == 0) && (!has(self.memorySize) || self.memorySize == \"\" || self.memorySize == \"0\") && (!has(self.bootType) || self.bootType == \"\") && (!has(self.gpus) || size(self.gpus) == 0) && (!has(self.dataDisks) || size(self.dataDisks) == 0)) : true",message="When 'vmProfile' is set, 'vcpusPerSocket', 'vcpuSockets', 'memorySize', 'bootType', 'gpus', and 'dataDisks' must not be set"
+// +kubebuilder:validation:XValidation:rule="!has(self.vmProfile) ? (has(self.vcpusPerSocket) && self.vcpusPerSocket > 0 && has(self.vcpuSockets) && self.vcpuSockets > 0 && has(self.memorySize) && self.memorySize != \"\" && self.memorySize != \"0\") : true",message="When 'vmProfile' is not set, 'vcpusPerSocket', 'vcpuSockets', and 'memorySize' must be set"
 type NutanixMachineSpec struct {
 	// SPEC FIELDS - desired state of NutanixMachine
 	// Important: Run "make" to regenerate code after modifying this file
@@ -107,17 +111,20 @@ type NutanixMachineSpec struct {
 	// +optional
 	ProviderID string `json:"providerID,omitempty"`
 	// vcpusPerSocket is the number of vCPUs per socket of the VM
-	// +kubebuilder:validation:Required
+	// Required when VMProfile is not set, mutually exclusive with VMProfile
+	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Minimum=1
-	VCPUsPerSocket int32 `json:"vcpusPerSocket"`
-	// vcpuSockets is the number of vCPU sockets of the VM
-	// +kubebuilder:validation:Required
+	VCPUsPerSocket int32 `json:"vcpusPerSocket,omitzero"`
+	// vCPUsockets is the number of vCPU sockets of the VM
+	// Required when VMProfile is not set, mutually exclusive with VMProfile
+	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Minimum=1
-	VCPUSockets int32 `json:"vcpuSockets"`
+	VCPUSockets int32 `json:"vcpuSockets,omitzero"`
 	// memorySize is the memory size (in Quantity format) of the VM
 	// The minimum memorySize is 2Gi bytes
-	// +kubebuilder:validation:Required
-	MemorySize resource.Quantity `json:"memorySize"`
+	// Required when VMProfile is not set, mutually exclusive with VMProfile
+	// +kubebuilder:validation:Optional
+	MemorySize resource.Quantity `json:"memorySize,omitempty"`
 	// image is to identify the nutanix machine image uploaded to the Prism Central (PC)
 	// The image identifier (uuid or name) can be obtained from the Prism Central console
 	// or using the prism_central API.
@@ -147,15 +154,18 @@ type NutanixMachineSpec struct {
 	// +optional
 	Project *NutanixResourceIdentifier `json:"project,omitempty"`
 	// Defines the boot type of the virtual machine. Only supports UEFI and Legacy
+	// Mutually exclusive with vmProfile. When vmProfile is set, bootType must not be set.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum:=legacy;uefi
-	BootType NutanixBootType `json:"bootType,omitempty"`
+	// +optional
+	BootType NutanixBootType `json:"bootType,omitzero"`
 	// systemDiskSize is size (in Quantity format) of the system disk of the VM
 	// The minimum systemDiskSize is 20Gi bytes
 	// +kubebuilder:validation:Required
 	SystemDiskSize resource.Quantity `json:"systemDiskSize"`
 
 	// dataDisks hold the list of data disks to be attached to the VM
+	// Mutually exclusive with VMProfile. When VMProfile is set, dataDisks must not be set.
 	// +kubebuilder:validation:Optional
 	DataDisks []NutanixMachineVMDisk `json:"dataDisks,omitempty"`
 
@@ -164,8 +174,20 @@ type NutanixMachineSpec struct {
 	// +optional
 	BootstrapRef *corev1.ObjectReference `json:"bootstrapRef,omitempty"`
 	// List of GPU devices that need to be added to the machines.
+	// Mutually exclusive with VMProfile. When VMProfile is set, GPUs must not be set.
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxItems=32
 	GPUs []NutanixGPU `json:"gpus,omitempty"`
+
+	// VMProfile is to identify the VM profile in Prism Central (PC)
+	// The VM profile identifier (uuid or name) can be obtained from the Prism Central console
+	// or using the prism_central API.
+	// When VMProfile is set, it provides CPU, memory, and bootType configuration.
+	// vcpusPerSocket, vcpuSockets, memorySize, bootType, and GPUs are mutually exclusive with VMProfile;
+	// dataDisks is currently mutually exclusive with VMProfile (support for this combination may be added later).
+	// +kubebuilder:validation:Optional
+	// +optional
+	VMProfile *NutanixResourceIdentifier `json:"vmProfile,omitempty"`
 }
 
 // NutanixMachineVMDisk defines the disk configuration for a NutanixMachine

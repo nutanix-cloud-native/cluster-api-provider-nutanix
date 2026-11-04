@@ -190,16 +190,16 @@ func (mr *MockUsersMockRecorder[User]) RevokeUserKey(ctx, userExtId, keyID any) 
 }
 
 // UpdateUserState mocks base method.
-func (m *MockUsers[User]) UpdateUserState(uuid string, status *authn.UserStateUpdate) (*authn.UserStateUpdateResponse, error) {
+func (m *MockUsers[User]) UpdateUserState(ctx context.Context, uuid string, status *authn.UserStateUpdate) (*authn.UserStateUpdateResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserState", uuid, status)
+	ret := m.ctrl.Call(m, "UpdateUserState", ctx, uuid, status)
 	ret0, _ := ret[0].(*authn.UserStateUpdateResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateUserState indicates an expected call of UpdateUserState.
-func (mr *MockUsersMockRecorder[User]) UpdateUserState(uuid, status any) *gomock.Call {
+func (mr *MockUsersMockRecorder[User]) UpdateUserState(ctx, uuid, status any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserState", reflect.TypeOf((*MockUsers[User])(nil).UpdateUserState), uuid, status)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserState", reflect.TypeOf((*MockUsers[User])(nil).UpdateUserState), ctx, uuid, status)
 }

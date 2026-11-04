@@ -125,6 +125,7 @@ func TestInitializeFlags(t *testing.T) {
 			},
 			want: &options{
 				managerOptions: flags.ManagerOptions{
+					TLSCurvePreferences: []int32{},
 					DiagnosticsAddress:  ":9999",
 					InsecureDiagnostics: true,
 				},
@@ -602,7 +603,7 @@ func TestKubebuilderValidations(t *testing.T) {
 						Spec: infrav1.NutanixMachineSpec{
 							VCPUsPerSocket: 1,
 							VCPUSockets:    1,
-							MemorySize:     resource.Quantity{},
+							MemorySize:     resource.MustParse("4Gi"),
 							Cluster: infrav1.NutanixResourceIdentifier{
 								Type: infrav1.NutanixIdentifierUUID,
 								UUID: ptr.To("550e8400-e29b-41d4-a716-446655440000"),
@@ -635,7 +636,7 @@ func TestKubebuilderValidations(t *testing.T) {
 								Type: infrav1.NutanixIdentifierUUID,
 								UUID: ptr.To("550e8400-e29b-41d4-a716-446655440001"),
 							},
-							MemorySize: resource.Quantity{},
+							MemorySize: resource.MustParse("4Gi"),
 							ImageLookup: &infrav1.NutanixImageLookup{
 								BaseOS: "rockylinux-9",
 							},

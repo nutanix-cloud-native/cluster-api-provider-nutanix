@@ -140,15 +140,20 @@ func (mr *MockImagesMockRecorder[Image, FileDetail]) NewIterator(ctx any, opts .
 }
 
 // Upload mocks base method.
-func (m *MockImages[Image, FileDetail]) Upload(ctx context.Context, uuid, filepath string) error {
+func (m *MockImages[Image, FileDetail]) Upload(ctx context.Context, uuid, filepath string, opts ...converged.UploadOption) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Upload", ctx, uuid, filepath)
+	varargs := []any{ctx, uuid, filepath}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Upload", varargs...)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Upload indicates an expected call of Upload.
-func (mr *MockImagesMockRecorder[Image, FileDetail]) Upload(ctx, uuid, filepath any) *gomock.Call {
+func (mr *MockImagesMockRecorder[Image, FileDetail]) Upload(ctx, uuid, filepath any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Upload", reflect.TypeOf((*MockImages[Image, FileDetail])(nil).Upload), ctx, uuid, filepath)
+	varargs := append([]any{ctx, uuid, filepath}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Upload", reflect.TypeOf((*MockImages[Image, FileDetail])(nil).Upload), varargs...)
 }

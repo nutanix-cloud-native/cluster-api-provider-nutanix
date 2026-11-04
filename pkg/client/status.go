@@ -51,6 +51,10 @@ func GetTaskStatus(ctx context.Context, client *nutanixClientV3.Client, uuid str
 		return "", err
 	}
 
+	if v.Status == nil {
+		return "", fmt.Errorf("task with UUID %s returned a nil status", uuid)
+	}
+
 	if *v.Status == "INVALID_UUID" || *v.Status == "FAILED" {
 		return *v.Status,
 			fmt.Errorf("error_detail: %s, progress_message: %s", ptr.Deref(v.ErrorDetail, ""), ptr.Deref(v.ProgressMessage, ""))
