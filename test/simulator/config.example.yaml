@@ -1,0 +1,46 @@
+# Example ntnx-sim configuration. Pass with `ntnx-sim --config config.example.yaml`.
+# A seed section replaces the built-in default seed entirely.
+auth:
+  username: admin
+  password: ntnx-sim
+timing:
+  # Go duration strings. Zero completes tasks immediately; the SDK still
+  # sleeps one second before its first poll, so each mutation costs >= 1s.
+  vmCreate: 30s
+  vmPowerOn: 45s
+  vmDelete: 10s
+  vmUpdate: 2s
+faults:
+  latency: 50ms       # added to every /api request
+  rateLimitEvery: 0   # answer 429 to every Nth request (SDK retries 5x at 3s)
+  internalErrorEvery: 0
+  taskFailureEvery: 0
+limits:
+  maxVMs: 0           # 0 = unlimited
+seed:
+  clusters:
+    - name: pe-sim-1
+    - name: pe-sim-2
+      uuid: 0005f2a0-0000-0000-0000-000000000002
+  subnets:
+    - name: vm-network
+      cluster: pe-sim-1
+      cidr: 10.10.0.0/16
+      vlanId: 100
+    - name: vm-network
+      cluster: pe-sim-2
+      cidr: 10.20.0.0/16
+      start: 10.20.1.10
+      end: 10.20.255.250
+      vlanId: 100
+  images:
+    - name: ubuntu-2404-kube-v1.33.0
+      sizeBytes: 3221225472
+  storageContainers:
+    - name: default-container
+      cluster: pe-sim-1
+    - name: default-container
+      cluster: pe-sim-2
+  categories:
+    - key: Environment
+      value: scale-test
