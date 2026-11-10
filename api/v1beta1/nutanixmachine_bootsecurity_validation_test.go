@@ -20,6 +20,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
 
@@ -68,4 +70,31 @@ var _ = Describe("NutanixMachine boot security CEL validation", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("vtpmEnabled requires bootType to be uefi and secureBootEnabled to be true"))
 	})
+
+	DescribeTable("validates boot security with VM profiles", func(secureBoot, vtpm bool) {
+		machine := newMachine("test-profile-boot-security")
+		profileName := "test-profile"
+		machine.Spec.VMProfile = &infrav1.NutanixResourceIdentifier{
+			Type: infrav1.NutanixIdentifierName,
+			Name: &profileName,
+		}
+		machine.Spec.VCPUsPerSocket = 0
+		machine.Spec.VCPUSockets = 0
+		machine.Spec.MemorySize = resource.Quantity{}
+		machine.Spec.SecureBootEnabled = secureBoot
+		machine.Spec.VTPMEnabled = vtpm
+
+		err := k8sClient.Create(ctx, machine)
+		if secureBoot || vtpm {
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("When 'vmProfile' is set"))
+		} else {
+			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Delete(ctx, machine)).To(Succeed())
+		}
+	},
+		Entry("accepts disabled boot security", false, false),
+		Entry("rejects Secure Boot", true, false),
+		Entry("rejects vTPM", false, true),
+	)
 })

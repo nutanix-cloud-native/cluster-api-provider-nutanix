@@ -2961,33 +2961,43 @@ func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.Mach
 	return categoryIdentifiers, nil
 }
 
+func validateSecureBootDisks(vm *vmmconfig.Vm) error {
+	for i, disk := range vm.Disks {
+		if disk.DiskAddress != nil && disk.DiskAddress.BusType != nil && *disk.DiskAddress.BusType == vmmconfig.DISKBUSTYPE_IDE {
+			return fmt.Errorf("secure boot requires Q35, which does not support IDE disk %d; use a compatible disk adapter", i)
+		}
+	}
+	for i, cdRom := range vm.CdRoms {
+		if cdRom.DiskAddress != nil && cdRom.DiskAddress.BusType != nil && *cdRom.DiskAddress.BusType == vmmconfig.CDROMBUSTYPE_IDE {
+			return fmt.Errorf("secure boot requires Q35, which does not support IDE CD-ROM %d; use SATA or secret-based bootstrap for image-based bootstrap", i)
+		}
+	}
+	return nil
+}
+
 func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
 	bootType := rctx.NutanixMachine.Spec.BootType
 	secureBootEnabled := rctx.NutanixMachine.Spec.SecureBootEnabled
 	vtpmEnabled := rctx.NutanixMachine.Spec.VTPMEnabled
 
-	if secureBootEnabled && bootType != infrav1.NutanixBootTypeUEFI {
-		errorMsg := fmt.Errorf("secure boot requires boot type %s", string(infrav1.NutanixBootTypeUEFI))
-		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VMBootTypeInvalid, capiv1beta1.ConditionSeverityError, "%s", errorMsg.Error())
-		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
-			Type:    string(infrav1.VMProvisionedCondition),
-			Status:  metav1.ConditionFalse,
-			Reason:  infrav1.VMBootTypeInvalid,
-			Message: errorMsg.Error(),
-		})
-		return errorMsg
+	var bootError error
+	switch {
+	case secureBootEnabled && bootType != infrav1.NutanixBootTypeUEFI:
+		bootError = fmt.Errorf("secure boot requires boot type %s", string(infrav1.NutanixBootTypeUEFI))
+	case vtpmEnabled && !secureBootEnabled:
+		bootError = fmt.Errorf("vTPM requires secure boot to be enabled")
+	case secureBootEnabled:
+		bootError = validateSecureBootDisks(vm)
 	}
-
-	if vtpmEnabled && !secureBootEnabled {
-		errorMsg := fmt.Errorf("vTPM requires secure boot to be enabled")
-		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VMBootTypeInvalid, capiv1beta1.ConditionSeverityError, "%s", errorMsg.Error())
+	if bootError != nil {
+		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VMBootTypeInvalid, capiv1beta1.ConditionSeverityError, "%s", bootError.Error())
 		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
 			Type:    string(infrav1.VMProvisionedCondition),
 			Status:  metav1.ConditionFalse,
 			Reason:  infrav1.VMBootTypeInvalid,
-			Message: errorMsg.Error(),
+			Message: bootError.Error(),
 		})
-		return errorMsg
+		return bootError
 	}
 
 	// Defaults to legacy if boot type is not set.

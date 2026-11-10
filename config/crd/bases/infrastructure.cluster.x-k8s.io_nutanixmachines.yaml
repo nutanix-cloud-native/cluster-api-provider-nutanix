@@ -487,7 +487,7 @@ spec:
               secureBootEnabled:
                 description: |-
                   secureBootEnabled enables UEFI Secure Boot for the virtual machine.
-                  It requires bootType to be uefi.
+                  It requires bootType to be uefi and is mutually exclusive with vmProfile.
                 type: boolean
               subnet:
                 description: |-
@@ -556,7 +556,7 @@ spec:
                   The VM profile identifier (uuid or name) can be obtained from the Prism Central console
                   or using the prism_central API.
                   When VMProfile is set, it provides CPU, memory, and bootType configuration.
-                  vcpusPerSocket, vcpuSockets, memorySize, bootType, and GPUs are mutually exclusive with VMProfile;
+                  vcpusPerSocket, vcpuSockets, memorySize, bootType, secureBootEnabled, vtpmEnabled, and GPUs are mutually exclusive with VMProfile;
                   dataDisks is currently mutually exclusive with VMProfile (support for this combination may be added later).
                 properties:
                   name:
@@ -589,7 +589,7 @@ spec:
               vtpmEnabled:
                 description: |-
                   vtpmEnabled enables the virtual Trusted Platform Module for the virtual machine.
-                  It requires UEFI Secure Boot to be enabled.
+                  It requires UEFI Secure Boot to be enabled and is mutually exclusive with vmProfile.
                 type: boolean
             required:
             - systemDiskSize
@@ -601,12 +601,15 @@ spec:
               rule: 'has(self.subnet) && size(self.subnet) > 1 ? self.subnet.all(x,
                 self.subnet.exists_one(y, x == y)) : true'
             - message: When 'vmProfile' is set, 'vcpusPerSocket', 'vcpuSockets', 'memorySize',
-                'bootType', 'gpus', and 'dataDisks' must not be set
+                'bootType', 'secureBootEnabled', 'vtpmEnabled', 'gpus', and 'dataDisks'
+                must not be set
               rule: 'has(self.vmProfile) ? ((!has(self.vcpusPerSocket) || self.vcpusPerSocket
                 == 0) && (!has(self.vcpuSockets) || self.vcpuSockets == 0) && (!has(self.memorySize)
                 || self.memorySize == "" || self.memorySize == "0") && (!has(self.bootType)
-                || self.bootType == "") && (!has(self.gpus) || size(self.gpus) ==
-                0) && (!has(self.dataDisks) || size(self.dataDisks) == 0)) : true'
+                || self.bootType == "") && (!has(self.secureBootEnabled) || !self.secureBootEnabled)
+                && (!has(self.vtpmEnabled) || !self.vtpmEnabled) && (!has(self.gpus)
+                || size(self.gpus) == 0) && (!has(self.dataDisks) || size(self.dataDisks)
+                == 0)) : true'
             - message: When 'vmProfile' is not set, 'vcpusPerSocket', 'vcpuSockets',
                 and 'memorySize' must be set
               rule: '!has(self.vmProfile) ? (has(self.vcpusPerSocket) && self.vcpusPerSocket

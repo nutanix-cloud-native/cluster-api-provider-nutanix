@@ -4485,6 +4485,8 @@ func TestNutanixMachineReconciler_addBootTypeToVM(t *testing.T) {
 		wantUEFI       bool
 		wantSecureBoot bool
 		wantVTPM       bool
+		diskBus        *vmmModels.DiskBusType
+		cdRomBus       *vmmModels.CdRomBusType
 	}{
 		{
 			name: "leaves the Nutanix defaults unchanged when no boot security is configured",
@@ -4532,6 +4534,33 @@ func TestNutanixMachineReconciler_addBootTypeToVM(t *testing.T) {
 			},
 			wantError: "vTPM requires secure boot to be enabled",
 		},
+		{
+			name:      "rejects IDE disks with Secure Boot",
+			spec:      infrav1.NutanixMachineSpec{BootType: infrav1.NutanixBootTypeUEFI, SecureBootEnabled: true},
+			diskBus:   vmmModels.DISKBUSTYPE_IDE.Ref(),
+			wantError: "secure boot requires Q35, which does not support IDE disk 0; use a compatible disk adapter",
+		},
+		{
+			name:      "rejects IDE CD-ROMs including image bootstrap with Secure Boot",
+			spec:      infrav1.NutanixMachineSpec{BootType: infrav1.NutanixBootTypeUEFI, SecureBootEnabled: true},
+			cdRomBus:  vmmModels.CDROMBUSTYPE_IDE.Ref(),
+			wantError: "secure boot requires Q35, which does not support IDE CD-ROM 0; use SATA or secret-based bootstrap for image-based bootstrap",
+		},
+		{
+			name:           "accepts SCSI disks and SATA CD-ROMs with Secure Boot",
+			spec:           infrav1.NutanixMachineSpec{BootType: infrav1.NutanixBootTypeUEFI, SecureBootEnabled: true},
+			diskBus:        vmmModels.DISKBUSTYPE_SCSI.Ref(),
+			cdRomBus:       vmmModels.CDROMBUSTYPE_SATA.Ref(),
+			wantUEFI:       true,
+			wantSecureBoot: true,
+		},
+		{
+			name:     "accepts IDE devices without Secure Boot",
+			spec:     infrav1.NutanixMachineSpec{BootType: infrav1.NutanixBootTypeUEFI},
+			diskBus:  vmmModels.DISKBUSTYPE_IDE.Ref(),
+			cdRomBus: vmmModels.CDROMBUSTYPE_IDE.Ref(),
+			wantUEFI: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -4544,6 +4573,12 @@ func TestNutanixMachineReconciler_addBootTypeToVM(t *testing.T) {
 				},
 			}
 			vm := vmmModels.NewVm()
+			if tt.diskBus != nil {
+				vm.Disks = []vmmModels.Disk{{DiskAddress: &vmmModels.DiskAddress{BusType: tt.diskBus}}}
+			}
+			if tt.cdRomBus != nil {
+				vm.CdRoms = []vmmModels.CdRom{{DiskAddress: &vmmModels.CdRomAddress{BusType: tt.cdRomBus}}}
+			}
 
 			err := reconciler.addBootTypeToVM(machineContext, vm)
 			if tt.wantError != "" {
