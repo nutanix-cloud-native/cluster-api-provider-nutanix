@@ -488,6 +488,7 @@ spec:
                 description: |-
                   secureBootEnabled enables UEFI Secure Boot for the virtual machine.
                   It requires bootType to be uefi and is mutually exclusive with vmProfile.
+                  This setting is immutable.
                 type: boolean
               subnet:
                 description: |-
@@ -590,6 +591,7 @@ spec:
                 description: |-
                   vtpmEnabled enables the virtual Trusted Platform Module for the virtual machine.
                   It requires UEFI Secure Boot to be enabled and is mutually exclusive with vmProfile.
+                  This setting is immutable.
                 type: boolean
             required:
             - systemDiskSize
@@ -622,6 +624,12 @@ spec:
                 to be true
               rule: '!has(self.vtpmEnabled) || !self.vtpmEnabled || (self.bootType
                 == ''uefi'' && has(self.secureBootEnabled) && self.secureBootEnabled)'
+            - message: secureBootEnabled is immutable
+              rule: (has(self.secureBootEnabled) && self.secureBootEnabled) == (has(oldSelf.secureBootEnabled)
+                && oldSelf.secureBootEnabled)
+            - message: vtpmEnabled is immutable
+              rule: (has(self.vtpmEnabled) && self.vtpmEnabled) == (has(oldSelf.vtpmEnabled)
+                && oldSelf.vtpmEnabled)
           status:
             description: NutanixMachineStatus defines the observed state of NutanixMachine
             properties:

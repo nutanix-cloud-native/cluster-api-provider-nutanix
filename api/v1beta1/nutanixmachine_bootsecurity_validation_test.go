@@ -17,10 +17,14 @@ limitations under the License.
 package v1beta1_test
 
 import (
+	"fmt"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 )
@@ -96,5 +100,38 @@ var _ = Describe("NutanixMachine boot security CEL validation", func() {
 		Entry("accepts disabled boot security", false, false),
 		Entry("rejects Secure Boot", true, false),
 		Entry("rejects vTPM", false, true),
+	)
+
+	DescribeTable("keeps boot security immutable", func(field string, enabled bool, value string, wantError bool) {
+		machine := newMachine("test-immutable-boot-security")
+		machine.Spec.BootType = infrav1.NutanixBootTypeUEFI
+		if field == "secureBootEnabled" {
+			machine.Spec.SecureBootEnabled = enabled
+		} else {
+			machine.Spec.SecureBootEnabled = true
+			machine.Spec.VTPMEnabled = enabled
+		}
+		Expect(k8sClient.Create(ctx, machine)).To(Succeed())
+		DeferCleanup(func() { Expect(k8sClient.Delete(ctx, machine)).To(Succeed()) })
+
+		patch := client.RawPatch(types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"%s":%s}}`, field, value)))
+		err := k8sClient.Patch(ctx, machine, patch)
+		if wantError {
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(field + " is immutable"))
+		} else {
+			Expect(err).NotTo(HaveOccurred())
+		}
+	},
+		Entry("cannot enable omitted Secure Boot", "secureBootEnabled", false, "true", true),
+		Entry("cannot disable Secure Boot", "secureBootEnabled", true, "false", true),
+		Entry("cannot remove enabled Secure Boot", "secureBootEnabled", true, "null", true),
+		Entry("accepts unchanged Secure Boot", "secureBootEnabled", true, "true", false),
+		Entry("accepts explicit false for omitted Secure Boot", "secureBootEnabled", false, "false", false),
+		Entry("cannot enable omitted vTPM", "vtpmEnabled", false, "true", true),
+		Entry("cannot disable vTPM", "vtpmEnabled", true, "false", true),
+		Entry("cannot remove enabled vTPM", "vtpmEnabled", true, "null", true),
+		Entry("accepts unchanged vTPM", "vtpmEnabled", true, "true", false),
+		Entry("accepts explicit false for omitted vTPM", "vtpmEnabled", false, "false", false),
 	)
 })

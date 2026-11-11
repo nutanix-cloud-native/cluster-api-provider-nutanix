@@ -525,6 +525,33 @@ func TestNutanixMachineReconciler_SetupWithManager_ClusterToTypedObjectsMapperEr
 	assert.Contains(t, err.Error(), "failed to create mapper for Cluster to NutanixMachine")
 }
 
+func TestNutanixMachineValidateCDRomAdapters(t *testing.T) {
+	for _, tc := range []struct {
+		adapter   infrav1.NutanixMachineDiskAdapterType
+		wantError bool
+	}{
+		{adapter: infrav1.NutanixMachineDiskAdapterTypeIDE},
+		{adapter: infrav1.NutanixMachineDiskAdapterTypeSATA},
+		{adapter: infrav1.NutanixMachineDiskAdapterTypePCI, wantError: true},
+	} {
+		t.Run(string(tc.adapter), func(t *testing.T) {
+			disks := []infrav1.NutanixMachineVMDisk{{
+				DiskSize: resource.MustParse("1Gi"),
+				DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+					DeviceType:  infrav1.NutanixMachineDiskDeviceTypeCDRom,
+					AdapterType: tc.adapter,
+				},
+			}}
+			err := (&NutanixMachineReconciler{}).validateDataDisks(disks)
+			if tc.wantError {
+				require.ErrorContains(t, err, "invalid adapter type PCI")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestNutanixMachineValidateDataDisks(t *testing.T) {
 	testCases := []struct {
 		name        string
@@ -1305,6 +1332,48 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 			if tc.wantDisksLen != len(disks)+len(cdRoms) {
 				t.Fatalf("expected %d disks, got %d", tc.wantDisksLen, len(disks)+len(cdRoms))
 			}
+		})
+	}
+
+	for _, tc := range []struct {
+		name       string
+		secureBoot bool
+		sataIndex  int32
+		wantIndex  int
+	}{
+		{name: "image bootstrap retains IDE without Secure Boot", sataIndex: -1},
+		{name: "image bootstrap uses SATA with Secure Boot", secureBoot: true, sataIndex: -1},
+		{name: "bootstrap avoids automatically assigned SATA disk index", secureBoot: true, sataIndex: 0, wantIndex: 1},
+		{name: "bootstrap preserves explicitly assigned SATA disk index", secureBoot: true, sataIndex: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			ntnxMachine, machine, cluster, convergedClient := tt[0].fixtures(mockCtrl)
+			ntnxMachine = ntnxMachine.DeepCopy()
+			ntnxMachine.Spec.BootType = infrav1.NutanixBootTypeUEFI
+			ntnxMachine.Spec.SecureBootEnabled = tc.secureBoot
+			if tc.sataIndex >= 0 {
+				ntnxMachine.Spec.DataDisks[0].DeviceProperties.AdapterType = infrav1.NutanixMachineDiskAdapterTypeSATA
+				ntnxMachine.Spec.DataDisks[0].DeviceProperties.DeviceIndex = tc.sataIndex
+			}
+			rctx := &nctx.MachineContext{
+				Context: context.Background(), NutanixMachine: ntnxMachine,
+				Machine: machine, NutanixCluster: cluster, ConvergedClient: convergedClient,
+			}
+			disks, cdRoms, err := getDiskList(rctx, *ntnxMachine.Spec.Cluster.UUID, nil, nil)
+			require.NoError(t, err)
+			require.Len(t, cdRoms, 1)
+			wantBus := vmmModels.CDROMBUSTYPE_IDE
+			if tc.secureBoot {
+				wantBus = vmmModels.CDROMBUSTYPE_SATA
+			}
+			assert.Equal(t, wantBus, *cdRoms[0].DiskAddress.BusType)
+			assert.Equal(t, tc.wantIndex, *cdRoms[0].DiskAddress.Index)
+			if tc.sataIndex >= 0 {
+				assert.Equal(t, int(tc.sataIndex), *disks[1].DiskAddress.Index)
+			}
+			vm := &vmmModels.Vm{Disks: disks, CdRoms: cdRoms}
+			require.NoError(t, (&NutanixMachineReconciler{}).addBootTypeToVM(rctx, vm))
 		})
 	}
 }
@@ -4541,10 +4610,10 @@ func TestNutanixMachineReconciler_addBootTypeToVM(t *testing.T) {
 			wantError: "secure boot requires Q35, which does not support IDE disk 0; use a compatible disk adapter",
 		},
 		{
-			name:      "rejects IDE CD-ROMs including image bootstrap with Secure Boot",
+			name:      "rejects user-configured IDE CD-ROMs with Secure Boot",
 			spec:      infrav1.NutanixMachineSpec{BootType: infrav1.NutanixBootTypeUEFI, SecureBootEnabled: true},
 			cdRomBus:  vmmModels.CDROMBUSTYPE_IDE.Ref(),
-			wantError: "secure boot requires Q35, which does not support IDE CD-ROM 0; use SATA or secret-based bootstrap for image-based bootstrap",
+			wantError: "secure boot requires Q35, which does not support IDE CD-ROM 0; use a SATA CD-ROM",
 		},
 		{
 			name:           "accepts SCSI disks and SATA CD-ROMs with Secure Boot",

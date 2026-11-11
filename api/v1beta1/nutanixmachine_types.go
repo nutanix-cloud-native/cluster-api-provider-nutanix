@@ -105,6 +105,8 @@ type NutanixImageLookup struct {
 // +kubebuilder:validation:XValidation:rule="!has(self.vmProfile) ? (has(self.vcpusPerSocket) && self.vcpusPerSocket > 0 && has(self.vcpuSockets) && self.vcpuSockets > 0 && has(self.memorySize) && self.memorySize != \"\" && self.memorySize != \"0\") : true",message="When 'vmProfile' is not set, 'vcpusPerSocket', 'vcpuSockets', and 'memorySize' must be set"
 // +kubebuilder:validation:XValidation:rule="!has(self.secureBootEnabled) || !self.secureBootEnabled || self.bootType == 'uefi'",message="secureBootEnabled requires bootType to be uefi"
 // +kubebuilder:validation:XValidation:rule="!has(self.vtpmEnabled) || !self.vtpmEnabled || (self.bootType == 'uefi' && has(self.secureBootEnabled) && self.secureBootEnabled)",message="vtpmEnabled requires bootType to be uefi and secureBootEnabled to be true"
+// +kubebuilder:validation:XValidation:rule="(has(self.secureBootEnabled) && self.secureBootEnabled) == (has(oldSelf.secureBootEnabled) && oldSelf.secureBootEnabled)",message="secureBootEnabled is immutable"
+// +kubebuilder:validation:XValidation:rule="(has(self.vtpmEnabled) && self.vtpmEnabled) == (has(oldSelf.vtpmEnabled) && oldSelf.vtpmEnabled)",message="vtpmEnabled is immutable"
 type NutanixMachineSpec struct {
 	// SPEC FIELDS - desired state of NutanixMachine
 	// Important: Run "make" to regenerate code after modifying this file
@@ -163,11 +165,13 @@ type NutanixMachineSpec struct {
 	BootType NutanixBootType `json:"bootType,omitzero"`
 	// secureBootEnabled enables UEFI Secure Boot for the virtual machine.
 	// It requires bootType to be uefi and is mutually exclusive with vmProfile.
+	// This setting is immutable.
 	// +kubebuilder:validation:Optional
 	// +optional
 	SecureBootEnabled bool `json:"secureBootEnabled,omitempty"`
 	// vtpmEnabled enables the virtual Trusted Platform Module for the virtual machine.
 	// It requires UEFI Secure Boot to be enabled and is mutually exclusive with vmProfile.
+	// This setting is immutable.
 	// +kubebuilder:validation:Optional
 	// +optional
 	VTPMEnabled bool `json:"vtpmEnabled,omitempty"`

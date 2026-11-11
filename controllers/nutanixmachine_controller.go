@@ -1827,7 +1827,7 @@ func validateDataDiskDeviceProperties(disk infrav1.NutanixMachineVMDisk, errors 
 		validAdapterTypes[infrav1.NutanixMachineDiskAdapterTypeIDE] = true
 	case infrav1.NutanixMachineDiskDeviceTypeCDRom:
 		validAdapterTypes[infrav1.NutanixMachineDiskAdapterTypeIDE] = true
-		validAdapterTypes[infrav1.NutanixMachineDiskAdapterTypePCI] = true
+		validAdapterTypes[infrav1.NutanixMachineDiskAdapterTypeSATA] = true
 	default:
 		errors = append(errors, fmt.Errorf("invalid device type %s for data disk", disk.DeviceProperties.DeviceType))
 	}
@@ -2691,6 +2691,26 @@ func getDiskList(rctx *nctx.MachineContext, peUUID string, effectiveProject *nct
 	if err != nil {
 		return nil, nil, err
 	}
+	if rctx.NutanixMachine.Spec.SecureBootEnabled && len(cdRoms) > 0 {
+		// Keep user-specified addresses unchanged and give the bootstrap CD-ROM
+		// the first available SATA index.
+		usedIndexes := make(map[int]bool)
+		for _, disk := range dataDisks {
+			if address := disk.DiskAddress; address != nil && address.BusType != nil && *address.BusType == vmmconfig.DISKBUSTYPE_SATA && address.Index != nil {
+				usedIndexes[*address.Index] = true
+			}
+		}
+		for _, cdRom := range dataCdRoms {
+			if address := cdRom.DiskAddress; address != nil && address.BusType != nil && *address.BusType == vmmconfig.CDROMBUSTYPE_SATA && address.Index != nil {
+				usedIndexes[*address.Index] = true
+			}
+		}
+		index := 0
+		for usedIndexes[index] {
+			index++
+		}
+		cdRoms[0].DiskAddress.Index = ptr.To(index)
+	}
 	disks = append(disks, dataDisks...)
 	cdRoms = append(cdRoms, dataCdRoms...)
 
@@ -2780,6 +2800,9 @@ func getBootstrapDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectI
 	cdRom.DiskAddress = vmmconfig.NewCdRomAddress()
 	cdRom.DiskAddress.Index = ptr.To(0)
 	cdRom.DiskAddress.BusType = vmmconfig.CDROMBUSTYPE_IDE.Ref()
+	if rctx.NutanixMachine.Spec.SecureBootEnabled {
+		cdRom.DiskAddress.BusType = vmmconfig.CDROMBUSTYPE_SATA.Ref()
+	}
 	cdRom.BackingInfo = newVmDiskWithImageRef(bootstrapImage.ExtId, 0)
 
 	return cdRom, nil
@@ -2969,7 +2992,7 @@ func validateSecureBootDisks(vm *vmmconfig.Vm) error {
 	}
 	for i, cdRom := range vm.CdRoms {
 		if cdRom.DiskAddress != nil && cdRom.DiskAddress.BusType != nil && *cdRom.DiskAddress.BusType == vmmconfig.CDROMBUSTYPE_IDE {
-			return fmt.Errorf("secure boot requires Q35, which does not support IDE CD-ROM %d; use SATA or secret-based bootstrap for image-based bootstrap", i)
+			return fmt.Errorf("secure boot requires Q35, which does not support IDE CD-ROM %d; use a SATA CD-ROM", i)
 		}
 	}
 	return nil
