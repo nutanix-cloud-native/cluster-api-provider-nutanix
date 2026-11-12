@@ -43,10 +43,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
@@ -6810,6 +6812,230 @@ func Test_checkFailureDomainStatus_inheritsEmptyMachineSpec(t *testing.T) {
 	require.NoError(t, reconciler.checkFailureDomainStatus(mctx))
 	require.NotNil(t, ntnxMachine.Status.FailureDomain)
 	require.Equal(t, "fd0", *ntnxMachine.Status.FailureDomain)
+}
+
+// findV1Beta1Condition returns the v1beta1 condition of the given type, or nil.
+func findV1Beta1Condition(conds capiv1beta1.Conditions, t capiv1beta1.ConditionType) *capiv1beta1.Condition {
+	for i := range conds {
+		if conds[i].Type == t {
+			return &conds[i]
+		}
+	}
+	return nil
+}
+
+// findV1Beta2Condition returns the v1beta2 condition of the given type, or nil.
+func findV1Beta2Condition(conds []metav1.Condition, t string) *metav1.Condition {
+	for i := range conds {
+		if conds[i].Type == t {
+			return &conds[i]
+		}
+	}
+	return nil
+}
+
+// conflictOnceClient wraps a client and injects a single Conflict error on the first
+// status Patch call, so RetryOnConflict's re-fetch-and-retry path is exercised.
+type conflictOnceClient struct {
+	client.Client
+	remaining *int
+}
+
+func (c *conflictOnceClient) Status() client.SubResourceWriter {
+	return &conflictOnceStatusWriter{SubResourceWriter: c.Client.Status(), remaining: c.remaining}
+}
+
+type conflictOnceStatusWriter struct {
+	client.SubResourceWriter
+	remaining *int
+}
+
+func (w *conflictOnceStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+	if *w.remaining > 0 {
+		*w.remaining--
+		return apierrors.NewConflict(
+			schema.GroupResource{Group: infrav1.GroupVersion.Group, Resource: "nutanixclusters"},
+			obj.GetName(),
+			errors.New("the object has been modified; please apply your changes to the latest version and try again"),
+		)
+	}
+	return w.SubResourceWriter.Patch(ctx, obj, patch, opts...)
+}
+
+func newClusterCategoryTestScheme(t *testing.T) *runtime.Scheme {
+	t.Helper()
+	scheme := runtime.NewScheme()
+	require.NoError(t, infrav1.AddToScheme(scheme))
+	require.NoError(t, capiv1beta2.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+	return scheme
+}
+
+func TestNutanixMachineReconciler_markClusterCategoryCreated(t *testing.T) {
+	const clusterName = "test-cluster"
+	const namespace = "default"
+
+	t.Run("persists ClusterCategoryCreatedCondition=True and mirrors onto local copy", func(t *testing.T) {
+		ctx := context.Background()
+		ntnxCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: namespace},
+		}
+
+		scheme := newClusterCategoryTestScheme(t)
+		fakeClient := fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(ntnxCluster).
+			WithStatusSubresource(ntnxCluster).
+			Build()
+
+		reconciler := &NutanixMachineReconciler{Client: fakeClient}
+		rctx := &nctx.MachineContext{Context: ctx, NutanixCluster: ntnxCluster}
+
+		require.NoError(t, reconciler.markClusterCategoryCreated(rctx))
+
+		// Durably persisted on the server.
+		persisted := &infrav1.NutanixCluster{}
+		require.NoError(t, fakeClient.Get(ctx, client.ObjectKeyFromObject(ntnxCluster), persisted))
+		cond := findV1Beta1Condition(persisted.Status.Conditions, infrav1.ClusterCategoryCreatedCondition)
+		require.NotNil(t, cond)
+		assert.Equal(t, corev1.ConditionTrue, cond.Status)
+
+		require.NotNil(t, persisted.Status.V1Beta2)
+		v2 := findV1Beta2Condition(persisted.Status.V1Beta2.Conditions, string(infrav1.ClusterCategoryCreatedCondition))
+		require.NotNil(t, v2)
+		assert.Equal(t, metav1.ConditionTrue, v2.Status)
+		assert.Equal(t, infrav1.Succeeded, v2.Reason)
+
+		// Mirrored onto the local copy so later calls in this reconcile short-circuit.
+		local := findV1Beta1Condition(rctx.NutanixCluster.Status.Conditions, infrav1.ClusterCategoryCreatedCondition)
+		require.NotNil(t, local)
+		assert.Equal(t, corev1.ConditionTrue, local.Status)
+	})
+
+	t.Run("short-circuits on local True without touching the client", func(t *testing.T) {
+		ctx := context.Background()
+		ntnxCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: namespace},
+			Status: infrav1.NutanixClusterStatus{
+				Conditions: capiv1beta1.Conditions{
+					{Type: infrav1.ClusterCategoryCreatedCondition, Status: corev1.ConditionTrue},
+				},
+			},
+		}
+
+		scheme := newClusterCategoryTestScheme(t)
+		// NutanixCluster is intentionally NOT registered in the client; any client
+		// access would error, proving the early short-circuit avoids the client path.
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+		reconciler := &NutanixMachineReconciler{Client: fakeClient}
+		rctx := &nctx.MachineContext{Context: ctx, NutanixCluster: ntnxCluster}
+
+		require.NoError(t, reconciler.markClusterCategoryCreated(rctx))
+	})
+
+	t.Run("retries on conflict and persists the condition", func(t *testing.T) {
+		ctx := context.Background()
+		ntnxCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: namespace},
+		}
+
+		scheme := newClusterCategoryTestScheme(t)
+		fakeClient := fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(ntnxCluster).
+			WithStatusSubresource(ntnxCluster).
+			Build()
+
+		conflicts := 1
+		reconciler := &NutanixMachineReconciler{Client: &conflictOnceClient{Client: fakeClient, remaining: &conflicts}}
+		rctx := &nctx.MachineContext{Context: ctx, NutanixCluster: ntnxCluster}
+
+		require.NoError(t, reconciler.markClusterCategoryCreated(rctx))
+		assert.Equal(t, 0, conflicts, "the injected conflict should have been consumed by a retry")
+
+		persisted := &infrav1.NutanixCluster{}
+		require.NoError(t, fakeClient.Get(ctx, client.ObjectKeyFromObject(ntnxCluster), persisted))
+		cond := findV1Beta1Condition(persisted.Status.Conditions, infrav1.ClusterCategoryCreatedCondition)
+		require.NotNil(t, cond)
+		assert.Equal(t, corev1.ConditionTrue, cond.Status)
+	})
+}
+
+func TestNutanixMachineReconciler_markClusterCategoryCreationFailed(t *testing.T) {
+	const clusterName = "test-cluster"
+	const namespace = "default"
+
+	t.Run("persists ClusterCategoryCreatedCondition=False with reason and message", func(t *testing.T) {
+		ctx := context.Background()
+		ntnxCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: namespace},
+		}
+
+		scheme := newClusterCategoryTestScheme(t)
+		fakeClient := fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(ntnxCluster).
+			WithStatusSubresource(ntnxCluster).
+			Build()
+
+		reconciler := &NutanixMachineReconciler{Client: fakeClient}
+		rctx := &nctx.MachineContext{Context: ctx, NutanixCluster: ntnxCluster}
+
+		cause := errors.New("boom")
+		require.NoError(t, reconciler.markClusterCategoryCreationFailed(rctx, cause))
+
+		persisted := &infrav1.NutanixCluster{}
+		require.NoError(t, fakeClient.Get(ctx, client.ObjectKeyFromObject(ntnxCluster), persisted))
+		cond := findV1Beta1Condition(persisted.Status.Conditions, infrav1.ClusterCategoryCreatedCondition)
+		require.NotNil(t, cond)
+		assert.Equal(t, corev1.ConditionFalse, cond.Status)
+		assert.Equal(t, infrav1.ClusterCategoryCreationFailed, cond.Reason)
+		assert.Equal(t, capiv1beta1.ConditionSeverityError, cond.Severity)
+		assert.Equal(t, cause.Error(), cond.Message)
+
+		require.NotNil(t, persisted.Status.V1Beta2)
+		v2 := findV1Beta2Condition(persisted.Status.V1Beta2.Conditions, string(infrav1.ClusterCategoryCreatedCondition))
+		require.NotNil(t, v2)
+		assert.Equal(t, metav1.ConditionFalse, v2.Status)
+		assert.Equal(t, infrav1.ClusterCategoryCreationFailed, v2.Reason)
+		assert.Equal(t, cause.Error(), v2.Message)
+	})
+
+	t.Run("does not downgrade when the server copy is already True", func(t *testing.T) {
+		ctx := context.Background()
+		// Local copy is stale (condition not set), so the early short-circuit does not
+		// fire; the fresh server copy is already True and must not be downgraded.
+		localCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: namespace},
+		}
+		serverCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: namespace},
+			Status: infrav1.NutanixClusterStatus{
+				Conditions: capiv1beta1.Conditions{
+					{Type: infrav1.ClusterCategoryCreatedCondition, Status: corev1.ConditionTrue, Reason: infrav1.Succeeded},
+				},
+			},
+		}
+
+		scheme := newClusterCategoryTestScheme(t)
+		fakeClient := fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(serverCluster).
+			WithStatusSubresource(serverCluster).
+			Build()
+
+		reconciler := &NutanixMachineReconciler{Client: fakeClient}
+		rctx := &nctx.MachineContext{Context: ctx, NutanixCluster: localCluster}
+
+		require.NoError(t, reconciler.markClusterCategoryCreationFailed(rctx, errors.New("boom")))
+
+		persisted := &infrav1.NutanixCluster{}
+		require.NoError(t, fakeClient.Get(ctx, client.ObjectKeyFromObject(serverCluster), persisted))
+		cond := findV1Beta1Condition(persisted.Status.Conditions, infrav1.ClusterCategoryCreatedCondition)
+		require.NotNil(t, cond)
+		assert.Equal(t, corev1.ConditionTrue, cond.Status, "a transient machine failure must not downgrade a prior success")
+	})
 }
 
 // ctxWithRequestID matches a context that went through v4Converged.WithRequestID. The header
