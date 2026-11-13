@@ -75,6 +75,51 @@ var _ = Describe("NutanixMachine boot security CEL validation", func() {
 		Expect(err.Error()).To(ContainSubstring("vtpmEnabled requires bootType to be uefi and secureBootEnabled to be true"))
 	})
 
+	DescribeTable("validates disk adapters before provisioning", func(secureBoot bool, deviceType infrav1.NutanixMachineDiskDeviceType, adapter infrav1.NutanixMachineDiskAdapterType, wantError bool) {
+		machine := newMachine("test-boot-security-disk-adapter")
+		machine.Spec.BootType = infrav1.NutanixBootTypeUEFI
+		machine.Spec.SecureBootEnabled = secureBoot
+		disk := infrav1.NutanixMachineVMDisk{DiskSize: resource.MustParse("1Gi")}
+		if adapter != "" {
+			disk.DeviceProperties = &infrav1.NutanixMachineVMDiskDeviceProperties{
+				DeviceType: deviceType, AdapterType: adapter,
+			}
+		}
+		machine.Spec.DataDisks = []infrav1.NutanixMachineVMDisk{disk}
+
+		err := k8sClient.Create(ctx, machine)
+		if wantError {
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("secureBootEnabled does not support IDE dataDisks"))
+			// Rejected resources can be corrected and submitted without replacing a failed Machine.
+			machine.Spec.DataDisks[0].DeviceProperties.AdapterType = infrav1.NutanixMachineDiskAdapterTypeSATA
+			Expect(k8sClient.Create(ctx, machine)).To(Succeed())
+		} else {
+			Expect(err).NotTo(HaveOccurred())
+		}
+		Expect(k8sClient.Delete(ctx, machine)).To(Succeed())
+	},
+		Entry("rejects IDE disks with Secure Boot", true, infrav1.NutanixMachineDiskDeviceTypeDisk, infrav1.NutanixMachineDiskAdapterTypeIDE, true),
+		Entry("rejects IDE CD-ROMs with Secure Boot", true, infrav1.NutanixMachineDiskDeviceTypeCDRom, infrav1.NutanixMachineDiskAdapterTypeIDE, true),
+		Entry("accepts SCSI disks with Secure Boot", true, infrav1.NutanixMachineDiskDeviceTypeDisk, infrav1.NutanixMachineDiskAdapterTypeSCSI, false),
+		Entry("accepts SATA CD-ROMs with Secure Boot", true, infrav1.NutanixMachineDiskDeviceTypeCDRom, infrav1.NutanixMachineDiskAdapterTypeSATA, false),
+		Entry("accepts default disk properties with Secure Boot", true, infrav1.NutanixMachineDiskDeviceTypeDisk, infrav1.NutanixMachineDiskAdapterType(""), false),
+		Entry("accepts IDE without Secure Boot", false, infrav1.NutanixMachineDiskDeviceTypeDisk, infrav1.NutanixMachineDiskAdapterTypeIDE, false),
+	)
+
+	It("rejects adding IDE disks to an existing Secure Boot machine", func() {
+		machine := newMachine("test-boot-security-disk-update")
+		machine.Spec.BootType = infrav1.NutanixBootTypeUEFI
+		machine.Spec.SecureBootEnabled = true
+		Expect(k8sClient.Create(ctx, machine)).To(Succeed())
+		DeferCleanup(func() { Expect(k8sClient.Delete(ctx, machine)).To(Succeed()) })
+
+		patch := client.RawPatch(types.MergePatchType, []byte(`{"spec":{"dataDisks":[{"diskSize":"1Gi","deviceProperties":{"deviceType":"Disk","adapterType":"IDE"}}]}}`))
+		err := k8sClient.Patch(ctx, machine, patch)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("secureBootEnabled does not support IDE dataDisks"))
+	})
+
 	DescribeTable("validates boot security with VM profiles", func(secureBoot, vtpm bool) {
 		machine := newMachine("test-profile-boot-security")
 		profileName := "test-profile"

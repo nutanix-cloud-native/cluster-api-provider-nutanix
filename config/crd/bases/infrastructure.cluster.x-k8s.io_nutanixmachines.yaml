@@ -620,6 +620,11 @@ spec:
             - message: secureBootEnabled requires bootType to be uefi
               rule: '!has(self.secureBootEnabled) || !self.secureBootEnabled || self.bootType
                 == ''uefi'''
+            - message: secureBootEnabled does not support IDE dataDisks; use a compatible
+                adapter
+              rule: '!has(self.secureBootEnabled) || !self.secureBootEnabled || !has(self.dataDisks)
+                || self.dataDisks.all(d, !has(d.deviceProperties) || !has(d.deviceProperties.adapterType)
+                || d.deviceProperties.adapterType != ''IDE'')'
             - message: vtpmEnabled requires bootType to be uefi and secureBootEnabled
                 to be true
               rule: '!has(self.vtpmEnabled) || !self.vtpmEnabled || (self.bootType
