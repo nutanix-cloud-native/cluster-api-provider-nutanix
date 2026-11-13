@@ -1827,7 +1827,7 @@ func validateDataDiskDeviceProperties(disk infrav1.NutanixMachineVMDisk, errors 
 		validAdapterTypes[infrav1.NutanixMachineDiskAdapterTypeIDE] = true
 	case infrav1.NutanixMachineDiskDeviceTypeCDRom:
 		validAdapterTypes[infrav1.NutanixMachineDiskAdapterTypeIDE] = true
-		validAdapterTypes[infrav1.NutanixMachineDiskAdapterTypePCI] = true
+		validAdapterTypes[infrav1.NutanixMachineDiskAdapterTypeSATA] = true
 	default:
 		errors = append(errors, fmt.Errorf("invalid device type %s for data disk", disk.DeviceProperties.DeviceType))
 	}
@@ -2691,6 +2691,26 @@ func getDiskList(rctx *nctx.MachineContext, peUUID string, effectiveProject *nct
 	if err != nil {
 		return nil, nil, err
 	}
+	if rctx.NutanixMachine.Spec.SecureBootEnabled && len(cdRoms) > 0 {
+		// Keep user-specified addresses unchanged and give the bootstrap CD-ROM
+		// the first available SATA index.
+		usedIndexes := make(map[int]bool)
+		for _, disk := range dataDisks {
+			if address := disk.DiskAddress; address != nil && address.BusType != nil && *address.BusType == vmmconfig.DISKBUSTYPE_SATA && address.Index != nil {
+				usedIndexes[*address.Index] = true
+			}
+		}
+		for _, cdRom := range dataCdRoms {
+			if address := cdRom.DiskAddress; address != nil && address.BusType != nil && *address.BusType == vmmconfig.CDROMBUSTYPE_SATA && address.Index != nil {
+				usedIndexes[*address.Index] = true
+			}
+		}
+		index := 0
+		for usedIndexes[index] {
+			index++
+		}
+		cdRoms[0].DiskAddress.Index = ptr.To(index)
+	}
 	disks = append(disks, dataDisks...)
 	cdRoms = append(cdRoms, dataCdRoms...)
 
@@ -2780,6 +2800,9 @@ func getBootstrapDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectI
 	cdRom.DiskAddress = vmmconfig.NewCdRomAddress()
 	cdRom.DiskAddress.Index = ptr.To(0)
 	cdRom.DiskAddress.BusType = vmmconfig.CDROMBUSTYPE_IDE.Ref()
+	if rctx.NutanixMachine.Spec.SecureBootEnabled {
+		cdRom.DiskAddress.BusType = vmmconfig.CDROMBUSTYPE_SATA.Ref()
+	}
 	cdRom.BackingInfo = newVmDiskWithImageRef(bootstrapImage.ExtId, 0)
 
 	return cdRom, nil
@@ -2961,8 +2984,45 @@ func (r *NutanixMachineReconciler) getMachineCategoryIdentifiers(rctx *nctx.Mach
 	return categoryIdentifiers, nil
 }
 
+func validateSecureBootDisks(vm *vmmconfig.Vm) error {
+	for i, disk := range vm.Disks {
+		if disk.DiskAddress != nil && disk.DiskAddress.BusType != nil && *disk.DiskAddress.BusType == vmmconfig.DISKBUSTYPE_IDE {
+			return fmt.Errorf("secure boot requires Q35, which does not support IDE disk %d; use a compatible disk adapter", i)
+		}
+	}
+	for i, cdRom := range vm.CdRoms {
+		if cdRom.DiskAddress != nil && cdRom.DiskAddress.BusType != nil && *cdRom.DiskAddress.BusType == vmmconfig.CDROMBUSTYPE_IDE {
+			return fmt.Errorf("secure boot requires Q35, which does not support IDE CD-ROM %d; use a SATA CD-ROM", i)
+		}
+	}
+	return nil
+}
+
 func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
 	bootType := rctx.NutanixMachine.Spec.BootType
+	secureBootEnabled := rctx.NutanixMachine.Spec.SecureBootEnabled
+	vtpmEnabled := rctx.NutanixMachine.Spec.VTPMEnabled
+
+	var bootError error
+	switch {
+	case secureBootEnabled && bootType != infrav1.NutanixBootTypeUEFI:
+		bootError = fmt.Errorf("secure boot requires boot type %s", string(infrav1.NutanixBootTypeUEFI))
+	case vtpmEnabled && !secureBootEnabled:
+		bootError = fmt.Errorf("vTPM requires secure boot to be enabled")
+	case secureBootEnabled:
+		bootError = validateSecureBootDisks(vm)
+	}
+	if bootError != nil {
+		v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VMBootTypeInvalid, capiv1beta1.ConditionSeverityError, "%s", bootError.Error())
+		v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
+			Type:    string(infrav1.VMProvisionedCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.VMBootTypeInvalid,
+			Message: bootError.Error(),
+		})
+		return bootError
+	}
+
 	// Defaults to legacy if boot type is not set.
 	if bootType != "" {
 		if bootType != infrav1.NutanixBootTypeLegacy && bootType != infrav1.NutanixBootTypeUEFI {
@@ -2984,6 +3044,11 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 		if bootType == infrav1.NutanixBootTypeUEFI {
 			uefi := vmmconfig.NewUefiBoot()
 			uefi.BootOrder = bootOrder
+			if secureBootEnabled {
+				uefi.IsSecureBootEnabled = ptr.To(true)
+				// Nutanix requires the Q35 machine type for Secure Boot.
+				vm.MachineType = ptr.To(vmmconfig.MACHINETYPE_Q35)
+			}
 			err := vm.BootConfig.SetValue(*uefi)
 			if err != nil {
 				return err
@@ -2996,6 +3061,11 @@ func (r *NutanixMachineReconciler) addBootTypeToVM(rctx *nctx.MachineContext, vm
 				return err
 			}
 		}
+	}
+
+	if vtpmEnabled {
+		vm.VtpmConfig = vmmconfig.NewVtpmConfig()
+		vm.VtpmConfig.IsVtpmEnabled = ptr.To(true)
 	}
 
 	return nil

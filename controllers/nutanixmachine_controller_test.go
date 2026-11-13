@@ -525,6 +525,33 @@ func TestNutanixMachineReconciler_SetupWithManager_ClusterToTypedObjectsMapperEr
 	assert.Contains(t, err.Error(), "failed to create mapper for Cluster to NutanixMachine")
 }
 
+func TestNutanixMachineValidateCDRomAdapters(t *testing.T) {
+	for _, tc := range []struct {
+		adapter   infrav1.NutanixMachineDiskAdapterType
+		wantError bool
+	}{
+		{adapter: infrav1.NutanixMachineDiskAdapterTypeIDE},
+		{adapter: infrav1.NutanixMachineDiskAdapterTypeSATA},
+		{adapter: infrav1.NutanixMachineDiskAdapterTypePCI, wantError: true},
+	} {
+		t.Run(string(tc.adapter), func(t *testing.T) {
+			disks := []infrav1.NutanixMachineVMDisk{{
+				DiskSize: resource.MustParse("1Gi"),
+				DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
+					DeviceType:  infrav1.NutanixMachineDiskDeviceTypeCDRom,
+					AdapterType: tc.adapter,
+				},
+			}}
+			err := (&NutanixMachineReconciler{}).validateDataDisks(disks)
+			if tc.wantError {
+				require.ErrorContains(t, err, "invalid adapter type PCI")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestNutanixMachineValidateDataDisks(t *testing.T) {
 	testCases := []struct {
 		name        string
@@ -1305,6 +1332,48 @@ func TestNutanixClusterReconcilerGetDiskList(t *testing.T) {
 			if tc.wantDisksLen != len(disks)+len(cdRoms) {
 				t.Fatalf("expected %d disks, got %d", tc.wantDisksLen, len(disks)+len(cdRoms))
 			}
+		})
+	}
+
+	for _, tc := range []struct {
+		name       string
+		secureBoot bool
+		sataIndex  int32
+		wantIndex  int
+	}{
+		{name: "image bootstrap retains IDE without Secure Boot", sataIndex: -1},
+		{name: "image bootstrap uses SATA with Secure Boot", secureBoot: true, sataIndex: -1},
+		{name: "bootstrap avoids automatically assigned SATA disk index", secureBoot: true, sataIndex: 0, wantIndex: 1},
+		{name: "bootstrap preserves explicitly assigned SATA disk index", secureBoot: true, sataIndex: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			ntnxMachine, machine, cluster, convergedClient := tt[0].fixtures(mockCtrl)
+			ntnxMachine = ntnxMachine.DeepCopy()
+			ntnxMachine.Spec.BootType = infrav1.NutanixBootTypeUEFI
+			ntnxMachine.Spec.SecureBootEnabled = tc.secureBoot
+			if tc.sataIndex >= 0 {
+				ntnxMachine.Spec.DataDisks[0].DeviceProperties.AdapterType = infrav1.NutanixMachineDiskAdapterTypeSATA
+				ntnxMachine.Spec.DataDisks[0].DeviceProperties.DeviceIndex = tc.sataIndex
+			}
+			rctx := &nctx.MachineContext{
+				Context: context.Background(), NutanixMachine: ntnxMachine,
+				Machine: machine, NutanixCluster: cluster, ConvergedClient: convergedClient,
+			}
+			disks, cdRoms, err := getDiskList(rctx, *ntnxMachine.Spec.Cluster.UUID, nil, nil)
+			require.NoError(t, err)
+			require.Len(t, cdRoms, 1)
+			wantBus := vmmModels.CDROMBUSTYPE_IDE
+			if tc.secureBoot {
+				wantBus = vmmModels.CDROMBUSTYPE_SATA
+			}
+			assert.Equal(t, wantBus, *cdRoms[0].DiskAddress.BusType)
+			assert.Equal(t, tc.wantIndex, *cdRoms[0].DiskAddress.Index)
+			if tc.sataIndex >= 0 {
+				assert.Equal(t, int(tc.sataIndex), *disks[1].DiskAddress.Index)
+			}
+			vm := &vmmModels.Vm{Disks: disks, CdRoms: cdRoms}
+			require.NoError(t, (&NutanixMachineReconciler{}).addBootTypeToVM(rctx, vm))
 		})
 	}
 }
@@ -3501,11 +3570,13 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 				Namespace: "default",
 			},
 			Spec: infrav1.NutanixMachineSpec{
-				VCPUSockets:    2,
-				VCPUsPerSocket: 1,
-				MemorySize:     resource.MustParse("4Gi"),
-				SystemDiskSize: resource.MustParse("40Gi"),
-				BootType:       infrav1.NutanixBootTypeLegacy,
+				VCPUSockets:       2,
+				VCPUsPerSocket:    1,
+				MemorySize:        resource.MustParse("4Gi"),
+				SystemDiskSize:    resource.MustParse("40Gi"),
+				BootType:          infrav1.NutanixBootTypeUEFI,
+				SecureBootEnabled: true,
+				VTPMEnabled:       true,
 				Project: &infrav1.NutanixResourceIdentifier{
 					Type: infrav1.NutanixIdentifierName,
 					Name: &projectName,
@@ -3620,7 +3691,31 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		// that passes the plain ctx (and silently drops the key) fails here.
 		mockCreateOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
 		mockCreateOp.EXPECT().Wait(gomock.Any()).Return([]*vmmModels.Vm{createdVM}, nil)
-		mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctxWithRequestID(), gomock.Any()).Return(mockCreateOp, nil)
+		mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctxWithRequestID(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, request *vmmModels.Vm) (converged.Operation[vmmModels.Vm], error) {
+				require.NotNil(t, request.MachineType)
+				assert.Equal(t, vmmModels.MACHINETYPE_Q35, *request.MachineType)
+
+				require.NotNil(t, request.BootConfig)
+				uefi, ok := request.BootConfig.GetValue().(vmmModels.UefiBoot)
+				require.True(t, ok)
+				require.NotNil(t, uefi.IsSecureBootEnabled)
+				assert.True(t, *uefi.IsSecureBootEnabled)
+
+				require.NotNil(t, request.VtpmConfig)
+				require.NotNil(t, request.VtpmConfig.IsVtpmEnabled)
+				assert.True(t, *request.VtpmConfig.IsVtpmEnabled)
+
+				payload, err := json.Marshal(request)
+				require.NoError(t, err)
+				assert.Contains(t, string(payload), `"machineType":"Q35"`)
+				assert.Contains(t, string(payload), `"isSecureBootEnabled":true`)
+				assert.Contains(t, string(payload), `"vtpmConfig"`)
+				assert.Contains(t, string(payload), `"isVtpmEnabled":true`)
+
+				return mockCreateOp, nil
+			},
+		)
 
 		// Create machine context (PC 7.5 uses V3 project API, so ListAllProject mock is used)
 		rctx := &nctx.MachineContext{
@@ -4449,6 +4544,147 @@ func TestNutanixMachineReconciler_buildDeployParamsFromProfile_CategoryErrorHand
 		assert.Nil(t, rctx.NutanixMachine.Status.FailureReason)
 		assert.Nil(t, rctx.NutanixMachine.Status.FailureMessage)
 	})
+}
+
+func TestNutanixMachineReconciler_addBootTypeToVM(t *testing.T) {
+	tests := []struct {
+		name           string
+		spec           infrav1.NutanixMachineSpec
+		wantError      string
+		wantUEFI       bool
+		wantSecureBoot bool
+		wantVTPM       bool
+		diskBus        *vmmModels.DiskBusType
+		cdRomBus       *vmmModels.CdRomBusType
+	}{
+		{
+			name: "leaves the Nutanix defaults unchanged when no boot security is configured",
+		},
+		{
+			name: "configures UEFI without Secure Boot",
+			spec: infrav1.NutanixMachineSpec{
+				BootType: infrav1.NutanixBootTypeUEFI,
+			},
+			wantUEFI: true,
+		},
+		{
+			name: "enables UEFI Secure Boot",
+			spec: infrav1.NutanixMachineSpec{
+				BootType:          infrav1.NutanixBootTypeUEFI,
+				SecureBootEnabled: true,
+			},
+			wantUEFI:       true,
+			wantSecureBoot: true,
+		},
+		{
+			name: "enables UEFI Secure Boot and vTPM",
+			spec: infrav1.NutanixMachineSpec{
+				BootType:          infrav1.NutanixBootTypeUEFI,
+				SecureBootEnabled: true,
+				VTPMEnabled:       true,
+			},
+			wantUEFI:       true,
+			wantSecureBoot: true,
+			wantVTPM:       true,
+		},
+		{
+			name: "rejects Secure Boot with legacy boot",
+			spec: infrav1.NutanixMachineSpec{
+				BootType:          infrav1.NutanixBootTypeLegacy,
+				SecureBootEnabled: true,
+			},
+			wantError: "secure boot requires boot type uefi",
+		},
+		{
+			name: "rejects vTPM without Secure Boot",
+			spec: infrav1.NutanixMachineSpec{
+				BootType:    infrav1.NutanixBootTypeUEFI,
+				VTPMEnabled: true,
+			},
+			wantError: "vTPM requires secure boot to be enabled",
+		},
+		{
+			name:      "rejects IDE disks with Secure Boot",
+			spec:      infrav1.NutanixMachineSpec{BootType: infrav1.NutanixBootTypeUEFI, SecureBootEnabled: true},
+			diskBus:   vmmModels.DISKBUSTYPE_IDE.Ref(),
+			wantError: "secure boot requires Q35, which does not support IDE disk 0; use a compatible disk adapter",
+		},
+		{
+			name:      "rejects user-configured IDE CD-ROMs with Secure Boot",
+			spec:      infrav1.NutanixMachineSpec{BootType: infrav1.NutanixBootTypeUEFI, SecureBootEnabled: true},
+			cdRomBus:  vmmModels.CDROMBUSTYPE_IDE.Ref(),
+			wantError: "secure boot requires Q35, which does not support IDE CD-ROM 0; use a SATA CD-ROM",
+		},
+		{
+			name:           "accepts SCSI disks and SATA CD-ROMs with Secure Boot",
+			spec:           infrav1.NutanixMachineSpec{BootType: infrav1.NutanixBootTypeUEFI, SecureBootEnabled: true},
+			diskBus:        vmmModels.DISKBUSTYPE_SCSI.Ref(),
+			cdRomBus:       vmmModels.CDROMBUSTYPE_SATA.Ref(),
+			wantUEFI:       true,
+			wantSecureBoot: true,
+		},
+		{
+			name:     "accepts IDE devices without Secure Boot",
+			spec:     infrav1.NutanixMachineSpec{BootType: infrav1.NutanixBootTypeUEFI},
+			diskBus:  vmmModels.DISKBUSTYPE_IDE.Ref(),
+			cdRomBus: vmmModels.CDROMBUSTYPE_IDE.Ref(),
+			wantUEFI: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reconciler := &NutanixMachineReconciler{}
+			machineContext := &nctx.MachineContext{
+				Context: context.Background(),
+				NutanixMachine: &infrav1.NutanixMachine{
+					Spec: tt.spec,
+				},
+			}
+			vm := vmmModels.NewVm()
+			if tt.diskBus != nil {
+				vm.Disks = []vmmModels.Disk{{DiskAddress: &vmmModels.DiskAddress{BusType: tt.diskBus}}}
+			}
+			if tt.cdRomBus != nil {
+				vm.CdRoms = []vmmModels.CdRom{{DiskAddress: &vmmModels.CdRomAddress{BusType: tt.cdRomBus}}}
+			}
+
+			err := reconciler.addBootTypeToVM(machineContext, vm)
+			if tt.wantError != "" {
+				require.EqualError(t, err, tt.wantError)
+				return
+			}
+			require.NoError(t, err)
+
+			if !tt.wantUEFI {
+				assert.Nil(t, vm.BootConfig)
+			} else {
+				require.NotNil(t, vm.BootConfig)
+				uefi, ok := vm.BootConfig.GetValue().(vmmModels.UefiBoot)
+				require.True(t, ok)
+				if tt.wantSecureBoot {
+					require.NotNil(t, uefi.IsSecureBootEnabled)
+					assert.True(t, *uefi.IsSecureBootEnabled)
+				} else {
+					assert.Nil(t, uefi.IsSecureBootEnabled)
+				}
+			}
+			if tt.wantSecureBoot {
+				require.NotNil(t, vm.MachineType)
+				assert.Equal(t, vmmModels.MACHINETYPE_Q35, *vm.MachineType)
+			} else {
+				assert.Nil(t, vm.MachineType)
+			}
+
+			if tt.wantVTPM {
+				require.NotNil(t, vm.VtpmConfig)
+				require.NotNil(t, vm.VtpmConfig.IsVtpmEnabled)
+				assert.True(t, *vm.VtpmConfig.IsVtpmEnabled)
+			} else {
+				assert.Nil(t, vm.VtpmConfig)
+			}
+		})
+	}
 }
 
 func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
