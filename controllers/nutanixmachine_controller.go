@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -94,6 +95,10 @@ type NutanixMachineReconciler struct {
 	ConfigMapInformer coreinformers.ConfigMapInformer
 	Scheme            *runtime.Scheme
 	controllerConfig  *ControllerConfig
+	// metroPlacementLocks serializes metro placement per namespace/cluster/metro inside this process.
+	// The critical section is the uncached sibling list, the least-count simulation, and the native
+	// placement label patch. It is not held across Prism calls. Replicas do not share the lock.
+	metroPlacementLocks sync.Map // map[string]*sync.Mutex
 }
 
 func NewNutanixMachineReconciler(client client.Client, secretInformer coreinformers.SecretInformer, configMapInformer coreinformers.ConfigMapInformer, scheme *runtime.Scheme, copts ...ControllerConfigOpts) (*NutanixMachineReconciler, error) {
@@ -1056,35 +1061,42 @@ func (r *NutanixMachineReconciler) getMetroFailureDomainSpec(rctx *nctx.MachineC
 	}
 
 	fdCount := len(metroObj.Spec.FailureDomains)
+	if fdCount == 0 {
+		return nil, fmt.Errorf("the NutanixMetro %s has no failureDomains", metroName)
+	}
+
 	fdObjs := make([]*infrav1.NutanixFailureDomain, fdCount)
+	nativeIdx := -1
 	for i, fdRef := range metroObj.Spec.FailureDomains {
 		fdObj, err := getNutanixFailureDomainObject(rctx.Context, r.Client, fdRef.Name, namespace)
 		if err != nil {
 			return nil, err
 		}
-
-		// return the failureDomain spec if it is the native-failuredomain. The placement was already
-		// decided on a previous reconcile, but we must still repopulate the reconcile Datastore
-		// (preferred failureDomain + PE) so a VM (re)created on this reconcile still receives its
-		// vHADomain category and metro custom attributes.
-		if nativeFdName == fdObj.Name {
-			r.storeMetroPlacementSelection(rctx, fdObj)
-			return &fdObj.Spec, nil
-		}
-
 		fdObjs[i] = fdObj
+		if nativeFdName != "" && nativeFdName == fdObj.Name {
+			nativeIdx = i
+		}
 	}
 
-	if fdCount == 0 {
-		return nil, fmt.Errorf("the NutanixMetro %s has no failureDomains", metroName)
-	}
-
-	// Round-robin: deterministically select the failureDomain for this machine, the other is the
-	// remaining. The selection balances placement across failureDomains and is concurrency-safe
-	// without serializing reconciles (see computeMetroPlacementIndex).
-	idx, err := r.computeMetroPlacementIndex(rctx, fdObjs)
-	if err != nil {
-		return nil, err
+	var idx int
+	if nativeIdx >= 0 {
+		// Placement was already decided on a previous reconcile (the native-failuredomain label is
+		// set). Reuse that selection instead of re-balancing, and repopulate the reconcile Datastore
+		// (preferred failureDomain + PE) so a VM (re)created on this reconcile still receives its
+		// vHADomain category and metro custom attributes. We intentionally do NOT return early here:
+		// the recovery-plan resolution and validation fallback below still run, so a machine whose
+		// native PE is temporarily unhealthy is placed on the paired site for this reconcile instead
+		// of being pinned to the unhealthy site until that PE recovers.
+		idx = nativeIdx
+		r.storeMetroPlacementSelection(rctx, fdObjs[idx])
+	} else {
+		// Select and patch the native failure domain before any Prism call. The lock makes this
+		// machine's label visible to the next reconcile's uncached list.
+		var err error
+		idx, err = r.assignAndPersistMetroPlacement(rctx, metroName, fdObjs)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var selectedFd, remainingFd *infrav1.NutanixFailureDomain
@@ -1096,8 +1108,7 @@ func (r *NutanixMachineReconciler) getMetroFailureDomainSpec(rctx *nctx.MachineC
 		}
 	}
 
-	// Persist native placement semantics first, then derive active placement for VM creation.
-	r.storeMetroPlacementSelection(rctx, selectedFd)
+	// Native placement is already persisted. Derive active placement for VM creation.
 	placementFd, perr := r.resolveMetroPlacementFailureDomainFromRecoveryPlanJob(rctx, metroName, selectedFd, fdObjs)
 	if perr != nil {
 		log.Error(perr, "Failed to resolve Metro active placement from Recovery Plan Job, fallback to native selection", "metro", metroName)
@@ -1108,7 +1119,7 @@ func (r *NutanixMachineReconciler) getMetroFailureDomainSpec(rctx *nctx.MachineC
 	}
 
 	// Metro failure domains always use the default project (nil effectiveProject and resourceGroup)
-	if err = r.validateFailureDomainSpec(rctx, &placementFd.Spec, nil, nil); err != nil {
+	if err := r.validateFailureDomainSpec(rctx, &placementFd.Spec, nil, nil); err != nil {
 		log.Error(err, fmt.Sprintf("The selected failureDomain %s failed at validation. Try with the other failureDomain.", placementFd.Name))
 
 		if remainingFd == nil {
@@ -1455,14 +1466,11 @@ func (r *NutanixMachineReconciler) setMetroRecoveryPlacementStatus(
 	)
 }
 
-// computeMetroPlacementIndex deterministically selects, for the machine being reconciled, the index
-// into fdObjs (the metro's failureDomains) on which it should be placed. It balances placement
-// without serializing reconciles (no concurrentReconciles=1) and without a name hash.
-//
-// Why it is concurrency-safe: every machine's NutanixMachine object already exists before its
-// reconcile runs, so all concurrent reconciles enumerate the same set of siblings, sort the
-// not-yet-placed ("pending") machines by name, and run the identical greedy least-count simulation.
-// Each machine therefore lands in a distinct, balanced slot regardless of reconcile interleaving.
+// computeMetroPlacementIndex selects, for the machine being reconciled, the index into fdObjs
+// (the metro's failureDomains) on which it should be placed. Pending machines are sorted by name
+// and assigned greedy least-count. assignAndPersistMetroPlacement holds metroPlacementLocks across
+// this read and the native-label patch, so a placement committed before a sibling existed is
+// visible to the next reconcile. The lock is process-local.
 //
 //   - balancing is scoped to the machine's group (MachineSet, then MachineDeployment, then
 //     MachinePool, or the control plane; see metroPlacementGroupKey), so each group is spread evenly
@@ -1472,8 +1480,8 @@ func (r *NutanixMachineReconciler) setMetroRecoveryPlacementStatus(
 //   - already-placed machines (carry the native-failuredomain label) seed per-FD counts, so the
 //     result self-heals after uneven scale-downs.
 //   - terminating machines are skipped so in-flight scale-downs free up their slot.
-//   - the sibling list is read uncached (APIReader) so a lagging informer cache cannot make two
-//     machines pick the same slot.
+//   - the sibling list is read uncached (APIReader) so a label just patched under the placement
+//     lock is visible, instead of a lagging informer cache.
 //
 // Ties (equal counts) are broken by failureDomain order in fdObjs.
 func (r *NutanixMachineReconciler) computeMetroPlacementIndex(rctx *nctx.MachineContext, fdObjs []*infrav1.NutanixFailureDomain) (int, error) {
@@ -1553,6 +1561,69 @@ func (r *NutanixMachineReconciler) computeMetroPlacementIndex(rctx *nctx.Machine
 	}
 
 	return 0, nil
+}
+
+// lockMetroPlacement serializes placement for one metro inside this process. The returned function
+// releases the lock.
+func (r *NutanixMachineReconciler) lockMetroPlacement(rctx *nctx.MachineContext, metroName string) func() {
+	ns := ""
+	clusterName := ""
+	if rctx != nil && rctx.NutanixCluster != nil {
+		ns = rctx.NutanixCluster.Namespace
+		clusterName = rctx.NutanixCluster.Name
+	}
+	if ns == "" && rctx != nil && rctx.NutanixMachine != nil {
+		ns = rctx.NutanixMachine.Namespace
+	}
+	key := ns + "/" + clusterName + "/" + metroName
+	val, _ := r.metroPlacementLocks.LoadOrStore(key, &sync.Mutex{})
+	mu := val.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
+
+// assignAndPersistMetroPlacement chooses a failure domain and patches the native placement labels
+// before returning. The lock covers the uncached sibling list, the simulation, and the patch, and
+// is released before the caller talks to Prism.
+func (r *NutanixMachineReconciler) assignAndPersistMetroPlacement(rctx *nctx.MachineContext, metroName string, fdObjs []*infrav1.NutanixFailureDomain) (int, error) {
+	unlock := r.lockMetroPlacement(rctx, metroName)
+	defer unlock()
+
+	idx, err := r.computeMetroPlacementIndex(rctx, fdObjs)
+	if err != nil {
+		return 0, err
+	}
+	if idx < 0 || idx >= len(fdObjs) || fdObjs[idx] == nil {
+		return 0, fmt.Errorf("metro placement index %d is outside the failure domain list", idx)
+	}
+	if err := r.persistMetroNativePlacement(rctx, fdObjs[idx]); err != nil {
+		return 0, err
+	}
+	return idx, nil
+}
+
+// persistMetroNativePlacement writes the native failure-domain labels before the deferred
+// end-of-reconcile patch. The patch is applied to a copy so earlier in-memory changes stay on
+// rctx.NutanixMachine. The resourceVersion is deliberately not copied back: client.MergeFrom
+// patches do not carry the resourceVersion on their own, so the deferred end-of-reconcile patch
+// has no stale-version problem. Copying the new version onto rctx.NutanixMachine would instead
+// inject it into that merge diff as a precondition and make the later patch fail with a 409 once
+// any earlier write (syncVmUUID, checkFailureDomainStatus, the conditions patch) bumped the
+// version first.
+func (r *NutanixMachineReconciler) persistMetroNativePlacement(rctx *nctx.MachineContext, selectedFd *infrav1.NutanixFailureDomain) error {
+	patched := rctx.NutanixMachine.DeepCopy()
+	if patched.Labels == nil {
+		patched.Labels = map[string]string{}
+	}
+	patched.Labels[metroNativeFailureDomainLabelKey] = selectedFd.Name
+	patched.Labels[metroNativePELabelKey] = selectedFd.Spec.PrismElementCluster.String()
+
+	if err := r.Patch(rctx.Context, patched, client.MergeFrom(rctx.NutanixMachine)); err != nil {
+		return fmt.Errorf("failed to persist metro native placement for %s: %w", rctx.NutanixMachine.Name, err)
+	}
+
+	r.storeMetroPlacementSelection(rctx, selectedFd)
+	return nil
 }
 
 // metroPlacementGroupOwnerLabels is the ordered list of CAPI owner labels used to attribute a machine

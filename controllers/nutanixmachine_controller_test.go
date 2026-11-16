@@ -6099,6 +6099,104 @@ func TestGetMetroFailureDomainSpec_UsesActiveSiteButPreservesNativeLabel(t *test
 	g.Expect(ptr.Deref(rctx.Datastore[nctx.MetroPreferredFailureDomainName], "")).To(Equal(fd0Name))
 }
 
+// TestGetMetroFailureDomainSpec_PinnedNativeFallsBackToHealthySite verifies that a machine already
+// carrying the native-failuredomain label does not get stuck on its native site when that site's PE
+// is unhealthy. The native label must stay pinned (it is the machine's home), but placement for this
+// reconcile must fall back to the paired, healthy failureDomain instead of erroring until the native
+// PE recovers.
+func TestGetMetroFailureDomainSpec_PinnedNativeFallsBackToHealthySite(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	g := NewWithT(t)
+
+	const (
+		ns        = "default"
+		metroName = "metro-pin"
+		fd0Name   = "fd-0"
+		fd1Name   = "fd-1"
+		fd0PEUUID = "00000000-0000-0000-0000-000000000030"
+		fd1PEUUID = "00000000-0000-0000-0000-000000000031"
+	)
+
+	scheme := runtime.NewScheme()
+	g.Expect(infrav1.AddToScheme(scheme)).To(Succeed())
+	g.Expect(capiv1beta2.AddToScheme(scheme)).To(Succeed())
+
+	fd0 := &infrav1.NutanixFailureDomain{
+		ObjectMeta: metav1.ObjectMeta{Name: fd0Name, Namespace: ns},
+		Spec: infrav1.NutanixFailureDomainSpec{
+			PrismElementCluster: infrav1.NutanixResourceIdentifier{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(fd0PEUUID)},
+		},
+	}
+	fd1 := &infrav1.NutanixFailureDomain{
+		ObjectMeta: metav1.ObjectMeta{Name: fd1Name, Namespace: ns},
+		Spec: infrav1.NutanixFailureDomainSpec{
+			PrismElementCluster: infrav1.NutanixResourceIdentifier{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(fd1PEUUID)},
+		},
+	}
+	metro := &infrav1.NutanixMetro{
+		ObjectMeta: metav1.ObjectMeta{Name: metroName, Namespace: ns},
+		Spec: infrav1.NutanixMetroSpec{
+			FailureDomains: []corev1.LocalObjectReference{{Name: fd0Name}, {Name: fd1Name}},
+		},
+	}
+	nutanixCluster := &infrav1.NutanixCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "cluster-pin", Namespace: ns, UID: "cluster-uid-pin"},
+	}
+	// The machine is already pinned to fd0 via the native-failuredomain label.
+	currentNM := &infrav1.NutanixMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "nm-pin",
+			Namespace: ns,
+			Labels: map[string]string{
+				capiv1beta2.ClusterNameLabel:     "cluster-pin",
+				metroNativeFailureDomainLabelKey: fd0Name,
+			},
+		},
+	}
+	currentMachine := &capiv1beta2.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "machine-pin",
+			Namespace: ns,
+			Labels:    map[string]string{capiv1beta2.ClusterNameLabel: "cluster-pin"},
+		},
+		Spec: capiv1beta2.MachineSpec{
+			InfrastructureRef: capiv1beta2.ContractVersionedObjectReference{Name: "nm-pin"},
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).
+		WithObjects(fd0, fd1, metro, nutanixCluster, currentNM, currentMachine).Build()
+
+	mockConvergedClient := NewMockConvergedClient(ctrl)
+	// fd0 (native) PE is unhealthy: its lookup fails, so validation of the native site fails.
+	mockConvergedClient.MockClusters.EXPECT().Get(gomock.Any(), fd0PEUUID).Return(
+		nil, fmt.Errorf("prism element %s is unavailable", fd0PEUUID),
+	).AnyTimes()
+	// fd1 (paired) PE is healthy.
+	mockConvergedClient.MockClusters.EXPECT().Get(gomock.Any(), fd1PEUUID).Return(
+		&clustermgmtconfig.Cluster{ExtId: ptr.To(fd1PEUUID), Config: &clustermgmtconfig.ClusterConfigReference{IsAvailable: ptr.To(true)}}, nil,
+	).AnyTimes()
+
+	rctx := &nctx.MachineContext{
+		Context:         context.Background(),
+		ConvergedClient: mockConvergedClient.Client,
+		Cluster:         &capiv1beta2.Cluster{ObjectMeta: metav1.ObjectMeta{Name: "cluster-pin", Namespace: ns}},
+		Machine:         currentMachine,
+		NutanixCluster:  nutanixCluster,
+		NutanixMachine:  currentNM,
+	}
+
+	reconciler := &NutanixMachineReconciler{Client: fakeClient, APIReader: fakeClient}
+	fdSpec, err := reconciler.getMetroFailureDomainSpec(rctx, metroName)
+	g.Expect(err).ToNot(HaveOccurred())
+	// Placement falls back to the healthy paired site...
+	g.Expect(ptr.Deref(fdSpec.PrismElementCluster.UUID, "")).To(Equal(fd1PEUUID))
+	// ...but the native identity stays pinned to fd0.
+	g.Expect(rctx.NutanixMachine.Labels[metroNativeFailureDomainLabelKey]).To(Equal(fd0Name))
+	g.Expect(ptr.Deref(rctx.Datastore[nctx.MetroPreferredFailureDomainName], "")).To(Equal(fd0Name))
+}
+
 func TestGetMetroSiteFailureDomainSpec_FallbacksToNativeWhenRecoveryPlanJobLookupFails(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
