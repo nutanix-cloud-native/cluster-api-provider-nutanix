@@ -41,7 +41,6 @@ import (
 	apitypes "k8s.io/apimachinery/pkg/types"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	coreinformers "k8s.io/client-go/informers/core/v1"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
@@ -3234,31 +3233,38 @@ func (r *NutanixMachineReconciler) GetSubnetAndPEUUIDs(rctx *nctx.MachineContext
 	return peUUID, subnetUUIDs, nil
 }
 
-// patchClusterCategoryCondition re-fetches the NutanixCluster and applies mutate
-// under optimistic concurrency, retrying on conflict so parallel machine reconciles
-// do not race on the shared object. mutate returns false to skip the patch (no-op).
+// patchClusterCategoryCondition reads the NutanixCluster directly from the API server
+// (bypassing the cache) so the skip/mutate decision is based on authoritative state, then
+// patches it via the CAPI patch helper. The helper performs its own optimistic-locked,
+// conflict-retrying write of the conditions, so parallel machine reconciles do not race on
+// the shared object. mutate returns false to skip the patch (no-op).
 func (r *NutanixMachineReconciler) patchClusterCategoryCondition(
 	ctx context.Context,
 	key client.ObjectKey,
 	mutate func(*infrav1.NutanixCluster) bool,
 ) error {
-	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		nc := &infrav1.NutanixCluster{}
-		if err := r.Get(ctx, key, nc); err != nil {
-			return err
-		}
-		ph, err := v1beta1patch.NewHelper(nc, r.Client)
-		if err != nil {
-			return fmt.Errorf("failed to init patch helper for NutanixCluster %s/%s: %w", nc.Namespace, nc.Name, err)
-		}
-		if !mutate(nc) {
-			return nil
-		}
-		if err := ph.Patch(ctx, nc); err != nil {
-			return fmt.Errorf("failed to patch ClusterCategoryCreatedCondition on NutanixCluster %s/%s: %w", nc.Namespace, nc.Name, err)
-		}
+	// Read uncached so a True just written by a sibling machine reconcile is observed, instead
+	// of a stale informer-cache copy that would trigger a redundant patch.
+	reader := client.Reader(r.Client)
+	if r.APIReader != nil {
+		reader = r.APIReader
+	}
+
+	nc := &infrav1.NutanixCluster{}
+	if err := reader.Get(ctx, key, nc); err != nil {
+		return err
+	}
+	ph, err := v1beta1patch.NewHelper(nc, r.Client)
+	if err != nil {
+		return fmt.Errorf("failed to init patch helper for NutanixCluster %s/%s: %w", nc.Namespace, nc.Name, err)
+	}
+	if !mutate(nc) {
 		return nil
-	})
+	}
+	if err := ph.Patch(ctx, nc); err != nil {
+		return fmt.Errorf("failed to patch ClusterCategoryCreatedCondition on NutanixCluster %s/%s: %w", nc.Namespace, nc.Name, err)
+	}
+	return nil
 }
 
 // markClusterCategoryCreated sets ClusterCategoryCreatedCondition=True on the

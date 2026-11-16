@@ -7032,7 +7032,7 @@ func TestNutanixMachineReconciler_markClusterCategoryCreated(t *testing.T) {
 		require.NoError(t, reconciler.markClusterCategoryCreated(rctx))
 	})
 
-	t.Run("retries on conflict and persists the condition", func(t *testing.T) {
+	t.Run("absorbs a transient conflict via the patch helper and persists the condition", func(t *testing.T) {
 		ctx := context.Background()
 		ntnxCluster := &infrav1.NutanixCluster{
 			ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: namespace},
@@ -7045,12 +7045,14 @@ func TestNutanixMachineReconciler_markClusterCategoryCreated(t *testing.T) {
 			WithStatusSubresource(ntnxCluster).
 			Build()
 
+		// The CAPI patch helper runs its own optimistic-locked, conflict-retrying loop, so a
+		// single injected conflict on the status Patch must be absorbed and retried internally.
 		conflicts := 1
 		reconciler := &NutanixMachineReconciler{Client: &conflictOnceClient{Client: fakeClient, remaining: &conflicts}}
 		rctx := &nctx.MachineContext{Context: ctx, NutanixCluster: ntnxCluster}
 
 		require.NoError(t, reconciler.markClusterCategoryCreated(rctx))
-		assert.Equal(t, 0, conflicts, "the injected conflict should have been consumed by a retry")
+		assert.Equal(t, 0, conflicts, "the injected conflict should have been consumed by the patch helper's retry")
 
 		persisted := &infrav1.NutanixCluster{}
 		require.NoError(t, fakeClient.Get(ctx, client.ObjectKeyFromObject(ntnxCluster), persisted))
@@ -7133,6 +7135,51 @@ func TestNutanixMachineReconciler_markClusterCategoryCreationFailed(t *testing.T
 		cond := findV1Beta1Condition(persisted.Status.Conditions, infrav1.ClusterCategoryCreatedCondition)
 		require.NotNil(t, cond)
 		assert.Equal(t, corev1.ConditionTrue, cond.Status, "a transient machine failure must not downgrade a prior success")
+	})
+
+	t.Run("uses APIReader so a True seen only uncached skips the patch", func(t *testing.T) {
+		ctx := context.Background()
+		// Local copy is stale (condition not set), so the early short-circuit does not fire.
+		localCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: namespace},
+		}
+		// Cached client copy is also stale (condition not set) - if the skip decision read from
+		// the cache it would patch to False.
+		cachedCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: namespace},
+		}
+		// APIReader copy is already True - the authoritative, uncached state.
+		apiReaderCluster := &infrav1.NutanixCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: namespace},
+			Status: infrav1.NutanixClusterStatus{
+				Conditions: capiv1beta1.Conditions{
+					{Type: infrav1.ClusterCategoryCreatedCondition, Status: corev1.ConditionTrue, Reason: infrav1.Succeeded},
+				},
+			},
+		}
+
+		scheme := newClusterCategoryTestScheme(t)
+		cachedClient := fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(cachedCluster).
+			WithStatusSubresource(cachedCluster).
+			Build()
+		apiReader := fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(apiReaderCluster).
+			WithStatusSubresource(apiReaderCluster).
+			Build()
+
+		reconciler := &NutanixMachineReconciler{Client: cachedClient, APIReader: apiReader}
+		rctx := &nctx.MachineContext{Context: ctx, NutanixCluster: localCluster}
+
+		require.NoError(t, reconciler.markClusterCategoryCreationFailed(rctx, errors.New("boom")))
+
+		// Because the uncached read saw True, no patch was issued; the cached copy is untouched.
+		persisted := &infrav1.NutanixCluster{}
+		require.NoError(t, cachedClient.Get(ctx, client.ObjectKeyFromObject(cachedCluster), persisted))
+		assert.Nil(t, findV1Beta1Condition(persisted.Status.Conditions, infrav1.ClusterCategoryCreatedCondition),
+			"skip decision must come from the uncached APIReader, so no False condition should be written")
 	})
 }
 
