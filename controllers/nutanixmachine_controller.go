@@ -3088,11 +3088,33 @@ func (r *NutanixMachineReconciler) resolveEffectiveProject(rctx *nctx.MachineCon
 		// explicitly-requested project via the v3 client instead.
 		var project *nctx.ProjectInfo
 		var err error
+		lookupStarted := time.Now()
+		projectRefName := ""
+		if projectRef.Name != nil {
+			projectRefName = *projectRef.Name
+		}
+		projectRefUUID := ""
+		if projectRef.UUID != nil {
+			projectRefUUID = *projectRef.UUID
+		}
+		log.Info("resolveEffectiveProject: starting project lookup",
+			"vm", vmName,
+			"pcVersion", rctx.PCVersion,
+			"projectName", projectRefName,
+			"projectUUID", projectRefUUID,
+			"useV4", isPCVersionHigherThan75(rctx.PCVersion),
+		)
 		if isPCVersionHigherThan75(rctx.PCVersion) {
 			project, err = GetProjectV4(rctx, projectRef)
 		} else {
 			project, err = GetProjectV3(rctx, projectRef)
 		}
+		log.Info("resolveEffectiveProject: finished project lookup",
+			"vm", vmName,
+			"projectName", projectRefName,
+			"duration", time.Since(lookupStarted).String(),
+			"err", err,
+		)
 		if err != nil {
 			errorMsg := fmt.Errorf("error occurred while searching for project for VM %s: %w", vmName, err)
 			log.Error(errorMsg, "error occurred while searching for project")

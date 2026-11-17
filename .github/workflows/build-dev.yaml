@@ -109,15 +109,10 @@ jobs:
     strategy:
       matrix:
         e2e-labels:
-          - "clusterctl-upgrade"
-          - "clusterclass"
-          - "capx-feature-test"
-          - "nutanix-feature-test"
-          - "nutanix-storage-test"
-          - "projects"
-          - "scaling"
-          - "kubernetes-upgrade"
-          - "gpu"
+          # DIAGNOSTIC-ONLY: temporarily narrow the matrix to the inaccessible-project
+          # case that is stuck on BootstrapDataNotReady / missing ProjectAssigned.
+          # Restore the full matrix before merging any non-diagnostic change.
+          - "inaccessible-project"
       fail-fast: false
     needs: check_approvals
     uses: ./.github/workflows/e2e.yaml

@@ -2137,6 +2137,7 @@ func resolveResourceGroupForProjectPolicy(ctx context.Context, client *v4Converg
 // GetProjectV4 returns the project info (UUID and name) using the v4 client
 func GetProjectV4(rctx *nctx.MachineContext, projectRef *infrav1.NutanixResourceIdentifier) (*nctx.ProjectInfo, error) {
 	ctx := rctx.Context
+	log := ctrl.LoggerFrom(ctx)
 	client := rctx.ConvergedClient
 	projectUUID := projectRef.UUID
 	projectName := projectRef.Name
@@ -2145,7 +2146,14 @@ func GetProjectV4(rctx *nctx.MachineContext, projectRef *infrav1.NutanixResource
 		return nil, fmt.Errorf("name or uuid must be passed in order to retrieve the project")
 	}
 	if projectUUID != nil {
+		started := time.Now()
+		log.Info("GetProjectV4: starting Projects.Get by UUID", "projectUUID", *projectUUID)
 		project, err := client.Projects.Get(ctx, *projectUUID)
+		log.Info("GetProjectV4: finished Projects.Get by UUID",
+			"projectUUID", *projectUUID,
+			"duration", time.Since(started).String(),
+			"err", err,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -2154,7 +2162,14 @@ func GetProjectV4(rctx *nctx.MachineContext, projectRef *infrav1.NutanixResource
 			Name:  project.Name,
 		}, nil
 	}
+	started := time.Now()
+	log.Info("GetProjectV4: starting Projects.GetByName", "projectName", *projectName)
 	project, err := client.Projects.GetByName(ctx, *projectName)
+	log.Info("GetProjectV4: finished Projects.GetByName",
+		"projectName", *projectName,
+		"duration", time.Since(started).String(),
+		"err", err,
+	)
 	if err != nil {
 		return nil, err
 	}
