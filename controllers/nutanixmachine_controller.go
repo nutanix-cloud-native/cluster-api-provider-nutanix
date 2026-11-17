@@ -3233,6 +3233,17 @@ func (r *NutanixMachineReconciler) GetSubnetAndPEUUIDs(rctx *nctx.MachineContext
 	return peUUID, subnetUUIDs, nil
 }
 
+// uncachedGetClient serves Get from an API reader so the patch helper's conflict
+// retry observes the live resourceVersion. Writes stay on the embedded client.
+type uncachedGetClient struct {
+	client.Client
+	reader client.Reader
+}
+
+func (c uncachedGetClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	return c.reader.Get(ctx, key, obj, opts...)
+}
+
 // patchClusterCategoryCondition reads the NutanixCluster directly from the API server
 // (bypassing the cache) so the skip/mutate decision is based on authoritative state, then
 // patches it via the CAPI patch helper. The helper performs its own optimistic-locked,
@@ -3254,7 +3265,12 @@ func (r *NutanixMachineReconciler) patchClusterCategoryCondition(
 	if err := reader.Get(ctx, key, nc); err != nil {
 		return err
 	}
-	ph, err := v1beta1patch.NewHelper(nc, r.Client)
+	// Hand the patch helper a client whose Get delegates to the uncached reader. The helper
+	// runs its own optimistic-locked conflict-retry loop and re-Gets the object on every
+	// attempt; without this, those re-reads hit the stale informer cache and keep observing the
+	// same resourceVersion, so all internal retries conflict and the write ultimately fails.
+	// Writes stay on r.Client.
+	ph, err := v1beta1patch.NewHelper(nc, uncachedGetClient{Client: r.Client, reader: reader})
 	if err != nil {
 		return fmt.Errorf("failed to init patch helper for NutanixCluster %s/%s: %w", nc.Namespace, nc.Name, err)
 	}
