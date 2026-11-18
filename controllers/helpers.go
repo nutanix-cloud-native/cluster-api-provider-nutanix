@@ -17,29 +17,18 @@ limitations under the License.
 package controllers
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"math/rand"
 	"regexp"
 	"slices"
-	"sort"
-	"strconv"
 	"strings"
-	"text/template"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/google/uuid"
-	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	multidomainModels "github.com/nutanix/ntnx-api-golang-clients/multidomain-go-client/v4/models/multidomain/v4/config"
-	subnetModels "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	vmmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
-	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
 	volumesconfig "github.com/nutanix/ntnx-api-golang-clients/volumes-go-client/v4/models/volumes/v4/config"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	v1 "k8s.io/client-go/informers/core/v1"
@@ -54,6 +43,7 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/services"
 	"github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
@@ -61,8 +51,6 @@ import (
 
 const (
 	providerIdPrefix = "nutanix://"
-
-	subnetTypeOverlay = "OVERLAY"
 
 	detachVGRequeueAfter = 30 * time.Second
 
@@ -114,44 +102,37 @@ const (
 	recoveredVMUUIDAnnotation = "capx.nutanix.com/recovered-vm-uuid"
 )
 
-type StorageContainerIntentResponse struct {
-	Name        *string
-	UUID        *string
-	ClusterName *string
-	ClusterUUID *string
+// nutanixResourceIdentifierSpecified reports whether nri identifies a Prism resource.
+// A zero-value identifier (typical when NutanixMachine.spec.cluster is omitted on a
+// topology/metro template) is treated as unset so callers can inherit from a FailureDomain.
+func nutanixResourceIdentifierSpecified(nri infrav1.NutanixResourceIdentifier) bool {
+	return nri.IsName() || nri.IsUUID()
 }
 
-// terminalError represents a deterministic, non-retryable error caused by
-// invalid user configuration (e.g. referenced resource does not exist).
-// It is distinct from converged.APIError which represents HTTP-level failures.
-type terminalError struct {
-	message string
-}
-
-func (e *terminalError) Error() string { return e.message }
-
-func isTerminalError(err error) bool {
-	var te *terminalError
-	return errors.As(err, &te)
-}
-
-func isRetryableAPIError(err error) bool {
-	switch {
-	case converged.IsNotFound(err), isTerminalError(err):
-		return false
-	case converged.IsRateLimit(err), converged.IsInternal(err):
-		return true
-	default:
-		// Converged API errors with Kind == nil are parsed HTTP responses that
-		// are not expected to succeed on retry (for example, 4xx validation errors).
-		// Non-API errors (for example, transport/network timeouts) remain
-		// retryable.
-		var apiErr *converged.APIError
-		if errors.As(err, &apiErr) {
-			return false
-		}
+func resourceIdsEquals(nris1, nris2 []infrav1.NutanixResourceIdentifier) bool {
+	if nris1 == nil && nris2 == nil {
 		return true
 	}
+	if (nris1 == nil && nris2 != nil) ||
+		(nris1 != nil && nris2 == nil) ||
+		len(nris1) != len(nris2) {
+		return false
+	}
+
+	for i := range nris1 {
+		found := false
+		for j := range nris2 {
+			if nris1[i].EqualTo(&nris2[j]) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	return true
 }
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
@@ -207,9 +188,9 @@ func FindVMByUUID(ctx context.Context, client *v4Converged.Client, uuid string, 
 		return nil, err
 	}
 
-	if isPCVersionHigherThan75(pcVersion) && projectExtID != nil && !isVMUsableForProject(response, *projectExtID) {
-		return nil, &terminalError{message: fmt.Sprintf(
-			"VM with UUID %s is not in project %s", uuid, *projectExtID)}
+	if services.IsPCVersionHigherThan75(pcVersion) && projectExtID != nil && !isVMUsableForProject(response, *projectExtID) {
+		return nil, services.NewTerminalError(fmt.Sprintf(
+			"VM with UUID %s is not in project %s", uuid, *projectExtID))
 	}
 
 	return response, nil
@@ -337,7 +318,7 @@ func FindVMByName(ctx context.Context, client *v4Converged.Client, vmName string
 	log := ctrl.LoggerFrom(ctx)
 
 	var filter string
-	if isPCVersionHigherThan75(pcVersion) && projectExtID != nil {
+	if services.IsPCVersionHigherThan75(pcVersion) && projectExtID != nil {
 		filter = fmt.Sprintf("name eq '%s' and projectExtId eq '%s'", vmName, *projectExtID)
 		log.Info(fmt.Sprintf("Checking if VM with name %s exists in project %s.", vmName, *projectExtID))
 	} else {
@@ -454,7 +435,7 @@ func isVMDecoupled(ctx context.Context, v3Client prismclientv3.Service, vmUUID s
 // vmsUsableForProject drops VMs outside the given project. It is a no-op when projectExtID is
 // nil or the PC version predates project scoping (< 7.6).
 func vmsUsableForProject(ctx context.Context, vms []*vmmconfig.Vm, projectExtID *string, pcVersion string) []*vmmconfig.Vm {
-	if projectExtID == nil || !isPCVersionHigherThan75(pcVersion) {
+	if projectExtID == nil || !services.IsPCVersionHigherThan75(pcVersion) {
 		return vms
 	}
 	log := ctrl.LoggerFrom(ctx)
@@ -555,910 +536,6 @@ func vmNamesForDelete(machineName, nutanixMachineName string) []string {
 	return names
 }
 
-// GetPEUUID returns the UUID of the Prism Element cluster with the given name or UUID.
-//
-// When rg is non-nil, the lookup is constrained to the project's resource group
-// (its placement targets); a PE that is not part of placement targets of the resource group is
-// treated as not authorized for the project. When rg is nil (default-project
-// path), it falls back to cluster-wide client.Clusters.* lookups.
-func GetPEUUID(ctx context.Context, client *v4Converged.Client, rg *multidomainModels.ResourceGroup, peName, peUUID *string) (string, error) {
-	if client == nil {
-		return "", fmt.Errorf("cannot retrieve Prism Element UUID if nutanix client is nil")
-	}
-	if peUUID == nil && peName == nil {
-		return "", fmt.Errorf("cluster name or uuid must be passed in order to retrieve the Prism Element UUID")
-	}
-
-	// Project-scoped path: resolve against the resource group's placement targets.
-	if rg != nil {
-		return resolvePEFromResourceGroup(ctx, client, rg, peName, peUUID)
-	}
-
-	peCluster, err := GetPEClusterByIdentifier(ctx, client, peName, peUUID)
-	if err != nil {
-		return "", err
-	}
-	return ptr.Deref(peCluster.ExtId, ""), nil
-}
-
-// GetPECluster returns the Prism Element cluster with the given UUID.
-func GetPECluster(ctx context.Context, client *v4Converged.Client, peUUID string) (*clusterModels.Cluster, error) {
-	peCluster, err := client.Clusters.Get(ctx, peUUID)
-	if err != nil {
-		if converged.IsNotFound(err) {
-			return nil, fmt.Errorf("failed to find Prism Element cluster with UUID %s: %w", peUUID, err)
-		}
-		return nil, fmt.Errorf("failed to get Prism Element cluster with UUID %s: %w", peUUID, err)
-	}
-
-	return peCluster, nil
-}
-
-// GetPEClusterByIdentifier resolves a Prism Element cluster by UUID or name and returns the full
-// cluster object in a single API call. Callers that only need the UUID can use GetPEUUID; callers
-// that need the cluster object (for example to read Config.IsAvailable) should prefer this over
-// GetPEUUID followed by GetPECluster, which performs a redundant List+Get round trip.
-func GetPEClusterByIdentifier(ctx context.Context, client *v4Converged.Client, peName, peUUID *string) (*clusterModels.Cluster, error) {
-	if client == nil {
-		return nil, fmt.Errorf("cannot retrieve Prism Element cluster if nutanix client is nil")
-	}
-	if peUUID != nil && *peUUID != "" {
-		return GetPECluster(ctx, client, *peUUID)
-	}
-	if peName != nil && *peName != "" {
-		responsePEs, err := client.Clusters.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", *peName)))
-		if err != nil {
-			return nil, err
-		}
-		foundPEs := make([]clusterModels.Cluster, 0)
-		for _, s := range responsePEs {
-			if strings.EqualFold(*s.Name, *peName) && hasPEClusterServiceEnabled(&s) {
-				foundPEs = append(foundPEs, s)
-			}
-		}
-		switch len(foundPEs) {
-		case 1:
-			return &foundPEs[0], nil
-		case 0:
-			return nil, &terminalError{message: fmt.Sprintf("failed to retrieve Prism Element cluster by name %s", *peName)}
-		default:
-			return nil, fmt.Errorf("more than one Prism Element cluster found with name %s", *peName)
-		}
-	}
-	return nil, fmt.Errorf("failed to retrieve Prism Element cluster by name or uuid. Verify input parameters")
-}
-
-// IsPEAvailable returns whether the Prism Element cluster with the given UUID is currently available.
-func IsPEAvailable(ctx context.Context, client *v4Converged.Client, peUUID string) (bool, error) {
-	pe, err := GetPECluster(ctx, client, peUUID)
-	if err != nil {
-		return false, err
-	}
-	if pe.Config == nil || pe.Config.IsAvailable == nil {
-		return false, nil
-	}
-	return *pe.Config.IsAvailable, nil
-}
-
-// resolvePEFromResourceGroup resolves a PE identifier (name or UUID) against the
-// Prism Elements reachable from the project's resource group. It relies on the
-// prism-go-client ResourceGroups.ListPrismElements helper to extract the PEs
-// from the resource group's placement targets.
-func resolvePEFromResourceGroup(ctx context.Context, client *v4Converged.Client, rg *multidomainModels.ResourceGroup, peName, peUUID *string) (string, error) {
-	if rg.ExtId == nil {
-		return "", fmt.Errorf("resource group has no ExtId; cannot resolve Prism Element")
-	}
-
-	prismElements, err := client.ResourceGroups.ListPrismElements(ctx, *rg.ExtId)
-	if err != nil {
-		return "", fmt.Errorf("failed to list Prism Elements for resource group %s: %w", *rg.ExtId, err)
-	}
-
-	if peUUID != nil && *peUUID != "" {
-		for _, pe := range prismElements {
-			if pe.ExtId == *peUUID {
-				return *peUUID, nil
-			}
-		}
-		return "", &terminalError{message: fmt.Sprintf(
-			"Prism Element cluster with UUID %s is not authorized for this project (not in resource group)", *peUUID)}
-	}
-
-	matches := make([]string, 0)
-	for _, pe := range prismElements {
-		if strings.EqualFold(pe.Name, *peName) {
-			matches = append(matches, pe.ExtId)
-		}
-	}
-	switch len(matches) {
-	case 1:
-		return matches[0], nil
-	case 0:
-		return "", &terminalError{message: fmt.Sprintf(
-			"failed to retrieve Prism Element cluster by name %s in this project's resource group", *peName)}
-	default:
-		return "", fmt.Errorf("more than one Prism Element cluster found with name %s in this project's resource group", *peName)
-	}
-}
-
-// GetMibValueOfQuantity returns the given quantity value in Mib
-func GetMibValueOfQuantity(quantity resource.Quantity) int64 {
-	return quantity.Value() / (1024 * 1024)
-}
-
-func CreateSystemDiskSpec(imageUUID string, systemDiskSizeInBytes int64) (*vmmconfig.Disk, error) {
-	if imageUUID == "" {
-		return nil, fmt.Errorf("image UUID must be set when creating system disk")
-	}
-	if systemDiskSizeInBytes <= 0 {
-		return nil, fmt.Errorf("invalid system disk size in bytes: %d. Provide in XXGi (for example 70Gi) format instead", systemDiskSizeInBytes)
-	}
-
-	disk := vmmconfig.NewDisk()
-	err := disk.SetBackingInfo(*newVmDiskWithImageRef(&imageUUID, systemDiskSizeInBytes))
-	if err != nil {
-		return nil, err
-	}
-
-	return disk, nil
-}
-
-// CreateDataDiskList creates a list of data disks and cdRoms with the given data disk specs
-func CreateDataDiskList(ctx context.Context, convergedClient *v4Converged.Client, dataDiskSpecs []infrav1.NutanixMachineVMDisk, peUUID string, project *nctx.ProjectInfo, pcVersion string, resourceGroup *multidomainModels.ResourceGroup) ([]vmmconfig.Disk, []vmmconfig.CdRom, error) {
-	dataDisks := []vmmconfig.Disk{}
-	dataCdRoms := []vmmconfig.CdRom{}
-
-	latestDeviceIndexByAdapterType := make(map[string]int)
-	getDeviceIndex := func(adapterType string) int {
-		if latestDeviceIndex, ok := latestDeviceIndexByAdapterType[adapterType]; ok {
-			latestDeviceIndexByAdapterType[adapterType] = latestDeviceIndex + 1
-			return latestDeviceIndex
-		}
-
-		if adapterType == string(infrav1.NutanixMachineDiskAdapterTypeSCSI) || adapterType == string(infrav1.NutanixMachineDiskAdapterTypeIDE) {
-			latestDeviceIndexByAdapterType[adapterType] = 1
-			return 1
-		} else {
-			latestDeviceIndexByAdapterType[adapterType] = 0
-			return 0
-		}
-	}
-
-	for _, dataDiskSpec := range dataDiskSpecs {
-		vmDisk := vmmconfig.NewVmDisk()
-		vmDisk.DiskSizeBytes = ptr.To(int64(dataDiskSpec.DiskSize.Value()))
-
-		err := addDataSourceImageRefToVmDisk(ctx, convergedClient, vmDisk, dataDiskSpec.DataSource, project, pcVersion)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		err = addStorageConfigAndContainerToVmDisk(ctx, convergedClient, vmDisk, dataDiskSpec.StorageConfig, peUUID, resourceGroup)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// Set default values for device type and adapter type
-		deviceType := infrav1.NutanixMachineDiskDeviceTypeDisk
-		adapterType := infrav1.NutanixMachineDiskAdapterTypeSCSI
-
-		// If device properties are provided, use them
-		if dataDiskSpec.DeviceProperties != nil {
-			deviceType = dataDiskSpec.DeviceProperties.DeviceType
-			adapterType = dataDiskSpec.DeviceProperties.AdapterType
-		}
-
-		deviceIndex := getDeviceIndex(string(adapterType))
-		if dataDiskSpec.DeviceProperties != nil && dataDiskSpec.DeviceProperties.DeviceIndex != 0 {
-			deviceIndex = int(dataDiskSpec.DeviceProperties.DeviceIndex)
-		}
-
-		// Set device properties
-		switch deviceType {
-		case infrav1.NutanixMachineDiskDeviceTypeDisk:
-			disk := vmmconfig.NewDisk()
-			disk.DiskAddress = vmmconfig.NewDiskAddress()
-			disk.DiskAddress.Index = ptr.To(deviceIndex)
-			disk.DiskAddress.BusType = adapterTypeToDiskBusType(adapterType)
-			err = disk.SetBackingInfo(*vmDisk)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			dataDisks = append(dataDisks, *disk)
-		case infrav1.NutanixMachineDiskDeviceTypeCDRom:
-			cdRom := vmmconfig.NewCdRom()
-			cdRom.DiskAddress = vmmconfig.NewCdRomAddress()
-			cdRom.DiskAddress.Index = ptr.To(deviceIndex)
-			cdRom.DiskAddress.BusType = adapterTypeToCdRomBusType(adapterType)
-			cdRom.BackingInfo = vmDisk
-
-			dataCdRoms = append(dataCdRoms, *cdRom)
-		default:
-			return nil, nil, fmt.Errorf("invalid NutanixMachineDiskDeviceType to create data disks")
-		}
-	}
-
-	return dataDisks, dataCdRoms, nil
-}
-
-func addDataSourceImageRefToVmDisk(ctx context.Context, convergedClient *v4Converged.Client, vmDisk *vmmconfig.VmDisk, dataSource *infrav1.NutanixResourceIdentifier, project *nctx.ProjectInfo, pcVersion string) error {
-	if dataSource == nil {
-		return nil
-	}
-
-	image, err := GetImage(ctx, convergedClient, infrav1.NutanixResourceIdentifier{
-		UUID: dataSource.UUID,
-		Type: infrav1.NutanixIdentifierUUID,
-	}, project, pcVersion)
-	if err != nil {
-		return err
-	}
-
-	vmDisk.DataSource = vmmconfig.NewDataSource()
-	imageRef := vmmconfig.NewImageReference()
-	imageRef.ImageExtId = image.ExtId
-	err = vmDisk.DataSource.SetReference(*imageRef)
-	if err != nil {
-		return err
-	}
-	vmDisk.DataSource.ReferenceItemDiscriminator_ = nil
-
-	return nil
-}
-
-func addStorageConfigAndContainerToVmDisk(ctx context.Context, convergedClient *v4Converged.Client, vmDisk *vmmconfig.VmDisk, storageConfig *infrav1.NutanixMachineVMStorageConfig, peUUID string, resourceGroup *multidomainModels.ResourceGroup) error {
-	if storageConfig == nil {
-		return nil
-	}
-
-	vmDisk.StorageConfig = vmmconfig.NewVmDiskStorageConfig()
-
-	flashModeEnabled := storageConfig.DiskMode == infrav1.NutanixMachineDiskModeFlash
-	vmDisk.StorageConfig.IsFlashModeEnabled = ptr.To(flashModeEnabled)
-
-	if storageConfig.StorageContainer != nil {
-		peID := infrav1.NutanixResourceIdentifier{
-			UUID: &peUUID,
-			Type: infrav1.NutanixIdentifierUUID,
-		}
-		sc, err := GetStorageContainerInCluster(ctx, convergedClient, resourceGroup, *storageConfig.StorageContainer, peID)
-		if err != nil {
-			return err
-		}
-
-		vmDisk.StorageContainer = vmmconfig.NewVmDiskContainerReference()
-		vmDisk.StorageContainer.ExtId = sc.ContainerExtId
-	}
-
-	return nil
-}
-
-func newVmDiskWithImageRef(dataSourceImageExtId *string, diskSizeInBytes int64) *vmmconfig.VmDisk {
-	vmDisk := vmmconfig.NewVmDisk()
-
-	if diskSizeInBytes > 0 {
-		vmDisk.DiskSizeBytes = ptr.To(diskSizeInBytes)
-	}
-
-	if dataSourceImageExtId != nil {
-		vmDisk.DataSource = vmmconfig.NewDataSource()
-		imageRef := vmmconfig.NewImageReference()
-		imageRef.ImageExtId = dataSourceImageExtId
-		_ = vmDisk.DataSource.SetReference(*imageRef)
-		vmDisk.DataSource.ReferenceItemDiscriminator_ = nil
-	}
-
-	return vmDisk
-}
-
-func adapterTypeToDiskBusType(adapterType infrav1.NutanixMachineDiskAdapterType) *vmmconfig.DiskBusType {
-	switch adapterType {
-	case infrav1.NutanixMachineDiskAdapterTypeSCSI:
-		return vmmconfig.DISKBUSTYPE_SCSI.Ref()
-	case infrav1.NutanixMachineDiskAdapterTypeIDE:
-		return vmmconfig.DISKBUSTYPE_IDE.Ref()
-	case infrav1.NutanixMachineDiskAdapterTypePCI:
-		return vmmconfig.DISKBUSTYPE_PCI.Ref()
-	case infrav1.NutanixMachineDiskAdapterTypeSATA:
-		return vmmconfig.DISKBUSTYPE_SATA.Ref()
-	default:
-		return vmmconfig.DISKBUSTYPE_UNKNOWN.Ref()
-	}
-}
-
-func adapterTypeToCdRomBusType(adapterType infrav1.NutanixMachineDiskAdapterType) *vmmconfig.CdRomBusType {
-	switch adapterType {
-	case infrav1.NutanixMachineDiskAdapterTypeIDE:
-		return vmmconfig.CDROMBUSTYPE_IDE.Ref()
-	case infrav1.NutanixMachineDiskAdapterTypeSATA:
-		return vmmconfig.CDROMBUSTYPE_SATA.Ref()
-	default:
-		return vmmconfig.CDROMBUSTYPE_UNKNOWN.Ref()
-	}
-}
-
-// subnetBelongsToCluster checks if a subnet belongs to the specified PE cluster.
-// It checks both ClusterReference (single UUID) and ClusterReferenceList (list of UUIDs).
-// According to the networking team, non-overlay subnets may have:
-// - Both ClusterReference and ClusterReferenceList present (most cases): clusterReference will be deprecated in the future
-// - Only ClusterReference present: Old AOS clusters (i.e. <=7.0) that don't support ClusterReferenceList on basic vlan subnets
-// - Only ClusterReferenceList present: subnets backed by PC based vSwitches (i.e. >=7.3)
-func subnetBelongsToCluster(subnet *subnetModels.Subnet, peUUID string) bool {
-	// Check ClusterReference field
-	if subnet.ClusterReference != nil && *subnet.ClusterReference == peUUID {
-		return true
-	}
-
-	// Check ClusterReferenceList field
-	if subnet.ClusterReferenceList != nil && slices.Contains(subnet.ClusterReferenceList, peUUID) {
-		return true
-	}
-
-	return false
-}
-
-// isSubnetUsableForProject returns true if the subnet is accessible from the
-// given project, i.e. it is either owned by the project or explicitly shared
-// with it. PC < 7.6 has no concept of project ownership / sharing for subnets,
-// so callers must gate this check on the PC version before invoking it.
-func isSubnetUsableForProject(subnet *subnetModels.Subnet, projectExtID string) bool {
-	if subnet == nil {
-		return false
-	}
-	// Directly owned by the project.
-	if subnet.ProjectExtId != nil && *subnet.ProjectExtId == projectExtID {
-		return true
-	}
-	// Explicitly shared with the project.
-	return slices.Contains(subnet.SharedWithProjects, projectExtID)
-}
-
-// subnetReachableFromPE returns true if the subnet is usable from the given
-// Prism Element: overlay subnets are reachable from any PE, while VLAN subnets
-// must belong to the PE cluster.
-func subnetReachableFromPE(subnet *subnetModels.Subnet, peUUID string) bool {
-	if subnet.SubnetType != nil && subnet.SubnetType.GetName() == subnetTypeOverlay {
-		return true
-	}
-	return subnetBelongsToCluster(subnet, peUUID)
-}
-
-// GetSubnet returns the subnet with the given name or UUID, scoped
-// to the PE identified by peUUID.
-//
-// When project is non-nil and the PC version supports projects (>= 7.6), the result
-// is additionally scoped to the given project: a UUID lookup must resolve to a subnet
-// owned by or shared with the project, and a name lookup retains only subnets accessible
-// from the project, preferring a project-owned subnet over a shared one of the same name
-// (so the presence of both is not treated as ambiguous). On PC < 7.6 (or when project is
-// nil) the legacy, unscoped behavior is preserved.
-//
-//nolint:gocognit // project-aware lookup requires branching on UUID/name and ownership/shared state
-func GetSubnet(ctx context.Context, client *v4Converged.Client, peUUID string, subnetName, subnetUUID *string, project *nctx.ProjectInfo, pcVersion string) (*subnetModels.Subnet, error) {
-	if subnetUUID == nil && subnetName == nil {
-		return nil, fmt.Errorf("subnet name or subnet uuid must be passed in order to retrieve the subnet")
-	}
-
-	var projectExtID *string
-	if project != nil {
-		projectExtID = project.ExtID
-	}
-	// projectAware indicates project scoping should be enforced. On PC < 7.6 the
-	// concept of project ownership / shared-with-projects does not exist, so we
-	// fall back to the legacy (unscoped) lookup behavior.
-	projectAware := isPCVersionHigherThan75(pcVersion) && projectExtID != nil
-
-	switch {
-	case subnetUUID != nil:
-		subnetResp, err := client.Subnets.Get(ctx, *subnetUUID)
-		if err != nil {
-			if converged.IsNotFound(err) {
-				return nil, fmt.Errorf("failed to find subnet with UUID %s: %w", *subnetUUID, err)
-			}
-			return nil, fmt.Errorf("failed to get subnet with UUID %s: %w", *subnetUUID, err)
-		}
-		if projectAware && !isSubnetUsableForProject(subnetResp, *projectExtID) {
-			return nil, &terminalError{message: fmt.Sprintf(
-				"subnet with UUID %s is not accessible in project %s", *subnetUUID, *project.Name)}
-		}
-		return subnetResp, nil
-
-	default: // search by name
-		// Not using additional filtering since we want to list overlay and vlan subnets
-		responseSubnets, err := client.Subnets.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", *subnetName)))
-		if err != nil {
-			return nil, err
-		}
-
-		if !projectAware {
-			// Legacy behavior: exact name match + PE/overlay scoping, must resolve to a single subnet.
-			foundSubnets := make([]subnetModels.Subnet, 0)
-			for i := range responseSubnets {
-				subnet := &responseSubnets[i]
-				if subnet.Name == nil || subnet.SubnetType == nil || !strings.EqualFold(*subnet.Name, *subnetName) {
-					continue
-				}
-				if subnetReachableFromPE(subnet, peUUID) {
-					foundSubnets = append(foundSubnets, *subnet)
-				}
-			}
-			switch len(foundSubnets) {
-			case 0:
-				return nil, &terminalError{message: fmt.Sprintf("failed to retrieve subnet by name %s", *subnetName)}
-			case 1:
-				return &foundSubnets[0], nil
-			default:
-				return nil, fmt.Errorf("more than one subnet found with name %s", *subnetName)
-			}
-		}
-
-		// Project-aware: a subnet must be PE-scoped (or overlay) and usable by the
-		// project; partition the usable name matches into subnets owned by this
-		// project versus subnets merely shared with it.
-		var owned, shared []subnetModels.Subnet
-		for i := range responseSubnets {
-			subnet := &responseSubnets[i]
-			if subnet.Name == nil || subnet.SubnetType == nil || !strings.EqualFold(*subnet.Name, *subnetName) {
-				continue
-			}
-			if !subnetReachableFromPE(subnet, peUUID) {
-				continue
-			}
-			if !isSubnetUsableForProject(subnet, *projectExtID) {
-				continue
-			}
-			if subnet.ProjectExtId != nil && *subnet.ProjectExtId == *projectExtID {
-				owned = append(owned, *subnet)
-			} else {
-				shared = append(shared, *subnet)
-			}
-		}
-
-		// Prefer a project-owned subnet over a shared one of the same name.
-		switch {
-		case len(owned) == 1:
-			return &owned[0], nil
-		case len(owned) > 1:
-			return nil, fmt.Errorf(
-				"more than one subnet found with name %s owned by project %s", *subnetName, *project.Name)
-		case len(shared) == 1:
-			return &shared[0], nil
-		case len(shared) > 1:
-			return nil, fmt.Errorf(
-				"more than one subnet found with name %s shared with project %s and none owned by it",
-				*subnetName, *project.Name)
-		default:
-			return nil, &terminalError{message: fmt.Sprintf(
-				"failed to retrieve subnet by name %s in project %s", *subnetName, *project.Name)}
-		}
-	}
-}
-
-// GetSubnetUUID returns the UUID of the subnet with the given name or UUID. See GetSubnet for
-// the PE and project scoping rules.
-func GetSubnetUUID(ctx context.Context, client *v4Converged.Client, peUUID string, subnetName, subnetUUID *string, project *nctx.ProjectInfo, pcVersion string) (string, error) {
-	subnet, err := GetSubnet(ctx, client, peUUID, subnetName, subnetUUID, project, pcVersion)
-	if err != nil {
-		return "", err
-	}
-	foundSubnetUUID := ptr.Deref(subnet.ExtId, "")
-	if foundSubnetUUID == "" {
-		return "", fmt.Errorf("failed to retrieve subnet by name or uuid. Verify input parameters")
-	}
-	return foundSubnetUUID, nil
-}
-
-// subnetNetworkKey identifies a subnet by network layer, VLAN ID/VNI and CIDR.
-// Metro sites use distinct Prism subnet objects (names/UUIDs) that must share this key.
-func subnetNetworkKey(s *subnetModels.Subnet) string {
-	if s == nil {
-		return "UNKNOWN||"
-	}
-	layer := "UNKNOWN"
-	if s.SubnetType != nil {
-		layer = s.SubnetType.GetName()
-	}
-	vlanID := ""
-	if s.NetworkId != nil {
-		vlanID = strconv.Itoa(*s.NetworkId)
-	}
-	cidr := ptr.Deref(s.IpPrefix, "")
-	return fmt.Sprintf("%s|%s|%s", layer, vlanID, cidr)
-}
-
-// subnetNetworkKeys resolves each identifier against pe and returns the matching network keys.
-func subnetNetworkKeys(
-	ctx context.Context,
-	client *v4Converged.Client,
-	ids []infrav1.NutanixResourceIdentifier,
-	pe infrav1.NutanixResourceIdentifier,
-) ([]string, error) {
-	if client == nil {
-		return nil, fmt.Errorf("cannot retrieve subnet network keys if nutanix client is nil")
-	}
-	peUUID, err := GetPEUUID(ctx, client, nil, pe.Name, pe.UUID)
-	if err != nil {
-		return nil, err
-	}
-	keys := make([]string, 0, len(ids))
-	for i := range ids {
-		// Metro/MetroSite placement is not project scoped, so resolve without a project.
-		subnet, err := GetSubnet(ctx, client, peUUID, ids[i].Name, ids[i].UUID, nil, "")
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve subnet %s: %w", ids[i].DisplayString(), err)
-		}
-		keys = append(keys, subnetNetworkKey(subnet))
-	}
-	return keys, nil
-}
-
-func stringSliceSetEquals(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	remaining := make(map[string]int, len(b))
-	for _, s := range b {
-		remaining[s]++
-	}
-	for _, s := range a {
-		if remaining[s] == 0 {
-			return false
-		}
-		remaining[s]--
-	}
-	return true
-}
-
-// metroSubnetsMatch reports whether machine and failure-domain subnet identifiers
-// describe the same network (layer, VLAN ID/VNI, CIDR), even when Prism names differ.
-func metroSubnetsMatch(
-	ctx context.Context,
-	client *v4Converged.Client,
-	machineSubnets, fdSubnets []infrav1.NutanixResourceIdentifier,
-	machinePE, fdPE infrav1.NutanixResourceIdentifier,
-) (bool, []string, []string, error) {
-	machineKeys, err := subnetNetworkKeys(ctx, client, machineSubnets, machinePE)
-	if err != nil {
-		return false, nil, nil, fmt.Errorf("failed to resolve NutanixMachine subnet network keys: %w", err)
-	}
-	fdKeys, err := subnetNetworkKeys(ctx, client, fdSubnets, fdPE)
-	if err != nil {
-		return false, nil, nil, fmt.Errorf("failed to resolve NutanixFailureDomain subnet network keys: %w", err)
-	}
-	return stringSliceSetEquals(machineKeys, fdKeys), machineKeys, fdKeys, nil
-}
-
-// isImageUsableForProject returns true if the image is accessible from the
-// given project, i.e. it is either owned by the project or shared with all
-// projects. PC < 7.6 has no concept of project ownership / sharing for images,
-// so callers must gate this check on the PC version before invoking it.
-func isImageUsableForProject(image *imageModels.Image, projectExtID string) bool {
-	if image == nil {
-		return false
-	}
-	// Directly owned by the project.
-	if image.ProjectExtId != nil && *image.ProjectExtId == projectExtID {
-		return true
-	}
-	// Shared with all projects.
-	if image.IsSharedWithAllProjects != nil && *image.IsSharedWithAllProjects {
-		return true
-	}
-	return false
-}
-
-// GetImage returns an image. If no UUID is provided, returns the unique image with the name.
-// Returns an error if no image has the UUID, if no image has the name, or more than one image has the name.
-//
-// When project is non-nil and the PC version supports projects (>= 7.6),
-// the result is scoped to the given project: a UUID lookup must resolve to an
-// image that is owned by or shared with the project, and a name lookup retains
-// only images accessible from the project. During name-based lookups a
-// project-owned image is preferred over a shared image of the same name, so the
-// presence of both is not treated as ambiguous. On PC < 7.6 (or when
-// project is nil) the legacy, unscoped behavior is preserved.
-//
-//nolint:gocognit // project-aware lookup requires branching on UUID/name and ownership/shared state
-func GetImage(ctx context.Context, client *v4Converged.Client, id infrav1.NutanixResourceIdentifier, project *nctx.ProjectInfo, pcVersion string) (*imageModels.Image, error) {
-	var projectExtID *string
-	if project != nil {
-		projectExtID = project.ExtID
-	}
-
-	// projectAware indicates project scoping should be enforced. On PC < 7.6 the
-	// concept of project ownership / shared-with-all-projects does not exist, so
-	// we fall back to the legacy (unscoped) lookup behavior.
-	projectAware := isPCVersionHigherThan75(pcVersion) && projectExtID != nil
-
-	switch {
-	case id.IsUUID():
-		resp, err := client.Images.Get(ctx, *id.UUID)
-		if err != nil {
-			if converged.IsNotFound(err) {
-				return nil, fmt.Errorf("failed to find image with UUID %s: %w", *id.UUID, err)
-			}
-			return nil, fmt.Errorf("failed to get image with UUID %s: %w", *id.UUID, err)
-		}
-		if projectAware && !isImageUsableForProject(resp, *projectExtID) {
-			return nil, &terminalError{message: fmt.Sprintf(
-				"image with UUID %s is not accessible in project %s", *id.UUID, *project.Name)}
-		}
-		return resp, nil
-	case id.IsName():
-		responseImages, err := client.Images.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", *id.Name)))
-		if err != nil {
-			return nil, err
-		}
-
-		if !projectAware {
-			// Legacy behavior: exact name match, must resolve to a single image.
-			foundImages := make([]*imageModels.Image, 0)
-			for i := range responseImages {
-				if responseImages[i].Name != nil && strings.EqualFold(*responseImages[i].Name, *id.Name) {
-					foundImages = append(foundImages, &responseImages[i])
-				}
-			}
-			switch len(foundImages) {
-			case 0:
-				return nil, &terminalError{message: fmt.Sprintf("found no image with name %s", *id.Name)}
-			case 1:
-				return foundImages[0], nil
-			default:
-				return nil, fmt.Errorf("more than one image found with name %s", *id.Name)
-			}
-		}
-
-		// Project-aware: partition the usable name matches into images owned by
-		// this project versus images merely shared with it.
-		var owned, shared []*imageModels.Image
-		for i := range responseImages {
-			img := &responseImages[i]
-			if img.Name == nil || !strings.EqualFold(*img.Name, *id.Name) {
-				continue
-			}
-			if !isImageUsableForProject(img, *projectExtID) {
-				continue
-			}
-			if img.ProjectExtId != nil && *img.ProjectExtId == *projectExtID {
-				owned = append(owned, img)
-			} else {
-				shared = append(shared, img)
-			}
-		}
-
-		// Prefer a project-owned image over a shared one of the same name.
-		switch {
-		case len(owned) == 1:
-			return owned[0], nil
-		case len(owned) > 1:
-			return nil, fmt.Errorf(
-				"more than one image found with name %s owned by project %s", *id.Name, *project.Name)
-		case len(shared) == 1:
-			return shared[0], nil
-		case len(shared) > 1:
-			return nil, fmt.Errorf(
-				"more than one image found with name %s shared with project %s and none owned by it",
-				*id.Name, *project.Name)
-		default:
-			return nil, &terminalError{message: fmt.Sprintf(
-				"found no image with name %s accessible in project %s", *id.Name, *project.Name)}
-		}
-	default:
-		return nil, fmt.Errorf("image identifier is missing both name and uuid")
-	}
-}
-
-// isVMProfileUsableForProject returns true if the VM profile is accessible from
-// the given project, i.e. it is either owned by the project or explicitly shared
-// with it. PC < 7.6 has no concept of project ownership / sharing for VM
-// profiles, so callers must gate this check on the PC version before invoking it.
-func isVMProfileUsableForProject(profile *vmmconfig.VmProfile, projectExtID string) bool {
-	if profile == nil {
-		return false
-	}
-	// Directly owned by the project.
-	if profile.ProjectExtId != nil && *profile.ProjectExtId == projectExtID {
-		return true
-	}
-	// Explicitly shared with the project.
-	return slices.Contains(profile.SharedWithProjects, projectExtID)
-}
-
-// GetVMProfile returns a VM profile scoped to the given project. VM profiles are only
-// supported on PC 7.6 or later, so the lookup is always project-aware: a UUID lookup must
-// resolve to a profile owned by or shared with the project, and a name lookup retains only
-// profiles accessible from the project, preferring a project-owned profile over a shared
-// one of the same name (so the presence of both is not treated as ambiguous).
-func GetVMProfile(ctx context.Context, client *v4Converged.Client, id infrav1.NutanixResourceIdentifier, project *nctx.ProjectInfo) (*vmmconfig.VmProfile, error) {
-	if project == nil || project.ExtID == nil {
-		return nil, fmt.Errorf("project must be set to look up VM profile %s", id.String())
-	}
-	projectExtID := *project.ExtID
-
-	switch {
-	case id.IsUUID():
-		profile, err := client.VMProfiles.Get(ctx, *id.UUID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to find VM profile with UUID %s: %w", *id.UUID, err)
-		}
-		if !isVMProfileUsableForProject(profile, projectExtID) {
-			return nil, &terminalError{message: fmt.Sprintf(
-				"VM profile with UUID %s is not accessible in project %s", *id.UUID, *project.Name)}
-		}
-		return profile, nil
-	case id.IsName():
-		responseProfiles, err := client.VMProfiles.List(ctx, converged.WithFilter(fmt.Sprintf("name eq '%s'", *id.Name)))
-		if err != nil {
-			return nil, err
-		}
-
-		// Partition the usable name matches into profiles owned by this project
-		// versus profiles merely shared with it.
-		var owned, shared []*vmmconfig.VmProfile
-		for i := range responseProfiles {
-			p := &responseProfiles[i]
-			if p.Name == nil || !strings.EqualFold(*p.Name, *id.Name) {
-				continue
-			}
-			if !isVMProfileUsableForProject(p, projectExtID) {
-				continue
-			}
-			if p.ProjectExtId != nil && *p.ProjectExtId == projectExtID {
-				owned = append(owned, p)
-			} else {
-				shared = append(shared, p)
-			}
-		}
-
-		// Prefer a project-owned profile over a shared one of the same name.
-		switch {
-		case len(owned) == 1:
-			return owned[0], nil
-		case len(owned) > 1:
-			return nil, fmt.Errorf(
-				"more than one VM profile found with name %s owned by project %s", *id.Name, *project.Name)
-		case len(shared) == 1:
-			return shared[0], nil
-		case len(shared) > 1:
-			return nil, fmt.Errorf(
-				"more than one VM profile found with name %s shared with project %s and none owned by it",
-				*id.Name, *project.Name)
-		default:
-			return nil, &terminalError{message: fmt.Sprintf(
-				"found no VM profile with name %s accessible in project %s", *id.Name, *project.Name)}
-		}
-	default:
-		return nil, fmt.Errorf("VM profile identifier is missing both name and uuid")
-	}
-}
-
-type ImageLookup struct {
-	BaseOS     string
-	K8sVersion string
-}
-
-func GetImageByLookup(
-	ctx context.Context,
-	client *v4Converged.Client,
-	imageTemplate,
-	imageLookupBaseOS,
-	k8sVersion *string,
-	project *nctx.ProjectInfo,
-	pcVersion string,
-) (*imageModels.Image, error) {
-	if imageTemplate == nil || imageLookupBaseOS == nil || k8sVersion == nil {
-		return nil, fmt.Errorf(
-			"image lookup requires non-nil imageTemplate, imageLookupBaseOS, and k8sVersion",
-		)
-	}
-
-	var projectExtID *string
-	if project != nil {
-		projectExtID = project.ExtID
-	}
-
-	if strings.Contains(*k8sVersion, "v") {
-		k8sVersion = ptr.To(strings.Replace(*k8sVersion, "v", "", 1))
-	}
-	params := ImageLookup{*imageLookupBaseOS, *k8sVersion}
-	t, err := template.New("k8sTemplate").Parse(*imageTemplate)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse template given %s: %w", *imageTemplate, err)
-	}
-	var templateBytes bytes.Buffer
-	err = t.Execute(&templateBytes, params)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to substitute string %s with params %v error: %w",
-			*imageTemplate,
-			params,
-			err,
-		)
-	}
-	responseImages, err := client.Images.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	// projectAware indicates project scoping should be enforced. On PC < 7.6 the
-	// concept of project ownership / shared-with-all-projects does not exist, so
-	// we fall back to the legacy (unscoped) lookup behavior.
-	projectAware := isPCVersionHigherThan75(pcVersion) && projectExtID != nil
-
-	re, err := regexp.Compile(templateBytes.String())
-	if err != nil {
-		return nil, fmt.Errorf("failed to compile image lookup regex %q: %w", templateBytes.String(), err)
-	}
-	// Partition the regex survivors into images owned by this project versus
-	// images merely shared with it. When not project-aware everything lands in
-	// owned, preserving the legacy behavior.
-	owned := make([]*imageModels.Image, 0)
-	shared := make([]*imageModels.Image, 0)
-	for i := range responseImages {
-		img := &responseImages[i]
-		if img.Name == nil || !re.Match([]byte(*img.Name)) {
-			continue
-		}
-		if !projectAware {
-			owned = append(owned, img)
-			continue
-		}
-		if !isImageUsableForProject(img, *projectExtID) {
-			continue
-		}
-		if img.ProjectExtId != nil && *img.ProjectExtId == *projectExtID {
-			owned = append(owned, img)
-		} else {
-			shared = append(shared, img)
-		}
-	}
-
-	// Prefer project-owned images over shared ones; only fall back to shared
-	// images when the project owns none matching the lookup.
-	candidates := owned
-	if len(candidates) == 0 {
-		candidates = shared
-	}
-	sorted := sortImagesByLatestCreationTime(candidates)
-	if len(sorted) == 0 {
-		if projectAware {
-			return nil, &terminalError{message: fmt.Sprintf(
-				"failed to find image with filter %s accessible in project %s",
-				templateBytes.String(), *project.Name)}
-		}
-		return nil, &terminalError{message: fmt.Sprintf("failed to find image with filter %s", templateBytes.String())}
-	}
-	return sorted[0], nil
-}
-
-// returns the images with the latest creation time first.
-func sortImagesByLatestCreationTime(
-	images []*imageModels.Image,
-) []*imageModels.Image {
-	sort.Slice(images, func(i, j int) bool {
-		if images[i].CreateTime == nil || images[j].CreateTime == nil {
-			return images[i].CreateTime != nil
-		}
-		timeI := *images[i].CreateTime
-		timeJ := *images[j].CreateTime
-		return timeI.After(timeJ)
-	})
-	return images
-}
-
-func ImageMarkedForDeletion(ctx context.Context, client *v4Converged.Client, image *imageModels.Image) (bool, error) {
-	filterString := fmt.Sprintf(
-		"entitiesAffected/any(a:a/extId eq '%s') "+
-			"and (status eq Prism.Config.TaskStatus'RUNNING' or status eq Prism.Config.TaskStatus'QUEUED') "+
-			"and (operation eq 'kImageDelete')",
-		*image.ExtId)
-	tasks, err := client.Tasks.List(ctx, converged.WithFilter(filterString))
-	if err != nil {
-		return false, err
-	}
-	return len(tasks) > 0, nil
-}
-
 func VmHasTaskInProgress(ctx context.Context, client *v4Converged.Client, vmExtId string, projectExtID *string, pcVersion string) (bool, error) {
 	log := ctrl.LoggerFrom(ctx)
 	if vmExtId == "" {
@@ -1468,7 +545,7 @@ func VmHasTaskInProgress(ctx context.Context, client *v4Converged.Client, vmExtI
 	log.V(1).Info(fmt.Sprintf("Getting task uuid for vm %s", vmExtId))
 
 	var filterString string
-	if isPCVersionHigherThan75(pcVersion) && projectExtID != nil {
+	if services.IsPCVersionHigherThan75(pcVersion) && projectExtID != nil {
 		filterString = fmt.Sprintf(
 			"entitiesAffected/any(a:a/extId eq '%s') "+
 				"and (status eq Prism.Config.TaskStatus'RUNNING' or status eq Prism.Config.TaskStatus'QUEUED') "+
@@ -1509,27 +586,47 @@ func VmHasTaskInProgress(ctx context.Context, client *v4Converged.Client, vmExtI
 	return len(runningTasks) > 0 || len(queuedTasks) > 0, nil
 }
 
-// GetSubnetUUIDList returns a list of subnet UUIDs for the given list of subnet names,
-// scoped to the PE identified by peUUID and (on PC 7.6+ with a non-nil project) to the
-// given project.
-func GetSubnetUUIDList(ctx context.Context, client *v4Converged.Client, machineSubnets []infrav1.NutanixResourceIdentifier, peUUID string, project *nctx.ProjectInfo, pcVersion string) ([]string, error) {
-	subnetUUIDs := make([]string, 0)
-	for _, machineSubnet := range machineSubnets {
-		subnetUUID, err := GetSubnetUUID(
-			ctx,
-			client,
-			peUUID,
-			machineSubnet.Name,
-			machineSubnet.UUID,
-			project,
-			pcVersion,
-		)
-		if err != nil {
-			return subnetUUIDs, err
-		}
-		subnetUUIDs = append(subnetUUIDs, subnetUUID)
+func isBackedByVolumeGroupReference(disk *vmmconfig.Disk) bool {
+	if disk == nil {
+		return false
 	}
-	return subnetUUIDs, nil
+	backingInfo := disk.GetBackingInfo()
+	if backingInfo == nil {
+		return false
+	}
+
+	_, ok := backingInfo.(vmmconfig.ADSFVolumeGroupReference)
+	return ok
+}
+
+func detachVolumeGroupsFromVM(ctx context.Context, client *v4Converged.Client, vmName string, vmUUID string, vmDiskList []vmmconfig.Disk) error {
+	log := ctrl.LoggerFrom(ctx)
+	// Detach the volume groups from the virtual machine
+	for _, disk := range vmDiskList {
+		if !isBackedByVolumeGroupReference(&disk) {
+			continue
+		}
+
+		volumeGroup := disk.GetBackingInfo().(vmmconfig.ADSFVolumeGroupReference)
+		if volumeGroup.VolumeGroupExtId == nil {
+			log.Info(fmt.Sprintf("skipping volume group with nil ExtId on virtual machine %s", vmName))
+			continue
+		}
+		volumeGroupExtId := *volumeGroup.VolumeGroupExtId
+
+		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroupExtId, vmName))
+		body := &volumesconfig.VmAttachment{
+			ExtId: ptr.To(vmUUID),
+		}
+
+		_, err := client.VolumeGroups.DetachFromVM(ctx, volumeGroupExtId, *body)
+		if err != nil {
+			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroupExtId, vmUUID, err)
+		}
+		return nil
+	}
+
+	return nil
 }
 
 // GetDefaultCAPICategoryIdentifiers returns the default CAPI category identifiers
@@ -1701,34 +798,6 @@ func DeleteCategoriesForProject(ctx context.Context, clientV4 *v4Converged.Clien
 	return nil
 }
 
-// resolveProjectInfoForPolicy resolves the project (ExtID + Name) implied by a cluster's
-// project policy. It returns nil when no project scoping applies: an unrestricted (or
-// unset) policy, or a PC version older than 7.6. The returned ProjectInfo always carries
-// both ExtID and Name when available. For single-project policy, the projectUUID parameter
-// must be provided.
-func resolveProjectInfoForPolicy(ctx context.Context, client *v4Converged.Client, projectPolicy, projectUUID, pcVersion string) (*nctx.ProjectInfo, error) {
-	if !isPCVersionHigherThan75(pcVersion) {
-		return nil, nil
-	}
-	switch projectPolicy {
-	case "", CAPXProjectPolicyUnrestricted:
-		return nil, nil
-	case CAPXProjectPolicyDefaultOnly:
-		project, err := client.Projects.GetDefaultProject(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get default project for policy %q: %w", projectPolicy, err)
-		}
-		return &nctx.ProjectInfo{ExtID: project.ExtId, Name: project.Name}, nil
-	case CAPXProjectPolicySingleProject:
-		if projectUUID == "" {
-			return nil, fmt.Errorf("single-project policy requires %s annotation", CAPXProjectUUIDAnnotation)
-		}
-		return &nctx.ProjectInfo{ExtID: &projectUUID, Name: &projectUUID}, nil
-	default:
-		return nil, fmt.Errorf("invalid project policy %q", projectPolicy)
-	}
-}
-
 // getOrCreateCategory gets or creates a category without project scoping.
 func getOrCreateCategory(
 	ctx context.Context,
@@ -1876,7 +945,7 @@ func GetPrismReferencesOfCategoryIdentifiersForProject(
 		}
 		prismCategory := getCategoryForProject(categories, projectExtID)
 		if prismCategory == nil || prismCategory.ExtId == nil {
-			errorMsg := &terminalError{message: fmt.Sprintf("category value %s not found in category %s", ci.Value, ci.Key)}
+			errorMsg := services.NewTerminalError(fmt.Sprintf("category value %s not found in category %s", ci.Value, ci.Key))
 			log.Error(errorMsg, "category value not found")
 			return nil, errorMsg
 		}
@@ -1896,141 +965,37 @@ func GetPrismReferencesOfCategoryIdentifiersForProject(
 	return categoryReferences, nil
 }
 
-const pcVersion202xPattern = `^202(\d(\.\d+)+)$`
-
-const pcVersion7xPattern = `^7((\.\d+)+)$`
-
-// is202XPcVersion checks if the version is of the format 202x.xx.xx..
-func is202XPcVersion(version string) (bool, error) {
-	re, err := regexp.Compile(pcVersion202xPattern)
-	if err != nil {
-		return false, fmt.Errorf("failed to compile PC 202x version regex: %w", err)
+// resolveProjectInfoForPolicy resolves the project (ExtID + Name) implied by a cluster's
+// project policy. It returns nil when no project scoping applies: an unrestricted (or
+// unset) policy, or a PC version older than 7.6. The returned ProjectInfo always carries
+// both ExtID and Name when available. For single-project policy, the projectUUID parameter
+// must be provided.
+func resolveProjectInfoForPolicy(ctx context.Context, client *v4Converged.Client, projectPolicy, projectUUID, pcVersion string) (*nctx.ProjectInfo, error) {
+	if !services.IsPCVersionHigherThan75(pcVersion) {
+		return nil, nil
 	}
-	return re.MatchString(version), nil
-}
-
-// is7XPcVersion checks if the version is of the format 7.xx.xx..
-func is7XPcVersion(version string) (bool, error) {
-	re, err := regexp.Compile(pcVersion7xPattern)
-	if err != nil {
-		return false, fmt.Errorf("failed to compile PC 7.x version regex: %w", err)
-	}
-	return re.MatchString(version), nil
-}
-
-// CleanPCVersion normalizes a Prism Central version string by trimming whitespace,
-// lower-casing it, and removing the optional "pc." prefix.
-func CleanPCVersion(version string) string {
-	lowerVersion := strings.ToLower(strings.TrimSpace(version))
-	return strings.TrimPrefix(lowerVersion, "pc.")
-}
-
-func convertStringToIntList(str string) []int {
-	strList := strings.Split(str, ".")
-	var intList []int
-	for _, x := range strList {
-		if val, err := strconv.Atoi(x); err != nil {
-			return []int{9999}
-		} else {
-			intList = append(intList, val)
+	switch projectPolicy {
+	case "", CAPXProjectPolicyUnrestricted:
+		return nil, nil
+	case CAPXProjectPolicyDefaultOnly:
+		project, err := client.Projects.GetDefaultProject(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get default project for policy %q: %w", projectPolicy, err)
 		}
-	}
-	return intList
-}
-
-// CompareVersions compares version numbers of the format '3.5.2.1'.
-// Returns 0 : if v1 == v2
-// Returns 1 : if v1 > v2
-// Returns -1: if v1 < v2
-//
-// If either version is not in the correct format, they will be the greater,
-// unless neither can be parsed in which case they are equal. The case where a
-// branch can't be parsed is if the cluster is running master, or some other
-// non-release branch, or empty string. This is only expected in a test/debug
-// situation and is the motivation for making an unparseable format greater.
-func CompareVersions(v1, v2 string) int {
-	if strings.EqualFold(v1, "master") {
-		v1 = "9999"
-	}
-	if strings.EqualFold(v2, "master") {
-		v2 = "9999"
-	}
-
-	v1IntList := convertStringToIntList(v1)
-	v2IntList := convertStringToIntList(v2)
-
-	maxLen := max(len(v1IntList), len(v2IntList))
-
-	v1NormIntList := make([]int, maxLen)
-	v2NormIntList := make([]int, maxLen)
-	copy(v1NormIntList, v1IntList)
-	copy(v2NormIntList, v2IntList)
-
-	for i, e := range v1NormIntList {
-		if e > v2NormIntList[i] {
-			return 1
-		} else if e < v2NormIntList[i] {
-			return -1
+		return &nctx.ProjectInfo{ExtID: project.ExtId, Name: project.Name}, nil
+	case CAPXProjectPolicySingleProject:
+		if projectUUID == "" {
+			return nil, fmt.Errorf("single-project policy requires %s annotation", CAPXProjectUUIDAnnotation)
 		}
+		return &nctx.ProjectInfo{ExtID: &projectUUID, Name: &projectUUID}, nil
+	default:
+		return nil, fmt.Errorf("invalid project policy %q", projectPolicy)
 	}
-	return 0
-}
-
-// ComparePCVersions compares PC version numbers of the format '2024.2.0.1', '7.3', etc.
-// Returns 0 : if ver1 == ver2
-// Returns 1 : if ver1 > ver2
-// Returns -1: if ver1 < ver2
-//
-// If either version is not in the correct format, they will be the greater,
-// unless neither can be parsed in which case they are equal. The case where a
-// branch can't be parsed is if the cluster is running master, or some other
-// non-release branch. This is only expected in a test/debug situation and is
-// the motivation for making an unparseable format greater.
-// A non-nil error means a version-format regex failed to compile.
-func ComparePCVersions(v1, v2 string) (int, error) {
-	cleanV1 := CleanPCVersion(v1)
-	cleanV2 := CleanPCVersion(v2)
-
-	v1Is7, err := is7XPcVersion(cleanV1)
-	if err != nil {
-		return 0, err
-	}
-	v2Is202, err := is202XPcVersion(cleanV2)
-	if err != nil {
-		return 0, err
-	}
-	// Special case for comparing PC versions of format 7.xx and 202x.xx.xx
-	if v1Is7 && v2Is202 {
-		return 1, nil
-	}
-
-	v2Is7, err := is7XPcVersion(cleanV2)
-	if err != nil {
-		return 0, err
-	}
-	v1Is202, err := is202XPcVersion(cleanV1)
-	if err != nil {
-		return 0, err
-	}
-	if v2Is7 && v1Is202 {
-		return -1, nil
-	}
-
-	return CompareVersions(cleanV1, cleanV2), nil
-}
-
-// isPCVersionHigherThan75 returns true if the PC version is >= 7.6. Version may include a "pc." prefix (e.g. "pc.7.6.0.5").
-func isPCVersionHigherThan75(version string) bool {
-	v := CleanPCVersion(version)
-	if v == "" {
-		return false
-	}
-	return CompareVersions(v, "7.6") >= 0
 }
 
 // GetDefaultProjectUUID returns the UUID of the default system project
 func GetDefaultProjectUUID(rctx *nctx.MachineContext) (string, error) {
-	if !isPCVersionHigherThan75(rctx.PCVersion) {
+	if !services.IsPCVersionHigherThan75(rctx.PCVersion) {
 		// PC < 7.6 doesn't support the default project concept
 		// Return empty string for legacy behavior (skip project validation)
 		return "", nil
@@ -2086,9 +1051,9 @@ func resolveResourceGroup(rctx *nctx.MachineContext, effectiveProject *nctx.Proj
 		return nil, err
 	}
 	if rg == nil {
-		return nil, &terminalError{
-			message: fmt.Sprintf("no resource group found for project %s", *effectiveProject.Name),
-		}
+		return nil, services.NewTerminalError(
+			fmt.Sprintf("no resource group found for project %s", *effectiveProject.Name),
+		)
 	}
 	return rg, nil
 }
@@ -2127,9 +1092,9 @@ func resolveResourceGroupForProjectPolicy(ctx context.Context, client *v4Converg
 		return nil, err
 	}
 	if rg == nil {
-		return nil, &terminalError{
-			message: fmt.Sprintf("no resource group found for project %s", projectExtID),
-		}
+		return nil, services.NewTerminalError(
+			fmt.Sprintf("no resource group found for project %s", projectExtID),
+		)
 	}
 	return rg, nil
 }
@@ -2178,7 +1143,7 @@ func GetProjectV3(rctx *nctx.MachineContext, projectRef *infrav1.NutanixResource
 		projectIntentResponse, err := client.V3.GetProject(ctx, *projectUUID)
 		if err != nil {
 			if strings.Contains(fmt.Sprint(err), "ENTITY_NOT_FOUND") {
-				return nil, &terminalError{message: fmt.Sprintf("failed to find project with UUID %s: %v", *projectUUID, err)}
+				return nil, services.NewTerminalError(fmt.Sprintf("failed to find project with UUID %s: %v", *projectUUID, err))
 			}
 			return nil, fmt.Errorf("failed to get project with UUID %s: %w", *projectUUID, err)
 		}
@@ -2200,7 +1165,7 @@ func GetProjectV3(rctx *nctx.MachineContext, projectRef *infrav1.NutanixResource
 		}
 	}
 	if len(foundProjects) == 0 {
-		return nil, &terminalError{message: fmt.Sprintf("failed to retrieve project by name %s", *projectName)}
+		return nil, services.NewTerminalError(fmt.Sprintf("failed to retrieve project by name %s", *projectName))
 	} else if len(foundProjects) > 1 {
 		return nil, fmt.Errorf("more than one project found with name %s", *projectName)
 	}
@@ -2208,218 +1173,6 @@ func GetProjectV3(rctx *nctx.MachineContext, projectRef *infrav1.NutanixResource
 		ExtID: foundProjects[0].Metadata.UUID,
 		Name:  &foundProjects[0].Spec.Name,
 	}, nil
-}
-
-func hasPEClusterServiceEnabled(peCluster *clusterModels.Cluster) bool {
-	if peCluster.Config == nil ||
-		peCluster.Config.ClusterFunction == nil {
-		return false
-	}
-	serviceList := peCluster.Config.ClusterFunction
-	for _, s := range serviceList {
-		if strings.ToUpper(string(s.GetName())) == clusterModels.CLUSTERFUNCTIONREF_AOS.GetName() {
-			return true
-		}
-	}
-	return false
-}
-
-// GetGPUList returns a list of GPU device IDs for the given list of GPUs
-func GetGPUList(ctx context.Context, client *v4Converged.Client, gpus []infrav1.NutanixGPU, peUUID, pcVersion string) ([]vmmconfig.Gpu, error) {
-	resultGPUs := make([]vmmconfig.Gpu, 0)
-	for _, gpu := range gpus {
-		foundGPU, err := GetGPU(ctx, client, peUUID, gpu, pcVersion)
-		if err != nil {
-			return nil, err
-		}
-		resultGPUs = append(resultGPUs, *foundGPU)
-	}
-	return resultGPUs, nil
-}
-
-// GetGPU resolves a single GPU for the given Prism Element.
-//
-// When the GPU is identified by profile (PC 7.6+ only), CAPX only attaches a
-// reference to the matching AHV GPU profile (physical or virtual); AHV then
-// picks the concrete GPU at power-on according to its own scheduling logic.
-//
-// Otherwise the legacy device-name / device-ID lookup is used: CAPX lists the matching
-// GPUs on the Prism Element, skips any already in use, and selects one at random.
-func GetGPU(ctx context.Context, client *v4Converged.Client, peUUID string, gpu infrav1.NutanixGPU, pcVersion string) (*vmmconfig.Gpu, error) {
-	if gpu.Type == infrav1.NutanixGPUIdentifierProfile {
-		return getGPUFromProfile(ctx, client, peUUID, gpu, pcVersion)
-	}
-
-	allUnusedGPUs, err := GetGPUsForPE(ctx, client, peUUID, gpu)
-	if err != nil {
-		return nil, err
-	}
-	if len(allUnusedGPUs) == 0 {
-		return nil, &terminalError{message: fmt.Sprintf("no available GPUs found in Prism Element cluster with UUID %s", peUUID)}
-	}
-
-	randomIndex := rand.Intn(len(allUnusedGPUs))
-	return allUnusedGPUs[randomIndex], nil
-}
-
-// getGPUFromProfile resolves a GPU identified by an AHV GPU profile name or UUID. Profile-based
-// GPU assignment uses the named GPU profile APIs, which are only available on PC 7.6 or later.
-// It searches both the physical and virtual GPU profile catalogs of the Prism Element and
-// returns a GPU whose backing info references the matching profile. The profile identifier must
-// resolve to exactly one profile across both catalogs.
-func getGPUFromProfile(ctx context.Context, client *v4Converged.Client, peUUID string, gpu infrav1.NutanixGPU, pcVersion string) (*vmmconfig.Gpu, error) {
-	if !isPCVersionHigherThan75(pcVersion) {
-		return nil, &terminalError{message: fmt.Sprintf(
-			"GPU profile %s requires Prism Central 7.6 or later", gpu.Profile.DisplayString())}
-	}
-	profile := *gpu.Profile
-
-	var profileFilter converged.ODataOption
-	switch profile.Type {
-	case infrav1.NutanixIdentifierName:
-		// Match by profile name server-side via an OData filter. We compare on the exact
-		// name (not tolower()) because tolower() silently returns zero results for names
-		// containing special characters such as "NVIDIA Corporation GA107GL [A2 / A16]";
-		// single quotes are doubled per OData escaping.
-		profileFilter = converged.WithFilter(fmt.Sprintf(
-			"configuration/name eq '%s'", strings.ReplaceAll(*profile.Name, "'", "''")))
-	case infrav1.NutanixIdentifierUUID:
-		profileFilter = converged.WithFilter(fmt.Sprintf("extId eq '%s'", *profile.UUID))
-	default:
-		return nil, &terminalError{message: fmt.Sprintf("unsupported GPU profile identifier %s", profile.DisplayString())}
-	}
-
-	physicalProfiles, err := client.Clusters.ListAHVPhysicalGPUProfiles(ctx, peUUID, profileFilter)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list physical GPU profiles for Prism Element cluster with UUID %s: %w", peUUID, err)
-	}
-
-	virtualProfiles, err := client.Clusters.ListAHVVirtualGPUProfiles(ctx, peUUID, profileFilter)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list virtual GPU profiles for Prism Element cluster with UUID %s: %w", peUUID, err)
-	}
-
-	switch total := len(physicalProfiles) + len(virtualProfiles); {
-	case total == 0:
-		return nil, &terminalError{message: fmt.Sprintf(
-			"no GPU profile found with %s in Prism Element cluster with UUID %s", profile.DisplayString(), peUUID)}
-	case total > 1:
-		return nil, fmt.Errorf(
-			"more than one GPU profile found with %s in Prism Element cluster with UUID %s", profile.DisplayString(), peUUID)
-	}
-
-	vmGpu := vmmconfig.NewGpu()
-	if len(physicalProfiles) == 1 {
-		ref := vmmconfig.NewPhysicalGpuProfileReference()
-		ref.ExtId = physicalProfiles[0].ExtId
-		backing := vmmconfig.NewPhysicalGpu()
-		backing.PhysicalGpuProfileReference = ref
-		if err := vmGpu.SetBackingInfo(*backing); err != nil {
-			return nil, fmt.Errorf("failed to set physical GPU backing info for profile %s: %w", profile.DisplayString(), err)
-		}
-		return vmGpu, nil
-	}
-
-	ref := vmmconfig.NewVirtualGpuProfileReference()
-	ref.ExtId = virtualProfiles[0].ExtId
-	backing := vmmconfig.NewVirtualGpu()
-	backing.VirtualGpuProfileReference = ref
-	if err := vmGpu.SetBackingInfo(*backing); err != nil {
-		return nil, fmt.Errorf("failed to set virtual GPU backing info for profile %s: %w", profile.DisplayString(), err)
-	}
-	return vmGpu, nil
-}
-
-func GetGPUsForPE(ctx context.Context, client *v4Converged.Client, peUUID string, gpu infrav1.NutanixGPU) ([]*vmmconfig.Gpu, error) {
-	log := ctrl.LoggerFrom(ctx)
-	var filter string
-	var gpus []*vmmconfig.Gpu
-
-	if gpu.DeviceID != nil {
-		filter = fmt.Sprintf("physicalGpuConfig/deviceId eq %d", *gpu.DeviceID)
-	} else if gpu.Name != nil {
-		filter = fmt.Sprintf("physicalGpuConfig/deviceName eq '%s'", *gpu.Name)
-	}
-
-	physicalGPUs, err := client.Clusters.ListClusterPhysicalGPUs(ctx, peUUID, converged.WithFilter(filter))
-	if err != nil {
-		return nil, err
-	}
-	for _, physicalGPU := range physicalGPUs {
-		cfg := physicalGPU.PhysicalGpuConfig
-		if cfg == nil {
-			log.V(1).Info("skipping physical GPU with nil PhysicalGpuConfig")
-			continue
-		}
-		mode := vmmconfig.GPUMODE_PASSTHROUGH_COMPUTE.Ref()
-		if cfg.Type != nil && *cfg.Type == clusterModels.GPUTYPE_PASSTHROUGH_GRAPHICS {
-			mode = vmmconfig.GPUMODE_PASSTHROUGH_GRAPHICS.Ref()
-		}
-		if vmGpu := gpuConfigToVMGpu(log, "physical", cfg.DeviceName, cfg.DeviceId, cfg.VendorName, cfg.IsInUse, mode); vmGpu != nil {
-			gpus = append(gpus, vmGpu)
-		}
-	}
-
-	if gpu.Name != nil {
-		filter = fmt.Sprintf("virtualGpuConfig/deviceName eq '%s'", *gpu.Name)
-	} else if gpu.DeviceID != nil {
-		filter = fmt.Sprintf("virtualGpuConfig/deviceId eq %d", *gpu.DeviceID)
-	}
-
-	virtualGPUs, err := client.Clusters.ListClusterVirtualGPUs(ctx, peUUID, converged.WithFilter(filter))
-	if err != nil {
-		return nil, err
-	}
-	for _, virtualGPU := range virtualGPUs {
-		cfg := virtualGPU.VirtualGpuConfig
-		if cfg == nil {
-			log.V(1).Info("skipping virtual GPU with nil VirtualGpuConfig")
-			continue
-		}
-		if vmGpu := gpuConfigToVMGpu(log, "virtual", cfg.DeviceName, cfg.DeviceId, cfg.VendorName, cfg.IsInUse, vmmconfig.GPUMODE_VIRTUAL.Ref()); vmGpu != nil {
-			gpus = append(gpus, vmGpu)
-		}
-	}
-	return gpus, nil
-}
-
-// gpuConfigToVMGpu builds a *vmmconfig.Gpu from the common fields of a physical
-// or virtual GPU config returned by Prism Central. It returns nil (and logs the
-// reason) when the GPU should be skipped: it is already in use, is missing a
-// deviceId/vendorName, or has a deviceId that does not fit the platform int.
-// kind is used only for log messages ("physical" / "virtual").
-func gpuConfigToVMGpu(log logr.Logger, kind string, deviceName *string, deviceID *int64, vendorName *string, isInUse *bool, mode *vmmconfig.GpuMode) *vmmconfig.Gpu {
-	if isInUse != nil && *isInUse {
-		return nil
-	}
-	if deviceID == nil || vendorName == nil {
-		log.V(1).Info(fmt.Sprintf("skipping %s GPU missing deviceId or vendorName", kind))
-		return nil
-	}
-	if int64(int(*deviceID)) != *deviceID {
-		log.V(1).Info(fmt.Sprintf("skipping %s GPU with deviceId %d outside platform int range", kind, *deviceID))
-		return nil
-	}
-
-	vmGpu := vmmconfig.NewGpu()
-	vmGpu.Name = deviceName
-	vmGpu.DeviceId = ptr.To(int(*deviceID))
-	vmGpu.Mode = mode
-	vmGpu.Vendor = gpuVendorStringToGpuVendor(*vendorName)
-	return vmGpu
-}
-
-func gpuVendorStringToGpuVendor(vendor string) *vmmconfig.GpuVendor {
-	switch vendor {
-	case "kNvidia":
-		return vmmconfig.GPUVENDOR_NVIDIA.Ref()
-	case "kIntel":
-		return vmmconfig.GPUVENDOR_INTEL.Ref()
-	case "kAmd":
-		return vmmconfig.GPUVENDOR_AMD.Ref()
-	default:
-		return vmmconfig.GPUVENDOR_UNKNOWN.Ref()
-	}
 }
 
 // GetLegacyFailureDomainFromNutanixCluster gets the failure domain with a given name from a NutanixCluster object.
@@ -2430,287 +1183,6 @@ func GetLegacyFailureDomainFromNutanixCluster(failureDomainName string, nutanixC
 		}
 	}
 	return nil
-}
-
-// GetStorageContainerInCluster resolves a storage container in the given Prism Element.
-//
-// When rg is non-nil, the lookup is constrained to the project's resource group
-// (its placement targets); a storage container that is not reachable from the
-// resource group is treated as not authorized for the project. When rg is nil
-// (default-project path), it falls back to a cluster-wide client.StorageContainers.List.
-func GetStorageContainerInCluster(ctx context.Context, client *v4Converged.Client, rg *multidomainModels.ResourceGroup, storageContainerIdentifier, clusterIdentifier infrav1.NutanixResourceIdentifier) (*clusterModels.StorageContainer, error) {
-	// Project-scoped path: resolve against the resource group's placement targets.
-	if rg != nil {
-		return resolveStorageContainerFromResourceGroup(ctx, client, rg, storageContainerIdentifier, clusterIdentifier)
-	}
-
-	var filter, identifier string
-	switch {
-	case storageContainerIdentifier.IsUUID():
-		identifier = *storageContainerIdentifier.UUID
-		filter = fmt.Sprintf("containerExtId eq '%s'", identifier)
-	case storageContainerIdentifier.IsName():
-		identifier = *storageContainerIdentifier.Name
-		filter = fmt.Sprintf("name eq '%s'", identifier)
-	default:
-		return nil, fmt.Errorf("storage container identifier is missing both name and uuid")
-	}
-
-	switch {
-	case clusterIdentifier.IsUUID():
-		filter = fmt.Sprintf("%s and clusterExtId eq '%s'", filter, *clusterIdentifier.UUID)
-	case clusterIdentifier.IsName():
-		filter = fmt.Sprintf("%s and clusterName eq '%s'", filter, *clusterIdentifier.Name)
-	default:
-		return nil, fmt.Errorf("cluster identifier is missing both name and uuid")
-	}
-
-	storageContainers, err := client.StorageContainers.List(ctx, converged.WithFilter(filter))
-	if err != nil {
-		return nil, err
-	}
-
-	if len(storageContainers) == 0 {
-		return nil, &terminalError{message: fmt.Sprintf("found no storage container using filter: %s", filter)}
-	}
-
-	return &storageContainers[0], nil
-}
-
-// resolveStorageContainerFromResourceGroup resolves a storage container part of the project's resource group
-// (its placement targets) constrained to the given Prism Element. It uses
-// the prism-go-client ResourceGroups.ListStorageContainers helper to enumerate the
-// storage containers (and their owning Prism Element) from the resource group's
-// placement targets.
-func resolveStorageContainerFromResourceGroup(ctx context.Context, client *v4Converged.Client, rg *multidomainModels.ResourceGroup, sc, peID infrav1.NutanixResourceIdentifier) (*clusterModels.StorageContainer, error) {
-	if rg.ExtId == nil {
-		return nil, fmt.Errorf("resource group has no ExtId; cannot resolve storage container")
-	}
-
-	storageContainers, err := client.ResourceGroups.ListStorageContainers(ctx, *rg.ExtId)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list storage containers for resource group %s: %w", *rg.ExtId, err)
-	}
-
-	for i := range storageContainers {
-		scInfo := &storageContainers[i]
-		// Constrain to the requested Prism Element.
-		if !prismElementInfoMatches(scInfo.PrismElement, peID) {
-			continue
-		}
-		if storageContainerInfoMatches(scInfo, sc) {
-			return &clusterModels.StorageContainer{
-				ContainerExtId: ptr.To(scInfo.ExtId),
-				Name:           ptr.To(scInfo.Name),
-				ClusterExtId:   ptr.To(scInfo.PrismElement.ExtId),
-				ClusterName:    ptr.To(scInfo.PrismElement.Name),
-			}, nil
-		}
-	}
-
-	// Resolve the Prism Element name from the resource group's storage container
-	// listing for a clearer error; fall back to the identifier only defensively.
-	peName := peID.String()
-	for i := range storageContainers {
-		pe := storageContainers[i].PrismElement
-		if prismElementInfoMatches(pe, peID) && pe.Name != "" {
-			peName = pe.Name
-			break
-		}
-	}
-
-	return nil, &terminalError{message: fmt.Sprintf(
-		"no storage container %s found in resource group which is associated with prism element %s", sc.String(), peName)}
-}
-
-// prismElementInfoMatches reports whether the resource-group Prism Element matches
-// the given PE identifier (by UUID or name).
-func prismElementInfoMatches(pe converged.PrismElementInfo, peID infrav1.NutanixResourceIdentifier) bool {
-	switch {
-	case peID.IsUUID():
-		return pe.ExtId == *peID.UUID
-	case peID.IsName():
-		return strings.EqualFold(pe.Name, *peID.Name)
-	default:
-		return false
-	}
-}
-
-// storageContainerInfoMatches reports whether the resource-group storage container
-// matches the given storage container identifier (by UUID or name).
-func storageContainerInfoMatches(scInfo *converged.StorageContainerInfo, sc infrav1.NutanixResourceIdentifier) bool {
-	switch {
-	case sc.IsUUID():
-		return scInfo.ExtId == *sc.UUID
-	case sc.IsName():
-		return strings.EqualFold(scInfo.Name, *sc.Name)
-	default:
-		return false
-	}
-}
-
-func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*prismclientv3.Client, error) {
-	log := ctrl.LoggerFrom(ctx)
-
-	log.V(1).Info("Get client helper")
-	clientHelper := nutanixclient.NewHelper(secretInformer, mapInformer)
-
-	log.V(1).Info("Build management endpoint")
-	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
-	if err != nil {
-		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
-		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
-		v1beta2conditions.Set(cluster, metav1.Condition{
-			Type:    string(infrav1.PrismCentralClientCondition),
-			Status:  metav1.ConditionFalse,
-			Reason:  infrav1.PrismCentralClientInitializationFailed,
-			Message: err.Error(),
-		})
-		return nil, err
-	}
-
-	log.V(1).Info("Get or create prism central client v3")
-	v3Client, err := nutanixclient.NutanixClientCache.GetOrCreate(&nutanixclient.CacheParams{
-		NutanixCluster:          cluster,
-		PrismManagementEndpoint: managementEndpoint,
-	})
-	if err != nil {
-		log.Error(err, "error occurred while getting nutanix prism v3 Client from cache")
-		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
-		v1beta2conditions.Set(cluster, metav1.Condition{
-			Type:    string(infrav1.PrismCentralClientCondition),
-			Status:  metav1.ConditionFalse,
-			Reason:  infrav1.PrismCentralClientInitializationFailed,
-			Message: err.Error(),
-		})
-		return nil, fmt.Errorf("nutanix prism v3 Client error: %w", err)
-	}
-
-	v1beta1conditions.MarkTrue(cluster, infrav1.PrismCentralClientCondition)
-	v1beta2conditions.Set(cluster, metav1.Condition{
-		Type:   string(infrav1.PrismCentralClientCondition),
-		Status: metav1.ConditionTrue,
-		Reason: infrav1.Succeeded,
-	})
-	return v3Client, nil
-}
-
-func getPrismCentralConvergedV4ClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*v4Converged.Client, error) {
-	log := ctrl.LoggerFrom(ctx)
-
-	clientHelper := nutanixclient.NewHelper(secretInformer, mapInformer)
-	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
-	if err != nil {
-		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
-		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
-		v1beta2conditions.Set(cluster, metav1.Condition{
-			Type:    string(infrav1.PrismCentralConvergedV4ClientCondition),
-			Status:  metav1.ConditionFalse,
-			Reason:  infrav1.PrismCentralConvergedV4ClientInitializationFailed,
-			Message: err.Error(),
-		})
-		return nil, err
-	}
-
-	client, err := nutanixclient.NutanixConvergedClientV4Cache.GetOrCreate(&nutanixclient.CacheParams{
-		NutanixCluster:          cluster,
-		PrismManagementEndpoint: managementEndpoint,
-	})
-	if err != nil {
-		log.Error(err, "error occurred while getting nutanix prism converged v4 client from cache")
-		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
-		v1beta2conditions.Set(cluster, metav1.Condition{
-			Type:    string(infrav1.PrismCentralConvergedV4ClientCondition),
-			Status:  metav1.ConditionFalse,
-			Reason:  infrav1.PrismCentralConvergedV4ClientInitializationFailed,
-			Message: err.Error(),
-		})
-		return nil, fmt.Errorf("nutanix prism converged v4 client error: %w", err)
-	}
-
-	v1beta1conditions.MarkTrue(cluster, infrav1.PrismCentralConvergedV4ClientCondition)
-	v1beta2conditions.Set(cluster, metav1.Condition{
-		Type:   string(infrav1.PrismCentralConvergedV4ClientCondition),
-		Status: metav1.ConditionTrue,
-		Reason: infrav1.Succeeded,
-	})
-	return client, nil
-}
-
-func isBackedByVolumeGroupReference(disk *vmmconfig.Disk) bool {
-	if disk == nil {
-		return false
-	}
-	backingInfo := disk.GetBackingInfo()
-	if backingInfo == nil {
-		return false
-	}
-
-	_, ok := backingInfo.(vmmconfig.ADSFVolumeGroupReference)
-	return ok
-}
-
-func detachVolumeGroupsFromVM(ctx context.Context, client *v4Converged.Client, vmName string, vmUUID string, vmDiskList []vmmconfig.Disk) error {
-	log := ctrl.LoggerFrom(ctx)
-	// Detach the volume groups from the virtual machine
-	for _, disk := range vmDiskList {
-		if !isBackedByVolumeGroupReference(&disk) {
-			continue
-		}
-
-		volumeGroup := disk.GetBackingInfo().(vmmconfig.ADSFVolumeGroupReference)
-		if volumeGroup.VolumeGroupExtId == nil {
-			log.Info(fmt.Sprintf("skipping volume group with nil ExtId on virtual machine %s", vmName))
-			continue
-		}
-		volumeGroupExtId := *volumeGroup.VolumeGroupExtId
-
-		log.Info(fmt.Sprintf("detaching volume group %s from virtual machine %s", volumeGroupExtId, vmName))
-		body := &volumesconfig.VmAttachment{
-			ExtId: ptr.To(vmUUID),
-		}
-
-		_, err := client.VolumeGroups.DetachFromVM(ctx, volumeGroupExtId, *body)
-		if err != nil {
-			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroupExtId, vmUUID, err)
-		}
-		return nil
-	}
-
-	return nil
-}
-
-// nutanixResourceIdentifierSpecified reports whether nri identifies a Prism resource.
-// A zero-value identifier (typical when NutanixMachine.spec.cluster is omitted on a
-// topology/metro template) is treated as unset so callers can inherit from a FailureDomain.
-func nutanixResourceIdentifierSpecified(nri infrav1.NutanixResourceIdentifier) bool {
-	return nri.IsName() || nri.IsUUID()
-}
-
-func resourceIdsEquals(nris1, nris2 []infrav1.NutanixResourceIdentifier) bool {
-	if nris1 == nil && nris2 == nil {
-		return true
-	}
-	if (nris1 == nil && nris2 != nil) ||
-		(nris1 != nil && nris2 == nil) ||
-		len(nris1) != len(nris2) {
-		return false
-	}
-
-	for i := range nris1 {
-		found := false
-		for j := range nris2 {
-			if nris1[i].EqualTo(&nris2[j]) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-
-	return true
 }
 
 func isNutanixMetroFailureDomain(fdName string) bool {
@@ -2931,4 +1403,92 @@ func countVMVHADomainCategories(mctx *nctx.MachineContext, ctlclient client.Clie
 	}
 
 	return count, nil
+}
+
+func getPrismCentralClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*prismclientv3.Client, error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	log.V(1).Info("Get client helper")
+	clientHelper := nutanixclient.NewHelper(secretInformer, mapInformer)
+
+	log.V(1).Info("Build management endpoint")
+	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
+	if err != nil {
+		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
+		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
+		v1beta2conditions.Set(cluster, metav1.Condition{
+			Type:    string(infrav1.PrismCentralClientCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.PrismCentralClientInitializationFailed,
+			Message: err.Error(),
+		})
+		return nil, err
+	}
+
+	log.V(1).Info("Get or create prism central client v3")
+	v3Client, err := nutanixclient.NutanixClientCache.GetOrCreate(&nutanixclient.CacheParams{
+		NutanixCluster:          cluster,
+		PrismManagementEndpoint: managementEndpoint,
+	})
+	if err != nil {
+		log.Error(err, "error occurred while getting nutanix prism v3 Client from cache")
+		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralClientCondition, infrav1.PrismCentralClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
+		v1beta2conditions.Set(cluster, metav1.Condition{
+			Type:    string(infrav1.PrismCentralClientCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.PrismCentralClientInitializationFailed,
+			Message: err.Error(),
+		})
+		return nil, fmt.Errorf("nutanix prism v3 Client error: %w", err)
+	}
+
+	v1beta1conditions.MarkTrue(cluster, infrav1.PrismCentralClientCondition)
+	v1beta2conditions.Set(cluster, metav1.Condition{
+		Type:   string(infrav1.PrismCentralClientCondition),
+		Status: metav1.ConditionTrue,
+		Reason: infrav1.Succeeded,
+	})
+	return v3Client, nil
+}
+
+func getPrismCentralConvergedV4ClientForCluster(ctx context.Context, cluster *infrav1.NutanixCluster, secretInformer v1.SecretInformer, mapInformer v1.ConfigMapInformer) (*v4Converged.Client, error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	clientHelper := nutanixclient.NewHelper(secretInformer, mapInformer)
+	managementEndpoint, err := clientHelper.BuildManagementEndpoint(ctx, cluster)
+	if err != nil {
+		log.Error(err, fmt.Sprintf("error occurred while getting management endpoint for cluster %q", cluster.GetNamespacedName()))
+		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
+		v1beta2conditions.Set(cluster, metav1.Condition{
+			Type:    string(infrav1.PrismCentralConvergedV4ClientCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.PrismCentralConvergedV4ClientInitializationFailed,
+			Message: err.Error(),
+		})
+		return nil, err
+	}
+
+	client, err := nutanixclient.NutanixConvergedClientV4Cache.GetOrCreate(&nutanixclient.CacheParams{
+		NutanixCluster:          cluster,
+		PrismManagementEndpoint: managementEndpoint,
+	})
+	if err != nil {
+		log.Error(err, "error occurred while getting nutanix prism converged v4 client from cache")
+		v1beta1conditions.MarkFalse(cluster, infrav1.PrismCentralConvergedV4ClientCondition, infrav1.PrismCentralConvergedV4ClientInitializationFailed, capiv1beta1.ConditionSeverityError, "%s", err.Error())
+		v1beta2conditions.Set(cluster, metav1.Condition{
+			Type:    string(infrav1.PrismCentralConvergedV4ClientCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.PrismCentralConvergedV4ClientInitializationFailed,
+			Message: err.Error(),
+		})
+		return nil, fmt.Errorf("nutanix prism converged v4 client error: %w", err)
+	}
+
+	v1beta1conditions.MarkTrue(cluster, infrav1.PrismCentralConvergedV4ClientCondition)
+	v1beta2conditions.Set(cluster, metav1.Condition{
+		Type:   string(infrav1.PrismCentralConvergedV4ClientCondition),
+		Status: metav1.ConditionTrue,
+		Reason: infrav1.Succeeded,
+	})
+	return client, nil
 }
