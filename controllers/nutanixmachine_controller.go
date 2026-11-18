@@ -3233,6 +3233,56 @@ func (r *NutanixMachineReconciler) GetSubnetAndPEUUIDs(rctx *nctx.MachineContext
 	return peUUID, subnetUUIDs, nil
 }
 
+// uncachedGetClient serves Get from an API reader so the patch helper's conflict
+// retry observes the live resourceVersion. Writes stay on the embedded client.
+type uncachedGetClient struct {
+	client.Client
+	reader client.Reader
+}
+
+func (c uncachedGetClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	return c.reader.Get(ctx, key, obj, opts...)
+}
+
+// patchClusterCategoryCondition reads the NutanixCluster directly from the API server
+// (bypassing the cache) so the skip/mutate decision is based on authoritative state, then
+// patches it via the CAPI patch helper. The helper performs its own optimistic-locked,
+// conflict-retrying write of the conditions, so parallel machine reconciles do not race on
+// the shared object. mutate returns false to skip the patch (no-op).
+func (r *NutanixMachineReconciler) patchClusterCategoryCondition(
+	ctx context.Context,
+	key client.ObjectKey,
+	mutate func(*infrav1.NutanixCluster) bool,
+) error {
+	// Read uncached so a True just written by a sibling machine reconcile is observed, instead
+	// of a stale informer-cache copy that would trigger a redundant patch.
+	reader := client.Reader(r.Client)
+	if r.APIReader != nil {
+		reader = r.APIReader
+	}
+
+	nc := &infrav1.NutanixCluster{}
+	if err := reader.Get(ctx, key, nc); err != nil {
+		return err
+	}
+	// Hand the patch helper a client whose Get delegates to the uncached reader. The helper
+	// runs its own optimistic-locked conflict-retry loop and re-Gets the object on every
+	// attempt; without this, those re-reads hit the stale informer cache and keep observing the
+	// same resourceVersion, so all internal retries conflict and the write ultimately fails.
+	// Writes stay on r.Client.
+	ph, err := v1beta1patch.NewHelper(nc, uncachedGetClient{Client: r.Client, reader: reader})
+	if err != nil {
+		return fmt.Errorf("failed to init patch helper for NutanixCluster %s/%s: %w", nc.Namespace, nc.Name, err)
+	}
+	if !mutate(nc) {
+		return nil
+	}
+	if err := ph.Patch(ctx, nc); err != nil {
+		return fmt.Errorf("failed to patch ClusterCategoryCreatedCondition on NutanixCluster %s/%s: %w", nc.Namespace, nc.Name, err)
+	}
+	return nil
+}
+
 // markClusterCategoryCreated sets ClusterCategoryCreatedCondition=True on the
 // owning NutanixCluster after default categories are created/found.
 func (r *NutanixMachineReconciler) markClusterCategoryCreated(rctx *nctx.MachineContext) error {
@@ -3240,21 +3290,23 @@ func (r *NutanixMachineReconciler) markClusterCategoryCreated(rctx *nctx.Machine
 		return nil
 	}
 
-	patchHelper, err := v1beta1patch.NewHelper(rctx.NutanixCluster, r.Client)
-	if err != nil {
-		return fmt.Errorf("failed to init patch helper for NutanixCluster %s/%s: %w", rctx.NutanixCluster.Namespace, rctx.NutanixCluster.Name, err)
+	if err := r.patchClusterCategoryCondition(rctx.Context, client.ObjectKeyFromObject(rctx.NutanixCluster), func(nc *infrav1.NutanixCluster) bool {
+		if v1beta1conditions.IsTrue(nc, infrav1.ClusterCategoryCreatedCondition) {
+			return false
+		}
+		v1beta1conditions.MarkTrue(nc, infrav1.ClusterCategoryCreatedCondition)
+		v1beta2conditions.Set(nc, metav1.Condition{
+			Type:   string(infrav1.ClusterCategoryCreatedCondition),
+			Status: metav1.ConditionTrue,
+			Reason: infrav1.Succeeded,
+		})
+		return true
+	}); err != nil {
+		return err
 	}
 
+	// Mirror onto the local copy so later calls in this reconcile short-circuit.
 	v1beta1conditions.MarkTrue(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition)
-	v1beta2conditions.Set(rctx.NutanixCluster, metav1.Condition{
-		Type:   string(infrav1.ClusterCategoryCreatedCondition),
-		Status: metav1.ConditionTrue,
-		Reason: infrav1.Succeeded,
-	})
-
-	if err := patchHelper.Patch(rctx.Context, rctx.NutanixCluster); err != nil {
-		return fmt.Errorf("failed to patch ClusterCategoryCreatedCondition on NutanixCluster %s/%s: %w", rctx.NutanixCluster.Namespace, rctx.NutanixCluster.Name, err)
-	}
 	return nil
 }
 
@@ -3266,21 +3318,17 @@ func (r *NutanixMachineReconciler) markClusterCategoryCreationFailed(rctx *nctx.
 		return nil
 	}
 
-	patchHelper, err := v1beta1patch.NewHelper(rctx.NutanixCluster, r.Client)
-	if err != nil {
-		return fmt.Errorf("failed to init patch helper for NutanixCluster %s/%s: %w", rctx.NutanixCluster.Namespace, rctx.NutanixCluster.Name, err)
-	}
-
-	v1beta1conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.ClusterCategoryCreationFailed, capiv1beta1.ConditionSeverityError, "%s", cause.Error())
-	v1beta2conditions.Set(rctx.NutanixCluster, metav1.Condition{
-		Type:    string(infrav1.ClusterCategoryCreatedCondition),
-		Status:  metav1.ConditionFalse,
-		Reason:  infrav1.ClusterCategoryCreationFailed,
-		Message: cause.Error(),
+	return r.patchClusterCategoryCondition(rctx.Context, client.ObjectKeyFromObject(rctx.NutanixCluster), func(nc *infrav1.NutanixCluster) bool {
+		if v1beta1conditions.IsTrue(nc, infrav1.ClusterCategoryCreatedCondition) {
+			return false
+		}
+		v1beta1conditions.MarkFalse(nc, infrav1.ClusterCategoryCreatedCondition, infrav1.ClusterCategoryCreationFailed, capiv1beta1.ConditionSeverityError, "%s", cause.Error())
+		v1beta2conditions.Set(nc, metav1.Condition{
+			Type:    string(infrav1.ClusterCategoryCreatedCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.ClusterCategoryCreationFailed,
+			Message: cause.Error(),
+		})
+		return true
 	})
-
-	if err := patchHelper.Patch(rctx.Context, rctx.NutanixCluster); err != nil {
-		return fmt.Errorf("failed to patch ClusterCategoryCreatedCondition on NutanixCluster %s/%s: %w", rctx.NutanixCluster.Namespace, rctx.NutanixCluster.Name, err)
-	}
-	return nil
 }
