@@ -1079,11 +1079,9 @@ type verifyFailureMessageOnClusterMachinesParams struct {
 
 func (t testHelper) verifyFailureMessageOnClusterMachines(ctx context.Context, params verifyFailureMessageOnClusterMachinesParams) {
 	Eventually(func() bool {
-		nutanixMachines := t.getMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
+		nutanixMachines := t.getNutanixMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
 		for _, m := range nutanixMachines.Items {
-			machineStatus := m.Status
-			//nolint:staticcheck // deprecated field needed for compatibility
-			if machineStatus.Deprecated.V1Beta1.FailureMessage != nil && strings.Contains(*machineStatus.Deprecated.V1Beta1.FailureMessage, params.expectedFailureMessage) {
+			if m.Status.FailureMessage != nil && strings.Contains(*m.Status.FailureMessage, params.expectedFailureMessage) {
 				return true
 			}
 		}
