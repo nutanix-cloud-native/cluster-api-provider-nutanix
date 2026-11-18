@@ -2025,7 +2025,15 @@ func isPCVersionHigherThan75(version string) bool {
 	if v == "" {
 		return false
 	}
-	return CompareVersions(v, "7.6") >= 0
+	// Use ComparePCVersions rather than a plain numeric CompareVersions: Nutanix
+	// renumbered Prism Central releases so the 202x.y line predates the 7.x line.
+	// A raw numeric compare would rank a 2024.x PC above 7.6 and wrongly enable
+	// project-aware behavior on a PC that does not support it.
+	cmp, err := ComparePCVersions(v, "7.6")
+	if err != nil {
+		return false
+	}
+	return cmp >= 0
 }
 
 // GetDefaultProjectUUID returns the UUID of the default system project

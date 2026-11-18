@@ -5163,3 +5163,28 @@ func TestWaitForConvergedOperation_EnrichesFailedWait(t *testing.T) {
 	assert.ErrorContains(t, err, "generic parent error")
 	assert.ErrorContains(t, err, childMsg)
 }
+
+func TestIsPCVersionHigherThan75(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+		want    bool
+	}{
+		{name: "empty string", version: "", want: false},
+		{name: "7.5 is not higher than 7.5", version: "7.5", want: false},
+		{name: "7.6 is >= 7.6", version: "7.6", want: true},
+		{name: "7.6 with pc prefix", version: "pc.7.6.0.5", want: true},
+		{name: "7.10 is higher than 7.6", version: "7.10", want: true},
+		{name: "8.0 is higher than 7.6", version: "8.0", want: true},
+		// Nutanix renumbered PC releases: the 202x.y line predates the 7.x line,
+		// so a 2024.x PC is OLDER than 7.6 and must not be treated as >= 7.6.
+		{name: "2024.3 predates 7.x", version: "2024.3", want: false},
+		{name: "2024.3 with pc prefix", version: "pc.2024.3.0.1", want: false},
+		{name: "2025.1 predates 7.x", version: "2025.1.0.1", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isPCVersionHigherThan75(tt.version))
+		})
+	}
+}
