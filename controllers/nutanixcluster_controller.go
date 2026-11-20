@@ -47,11 +47,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	multidomainModels "github.com/nutanix/ntnx-api-golang-clients/multidomain-go-client/v4/models/multidomain/v4/config"
+
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/services"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
-	multidomainModels "github.com/nutanix/ntnx-api-golang-clients/multidomain-go-client/v4/models/multidomain/v4/config"
 )
 
 // NutanixClusterReconciler reconciles a NutanixCluster object
@@ -692,13 +694,13 @@ func (r *NutanixClusterReconciler) resolveProjectScopeForCluster(rctx *nctx.Clus
 // It returns error if validation fails, and returns nil if validation succeeds.
 func (r *NutanixClusterReconciler) validateFailureDomainSpec(rctx *nctx.ClusterContext, fd *infrav1.NutanixFailureDomain, project *nctx.ProjectInfo, resourceGroup *multidomainModels.ResourceGroup, pcVersion string) error {
 	pe := fd.Spec.PrismElementCluster
-	peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient, resourceGroup, pe.Name, pe.UUID)
+	peUUID, err := services.GetPEUUID(rctx.Context, rctx.ConvergedClient, resourceGroup, pe.Name, pe.UUID)
 	if err != nil {
 		return err
 	}
 
 	subnets := fd.Spec.Subnets
-	_, err = GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, subnets, peUUID, project, pcVersion)
+	_, err = services.GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, subnets, peUUID, project, pcVersion)
 	if err != nil {
 		return err
 	}

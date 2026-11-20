@@ -24,12 +24,6 @@ import (
 	"strings"
 	"time"
 
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
-	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
-	"github.com/nutanix-cloud-native/prism-go-client/converged"
-	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
-	v3models "github.com/nutanix-cloud-native/prism-go-client/v3/models"
 	dpModels "github.com/nutanix/ntnx-api-golang-clients/datapolicies-go-client/v4/models/datapolicies/v4/config"
 	dpCommon "github.com/nutanix/ntnx-api-golang-clients/datapolicies-go-client/v4/models/dataprotection/v4/common"
 	corev1 "k8s.io/api/core/v1"
@@ -48,6 +42,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/services"
+	"github.com/nutanix-cloud-native/prism-go-client/converged"
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
+	v3models "github.com/nutanix-cloud-native/prism-go-client/v3/models"
 )
 
 const (
@@ -393,7 +395,7 @@ func (r *NutanixVirtualHADomainReconciler) ensureVHADomainPCResources(
 	peNames := make([]string, len(failureDomains))
 	for i, fd := range failureDomains {
 		// VHA domains always use the default project (nil resource group)
-		peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient, nil,
+		peUUID, err := services.GetPEUUID(rctx.Context, rctx.ConvergedClient, nil,
 			fd.Spec.PrismElementCluster.Name, fd.Spec.PrismElementCluster.UUID)
 		if err != nil {
 			return fmt.Errorf("failed to get PE UUID for failure domain %s: %w", fd.Name, err)
@@ -1148,11 +1150,11 @@ func pairVHADomainSubnetsByL2(
 	}
 	fd0, fd1 := failureDomains[0], failureDomains[1]
 
-	keys0, err := subnetNetworkKeys(ctx, client, fd0.Spec.Subnets, fd0.Spec.PrismElementCluster)
+	keys0, err := services.SubnetNetworkKeys(ctx, client, fd0.Spec.Subnets, fd0.Spec.PrismElementCluster)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve subnet network keys for failure domain %s: %w", fd0.Name, err)
 	}
-	keys1, err := subnetNetworkKeys(ctx, client, fd1.Spec.Subnets, fd1.Spec.PrismElementCluster)
+	keys1, err := services.SubnetNetworkKeys(ctx, client, fd1.Spec.Subnets, fd1.Spec.PrismElementCluster)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve subnet network keys for failure domain %s: %w", fd1.Name, err)
 	}

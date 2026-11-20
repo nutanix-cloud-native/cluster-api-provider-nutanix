@@ -28,10 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nutanix-cloud-native/prism-go-client/converged"
-	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
-	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
-	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	. "github.com/onsi/gomega" //nolint:staticcheck // gomega is used with . imports conventionally
 	"github.com/onsi/gomega/gstruct"
 	corev1 "k8s.io/api/core/v1"
@@ -47,10 +43,17 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/nutanix-cloud-native/prism-go-client/converged"
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
+	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
+	prismGoClientV3 "github.com/nutanix-cloud-native/prism-go-client/v3"
+
+	vmmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
+
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/controllers"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
-	vmmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/services"
 )
 
 const (
@@ -248,19 +251,19 @@ func (t testHelper) createUUIDNMT(ctx context.Context, clusterName, namespace st
 	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
 	subnetVarValue := t.getVariableFromE2eConfig(subnetVarKey)
 
-	clusterUUID, err := controllers.GetPEUUID(ctx, t.convergedClient, nil, &clusterVarValue, nil)
+	clusterUUID, err := services.GetPEUUID(ctx, t.convergedClient, nil, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 
 	pcVersion, err := t.convergedClient.DomainManager.GetPrismCentralVersion(ctx)
 	Expect(err).ToNot(HaveOccurred())
 
-	image, err := controllers.GetImage(ctx, t.convergedClient, infrav1.NutanixResourceIdentifier{
+	image, err := services.GetImage(ctx, t.convergedClient, infrav1.NutanixResourceIdentifier{
 		Type: infrav1.NutanixIdentifierName,
 		Name: ptr.To(imageVarValue),
 	}, nil, pcVersion)
 	Expect(err).ToNot(HaveOccurred())
 
-	subnetUUID, err := controllers.GetSubnetUUID(ctx, t.convergedClient, clusterUUID, &subnetVarValue, nil, nil, pcVersion)
+	subnetUUID, err := services.GetSubnetUUID(ctx, t.convergedClient, clusterUUID, &subnetVarValue, nil, nil, pcVersion)
 	Expect(err).ToNot(HaveOccurred())
 
 	return &infrav1.NutanixMachineTemplate{
@@ -365,10 +368,10 @@ func (t testHelper) createNameGPUNMT(ctx context.Context, clusterName, namespace
 func (t testHelper) findGPU(ctx context.Context, gpuName string) *vmmconfig.Gpu {
 	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
 
-	clusterUUID, err := controllers.GetPEUUID(ctx, t.convergedClient, nil, &clusterVarValue, nil)
+	clusterUUID, err := services.GetPEUUID(ctx, t.convergedClient, nil, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(clusterUUID).ToNot(BeNil())
-	allUnusedGpus, err := controllers.GetGPUsForPE(ctx, t.convergedClient, clusterUUID, infrav1.NutanixGPU{
+	allUnusedGpus, err := services.GetGPUsForPE(ctx, t.convergedClient, clusterUUID, infrav1.NutanixGPU{
 		Type: infrav1.NutanixGPUIdentifierName,
 		Name: &gpuName,
 	})
@@ -401,11 +404,11 @@ func (t testHelper) createProfileGPUNMT(clusterName, namespace string, profile i
 
 // findGPUProfileExtID resolves an AHV GPU profile name to its external ID, searching both
 // the physical and virtual profile catalogs of the Prism Element under test. This mirrors
-// the resolution CAPX itself performs in controllers.GetGPU for profile GPUs.
+// the resolution CAPX itself performs in services.GetGPU for profile GPUs.
 func (t testHelper) findGPUProfileExtID(ctx context.Context, profileName string) string {
 	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
 
-	peUUID, err := controllers.GetPEUUID(ctx, t.convergedClient, nil, &clusterVarValue, nil)
+	peUUID, err := services.GetPEUUID(ctx, t.convergedClient, nil, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(peUUID).ToNot(BeEmpty())
 
@@ -497,7 +500,7 @@ type gpuDevice struct {
 }
 
 // findGPUDevice resolves a GPU device by name irrespective of whether it is currently in
-// use. controllers.GetGPUsForPE (and therefore findGPU) deliberately skips in-use GPUs
+// use. services.GetGPUsForPE (and therefore findGPU) deliberately skips in-use GPUs
 // because it is picking one to assign to a new VM. Verification must not do that: the
 // device ID and vendor of a given GPU name are properties of the device model, so filtering
 // on availability would make the assertion additionally require a spare GPU beyond the one
@@ -505,7 +508,7 @@ type gpuDevice struct {
 func (t testHelper) findGPUDevice(ctx context.Context, gpuName string) gpuDevice {
 	clusterVarValue := t.getVariableFromE2eConfig(clusterVarKey)
 
-	peUUID, err := controllers.GetPEUUID(ctx, t.convergedClient, nil, &clusterVarValue, nil)
+	peUUID, err := services.GetPEUUID(ctx, t.convergedClient, nil, &clusterVarValue, nil)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(peUUID).ToNot(BeEmpty())
 
@@ -1076,11 +1079,9 @@ type verifyFailureMessageOnClusterMachinesParams struct {
 
 func (t testHelper) verifyFailureMessageOnClusterMachines(ctx context.Context, params verifyFailureMessageOnClusterMachinesParams) {
 	Eventually(func() bool {
-		nutanixMachines := t.getMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
+		nutanixMachines := t.getNutanixMachinesForCluster(ctx, params.clusterName, params.namespace.Name, params.bootstrapClusterProxy)
 		for _, m := range nutanixMachines.Items {
-			machineStatus := m.Status
-			//nolint:staticcheck // deprecated field needed for compatibility
-			if machineStatus.Deprecated.V1Beta1.FailureMessage != nil && strings.Contains(*machineStatus.Deprecated.V1Beta1.FailureMessage, params.expectedFailureMessage) {
+			if m.Status.FailureMessage != nil && strings.Contains(*m.Status.FailureMessage, params.expectedFailureMessage) {
 				return true
 			}
 		}
