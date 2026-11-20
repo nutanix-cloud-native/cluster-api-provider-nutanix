@@ -3353,7 +3353,7 @@ func TestNutanixMachineReconciler_recoverStickyFailedVMCreate(t *testing.T) {
 			Context:         ctx,
 			Machine:         &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: "test-machine"}},
 			NutanixMachine:  live,
-			ConvergedClient: nil, // DeleteVM no-ops on empty UUID before using the client
+			ConvergedClient: nil,
 		}
 
 		createErr := fmt.Errorf("failed to create VM test-machine: task ZXJnb24=:d0b4dc17 failed: not enough cores")
@@ -3443,6 +3443,101 @@ func TestNutanixMachineReconciler_recoverStickyFailedVMCreate(t *testing.T) {
 		assert.False(t, ok)
 		assert.Equal(t, existingRequestID, ntnxMachine.Annotations[VMCreationRequestIDAnnotation])
 		assert.Empty(t, ntnxMachine.Annotations[VMCreateRetryAfterAnnotation])
+	})
+}
+
+func TestNutanixMachineReconciler_adoptVMAfterFailedCreate(t *testing.T) {
+	vmName := "test-machine"
+	vmUUID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+	existingRequestID := "c58c7742-7e3e-41d3-a333-d958095a799c"
+	createErr := fmt.Errorf("failed to create VM %s: task abc failed: not enough cores", vmName)
+
+	newCtx := func(client *v4Converged.Client) *nctx.MachineContext {
+		return &nctx.MachineContext{
+			Context: context.Background(),
+			Machine: &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}},
+			NutanixMachine: &infrav1.NutanixMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      vmName,
+					Namespace: "default",
+					Annotations: map[string]string{
+						VMCreationRequestIDAnnotation: existingRequestID,
+					},
+				},
+			},
+			NutanixCluster:  &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "cluster"}},
+			ConvergedClient: client,
+			PCVersion:       "pc.7.5.0.5",
+		}
+	}
+
+	t.Run("adopts a VM the failed task left behind and keeps the request id", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		found := vmmModels.NewVm()
+		found.Name = ptr.To(vmName)
+		found.ExtId = ptr.To(vmUUID)
+		mockConvergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*found}, nil)
+		mockConvergedClient.MockVMs.EXPECT().Get(gomock.Any(), vmUUID).Return(found, nil)
+
+		rctx := newCtx(mockConvergedClient.Client)
+		reconciler := &NutanixMachineReconciler{}
+		vm, err := reconciler.adoptVMAfterFailedCreate(rctx, createErr, nil)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, vmUUID, ptr.Deref(vm.ExtId, ""))
+		assert.Equal(t, existingRequestID, rctx.NutanixMachine.Annotations[VMCreationRequestIDAnnotation])
+		assert.Empty(t, rctx.NutanixMachine.Annotations[VMCreateRetryAfterAnnotation])
+
+		cond := v1beta1conditions.Get(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
+		require.NotNil(t, cond)
+		assert.Equal(t, corev1.ConditionTrue, cond.Status)
+	})
+
+	t.Run("returns nil when the recheck finds no VM so recovery can clear the request id", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{}, nil)
+
+		rctx := newCtx(mockConvergedClient.Client)
+		reconciler := &NutanixMachineReconciler{}
+		vm, err := reconciler.adoptVMAfterFailedCreate(rctx, createErr, nil)
+		require.NoError(t, err)
+		assert.Nil(t, vm)
+		assert.Equal(t, existingRequestID, rctx.NutanixMachine.Annotations[VMCreationRequestIDAnnotation])
+	})
+
+	t.Run("keeps the request id when the recheck itself fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("list timed out"))
+
+		rctx := newCtx(mockConvergedClient.Client)
+		reconciler := &NutanixMachineReconciler{}
+		vm, err := reconciler.adoptVMAfterFailedCreate(rctx, createErr, nil)
+		require.Error(t, err)
+		assert.Nil(t, vm)
+		assert.Equal(t, existingRequestID, rctx.NutanixMachine.Annotations[VMCreationRequestIDAnnotation])
+		assert.Empty(t, rctx.NutanixMachine.Annotations[VMCreateRetryAfterAnnotation])
+	})
+
+	t.Run("does not look up a VM for a non-task error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		rctx := newCtx(mockConvergedClient.Client)
+		reconciler := &NutanixMachineReconciler{}
+		vm, err := reconciler.adoptVMAfterFailedCreate(rctx, errors.New("timeout awaiting headers"), nil)
+		require.NoError(t, err)
+		assert.Nil(t, vm)
+		assert.Equal(t, existingRequestID, rctx.NutanixMachine.Annotations[VMCreationRequestIDAnnotation])
 	})
 }
 

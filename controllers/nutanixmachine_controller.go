@@ -2039,10 +2039,39 @@ func setVMProvisionedTaskFailedCondition(rctx *nctx.MachineContext, retryAfter t
 	})
 }
 
+// adoptVMAfterFailedCreate re-reads Prism after a confirmed CreateVm task failure.
+// The lookup at the start of getOrCreateVM ran before this attempt, so it cannot see a
+// VM this task just created. A hit adopts that VM and leaves the request id in place.
+// A lookup error also leaves the request id in place: clearing it without confirming
+// the VM is absent can create a second VM once backoff expires.
+func (r *NutanixMachineReconciler) adoptVMAfterFailedCreate(rctx *nctx.MachineContext, createErr error, projectExtID *string) (*vmmconfig.Vm, error) {
+	if !isPrismTaskFailed(createErr) {
+		return nil, nil
+	}
+
+	log := ctrl.LoggerFrom(rctx.Context)
+	found, err := FindVM(rctx.Context, rctx.ConvergedClient, rctx.Machine, rctx.NutanixMachine, rctx.Machine.Name, projectExtID, rctx.PCVersion, nutanixV3Service(rctx))
+	if err != nil {
+		log.Error(err, "failed to recheck VM after Prism create task failure; keeping creation request id")
+		return nil, err
+	}
+	if found == nil {
+		return nil, nil
+	}
+
+	log.Info("Adopting VM found after Prism create task failure; not clearing creation request id",
+		"vmUUID", ptr.Deref(found.ExtId, ""))
+	if clearErr := r.clearVMCreateRetryAfter(rctx); clearErr != nil {
+		log.Error(clearErr, "failed to clear vm create retry-after after adopting VM from failed create")
+	}
+	markVMProvisioned(rctx)
+	return found, nil
+}
+
 // recoverStickyFailedVMCreate arms a durable create backoff after a confirmed Prism
-// task failure when CAPX never adopted a VM. The sticky request-id is cleared so the
-// next attempt (after backoff) mints a fresh idempotency key instead of replaying the
-// same FAILED task.
+// task failure when no VM UUID is recorded and a post-failure lookup found no VM.
+// The sticky request-id is cleared so the next attempt (after backoff) mints a fresh
+// idempotency key instead of replaying the same FAILED task.
 func (r *NutanixMachineReconciler) recoverStickyFailedVMCreate(rctx *nctx.MachineContext, createErr error) error {
 	if !isPrismTaskFailed(createErr) {
 		return createErr
@@ -2058,11 +2087,6 @@ func (r *NutanixMachineReconciler) recoverStickyFailedVMCreate(rctx *nctx.Machin
 		log.Info("Prism create task failed but VM UUID is already set; not clearing creation request id",
 			"vmUUID", vmUUID)
 		return createErr
-	}
-
-	// Best-effort cleanup if Prism somehow left a UUID-less partial; DeleteVM no-ops on empty UUID.
-	if _, delErr := DeleteVM(rctx.Context, rctx.ConvergedClient, rctx.Machine.Name, vmUUID); delErr != nil {
-		log.Error(delErr, "Best-effort VM delete after failed create returned an error")
 	}
 
 	retryAt := nowFunc().Add(failedVMCreateRetryAfter)
@@ -2291,6 +2315,10 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	log.Info(fmt.Sprintf("Creating VM with name %s for cluster %s", vmName, rctx.NutanixCluster.Name))
 	vm, err = createAndWaitForVM(v4Converged.WithRequestID(ctx, requestID), rctx, vm, vmName)
 	if err != nil {
+		adopted, adoptErr := r.adoptVMAfterFailedCreate(rctx, err, effectiveProjectExtID)
+		if adoptErr != nil || adopted != nil {
+			return adopted, adoptErr
+		}
 		return nil, r.recoverStickyFailedVMCreate(rctx, err)
 	}
 
