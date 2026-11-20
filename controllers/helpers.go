@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"slices"
@@ -54,6 +55,11 @@ const (
 
 	detachVGRequeueAfter = 30 * time.Second
 
+	// failedVMCreateRetryAfter is how long CAPX waits before minting a new
+	// vm-creation request id after a Prism CreateVm task fails with no adopted VM.
+	// Reusing the failed request id forever replays the same FAILED task.
+	failedVMCreateRetryAfter = 30 * time.Minute
+
 	ImageStateDeletePending    = "DELETE_PENDING"
 	ImageStateDeleteInProgress = "DELETE_IN_PROGRESS"
 
@@ -74,6 +80,11 @@ const (
 	// clusterctl move drops status on Create for objects with the status subresource enabled,
 	// while metadata (including annotations) passes through unchanged.
 	VMCreationRequestIDAnnotation = "capx.nutanix.com/vm-creation-request-id"
+
+	// VMCreateRetryAfterAnnotation is an RFC3339 timestamp. While it is in the future, CAPX
+	// must not mint a new create request-id or call Prism CreateVm. The annotation is durable
+	// across reconcile re-entry and controller restarts; RequeueAfter alone is not.
+	VMCreateRetryAfterAnnotation = "capx.nutanix.com/vm-create-retry-after"
 
 	metroFailureDomainPrefix         = "NutanixMetro/"
 	metroSiteFailureDomainPrefix     = "NutanixMetroSite/"
@@ -133,6 +144,79 @@ func resourceIdsEquals(nris1, nris2 []infrav1.NutanixResourceIdentifier) bool {
 	}
 
 	return true
+}
+
+// delayedReconcileError tells reconcileNormal to requeue after a fixed delay
+// without treating the create failure as an immediate controller-runtime error
+// (which would race the delay with exponential backoff).
+type delayedReconcileError struct {
+	after time.Duration
+	err   error
+}
+
+func (e *delayedReconcileError) Error() string {
+	if e == nil || e.err == nil {
+		return "delayed reconcile"
+	}
+	return e.err.Error()
+}
+
+func (e *delayedReconcileError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
+
+func requeueAfterFromError(err error) (time.Duration, bool) {
+	var delayed *delayedReconcileError
+	if errors.As(err, &delayed) && delayed.after > 0 {
+		return delayed.after, true
+	}
+	return 0, false
+}
+
+// isPrismTaskFailed reports whether err is a confirmed Prism async task failure.
+// Operation.Wait returns "task <uuid> failed: ..."; Results returns ErrTaskFailed.
+func isPrismTaskFailed(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, converged.ErrTaskFailed) {
+		return true
+	}
+	msg := err.Error()
+	// Match prism-go-client Operation.Wait failure / cancel strings. Avoid matching
+	// transport errors like "failed to get task <uuid>: ...".
+	if strings.Contains(msg, "task ") && strings.Contains(msg, " failed:") {
+		return true
+	}
+	return strings.Contains(msg, "task ") && strings.Contains(msg, " was canceled")
+}
+
+// nowFunc is overridable in unit tests for backoff timing.
+var nowFunc = time.Now
+
+// remainingVMCreateBackoff returns how long CAPX must wait before another CreateVm
+// attempt. ok is false when there is no backoff, the annotation is expired, or it is
+// unparseable (fail open so a bad value cannot block forever).
+func remainingVMCreateBackoff(nm *infrav1.NutanixMachine, now time.Time) (time.Duration, bool) {
+	if nm == nil || nm.Annotations == nil {
+		return 0, false
+	}
+	raw := nm.Annotations[VMCreateRetryAfterAnnotation]
+	if raw == "" {
+		return 0, false
+	}
+	retryAt, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return 0, false
+	}
+	remaining := retryAt.Sub(now)
+	if remaining <= 0 {
+		return 0, false
+	}
+	return remaining, true
 }
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler

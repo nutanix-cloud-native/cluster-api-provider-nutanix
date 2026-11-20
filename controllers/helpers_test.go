@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	clusterAhvModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/ahv/config"
 	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
@@ -1082,6 +1083,113 @@ func TestGetVMUUID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_isPrismTaskFailed(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "ErrTaskFailed sentinel",
+			err:      converged.ErrTaskFailed,
+			expected: true,
+		},
+		{
+			name:     "wrapped ErrTaskFailed",
+			err:      fmt.Errorf("failed to create VM: %w", converged.ErrTaskFailed),
+			expected: true,
+		},
+		{
+			name:     "Operation.Wait failure message",
+			err:      fmt.Errorf("task ZXJnb24=:d0b4dc17-a05d-5756-ba5b-0a2e159063d6 failed: not enough cores"),
+			expected: true,
+		},
+		{
+			name:     "wrapped Wait failure with failed_subtasks",
+			err:      fmt.Errorf("failed to create VM x: %w", fmt.Errorf("task abc failed: not enough cores; failed_subtasks: [CreateVm] not enough cores")),
+			expected: true,
+		},
+		{
+			name:     "canceled task",
+			err:      fmt.Errorf("task abc was canceled"),
+			expected: true,
+		},
+		{
+			name:     "get-task transport error is not a task failure",
+			err:      fmt.Errorf("failed to get task abc: connection reset"),
+			expected: false,
+		},
+		{
+			name:     "unrelated error",
+			err:      errors.New("timeout awaiting headers"),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, isPrismTaskFailed(tt.err))
+		})
+	}
+}
+
+func Test_requeueAfterFromError(t *testing.T) {
+	after, ok := requeueAfterFromError(errors.New("plain"))
+	assert.False(t, ok)
+	assert.Zero(t, after)
+
+	after, ok = requeueAfterFromError(&delayedReconcileError{after: failedVMCreateRetryAfter, err: errors.New("create failed")})
+	assert.True(t, ok)
+	assert.Equal(t, failedVMCreateRetryAfter, after)
+
+	wrapped := fmt.Errorf("outer: %w", &delayedReconcileError{after: failedVMCreateRetryAfter, err: errors.New("create failed")})
+	after, ok = requeueAfterFromError(wrapped)
+	assert.True(t, ok)
+	assert.Equal(t, failedVMCreateRetryAfter, after)
+}
+
+func Test_remainingVMCreateBackoff(t *testing.T) {
+	now := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+
+	t.Run("no annotation", func(t *testing.T) {
+		remaining, ok := remainingVMCreateBackoff(&infrav1.NutanixMachine{}, now)
+		assert.False(t, ok)
+		assert.Zero(t, remaining)
+	})
+
+	t.Run("active backoff", func(t *testing.T) {
+		nm := &infrav1.NutanixMachine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+			VMCreateRetryAfterAnnotation: now.Add(10 * time.Minute).Format(time.RFC3339),
+		}}}
+		remaining, ok := remainingVMCreateBackoff(nm, now)
+		require.True(t, ok)
+		assert.Equal(t, 10*time.Minute, remaining)
+	})
+
+	t.Run("expired backoff", func(t *testing.T) {
+		nm := &infrav1.NutanixMachine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+			VMCreateRetryAfterAnnotation: now.Add(-time.Second).Format(time.RFC3339),
+		}}}
+		remaining, ok := remainingVMCreateBackoff(nm, now)
+		assert.False(t, ok)
+		assert.Zero(t, remaining)
+	})
+
+	t.Run("unparseable annotation fails open", func(t *testing.T) {
+		nm := &infrav1.NutanixMachine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+			VMCreateRetryAfterAnnotation: "not-a-time",
+		}}}
+		remaining, ok := remainingVMCreateBackoff(nm, now)
+		assert.False(t, ok)
+		assert.Zero(t, remaining)
+	})
 }
 
 func TestGetDefaultCAPICategoryIdentifiers(t *testing.T) {
