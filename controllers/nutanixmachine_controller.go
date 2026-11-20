@@ -30,6 +30,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	multidomainModels "github.com/nutanix/ntnx-api-golang-clients/multidomain-go-client/v4/models/multidomain/v4/config"
+	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	vmmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 	imageModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
 	"github.com/pkg/errors"
@@ -78,6 +79,17 @@ var (
 const (
 	vmCustomAttributePrefix4ProviderID = "providerid:"
 )
+
+// errVMCreationInProgress is a sentinel error signalling that the VM creation task has been
+// submitted to Prism Central but has not yet reached a terminal state. It is not a failure:
+// the reconcile should requeue and re-check on a later cycle rather than block the worker
+// waiting for the task to complete. See createAndWaitForVM and the Reconcile create path.
+var errVMCreationInProgress = errors.New("vm creation task still in progress")
+
+// isVMCreationInProgress reports whether err is (or wraps) errVMCreationInProgress.
+func isVMCreationInProgress(err error) bool {
+	return errors.Is(err, errVMCreationInProgress)
+}
 
 func init() {
 	minMachineSystemDiskSize = resource.MustParse("20Gi")
@@ -691,6 +703,14 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	// Create or get existing VM
 	vm, err := r.getOrCreateVM(rctx, effectiveProject, resourceGroup)
 	if err != nil {
+		// The VM creation task has been submitted to Prism Central but has not yet completed.
+		// This is not a failure: requeue and re-check the task on a later reconcile instead of
+		// blocking the worker. The create is idempotent (request-id), so re-issuing it returns
+		// the same task/VM. See createAndWaitForVM.
+		if isVMCreationInProgress(err) {
+			log.Info(fmt.Sprintf("VM %s creation is still in progress; requeueing.", rctx.Machine.Name))
+			return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+		}
 		log.Error(err, fmt.Sprintf("Failed to create VM %s.", rctx.Machine.Name))
 		return reconcile.Result{}, err
 	}
@@ -2203,22 +2223,66 @@ func markVMProvisioned(rctx *nctx.MachineContext) {
 	})
 }
 
+// createAndWaitForVM submits the VM creation task to Prism Central and checks its status once,
+// without blocking the reconcile worker. Because the Create call carries a durable idempotency
+// request-id (see getOrMintVMCreationRequestID), re-issuing it on a later reconcile returns the
+// original task instead of creating a second VM, so it is safe to fire-and-requeue.
+//
+// Return contract:
+//   - task SUCCEEDED: resolves and returns the created VM.
+//   - task FAILED/CANCELED/CANCELING: returns a wrapped error (stamping failure when non-retryable).
+//   - task still QUEUED/RUNNING (or status not yet observable): returns errVMCreationInProgress so
+//     the caller requeues and re-checks on a later reconcile cycle.
 func createAndWaitForVM(ctx context.Context, rctx *nctx.MachineContext, vm *vmmconfig.Vm, vmName string) (*vmmconfig.Vm, error) {
+	log := ctrl.LoggerFrom(ctx)
 	convergedClient := rctx.ConvergedClient
 	createOp, err := convergedClient.VMs.CreateAsync(ctx, vm)
 	if err != nil {
 		return nil, vmCreateFailure(rctx, vmName, err)
 	}
-	createdVMs, err := waitForConvergedOperation(ctx, convergedClient, createOp)
+
+	taskUUID := createOp.UUID()
+
+	// Check the task status a single time instead of blocking in a wait loop. The Operation's
+	// own cached status is not advanced until Wait() runs, so query the task directly.
+	task, err := convergedClient.Tasks.Get(ctx, taskUUID)
 	if err != nil {
-		return nil, vmCreateFailure(rctx, vmName, err)
+		// Treat a transient failure to read the task as "still in progress"; the next reconcile
+		// re-issues the idempotent create and re-checks the same task.
+		log.V(1).Info(fmt.Sprintf("failed to get VM creation task %s for VM %s; will requeue: %v", taskUUID, vmName, err))
+		return nil, errVMCreationInProgress
 	}
-	if len(createdVMs) != 1 || createdVMs[0] == nil {
-		errorMsg := fmt.Errorf("failed to create VM %s: operation completed but expected exactly 1 VM, got %d", vmName, len(createdVMs))
+	if task == nil || task.Status == nil {
+		log.V(1).Info(fmt.Sprintf("VM creation task %s for VM %s has no status yet; will requeue", taskUUID, vmName))
+		return nil, errVMCreationInProgress
+	}
+
+	switch *task.Status {
+	case prismModels.TASKSTATUS_SUCCEEDED:
+		// Task already succeeded; op.Wait returns immediately after resolving the affected
+		// entities into VM objects.
+		createdVMs, err := waitForConvergedOperation(ctx, convergedClient, createOp)
+		if err != nil {
+			return nil, vmCreateFailure(rctx, vmName, err)
+		}
+		if len(createdVMs) != 1 || createdVMs[0] == nil {
+			errorMsg := fmt.Errorf("failed to create VM %s: operation completed but expected exactly 1 VM, got %d", vmName, len(createdVMs))
+			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+			return nil, errorMsg
+		}
+		return createdVMs[0], nil
+	case prismModels.TASKSTATUS_FAILED, prismModels.TASKSTATUS_CANCELED, prismModels.TASKSTATUS_CANCELING:
+		// A terminal task status is a definitive infrastructure failure, not a transient API
+		// error, so always stamp the failure status. Surface the actionable infrastructure
+		// reason from failed subtasks, mirroring the blocking wait's error enrichment.
+		taskErr := enrichTaskErrorWithFailedSubtasks(ctx, convergedClient, taskUUID, fmt.Errorf("vm creation task %s ended with status %s", taskUUID, task.Status.GetName()))
+		errorMsg := fmt.Errorf("failed to create VM %s: %w", vmName, taskErr)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, errorMsg
+	default:
+		log.Info(fmt.Sprintf("VM creation task %s for VM %s is %s; requeueing to re-check on a later reconcile", taskUUID, vmName, task.Status.GetName()))
+		return nil, errVMCreationInProgress
 	}
-	return createdVMs[0], nil
 }
 
 func vmCreateFailure(rctx *nctx.MachineContext, vmName string, err error) error {
