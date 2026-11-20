@@ -62,6 +62,7 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/services"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 )
@@ -673,7 +674,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	// PC 7.6+ concept, so skip resolution entirely on older PC versions even when an
 	// explicit (v3-resolved) project is present.
 	var resourceGroup *multidomainModels.ResourceGroup
-	if isPCVersionHigherThan75(rctx.PCVersion) && effectiveProject != nil && effectiveProject.ExtID != nil {
+	if services.IsPCVersionHigherThan75(rctx.PCVersion) && effectiveProject != nil && effectiveProject.ExtID != nil {
 		resourceGroup, err = resolveResourceGroup(rctx, effectiveProject)
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to resolve resource group for VM %s: %w", rctx.Machine.Name, err)
@@ -940,7 +941,7 @@ func (r *NutanixMachineReconciler) checkFailureDomainSubnets(
 		), nil
 	}
 
-	match, machineKeys, fdKeys, err := metroSubnetsMatch(
+	match, machineKeys, fdKeys, err := services.MetroSubnetsMatch(
 		rctx.Context,
 		rctx.ConvergedClient,
 		rctx.NutanixMachine.Spec.Subnets,
@@ -1027,13 +1028,13 @@ func (r *NutanixMachineReconciler) getFailureDomainSpec(rctx *nctx.MachineContex
 func (r *NutanixMachineReconciler) validateFailureDomainSpec(rctx *nctx.MachineContext, fdSpec *infrav1.NutanixFailureDomainSpec, effectiveProject *nctx.ProjectInfo, resourceGroup *multidomainModels.ResourceGroup) error {
 	// Validate the failure domain configuration.
 	pe := fdSpec.PrismElementCluster
-	peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient, resourceGroup, pe.Name, pe.UUID)
+	peUUID, err := services.GetPEUUID(rctx.Context, rctx.ConvergedClient, resourceGroup, pe.Name, pe.UUID)
 	if err != nil {
 		return err
 	}
 
 	subnets := fdSpec.Subnets
-	_, err = GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, subnets, peUUID, effectiveProject, rctx.PCVersion)
+	_, err = services.GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, subnets, peUUID, effectiveProject, rctx.PCVersion)
 	if err != nil {
 		return err
 	}
@@ -1293,7 +1294,7 @@ func pairedFailureDomainIfNativePEUnavailable(
 
 	log := ctrl.LoggerFrom(rctx.Context)
 	pe := nativeFd.Spec.PrismElementCluster
-	peCluster, err := GetPEClusterByIdentifier(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
+	peCluster, err := services.GetPEClusterByIdentifier(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
 	if err != nil {
 		log.Error(err, "Failed to read native Prism Element availability with no Recovery Plan Job; keeping native placement", "failureDomain", nativeFd.Name)
 		return nil
@@ -1419,7 +1420,7 @@ func activePlacementPEUUIDFromRecoveryPlanJob(job *prismclientv3.RecoveryPlanJob
 
 func resolveFailureDomainPEUUID(rctx *nctx.MachineContext, fdSpec *infrav1.NutanixFailureDomainSpec) (string, error) {
 	pe := fdSpec.PrismElementCluster
-	peCluster, err := GetPEClusterByIdentifier(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
+	peCluster, err := services.GetPEClusterByIdentifier(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
 	if err != nil {
 		return "", err
 	}
@@ -1765,8 +1766,8 @@ func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineConte
 	diskSize := rctx.NutanixMachine.Spec.SystemDiskSize
 	// Validate disk size
 	if diskSize.Cmp(minMachineSystemDiskSize) < 0 {
-		diskSizeMib := GetMibValueOfQuantity(diskSize)
-		minMachineSystemDiskSizeMib := GetMibValueOfQuantity(minMachineSystemDiskSize)
+		diskSizeMib := services.GetMibValueOfQuantity(diskSize)
+		minMachineSystemDiskSizeMib := services.GetMibValueOfQuantity(minMachineSystemDiskSize)
 		return fmt.Errorf("minimum systemDiskSize is %vMib but given %vMib", minMachineSystemDiskSizeMib, diskSizeMib)
 	}
 
@@ -1775,8 +1776,8 @@ func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineConte
 		memorySize := rctx.NutanixMachine.Spec.MemorySize
 		// Validate memory size
 		if memorySize.Cmp(minMachineMemorySize) < 0 {
-			memorySizeMib := GetMibValueOfQuantity(memorySize)
-			minMachineMemorySizeMib := GetMibValueOfQuantity(minMachineMemorySize)
+			memorySizeMib := services.GetMibValueOfQuantity(memorySize)
+			minMachineMemorySizeMib := services.GetMibValueOfQuantity(minMachineMemorySize)
 			return fmt.Errorf("minimum memorySize is %vMib but given %vMib", minMachineMemorySizeMib, memorySizeMib)
 		}
 
@@ -1807,8 +1808,8 @@ func (r *NutanixMachineReconciler) validateDataDisks(dataDisks []infrav1.Nutanix
 	for _, disk := range dataDisks {
 
 		if disk.DiskSize.Cmp(minMachineDataDiskSize) < 0 {
-			diskSizeMib := GetMibValueOfQuantity(disk.DiskSize)
-			minMachineDataDiskSizeMib := GetMibValueOfQuantity(minMachineDataDiskSize)
+			diskSizeMib := services.GetMibValueOfQuantity(disk.DiskSize)
+			minMachineDataDiskSizeMib := services.GetMibValueOfQuantity(minMachineDataDiskSize)
 			errors = append(errors, fmt.Errorf("minimum data disk size is %vMib but given %vMib", minMachineDataDiskSizeMib, diskSizeMib))
 		}
 
@@ -2071,7 +2072,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	// versions so the category layer uses the non-project lookup, even when an explicit
 	// (v3-resolved) project ext ID is present.
 	var categoryProjectExtID *string
-	if isPCVersionHigherThan75(rctx.PCVersion) {
+	if services.IsPCVersionHigherThan75(rctx.PCVersion) {
 		categoryProjectExtID = effectiveProjectExtID
 	}
 
@@ -2126,7 +2127,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	}
 
 	// Get GPU list
-	gpus, err := GetGPUList(ctx, convergedClient, rctx.NutanixMachine.Spec.GPUs, peUUID, rctx.PCVersion)
+	gpus, err := services.GetGPUList(ctx, convergedClient, rctx.NutanixMachine.Spec.GPUs, peUUID, rctx.PCVersion)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the GPU list to create the VM %s: %w", vmName, err)
 		if !isRetryableAPIError(err) {
@@ -2345,7 +2346,7 @@ func (r *NutanixMachineReconciler) getVMProfileForDeploy(rctx *nctx.MachineConte
 	convergedClient := rctx.ConvergedClient
 
 	log.Info(fmt.Sprintf("Validating VM profile for VM %s", vmName))
-	vmProfile, err := GetVMProfile(ctx, convergedClient, *rctx.NutanixMachine.Spec.VMProfile, effectiveProject)
+	vmProfile, err := services.GetVMProfile(ctx, convergedClient, *rctx.NutanixMachine.Spec.VMProfile, effectiveProject)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to validate VM profile for VM %s: %w", vmName, err)
 		if !isRetryableAPIError(err) {
@@ -2387,7 +2388,7 @@ func (r *NutanixMachineReconciler) buildDeployParamsFromProfile(
 	var categoryProjectExtID *string
 	if effectiveProject != nil {
 		deployParams.ProjectExtId = effectiveProject.ExtID
-		if isPCVersionHigherThan75(rctx.PCVersion) {
+		if services.IsPCVersionHigherThan75(rctx.PCVersion) {
 			categoryProjectExtID = effectiveProject.ExtID
 		}
 		v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.ProjectAssignedCondition)
@@ -2683,7 +2684,7 @@ func getVmProfileDeployDisks(rctx *nctx.MachineContext, effectiveProject *nctx.P
 	var nodeOSImage *imageModels.Image
 	var err error
 	if rctx.NutanixMachine.Spec.Image != nil {
-		nodeOSImage, err = GetImage(
+		nodeOSImage, err = services.GetImage(
 			rctx.Context,
 			rctx.ConvergedClient,
 			*rctx.NutanixMachine.Spec.Image,
@@ -2691,7 +2692,7 @@ func getVmProfileDeployDisks(rctx *nctx.MachineContext, effectiveProject *nctx.P
 			rctx.PCVersion,
 		)
 	} else if rctx.NutanixMachine.Spec.ImageLookup != nil {
-		nodeOSImage, err = GetImageByLookup(
+		nodeOSImage, err = services.GetImageByLookup(
 			rctx.Context,
 			rctx.ConvergedClient,
 			rctx.NutanixMachine.Spec.ImageLookup.Format,
@@ -2706,7 +2707,7 @@ func getVmProfileDeployDisks(rctx *nctx.MachineContext, effectiveProject *nctx.P
 	if err != nil {
 		return nil, fmt.Errorf("failed to get system disk image %q: %w", rctx.NutanixMachine.Spec.Image, err)
 	}
-	markedForDeletion, err := ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, nodeOSImage)
+	markedForDeletion, err := services.ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, nodeOSImage)
 	if err != nil {
 		return nil, err
 	}
@@ -2772,7 +2773,7 @@ func getSystemDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectInfo
 	var nodeOSImage *imageModels.Image
 	var err error
 	if rctx.NutanixMachine.Spec.Image != nil {
-		nodeOSImage, err = GetImage(
+		nodeOSImage, err = services.GetImage(
 			rctx.Context,
 			rctx.ConvergedClient,
 			*rctx.NutanixMachine.Spec.Image,
@@ -2780,7 +2781,7 @@ func getSystemDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectInfo
 			rctx.PCVersion,
 		)
 	} else if rctx.NutanixMachine.Spec.ImageLookup != nil {
-		nodeOSImage, err = GetImageByLookup(
+		nodeOSImage, err = services.GetImageByLookup(
 			rctx.Context,
 			rctx.ConvergedClient,
 			rctx.NutanixMachine.Spec.ImageLookup.Format,
@@ -2800,7 +2801,7 @@ func getSystemDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectInfo
 	// Consider this a precaution. If the image is marked for deletion after we
 	// create the "VM create" task, then that task will fail. We will handle that
 	// failure separately.
-	markedForDeletion, err := ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, nodeOSImage)
+	markedForDeletion, err := services.ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, nodeOSImage)
 	if err != nil {
 		return nil, err
 	}
@@ -2811,7 +2812,7 @@ func getSystemDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectInfo
 	}
 
 	systemDiskSizeInBytes := rctx.NutanixMachine.Spec.SystemDiskSize.Value()
-	systemDisk, err := CreateSystemDiskSpec(*nodeOSImage.ExtId, systemDiskSizeInBytes)
+	systemDisk, err := services.CreateSystemDiskSpec(*nodeOSImage.ExtId, systemDiskSizeInBytes)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating system disk spec: %w", err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
@@ -2826,7 +2827,7 @@ func getBootstrapDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectI
 		Type: infrav1.NutanixIdentifierName,
 		Name: ptr.To(rctx.NutanixMachine.Spec.BootstrapRef.Name),
 	}
-	bootstrapImage, err := GetImage(rctx.Context, rctx.ConvergedClient, bootstrapImageRef, effectiveProject, rctx.PCVersion)
+	bootstrapImage, err := services.GetImage(rctx.Context, rctx.ConvergedClient, bootstrapImageRef, effectiveProject, rctx.PCVersion)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get bootstrap disk image %q: %w", bootstrapImageRef, err)
 		if !isRetryableAPIError(err) {
@@ -2837,7 +2838,7 @@ func getBootstrapDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectI
 	// Consider this a precaution. If the image is marked for deletion after we
 	// create the "VM create" task, then that task will fail. We will handle that
 	// failure separately.
-	markedForDeletion, err := ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, bootstrapImage)
+	markedForDeletion, err := services.ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, bootstrapImage)
 	if err != nil {
 		return nil, err
 	}
@@ -2851,13 +2852,13 @@ func getBootstrapDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectI
 	cdRom.DiskAddress = vmmconfig.NewCdRomAddress()
 	cdRom.DiskAddress.Index = ptr.To(0)
 	cdRom.DiskAddress.BusType = vmmconfig.CDROMBUSTYPE_IDE.Ref()
-	cdRom.BackingInfo = newVmDiskWithImageRef(bootstrapImage.ExtId, 0)
+	cdRom.BackingInfo = services.NewVMDiskWithImageRef(bootstrapImage.ExtId, 0)
 
 	return cdRom, nil
 }
 
 func getDataDisks(rctx *nctx.MachineContext, peUUID string, effectiveProject *nctx.ProjectInfo, resourceGroup *multidomainModels.ResourceGroup) ([]vmmconfig.Disk, []vmmconfig.CdRom, error) {
-	dataDisks, dataCdRoms, err := CreateDataDiskList(rctx.Context, rctx.ConvergedClient, rctx.NutanixMachine.Spec.DataDisks, peUUID, effectiveProject, rctx.PCVersion, resourceGroup)
+	dataDisks, dataCdRoms, err := services.CreateDataDiskList(rctx.Context, rctx.ConvergedClient, rctx.NutanixMachine.Spec.DataDisks, peUUID, effectiveProject, rctx.PCVersion, resourceGroup)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating data disk spec: %w", err)
 		if !isRetryableAPIError(err) {
@@ -3088,7 +3089,7 @@ func (r *NutanixMachineReconciler) resolveEffectiveProject(rctx *nctx.MachineCon
 		// explicitly-requested project via the v3 client instead.
 		var project *nctx.ProjectInfo
 		var err error
-		if isPCVersionHigherThan75(rctx.PCVersion) {
+		if services.IsPCVersionHigherThan75(rctx.PCVersion) {
 			project, err = GetProjectV4(rctx, projectRef)
 		} else {
 			project, err = GetProjectV3(rctx, projectRef)
@@ -3103,7 +3104,7 @@ func (r *NutanixMachineReconciler) resolveEffectiveProject(rctx *nctx.MachineCon
 	}
 
 	// No project specified - PC < 7.6 doesn't support default project concept
-	if !isPCVersionHigherThan75(rctx.PCVersion) {
+	if !services.IsPCVersionHigherThan75(rctx.PCVersion) {
 		log.Info("PC version < 7.6, no project specified - skipping project validation")
 		return nil, nil
 	}
@@ -3146,7 +3147,7 @@ func (r *NutanixMachineReconciler) validateProjectPolicy(
 				rctx.NutanixMachine.Name, *effectiveProject.Name, defaultUUID)
 			log.Error(errorMsg, "project policy violation attempt")
 			r.markProjectAssignationFailed(rctx, errorMsg)
-			return &terminalError{message: errorMsg.Error()}
+			return services.NewTerminalError(errorMsg.Error())
 		}
 		return nil
 
@@ -3156,7 +3157,7 @@ func (r *NutanixMachineReconciler) validateProjectPolicy(
 			errorMsg := fmt.Errorf("single-project policy requires %s annotation on the Cluster", CAPXProjectUUIDAnnotation)
 			log.Error(errorMsg, "missing project-uuid annotation for single-project policy")
 			r.markProjectAssignationFailed(rctx, errorMsg)
-			return &terminalError{message: errorMsg.Error()}
+			return services.NewTerminalError(errorMsg.Error())
 		}
 
 		if effectiveProject != nil && *effectiveProject.ExtID != policyProjectUUID {
@@ -3164,7 +3165,7 @@ func (r *NutanixMachineReconciler) validateProjectPolicy(
 				rctx.NutanixMachine.Name, *effectiveProject.Name, policyProjectUUID)
 			log.Error(errorMsg, "project policy violation attempt")
 			r.markProjectAssignationFailed(rctx, errorMsg)
-			return &terminalError{message: errorMsg.Error()}
+			return services.NewTerminalError(errorMsg.Error())
 		}
 		return nil
 
@@ -3172,7 +3173,7 @@ func (r *NutanixMachineReconciler) validateProjectPolicy(
 		errorMsg := fmt.Errorf("invalid project policy %q", rctx.ProjectPolicy)
 		log.Error(errorMsg, "unknown project policy")
 		r.markProjectAssignationFailed(rctx, errorMsg)
-		return &terminalError{message: errorMsg.Error()}
+		return services.NewTerminalError(errorMsg.Error())
 	}
 }
 
@@ -3220,12 +3221,12 @@ func (r *NutanixMachineReconciler) GetSubnetAndPEUUIDs(rctx *nctx.MachineContext
 		return "", nil, fmt.Errorf("cannot create machine config if machine context is nil")
 	}
 
-	peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient, resourceGroup, rctx.NutanixMachine.Spec.Cluster.Name, rctx.NutanixMachine.Spec.Cluster.UUID)
+	peUUID, err := services.GetPEUUID(rctx.Context, rctx.ConvergedClient, resourceGroup, rctx.NutanixMachine.Spec.Cluster.Name, rctx.NutanixMachine.Spec.Cluster.UUID)
 	if err != nil {
 		return "", nil, err
 	}
 
-	subnetUUIDs, err := GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, rctx.NutanixMachine.Spec.Subnets, peUUID, effectiveProject, rctx.PCVersion)
+	subnetUUIDs, err := services.GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, rctx.NutanixMachine.Spec.Subnets, peUUID, effectiveProject, rctx.PCVersion)
 	if err != nil {
 		return "", nil, err
 	}

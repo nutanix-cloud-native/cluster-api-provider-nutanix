@@ -21,21 +21,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
-	"time"
 
-	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
-	mockconverged "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/converged"
-	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
-	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
-	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
-	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
-	converged "github.com/nutanix-cloud-native/prism-go-client/converged"
-	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
-	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
-	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 	clusterAhvModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/ahv/config"
 	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	dpModels "github.com/nutanix/ntnx-api-golang-clients/datapolicies-go-client/v4/models/datapolicies/v4/config"
@@ -58,61 +46,1892 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
+
+	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	mockconverged "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/converged"
+	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
+	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
+	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
+	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/services"
+	converged "github.com/nutanix-cloud-native/prism-go-client/converged"
+	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
+	credentialtypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
+	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 )
 
-func Test_isRetryableAPIError(t *testing.T) {
+type MockConvergedClientWrapper struct {
+	Client *v4Converged.Client
+
+	MockAntiAffinityPolicies *mockconverged.MockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy]
+	MockClusters             *mockconverged.MockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile, clusterAhvModels.VirtualGpuProfile, clusterAhvModels.PhysicalGpuProfile, clusterModels.Host]
+	MockCategories           *mockconverged.MockCategories[prismModels.Category]
+	MockImages               *mockconverged.MockImages[imageModels.Image, imageModels.FileDetail]
+	MockStorageContainers    *mockconverged.MockStorageContainers[clusterModels.StorageContainer]
+	MockSubnets              *mockconverged.MockSubnets[subnetModels.Subnet, networkingPrismModels.TaskReference]
+	MockVMs                  *mockconverged.MockVMs[vmmModels.Vm, vmmModels.Nic, vmmModels.Disk]
+	MockTasks                *mockconverged.MockTasks[prismModels.Task, prismErrors.AppMessage]
+	MockVolumeGroups         *mockconverged.MockVolumeGroups[volumesconfig.VolumeGroup, volumesconfig.VmAttachment]
+	MockVMProfiles           *mockconverged.MockVMProfiles[vmmModels.VmProfile, vmmModels.Vm, vmmModels.DeployVmFromVmProfileParams]
+	MockDomainManager        *mockconverged.MockDomainManager[prismModels.DomainManager]
+	MockUsers                *mockconverged.MockUsers[iamModels.User]
+	MockTemplates            *mockconverged.MockTemplates[imageModels.Template, vmmModels.Vm, imageModels.TemplateDeployment]
+	MockOvas                 *mockconverged.MockOvas[imageModels.Ova, imageModels.FileDetail]
+	MockProtectionPolicies   *mockconverged.MockProtectionPolicies[dpModels.ProtectionPolicy]
+	MockRecoveryPlans        *mockconverged.MockRecoveryPlans[dpModels.RecoveryPlan]
+	MockProjects             *mockconverged.MockProjects[projectModels.Project]
+	MockResourceGroups       *mockconverged.MockResourceGroups[projectModels.ResourceGroup]
+}
+
+// NewMockConvergedClient creates a new mock converged client
+func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper {
+	mockAntiAffinityPolicies := mockconverged.NewMockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy](ctrl)
+	mockClusters := mockconverged.NewMockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile, clusterAhvModels.VirtualGpuProfile, clusterAhvModels.PhysicalGpuProfile, clusterModels.Host](ctrl)
+	mockCategories := mockconverged.NewMockCategories[prismModels.Category](ctrl)
+	mockImages := mockconverged.NewMockImages[imageModels.Image, imageModels.FileDetail](ctrl)
+	mockStorageContainers := mockconverged.NewMockStorageContainers[clusterModels.StorageContainer](ctrl)
+	mockSubnets := mockconverged.NewMockSubnets[subnetModels.Subnet, networkingPrismModels.TaskReference](ctrl)
+	mockTasks := mockconverged.NewMockTasks[prismModels.Task, prismErrors.AppMessage](ctrl)
+	mockVMs := mockconverged.NewMockVMs[vmmModels.Vm, vmmModels.Nic, vmmModels.Disk](ctrl)
+	mockVolumeGroups := mockconverged.NewMockVolumeGroups[volumesconfig.VolumeGroup, volumesconfig.VmAttachment](ctrl)
+	mockVMProfiles := mockconverged.NewMockVMProfiles[vmmModels.VmProfile, vmmModels.Vm, vmmModels.DeployVmFromVmProfileParams](ctrl)
+	mockDomainManager := mockconverged.NewMockDomainManager[prismModels.DomainManager](ctrl)
+	mockUsers := mockconverged.NewMockUsers[iamModels.User](ctrl)
+	mockTemplates := mockconverged.NewMockTemplates[imageModels.Template, vmmModels.Vm, imageModels.TemplateDeployment](ctrl)
+	mockOvas := mockconverged.NewMockOvas[imageModels.Ova, imageModels.FileDetail](ctrl)
+	mockProtectionPolicies := mockconverged.NewMockProtectionPolicies[dpModels.ProtectionPolicy](ctrl)
+	mockRecoveryPlans := mockconverged.NewMockRecoveryPlans[dpModels.RecoveryPlan](ctrl)
+	mockProjects := mockconverged.NewMockProjects[projectModels.Project](ctrl)
+	mockResourceGroups := mockconverged.NewMockResourceGroups[projectModels.ResourceGroup](ctrl)
+
+	realClient := &v4Converged.Client{
+		Client: converged.Client[
+			policyModels.VmAntiAffinityPolicy,
+			clusterModels.Cluster,
+			clusterModels.VirtualGpuProfile,
+			clusterModels.PhysicalGpuProfile,
+			clusterAhvModels.VirtualGpuProfile,
+			clusterAhvModels.PhysicalGpuProfile,
+			clusterModels.Host,
+			prismModels.Category,
+			imageModels.Image,
+			imageModels.FileDetail,
+			clusterModels.StorageContainer,
+			subnetModels.Subnet,
+			networkingPrismModels.TaskReference,
+			vmmModels.Vm,
+			vmmModels.Nic,
+			vmmModels.Disk,
+			prismModels.Task,
+			prismErrors.AppMessage,
+			volumesconfig.VolumeGroup,
+			volumesconfig.VmAttachment,
+			vmmModels.VmProfile,
+			vmmModels.DeployVmFromVmProfileParams,
+			prismModels.DomainManager,
+			iamModels.User,
+			iamAuthzModels.Role,
+			iamAuthzModels.RoleMembership,
+			iamAuthzModels.RoleMembershipProjection,
+			iamAuthzModels.AuthorizationPolicy,
+			iamAuthzModels.AuthorizationPolicyProjection,
+			iamAuthzModels.Operation,
+			imageModels.Template,
+			imageModels.TemplateDeployment,
+			imageModels.Ova,
+			imageModels.FileDetail,
+			dpModels.ProtectionPolicy,
+			dpModels.RecoveryPlan,
+			projectModels.Project,
+			projectModels.ResourceGroup,
+			clusterModels.Disk,
+			alertModels.Alert,
+		]{
+			AntiAffinityPolicies: mockAntiAffinityPolicies,
+			Clusters:             mockClusters,
+			Categories:           mockCategories,
+			Images:               mockImages,
+			StorageContainers:    mockStorageContainers,
+			Subnets:              mockSubnets,
+			VMs:                  mockVMs,
+			Tasks:                mockTasks,
+			VolumeGroups:         mockVolumeGroups,
+			VMProfiles:           mockVMProfiles,
+			DomainManager:        mockDomainManager,
+			Users:                mockUsers,
+			Templates:            mockTemplates,
+			Ovas:                 mockOvas,
+			DataPolicies: converged.DataPolicies[dpModels.ProtectionPolicy, dpModels.RecoveryPlan]{
+				ProtectionPolicies: mockProtectionPolicies,
+				RecoveryPlans:      mockRecoveryPlans,
+			},
+			Projects:       mockProjects,
+			ResourceGroups: mockResourceGroups,
+		},
+	}
+
+	return &MockConvergedClientWrapper{
+		Client:                   realClient,
+		MockAntiAffinityPolicies: mockAntiAffinityPolicies,
+		MockClusters:             mockClusters,
+		MockCategories:           mockCategories,
+		MockImages:               mockImages,
+		MockStorageContainers:    mockStorageContainers,
+		MockSubnets:              mockSubnets,
+		MockVMs:                  mockVMs,
+		MockTasks:                mockTasks,
+		MockVolumeGroups:         mockVolumeGroups,
+		MockVMProfiles:           mockVMProfiles,
+		MockDomainManager:        mockDomainManager,
+		MockUsers:                mockUsers,
+		MockTemplates:            mockTemplates,
+		MockOvas:                 mockOvas,
+		MockProtectionPolicies:   mockProtectionPolicies,
+		MockRecoveryPlans:        mockRecoveryPlans,
+		MockProjects:             mockProjects,
+		MockResourceGroups:       mockResourceGroups,
+	}
+}
+
+func TestFindVMByUUID(t *testing.T) {
+	ctx := context.Background()
+	projectExtID := "test-project-uuid"
+	pcVersion := "7.6"
+
+	t.Run("returns VM when found and project matches", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		expectedVM := &vmmModels.Vm{
+			ExtId: ptr.To("test-vm-uuid"),
+			Name:  ptr.To("test-vm"),
+			Project: &vmmModels.ProjectReference{
+				ExtId: ptr.To(projectExtID),
+			},
+		}
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), "test-vm-uuid").Return(expectedVM, nil)
+
+		vm, err := FindVMByUUID(ctx, convergedClient.Client, "test-vm-uuid", &projectExtID, pcVersion)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, "test-vm-uuid", *vm.ExtId)
+	})
+
+	t.Run("returns error when VM found but project does not match", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		expectedVM := &vmmModels.Vm{
+			ExtId: ptr.To("test-vm-uuid"),
+			Name:  ptr.To("test-vm"),
+			Project: &vmmModels.ProjectReference{
+				ExtId: ptr.To("different-project-uuid"),
+			},
+		}
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), "test-vm-uuid").Return(expectedVM, nil)
+
+		vm, err := FindVMByUUID(ctx, convergedClient.Client, "test-vm-uuid", &projectExtID, pcVersion)
+		require.Error(t, err)
+		require.Nil(t, vm)
+		assert.Contains(t, err.Error(), "not in project")
+	})
+
+	t.Run("returns error when VM found but has no project", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		expectedVM := &vmmModels.Vm{
+			ExtId:   ptr.To("test-vm-uuid"),
+			Name:    ptr.To("test-vm"),
+			Project: nil,
+		}
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), "test-vm-uuid").Return(expectedVM, nil)
+
+		vm, err := FindVMByUUID(ctx, convergedClient.Client, "test-vm-uuid", &projectExtID, pcVersion)
+		require.Error(t, err)
+		require.Nil(t, vm)
+		assert.Contains(t, err.Error(), "not in project")
+	})
+
+	t.Run("returns nil when VM not found (classified ErrNotFound)", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), "missing-vm-uuid").
+			Return(nil, &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")})
+
+		vm, err := FindVMByUUID(ctx, convergedClient.Client, "missing-vm-uuid", &projectExtID, pcVersion)
+		require.NoError(t, err)
+		require.Nil(t, vm)
+	})
+
+	t.Run("returns error when API returns non-NotFound error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		apiErr := errors.New("rate limit exceeded")
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), "test-vm-uuid").Return(nil, apiErr)
+
+		vm, err := FindVMByUUID(ctx, convergedClient.Client, "test-vm-uuid", &projectExtID, pcVersion)
+		require.Error(t, err)
+		require.Nil(t, vm)
+		assert.ErrorIs(t, err, apiErr)
+	})
+}
+
+func TestFindVM(t *testing.T) {
+	ctx := context.Background()
+	recordedUUID := "68d4847f-a7c1-4ed9-75fe-3c0f941363a7"
+	liveUUID := "11111111-2222-3333-4444-555555555555"
+	vmName := "abhay-mgmt-wqfmw-m7vmr"
+
+	metroMachine := &capiv1beta2.Machine{
+		ObjectMeta: metav1.ObjectMeta{Name: vmName},
+		Spec:       capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "metro0-s1"},
+		Status: capiv1beta2.MachineStatus{
+			NodeInfo: &corev1.NodeSystemInfo{SystemUUID: recordedUUID},
+		},
+	}
+	nonMetroMachine := &capiv1beta2.Machine{
+		ObjectMeta: metav1.ObjectMeta{Name: vmName},
+		Status: capiv1beta2.MachineStatus{
+			NodeInfo: &corev1.NodeSystemInfo{SystemUUID: recordedUUID},
+		},
+	}
+	ntnxMachine := &infrav1.NutanixMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: vmName},
+		Status:     infrav1.NutanixMachineStatus{VmUUID: recordedUUID},
+	}
+
+	t.Run("metro returns VM found by name after recorded UUID 404", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		liveVM := &vmmModels.Vm{ExtId: ptr.To(liveUUID), Name: ptr.To(vmName)}
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
+			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
+		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*liveVM}, nil)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), liveUUID).Return(liveVM, nil)
+
+		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, nil, "", nil)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, liveUUID, *vm.ExtId)
+	})
+
+	t.Run("metro returns expected-to-be-present when UUID 404 and name search is empty", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
+			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
+		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{}, nil)
+
+		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, nil, "", nil)
+		require.Error(t, err)
+		require.Nil(t, vm)
+		assert.Contains(t, err.Error(), "but was expected to be present")
+	})
+
+	t.Run("non-metro UUID 404 does not search by name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
+			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
+
+		vm, err := FindVM(ctx, convergedClient.Client, nonMetroMachine, ntnxMachine, vmName, nil, "", nil)
+		require.Error(t, err)
+		require.Nil(t, vm)
+		assert.Contains(t, err.Error(), "but was expected to be present")
+	})
+
+	t.Run("metro by-name lookup skips a same-named VM outside the project", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		projectExtID := "aaaaaaaa-0000-0000-0000-000000000001"
+		otherUUID := "99999999-2222-3333-4444-555555555555"
+		otherVM := &vmmModels.Vm{
+			ExtId: ptr.To(otherUUID), Name: ptr.To(vmName),
+			Project: &vmmModels.ProjectReference{ExtId: ptr.To("bbbbbbbb-0000-0000-0000-000000000002")},
+		}
+		liveVM := &vmmModels.Vm{
+			ExtId: ptr.To(liveUUID), Name: ptr.To(vmName),
+			Project: &vmmModels.ProjectReference{ExtId: ptr.To(projectExtID)},
+		}
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
+			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
+		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*otherVM, *liveVM}, nil)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), otherUUID).Return(otherVM, nil)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), liveUUID).Return(liveVM, nil)
+
+		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, &projectExtID, "7.6", nil)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, liveUUID, *vm.ExtId)
+	})
+
+	t.Run("metro skips decoupled leftover and returns recovered VM by name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		decoupledVM := &vmmModels.Vm{ExtId: ptr.To(recordedUUID), Name: ptr.To(vmName)}
+		liveVM := &vmmModels.Vm{ExtId: ptr.To(liveUUID), Name: ptr.To(vmName)}
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
+			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
+		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*decoupledVM, *liveVM}, nil)
+		mockV3.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, req *prismclientv3.GroupsGetEntitiesRequest) (*prismclientv3.GroupsGetEntitiesResponse, error) {
+				if strings.Contains(req.FilterCriteria, recordedUUID) {
+					return drConfigGroupsResponse(drRoleDecoupled), nil
+				}
+				return drConfigGroupsResponse("kActive"), nil
+			},
+		).AnyTimes()
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), liveUUID).Return(liveVM, nil)
+
+		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, nil, "", mockV3)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, liveUUID, *vm.ExtId)
+	})
+
+	t.Run("metro does not adopt a decoupled UUID GET; looks up recovered VM by name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		convergedClient := NewMockConvergedClient(ctrl)
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		decoupledVM := &vmmModels.Vm{ExtId: ptr.To(recordedUUID), Name: ptr.To(vmName)}
+		liveVM := &vmmModels.Vm{ExtId: ptr.To(liveUUID), Name: ptr.To(vmName)}
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(decoupledVM, nil)
+		mockV3.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, req *prismclientv3.GroupsGetEntitiesRequest) (*prismclientv3.GroupsGetEntitiesResponse, error) {
+				if strings.Contains(req.FilterCriteria, recordedUUID) {
+					return drConfigGroupsResponse(drRoleDecoupled), nil
+				}
+				return drConfigGroupsResponse("kActive"), nil
+			},
+		).AnyTimes()
+		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*decoupledVM, *liveVM}, nil)
+		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), liveUUID).Return(liveVM, nil)
+
+		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, nil, "", mockV3)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, liveUUID, *vm.ExtId)
+	})
+}
+
+func TestDeleteVM(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	t.Run("should skip deletion when vmUUID is empty", func(t *testing.T) {
+		// Test the early return case when vmUUID is empty
+		result, err := DeleteVM(ctx, nil, "test-vm", "")
+
+		assert.Nil(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("should handle successful deletion", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+		mockOperation := mockconverged.NewMockOperation[converged.NoEntity](ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "test-vm-uuid"
+		taskUUID := "task-uuid"
+
+		// Mock the VMs service to return a task (requeue case)
+		mockClientWrapper.MockVMs.EXPECT().DeleteAsync(ctx, vmUUID).Return(mockOperation, nil)
+		mockOperation.EXPECT().UUID().Return(taskUUID).AnyTimes()
+
+		result, err := DeleteVM(ctx, mockClientWrapper.Client, vmName, vmUUID)
+
+		assert.NoError(t, err)
+		assert.NotEmpty(t, result)
+		assert.Equal(t, taskUUID, result)
+	})
+
+	t.Run("should return error when DeleteAsync fails", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "test-vm-uuid"
+		expectedError := errors.New("delete failed")
+
+		// Mock the VMs service to return an error
+		mockClientWrapper.MockVMs.EXPECT().DeleteAsync(ctx, vmUUID).Return(nil, expectedError)
+
+		result, err := DeleteVM(ctx, mockClientWrapper.Client, vmName, vmUUID)
+
+		assert.Error(t, err)
+		assert.Equal(t, expectedError, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("should return error when task is nil", func(t *testing.T) {
+		// Create mock client
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "test-vm-uuid"
+
+		// Mock the VMs service to return a task (requeue case)
+		mockClientWrapper.MockVMs.EXPECT().DeleteAsync(ctx, vmUUID).Return(nil, nil)
+
+		result, err := DeleteVM(ctx, mockClientWrapper.Client, vmName, vmUUID)
+
+		assert.Error(t, err)
+		assert.Empty(t, result)
+	})
+}
+
+func drConfigGroupsResponse(role string) *prismclientv3.GroupsGetEntitiesResponse {
+	return &prismclientv3.GroupsGetEntitiesResponse{
+		GroupResults: []*prismclientv3.GroupsGroupResult{
+			{
+				EntityResults: []*prismclientv3.GroupsEntity{
+					{
+						Data: []*prismclientv3.GroupsFieldData{
+							{Name: drConfigRoleAttribute, Values: []*prismclientv3.GroupsTimevaluePair{{Values: []string{role}}}},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestUseMetroDRDeletePath(t *testing.T) {
+	t.Run("false when context is empty", func(t *testing.T) {
+		assert.False(t, useMetroDRDeletePath(nil))
+		assert.False(t, useMetroDRDeletePath(&nctx.MachineContext{
+			Machine:        &capiv1beta2.Machine{},
+			NutanixMachine: &infrav1.NutanixMachine{},
+		}))
+	})
+
+	t.Run("true for metro site failure domain", func(t *testing.T) {
+		assert.True(t, useMetroDRDeletePath(&nctx.MachineContext{
+			Machine: &capiv1beta2.Machine{
+				Spec: capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "metro0-s1"},
+			},
+		}))
+	})
+
+	t.Run("true when delete already recorded a recovered VM", func(t *testing.T) {
+		assert.True(t, useMetroDRDeletePath(&nctx.MachineContext{
+			Machine: &capiv1beta2.Machine{},
+			NutanixMachine: &infrav1.NutanixMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{recoveredVMUUIDAnnotation: "live-uuid"},
+				},
+			},
+		}))
+	})
+}
+
+func TestIsVMDecoupled(t *testing.T) {
+	ctx := context.Background()
+	vmUUID := "e530a7a6-3e93-4408-77af-d7ce41a3997c"
+
+	t.Run("returns false when v3 client is nil", func(t *testing.T) {
+		decoupled, err := isVMDecoupled(ctx, nil, vmUUID)
+		assert.NoError(t, err)
+		assert.False(t, decoupled)
+	})
+
+	t.Run("returns true when role is kDecoupled", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(drConfigGroupsResponse(drRoleDecoupled), nil)
+
+		decoupled, err := isVMDecoupled(ctx, mockV3, vmUUID)
+		assert.NoError(t, err)
+		assert.True(t, decoupled)
+	})
+
+	t.Run("returns false when role is not decoupled", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(drConfigGroupsResponse("kActive"), nil)
+
+		decoupled, err := isVMDecoupled(ctx, mockV3, vmUUID)
+		assert.NoError(t, err)
+		assert.False(t, decoupled)
+	})
+
+	t.Run("returns error when groups API fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(nil, errors.New("pc unavailable"))
+
+		decoupled, err := isVMDecoupled(ctx, mockV3, vmUUID)
+		assert.Error(t, err)
+		assert.False(t, decoupled)
+		assert.Contains(t, err.Error(), "failed to get DR config")
+	})
+}
+
+func TestFindNonDecoupledVMByName(t *testing.T) {
+	ctx := context.Background()
+	vmName := "cp1"
+	decoupledUUID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+	liveUUID := "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+
+	t.Run("skips decoupled VM and returns recovered VM", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		decoupledVM := vmmModels.NewVm()
+		decoupledVM.Name = ptr.To(vmName)
+		decoupledVM.ExtId = ptr.To(decoupledUUID)
+		liveVM := vmmModels.NewVm()
+		liveVM.Name = ptr.To(vmName)
+		liveVM.ExtId = ptr.To(liveUUID)
+
+		mockClient := NewMockConvergedClient(ctrl)
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockClient.MockVMs.EXPECT().List(ctx, gomock.Any()).Return([]vmmModels.Vm{*decoupledVM, *liveVM}, nil)
+		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).DoAndReturn(
+			func(_ context.Context, req *prismclientv3.GroupsGetEntitiesRequest) (*prismclientv3.GroupsGetEntitiesResponse, error) {
+				if strings.Contains(req.FilterCriteria, decoupledUUID) {
+					return drConfigGroupsResponse(drRoleDecoupled), nil
+				}
+				return drConfigGroupsResponse("kActive"), nil
+			},
+		).AnyTimes()
+		mockClient.MockVMs.EXPECT().Get(ctx, liveUUID).Return(liveVM, nil)
+
+		got, err := findNonDecoupledVMByName(ctx, mockClient.Client, mockV3, []string{vmName}, nil, "")
+		assert.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, liveUUID, *got.ExtId)
+	})
+
+	t.Run("returns nil when only decoupled VMs exist", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		decoupledVM := vmmModels.NewVm()
+		decoupledVM.Name = ptr.To(vmName)
+		decoupledVM.ExtId = ptr.To(decoupledUUID)
+
+		mockClient := NewMockConvergedClient(ctrl)
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockClient.MockVMs.EXPECT().List(ctx, gomock.Any()).Return([]vmmModels.Vm{*decoupledVM}, nil)
+		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(drConfigGroupsResponse(drRoleDecoupled), nil)
+
+		got, err := findNonDecoupledVMByName(ctx, mockClient.Client, mockV3, []string{vmName}, nil, "")
+		assert.NoError(t, err)
+		assert.Nil(t, got)
+	})
+}
+
+func TestDetachVolumeGroupsFromVM(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	t.Run("should skip detachment when no disks provided", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+		vmDisks := []vmmModels.Disk{}
+
+		// No expectations: DetachFromVM should NOT be called
+		err := detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("should skip detachment when disk has no backing info", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+
+		// Disk without VG backing (leave BackingInfo nil)
+		disk := vmmModels.NewDisk()
+		vmDisks := []vmmModels.Disk{*disk}
+
+		// No expectations: DetachFromVM should NOT be called
+		err := detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("should skip detachment when disk is not backed by volume group", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+
+		// Disk backed by VmDisk (not volume group)
+		disk := vmmModels.NewDisk()
+		vmDisk := vmmModels.NewVmDisk()
+		vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
+		err := disk.SetBackingInfo(*vmDisk)
+		require.NoError(t, err)
+
+		vmDisks := []vmmModels.Disk{*disk}
+
+		// No expectations: DetachFromVM should NOT be called
+		err = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("should successfully detach single volume group", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+		vgID := "11111111-1111-1111-1111-111111111111"
+
+		// Build a Disk backed by an ADSFVolumeGroupReference
+		disk := vmmModels.NewDisk()
+		ref := vmmModels.NewADSFVolumeGroupReference()
+		ref.VolumeGroupExtId = &vgID
+		err := disk.SetBackingInfo(*ref)
+		require.NoError(t, err)
+
+		vmDisks := []vmmModels.Disk{*disk}
+
+		expectedVG := &volumesconfig.VolumeGroup{
+			ExtId: ptr.To(vgID),
+		}
+
+		// Expect DetachFromVM to be called once with the correct VG ID
+		mockClientWrapper.MockVolumeGroups.EXPECT().
+			DetachFromVM(ctx, vgID, gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ string, attachment volumesconfig.VmAttachment) (*volumesconfig.VolumeGroup, error) {
+				assert.Equal(t, vmUUID, *attachment.ExtId)
+				return expectedVG, nil
+			})
+
+		err = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return error when DetachFromVM fails", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+		vgID := "22222222-2222-2222-2222-222222222222"
+
+		disk := vmmModels.NewDisk()
+		ref := vmmModels.NewADSFVolumeGroupReference()
+		ref.VolumeGroupExtId = &vgID
+		err := disk.SetBackingInfo(*ref)
+		require.NoError(t, err)
+
+		vmDisks := []vmmModels.Disk{*disk}
+
+		expectedError := errors.New("failed to detach volume group")
+
+		// Return error from DetachFromVM
+		mockClientWrapper.MockVolumeGroups.EXPECT().
+			DetachFromVM(ctx, vgID, gomock.Any()).
+			Return(nil, expectedError)
+
+		err = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to detach volume group")
+		assert.Contains(t, err.Error(), vgID)
+		assert.Contains(t, err.Error(), vmUUID)
+	})
+
+	t.Run("should return after detaching first volume group", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+		vgID1 := "11111111-1111-1111-1111-111111111111"
+		vgID2 := "22222222-2222-2222-2222-222222222222"
+
+		// Build two disks backed by volume groups
+		disk1 := vmmModels.NewDisk()
+		ref1 := vmmModels.NewADSFVolumeGroupReference()
+		ref1.VolumeGroupExtId = &vgID1
+		err := disk1.SetBackingInfo(*ref1)
+		require.NoError(t, err)
+
+		disk2 := vmmModels.NewDisk()
+		ref2 := vmmModels.NewADSFVolumeGroupReference()
+		ref2.VolumeGroupExtId = &vgID2
+		err = disk2.SetBackingInfo(*ref2)
+		require.NoError(t, err)
+
+		vmDisks := []vmmModels.Disk{*disk1, *disk2}
+
+		// Only expect DetachFromVM to be called once (for the first VG)
+		// The function returns after the first detachment
+		mockClientWrapper.MockVolumeGroups.EXPECT().
+			DetachFromVM(ctx, vgID1, gomock.Any()).
+			Return(&volumesconfig.VolumeGroup{}, nil).
+			Times(1)
+
+		err = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("should handle mixed disk types and only detach volume groups", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+		vgID := "11111111-1111-1111-1111-111111111111"
+
+		// First disk: regular VmDisk (should be skipped)
+		disk1 := vmmModels.NewDisk()
+		vmDisk := vmmModels.NewVmDisk()
+		vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
+		err := disk1.SetBackingInfo(*vmDisk)
+		require.NoError(t, err)
+
+		// Second disk: backed by volume group (should be detached)
+		disk2 := vmmModels.NewDisk()
+		ref := vmmModels.NewADSFVolumeGroupReference()
+		ref.VolumeGroupExtId = &vgID
+		err = disk2.SetBackingInfo(*ref)
+		require.NoError(t, err)
+
+		vmDisks := []vmmModels.Disk{*disk1, *disk2}
+
+		// Only expect DetachFromVM to be called for the volume group disk
+		mockClientWrapper.MockVolumeGroups.EXPECT().
+			DetachFromVM(ctx, vgID, gomock.Any()).
+			Return(&volumesconfig.VolumeGroup{}, nil)
+
+		err = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("should handle nil volume group ExtId gracefully", func(t *testing.T) {
+		mockClientWrapper := NewMockConvergedClient(ctrl)
+
+		vmName := "test-vm"
+		vmUUID := "00000000-0000-0000-0000-000000000001"
+
+		// Build a disk with volume group reference but nil ExtId
+		disk := vmmModels.NewDisk()
+		ref := vmmModels.NewADSFVolumeGroupReference()
+		ref.VolumeGroupExtId = nil // Nil ExtId must be skipped, not dereferenced
+		err := disk.SetBackingInfo(*ref)
+		require.NoError(t, err)
+
+		vmDisks := []vmmModels.Disk{*disk}
+
+		// A nil VolumeGroupExtId should be skipped gracefully without panicking
+		// or calling DetachFromVM (no mock expectation is set).
+		assert.NotPanics(t, func() {
+			err := detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
+			assert.NoError(t, err)
+		})
+	})
+}
+
+func TestGetVMUUID(t *testing.T) {
+	validUUID := "550e8400-e29b-41d4-a716-446655440000"
+	invalidUUID := "not-a-valid-uuid"
+	anotherValidUUID := "660e8400-e29b-41d4-a716-446655440001"
+
 	tests := []struct {
-		name     string
-		err      error
-		expected bool
+		name           string
+		machine        *capiv1beta2.Machine
+		nutanixMachine *infrav1.NutanixMachine
+		want           string
+		wantErr        bool
+		errorMessage   string
 	}{
 		{
-			name:     "not found is not retryable",
-			err:      &converged.APIError{Kind: converged.ErrNotFound, Message: "not found"},
-			expected: false,
+			name: "should return systemUUID from Machine.Status.NodeInfo when available",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: &corev1.NodeSystemInfo{
+						SystemUUID: validUUID,
+					},
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: anotherValidUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
 		},
 		{
-			name:     "rate limit is retryable",
-			err:      &converged.APIError{Kind: converged.ErrRateLimit, Message: "rate limited"},
-			expected: true,
+			name: "should fall back to VmUUID when Machine.Status.NodeInfo is nil",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: nil,
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
 		},
 		{
-			name:     "internal is retryable",
-			err:      &converged.APIError{Kind: converged.ErrInternal, Message: "internal error"},
-			expected: true,
+			name: "should fall back to VmUUID when Machine.Status.NodeInfo.SystemUUID is empty",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: &corev1.NodeSystemInfo{
+						SystemUUID: "",
+					},
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
 		},
 		{
-			name:     "unknown errors default to retryable",
-			err:      errors.New("timeout awaiting headers"),
-			expected: true,
+			name:    "should fall back to VmUUID when machine is nil",
+			machine: nil,
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
 		},
 		{
-			name:     "terminal error is not retryable",
-			err:      &terminalError{message: "resource not found"},
-			expected: false,
+			name: "should return empty string when both systemUUID and VmUUID are not available",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: nil,
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: "",
+				},
+			},
+			want:    "",
+			wantErr: false,
 		},
 		{
-			name:     "unclassified APIError (Kind nil) is not retryable",
-			err:      &converged.APIError{Kind: nil, Cause: errors.New("400 Bad Request")},
-			expected: false,
+			name: "should return error when systemUUID is not a valid UUID",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: &corev1.NodeSystemInfo{
+						SystemUUID: invalidUUID,
+					},
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: "",
+				},
+			},
+			want:         "",
+			wantErr:      true,
+			errorMessage: "Machine.Status.NodeInfo.SystemUUID was set but was not a valid UUID",
 		},
 		{
-			name:     "wrapped unclassified APIError is not retryable",
-			err:      fmt.Errorf("failed to create VM: %w", &converged.APIError{Kind: nil, Cause: errors.New("validation error")}),
-			expected: false,
+			name: "should return error when VmUUID is not a valid UUID",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: nil,
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: invalidUUID,
+				},
+			},
+			want:         "",
+			wantErr:      true,
+			errorMessage: "VMUUID was set but was not a valid UUID",
+		},
+		{
+			name: "should prioritize systemUUID even when VmUUID has different UUID",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: &corev1.NodeSystemInfo{
+						SystemUUID: validUUID,
+					},
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: anotherValidUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name: "should use VmUUID when SystemUUID is empty",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{
+					NodeInfo: &corev1.NodeSystemInfo{
+						SystemUUID: "",
+					},
+				},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name: "should handle Machine with empty Status",
+			machine: &capiv1beta2.Machine{
+				Status: capiv1beta2.MachineStatus{},
+			},
+			nutanixMachine: &infrav1.NutanixMachine{
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name:    "should fall back to Spec.ProviderID when systemUUID and Status.VmUUID are both unavailable",
+			machine: nil,
+			nutanixMachine: &infrav1.NutanixMachine{
+				Spec: infrav1.NutanixMachineSpec{
+					ProviderID: providerIdPrefix + validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			name:    "should prioritize Status.VmUUID over Spec.ProviderID",
+			machine: nil,
+			nutanixMachine: &infrav1.NutanixMachine{
+				Spec: infrav1.NutanixMachineSpec{
+					ProviderID: providerIdPrefix + anotherValidUUID,
+				},
+				Status: infrav1.NutanixMachineStatus{
+					VmUUID: validUUID,
+				},
+			},
+			want:    validUUID,
+			wantErr: false,
+		},
+		{
+			// Templates can pre-populate NutanixMachineTemplate.spec.template.spec.providerID
+			// with a placeholder (the e2e fixture uses "nutanix://${CLUSTER_NAME}-m1"), so a
+			// value without the expected prefix must be silently ignored, not treated as an
+			// error - an error here would permanently block reconciliation for such machines.
+			name:    "should silently ignore Spec.ProviderID lacking the nutanix:// prefix",
+			machine: nil,
+			nutanixMachine: &infrav1.NutanixMachine{
+				Spec: infrav1.NutanixMachineSpec{
+					ProviderID: validUUID,
+				},
+			},
+			want:    "",
+			wantErr: false,
+		},
+		{
+			name:    "should silently ignore a non-UUID Spec.ProviderID (e.g. a template placeholder)",
+			machine: nil,
+			nutanixMachine: &infrav1.NutanixMachine{
+				Spec: infrav1.NutanixMachineSpec{
+					ProviderID: providerIdPrefix + invalidUUID,
+				},
+			},
+			want:    "",
+			wantErr: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, isRetryableAPIError(tt.err))
+			t.Log("Running test case ", tt.name)
+			got, err := GetVMUUID(tt.machine, tt.nutanixMachine)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetVMUUID() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("GetVMUUID() = %v, want %v", got, tt.want)
+			}
+			if tt.errorMessage != "" && err != nil {
+				if !strings.Contains(err.Error(), tt.errorMessage) {
+					t.Errorf("GetVMUUID() error message = %v, want to contain %v", err.Error(), tt.errorMessage)
+				}
+			}
 		})
 	}
+}
+
+func TestGetDefaultCAPICategoryIdentifiers(t *testing.T) {
+	clusterName := "my-cluster"
+	ids := GetDefaultCAPICategoryIdentifiers(clusterName)
+	require.Len(t, ids, 1)
+	require.NotNil(t, ids[0])
+	assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, ids[0].Key)
+	assert.Equal(t, clusterName, ids[0].Value)
+}
+
+func TestGetObsoleteDefaultCAPICategoryIdentifiers(t *testing.T) {
+	clusterName := "my-cluster"
+	ids := GetObsoleteDefaultCAPICategoryIdentifiers(clusterName)
+	require.Len(t, ids, 1)
+	require.NotNil(t, ids[0])
+	assert.Equal(t, infrav1.ObsoleteDefaultCAPICategoryPrefix+clusterName, ids[0].Key)
+	assert.Equal(t, infrav1.ObsoleteDefaultCAPICategoryOwnedValue, ids[0].Value)
+}
+
+func TestGetOrCreateCategories_Existing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	// Category already exists → List returns non-empty; Create should not be called
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
+
+	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+}
+
+func TestGetOrCreateCategories_Create(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	// Not found first → Create called with expected description
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
+		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
+			assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, *in.Key)
+			assert.Equal(t, "my-cluster", *in.Value)
+			assert.Equal(t, infrav1.DefaultCAPICategoryDescription, *in.Description)
+			return in, nil
+		},
+	)
+
+	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+}
+
+func TestGetOrCreateCategoriesForProject_CreateWhenExistingCategoryIsInDifferentProject(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+	defaultProjectExtID := "default-project"
+	targetProjectExtID := "target-project"
+	defaultCategoryExtID := "default-category"
+	targetCategoryExtID := "target-category"
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{
+		ExtId:        ptr.To(defaultCategoryExtID),
+		Key:          ptr.To(infrav1.DefaultCAPICategoryKeyForName),
+		Value:        ptr.To("my-cluster"),
+		ProjectExtId: ptr.To(defaultProjectExtID),
+	}}, nil)
+	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
+		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
+			require.NotNil(t, in.ProjectExtId)
+			assert.Equal(t, targetProjectExtID, *in.ProjectExtId)
+			in.ExtId = ptr.To(targetCategoryExtID)
+			return in, nil
+		},
+	)
+
+	got, err := GetOrCreateCategoriesForProject(ctx, mockClient.Client, ids, ptr.To(targetProjectExtID))
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, targetCategoryExtID, *got[0].ExtId)
+}
+
+func TestGetOrCreateCategories_DoesNotSetProjectWhenUnscoped(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+	createdCategoryExtID := "created-category"
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	// No matching category exists yet → Create is invoked.
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
+		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
+			// Without a project in scope the category must be created without a project.
+			// This is the path callers use on PC < 7.6, where project-scoped categories
+			// do not exist (the caller passes a nil project).
+			assert.Nil(t, in.ProjectExtId)
+			in.ExtId = ptr.To(createdCategoryExtID)
+			return in, nil
+		},
+	)
+
+	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, createdCategoryExtID, *got[0].ExtId)
+}
+
+func TestExistingCategoryExtID(t *testing.T) {
+	extID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	got, ok, err := existingCategoryExtID(fmt.Errorf("400 InvalidArgument: Operation failed as a category with the provided key and value already exists with extId: %s", extID))
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, extID, got)
+
+	got, ok, err = existingCategoryExtID(errors.New("category with the provided key and value already exists"))
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Empty(t, got)
+
+	_, ok, err = existingCategoryExtID(errors.New("prism unavailable"))
+	require.NoError(t, err)
+	assert.False(t, ok)
+	_, ok, err = existingCategoryExtID(nil)
+	require.NoError(t, err)
+	assert.False(t, ok)
+}
+
+func TestGetOrCreateCategories_CreateAlreadyExists(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+	existingCategoryExtID := "existing-category"
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	// List misses the category (for example a concurrent create). Create then fails
+	// with Prism's already-exists error, which carries the existing extId and no body.
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
+		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
+			assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, *in.Key)
+			assert.Equal(t, "my-cluster", *in.Value)
+			assert.Nil(t, in.ProjectExtId)
+			return nil, fmt.Errorf("400 InvalidArgument: Operation failed as a category with the provided key and value already exists with extId: %s", existingCategoryExtID)
+		},
+	)
+
+	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.NotNil(t, got[0])
+	assert.Equal(t, existingCategoryExtID, *got[0].ExtId)
+	assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, *got[0].Key)
+	assert.Equal(t, "my-cluster", *got[0].Value)
+}
+
+func TestGetOrCreateCategoriesForProject_CreateAlreadyExists(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+	targetProjectExtID := "target-project"
+	existingCategoryExtID := "existing-project-category"
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
+		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
+			require.NotNil(t, in.ProjectExtId)
+			assert.Equal(t, targetProjectExtID, *in.ProjectExtId)
+			return nil, errors.New("400 InvalidArgument: Operation failed as a category with the provided key and value already exists with extId: " + existingCategoryExtID)
+		},
+	)
+
+	got, err := GetOrCreateCategoriesForProject(ctx, mockClient.Client, ids, ptr.To(targetProjectExtID))
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.NotNil(t, got[0])
+	assert.Equal(t, existingCategoryExtID, *got[0].ExtId)
+	assert.Equal(t, targetProjectExtID, *got[0].ProjectExtId)
+}
+
+func TestGetOrCreateCategories_CreateFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+	ids := []*infrav1.NutanixCategoryIdentifier{{
+		Key:   infrav1.DefaultCAPICategoryKeyForName,
+		Value: "my-cluster",
+	}}
+
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(nil, errors.New("prism unavailable"))
+
+	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
+	require.Error(t, err)
+	assert.Empty(t, got)
+	assert.Contains(t, err.Error(), "failed to create category with key")
+	assert.Contains(t, err.Error(), "prism unavailable")
+}
+
+func TestGetPrismReferencesOfCategoryIdentifiersForProject_UsesSharedCategory(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+	targetProjectExtID := "target-project"
+	categoryExtID := "shared-category"
+	ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{
+		ExtId:                   ptr.To(categoryExtID),
+		Key:                     ptr.To("k"),
+		Value:                   ptr.To("v"),
+		IsSharedWithAllProjects: ptr.To(true),
+	}}, nil)
+
+	got, err := GetPrismReferencesOfCategoryIdentifiersForProject(ctx, mockClient.Client, ids, ptr.To(targetProjectExtID))
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, categoryExtID, *got[0].ExtId)
+}
+
+func TestGetPrismReferencesOfCategoryIdentifiersForProject_ReturnsNotFoundWithoutCreating(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+	targetProjectExtID := "target-project"
+	ids := []*infrav1.NutanixCategoryIdentifier{{Key: "missing-key", Value: "missing-value"}}
+
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+
+	got, err := GetPrismReferencesOfCategoryIdentifiersForProject(ctx, mockClient.Client, ids, ptr.To(targetProjectExtID))
+	require.Error(t, err)
+	assert.Nil(t, got)
+	assert.Contains(t, err.Error(), "category value missing-value not found in category missing-key")
+}
+
+func TestGetPrismReferencesOfCategoryIdentifiers_NotFoundClassification(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockClient := NewMockConvergedClient(ctrl)
+	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
+
+	_, err := GetPrismReferencesOfCategoryIdentifiers(ctx, mockClient.Client, []*infrav1.NutanixCategoryIdentifier{
+		{
+			Key:   "cluster-name",
+			Value: "missing",
+		},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found in category")
+	assert.True(t, services.IsTerminalError(err))
+}
+
+func TestDeleteCategoryKeyValues(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("category value retrieval error returns error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+		// getCategoryValue (outer) -> error not containing CATEGORY_NAME_VALUE_MISMATCH
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New("oops")).Times(1)
+
+		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to retrieve category value")
+	})
+
+	t.Run("value not found continues and returns nil", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+		// getCategoryValue (outer) -> not found
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil).Times(1)
+
+		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids)
+		assert.NoError(t, err)
+	})
+
+	t.Run("delete value success returns nil", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+		valExt := "val-id"
+		name := "k"
+		value := "v"
+		valCat := prismModels.Category{ExtId: &valExt, Key: &name, Value: &value}
+
+		// 1) getCategoryValue (outer) to check existence before delete
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
+		// 2) delete value by ExtId
+		mockClient.MockCategories.EXPECT().Delete(ctx, valExt).Return(nil).Times(1)
+
+		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids)
+		assert.NoError(t, err)
+	})
+
+	t.Run("deleteCategoryValue error causes early nil return (do not error)", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClient := NewMockConvergedClient(ctrl)
+
+		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
+		valExt := "val-id"
+		name := "k"
+		value := "v"
+		valCat := prismModels.Category{ExtId: &valExt, Key: &name, Value: &value}
+
+		// 1) getCategoryValue (outer)
+		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
+		// 2) delete value fails
+		mockClient.MockCategories.EXPECT().Delete(ctx, valExt).Return(errors.New("in use")).Times(1)
+
+		// Function should return nil early due to special-case handling
+		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids)
+		assert.NoError(t, err)
+	})
+}
+
+func TestGetProjectUUID_NotFoundClassification(t *testing.T) {
+	t.Run("returns classified not found for missing project UUID", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		mockV3Client := mocknutanixv3.NewMockService(ctrl)
+		client := &prismclientv3.Client{V3: mockV3Client}
+		rctx := &nctx.MachineContext{
+			Context:       ctx,
+			NutanixClient: client,
+		}
+		projectUUID := "missing-project-uuid"
+		projectRef := &infrav1.NutanixResourceIdentifier{
+			UUID: &projectUUID,
+		}
+
+		mockV3Client.EXPECT().GetProject(ctx, projectUUID).Return(nil, errors.New("ENTITY_NOT_FOUND"))
+
+		_, err := GetProjectV3(rctx, projectRef)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to find project with UUID")
+		assert.True(t, services.IsTerminalError(err))
+	})
+
+	t.Run("returns classified not found for missing project name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		mockV3Client := mocknutanixv3.NewMockService(ctrl)
+		client := &prismclientv3.Client{V3: mockV3Client}
+		rctx := &nctx.MachineContext{
+			Context:       ctx,
+			NutanixClient: client,
+		}
+		projectName := "missing-project-name"
+		projectRef := &infrav1.NutanixResourceIdentifier{
+			Name: &projectName,
+		}
+
+		mockV3Client.EXPECT().ListAllProject(ctx, "").Return(&prismclientv3.ProjectListResponse{
+			Entities: []*prismclientv3.Project{},
+		}, nil)
+
+		_, err := GetProjectV3(rctx, projectRef)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to retrieve project by name")
+		assert.True(t, services.IsTerminalError(err))
+	})
+}
+
+func TestGetProjectUUID(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns error when both name and uuid are nil", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		client := &prismclientv3.Client{V3: mockV3}
+		rctx := &nctx.MachineContext{
+			Context:       ctx,
+			NutanixClient: client,
+		}
+		projectRef := &infrav1.NutanixResourceIdentifier{
+			UUID: nil,
+			Name: nil,
+		}
+		projectInfo, err := GetProjectV3(rctx, projectRef)
+		assert.Error(t, err)
+		assert.Nil(t, projectInfo)
+		assert.Contains(t, err.Error(), "name or uuid must be passed")
+	})
+
+	t.Run("returns project info when lookup by uuid succeeds", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		projectUUID := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+		projectName := "proj"
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockV3.EXPECT().GetProject(ctx, projectUUID).Return(&prismclientv3.Project{
+			Metadata: &prismclientv3.Metadata{UUID: &projectUUID},
+			Spec:     &prismclientv3.ProjectSpec{Name: projectName},
+		}, nil)
+		client := &prismclientv3.Client{V3: mockV3}
+		rctx := &nctx.MachineContext{
+			Context:       ctx,
+			NutanixClient: client,
+		}
+		projectRef := &infrav1.NutanixResourceIdentifier{
+			UUID: &projectUUID,
+		}
+		projectInfo, err := GetProjectV3(rctx, projectRef)
+		assert.NoError(t, err)
+		assert.Equal(t, projectUUID, *projectInfo.ExtID)
+		assert.Equal(t, projectName, *projectInfo.Name)
+	})
+
+	t.Run("returns error when get project by uuid returns ENTITY_NOT_FOUND", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		projectUUID := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockV3.EXPECT().GetProject(ctx, projectUUID).Return(nil, errors.New("ENTITY_NOT_FOUND: not found"))
+		client := &prismclientv3.Client{V3: mockV3}
+		rctx := &nctx.MachineContext{
+			Context:       ctx,
+			NutanixClient: client,
+		}
+		projectRef := &infrav1.NutanixResourceIdentifier{
+			UUID: &projectUUID,
+		}
+		projectInfo, err := GetProjectV3(rctx, projectRef)
+		assert.Error(t, err)
+		assert.Nil(t, projectInfo)
+		assert.Contains(t, err.Error(), "failed to find project with UUID")
+	})
+
+	t.Run("returns project info when lookup by name succeeds", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		projectName := "my-project"
+		projectUUID := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockV3.EXPECT().ListAllProject(ctx, "").Return(&prismclientv3.ProjectListResponse{
+			Entities: []*prismclientv3.Project{
+				{
+					Metadata: &prismclientv3.Metadata{UUID: &projectUUID},
+					Spec:     &prismclientv3.ProjectSpec{Name: projectName},
+				},
+			},
+		}, nil)
+		client := &prismclientv3.Client{V3: mockV3}
+		rctx := &nctx.MachineContext{
+			Context:       ctx,
+			NutanixClient: client,
+		}
+		projectRef := &infrav1.NutanixResourceIdentifier{
+			Name: &projectName,
+		}
+		projectInfo, err := GetProjectV3(rctx, projectRef)
+		assert.NoError(t, err)
+		assert.Equal(t, projectUUID, *projectInfo.ExtID)
+		assert.Equal(t, projectName, *projectInfo.Name)
+	})
+
+	t.Run("returns error when no project found by name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		projectName := "nonexistent"
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockV3.EXPECT().ListAllProject(ctx, "").Return(&prismclientv3.ProjectListResponse{
+			Entities: []*prismclientv3.Project{},
+		}, nil)
+		client := &prismclientv3.Client{V3: mockV3}
+		rctx := &nctx.MachineContext{
+			Context:       ctx,
+			NutanixClient: client,
+		}
+		projectRef := &infrav1.NutanixResourceIdentifier{
+			Name: &projectName,
+		}
+		projectInfo, err := GetProjectV3(rctx, projectRef)
+		assert.Error(t, err)
+		assert.Nil(t, projectInfo)
+		assert.Contains(t, err.Error(), "failed to retrieve project by name")
+	})
+
+	t.Run("returns error when multiple projects found with same name", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		projectName := "dup"
+		uuid1 := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+		uuid2 := "bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee"
+		mockV3 := mocknutanixv3.NewMockService(ctrl)
+		mockV3.EXPECT().ListAllProject(ctx, "").Return(&prismclientv3.ProjectListResponse{
+			Entities: []*prismclientv3.Project{
+				{Metadata: &prismclientv3.Metadata{UUID: &uuid1}, Spec: &prismclientv3.ProjectSpec{Name: projectName}},
+				{Metadata: &prismclientv3.Metadata{UUID: &uuid2}, Spec: &prismclientv3.ProjectSpec{Name: projectName}},
+			},
+		}, nil)
+		client := &prismclientv3.Client{V3: mockV3}
+		rctx := &nctx.MachineContext{
+			Context:       ctx,
+			NutanixClient: client,
+		}
+		projectRef := &infrav1.NutanixResourceIdentifier{
+			Name: &projectName,
+		}
+		projectInfo, err := GetProjectV3(rctx, projectRef)
+		assert.Error(t, err)
+		assert.Nil(t, projectInfo)
+		assert.Contains(t, err.Error(), "more than one project found")
+	})
+}
+
+func TestGetProjectV4(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns error when both name and uuid are nil", func(t *testing.T) {
+		// GetProjectV4 does not need a real client for this path
+		rctx := &nctx.MachineContext{
+			Context: ctx,
+		}
+		projectRef := &infrav1.NutanixResourceIdentifier{
+			UUID: nil,
+			Name: nil,
+		}
+		projectInfo, err := GetProjectV4(rctx, projectRef)
+		assert.Error(t, err)
+		assert.Nil(t, projectInfo)
+		assert.Contains(t, err.Error(), "name or uuid must be passed")
+	})
+}
+
+func TestGetDefaultProjectUUID(t *testing.T) {
+	t.Run("returns empty string when PC version is pc.7.5.0.5", func(t *testing.T) {
+		rctx := &nctx.MachineContext{PCVersion: "pc.7.5.0.5"}
+		uuid, err := GetDefaultProjectUUID(rctx)
+		assert.NoError(t, err)
+		assert.Empty(t, uuid)
+	})
+
+	t.Run("returns empty string when PC version is 7.5.0", func(t *testing.T) {
+		rctx := &nctx.MachineContext{PCVersion: "7.5.0"}
+		uuid, err := GetDefaultProjectUUID(rctx)
+		assert.NoError(t, err)
+		assert.Empty(t, uuid)
+	})
+}
+
+func TestGetResourceGroupForProject(t *testing.T) {
+	ctx := context.Background()
+	projectExtID := "11111111-1111-1111-1111-111111111111"
+
+	t.Run("returns the resource group owned by the project", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		rgExtID := "rg-uuid"
+		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return([]projectModels.ResourceGroup{
+			{ExtId: ptr.To("other-rg"), ProjectExtId: ptr.To("other-project")},
+			{ExtId: ptr.To(rgExtID), ProjectExtId: ptr.To(projectExtID)},
+		}, nil)
+
+		rg, err := GetResourceGroupForProject(ctx, mockConvergedClient.Client, projectExtID)
+		require.NoError(t, err)
+		require.NotNil(t, rg)
+		assert.Equal(t, rgExtID, *rg.ExtId)
+	})
+
+	t.Run("returns nil when no resource group matches the project", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return([]projectModels.ResourceGroup{
+			{ExtId: ptr.To("other-rg"), ProjectExtId: ptr.To("other-project")},
+		}, nil)
+
+		rg, err := GetResourceGroupForProject(ctx, mockConvergedClient.Client, projectExtID)
+		require.NoError(t, err)
+		assert.Nil(t, rg)
+	})
+
+	t.Run("propagates list error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("list failed"))
+
+		rg, err := GetResourceGroupForProject(ctx, mockConvergedClient.Client, projectExtID)
+		require.Error(t, err)
+		assert.Nil(t, rg)
+		assert.Contains(t, err.Error(), "list failed")
+	})
+}
+
+func TestResolveResourceGroup(t *testing.T) {
+	ctx := context.Background()
+	projectExtID := "11111111-1111-1111-1111-111111111111"
+	defaultProjectExtID := "00000000-default-project"
+
+	t.Run("returns nil when the effective project is the default project", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockProjects.EXPECT().GetDefaultProject(ctx).Return(&projectModels.Project{
+			ExtId: ptr.To(defaultProjectExtID),
+		}, nil)
+
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			PCVersion:       "7.6",
+			ConvergedClient: mockConvergedClient.Client,
+		}
+		effectiveProject := &nctx.ProjectInfo{
+			ExtID: ptr.To(defaultProjectExtID),
+			Name:  ptr.To("default"),
+		}
+
+		rg, err := resolveResourceGroup(rctx, effectiveProject)
+		require.NoError(t, err)
+		assert.Nil(t, rg)
+	})
+
+	t.Run("returns the resource group for a non-default project", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockProjects.EXPECT().GetDefaultProject(ctx).Return(&projectModels.Project{
+			ExtId: ptr.To(defaultProjectExtID),
+		}, nil)
+		rgExtID := "rg-uuid"
+		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return([]projectModels.ResourceGroup{
+			{ExtId: ptr.To(rgExtID), ProjectExtId: ptr.To(projectExtID)},
+		}, nil)
+
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			PCVersion:       "7.6",
+			ConvergedClient: mockConvergedClient.Client,
+		}
+		effectiveProject := &nctx.ProjectInfo{
+			ExtID: ptr.To(projectExtID),
+			Name:  ptr.To("nkp-test"),
+		}
+
+		rg, err := resolveResourceGroup(rctx, effectiveProject)
+		require.NoError(t, err)
+		require.NotNil(t, rg)
+		assert.Equal(t, rgExtID, *rg.ExtId)
+	})
+
+	t.Run("returns a terminal error naming the project when no resource group exists", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockProjects.EXPECT().GetDefaultProject(ctx).Return(&projectModels.Project{
+			ExtId: ptr.To(defaultProjectExtID),
+		}, nil)
+		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return([]projectModels.ResourceGroup{}, nil)
+
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			PCVersion:       "7.6",
+			ConvergedClient: mockConvergedClient.Client,
+		}
+		effectiveProject := &nctx.ProjectInfo{
+			ExtID: ptr.To(projectExtID),
+			Name:  ptr.To("nkp-test"),
+		}
+
+		rg, err := resolveResourceGroup(rctx, effectiveProject)
+		require.Error(t, err)
+		assert.Nil(t, rg)
+		assert.Contains(t, err.Error(), "no resource group found for project nkp-test")
+		assert.True(t, services.IsTerminalError(err))
+	})
+
+	t.Run("falls back to zero UUID and still resolves when default project lookup fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockProjects.EXPECT().GetDefaultProject(ctx).Return(nil, errors.New("permission denied"))
+		rgExtID := "rg-uuid"
+		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return([]projectModels.ResourceGroup{
+			{ExtId: ptr.To(rgExtID), ProjectExtId: ptr.To(projectExtID)},
+		}, nil)
+
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			PCVersion:       "7.6",
+			ConvergedClient: mockConvergedClient.Client,
+		}
+		effectiveProject := &nctx.ProjectInfo{
+			ExtID: ptr.To(projectExtID),
+			Name:  ptr.To("nkp-test"),
+		}
+
+		rg, err := resolveResourceGroup(rctx, effectiveProject)
+		require.NoError(t, err)
+		require.NotNil(t, rg)
+		assert.Equal(t, rgExtID, *rg.ExtId)
+	})
+}
+
+func TestResolveResourceGroupForProjectPolicy(t *testing.T) {
+	ctx := context.Background()
+	defaultProjectExtID := "00000000-default-project"
+	namedProjectExtID := "11111111-1111-1111-1111-111111111111"
+
+	t.Run("returns nil for an unrestricted policy without any client calls", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+
+		rg, err := resolveResourceGroupForProjectPolicy(ctx, mockConvergedClient.Client, CAPXProjectPolicyUnrestricted, "", "7.6")
+		require.NoError(t, err)
+		assert.Nil(t, rg)
+	})
+
+	t.Run("returns nil when PC version is below 7.6", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+
+		rg, err := resolveResourceGroupForProjectPolicy(ctx, mockConvergedClient.Client, CAPXProjectPolicySingleProject, namedProjectExtID, "7.5")
+		require.NoError(t, err)
+		assert.Nil(t, rg)
+	})
+
+	t.Run("returns nil for the default-only policy (default project has no resource group)", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockProjects.EXPECT().GetDefaultProject(ctx).Return(&projectModels.Project{
+			ExtId: ptr.To(defaultProjectExtID),
+		}, nil).Times(2)
+
+		rg, err := resolveResourceGroupForProjectPolicy(ctx, mockConvergedClient.Client, CAPXProjectPolicyDefaultOnly, "", "7.6")
+		require.NoError(t, err)
+		assert.Nil(t, rg)
+	})
+
+	t.Run("resolves the resource group for a single-project policy", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockProjects.EXPECT().GetDefaultProject(ctx).Return(&projectModels.Project{
+			ExtId: ptr.To(defaultProjectExtID),
+		}, nil)
+		rgExtID := "rg-uuid"
+		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return([]projectModels.ResourceGroup{
+			{ExtId: ptr.To(rgExtID), ProjectExtId: ptr.To(namedProjectExtID)},
+		}, nil)
+
+		rg, err := resolveResourceGroupForProjectPolicy(ctx, mockConvergedClient.Client, CAPXProjectPolicySingleProject, namedProjectExtID, "7.6")
+		require.NoError(t, err)
+		require.NotNil(t, rg)
+		assert.Equal(t, rgExtID, *rg.ExtId)
+	})
+
+	t.Run("returns a terminal error when a single-project policy has no resource group", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockProjects.EXPECT().GetDefaultProject(ctx).Return(&projectModels.Project{
+			ExtId: ptr.To(defaultProjectExtID),
+		}, nil)
+		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return([]projectModels.ResourceGroup{}, nil)
+
+		rg, err := resolveResourceGroupForProjectPolicy(ctx, mockConvergedClient.Client, CAPXProjectPolicySingleProject, namedProjectExtID, "7.6")
+		require.Error(t, err)
+		assert.Nil(t, rg)
+		assert.Contains(t, err.Error(), "no resource group found for project")
+		assert.True(t, services.IsTerminalError(err))
+	})
+
+	t.Run("returns error when single-project policy is missing project UUID", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+
+		rg, err := resolveResourceGroupForProjectPolicy(ctx, mockConvergedClient.Client, CAPXProjectPolicySingleProject, "", "7.6")
+		require.Error(t, err)
+		assert.Nil(t, rg)
+		assert.Contains(t, err.Error(), "single-project policy requires")
+	})
 }
 
 func TestControllerHelpers(t *testing.T) {
@@ -609,4557 +2428,4 @@ func TestGetPrismCentralConvergedV4ClientForCluster_EdgeCases(t *testing.T) {
 		_, err := getPrismCentralConvergedV4ClientForCluster(ctx, cluster, secretInformer, mapInformer)
 		assert.Error(t, err)
 	})
-}
-
-func TestGetImageByNameOrUUID(t *testing.T) {
-	tests := []struct {
-		name          string
-		clientBuilder func() *v4Converged.Client
-		id            infrav1.NutanixResourceIdentifier
-		project       *nctx.ProjectInfo
-		pcVersion     string
-		want          *imageModels.Image
-		wantErr       bool
-	}{
-		{
-			name: "missing name and UUID in the input",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-
-				return convergedClient.Client
-			},
-			id:      infrav1.NutanixResourceIdentifier{},
-			wantErr: true,
-		},
-		{
-			name: "image UUID not found (classified ErrNotFound)",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().Get(gomock.Any(), gomock.Any()).
-					Return(nil, &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")})
-
-				return convergedClient.Client
-			},
-			id: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-			},
-			wantErr: true,
-		},
-		{
-			name: "image UUID not found (unclassified error)",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, errors.New("generic API error"))
-
-				return convergedClient.Client
-			},
-			id: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-			},
-			wantErr: true,
-		},
-		{
-			name: "image name query fails",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("fake error"))
-
-				return convergedClient.Client
-			},
-			id: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("example"),
-			},
-			wantErr: true,
-		},
-		{
-			name: "image UUID found",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().Get(gomock.Any(), gomock.Any()).Return(
-					&imageModels.Image{
-						ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-						Name:  ptr.To("example"),
-					}, nil,
-				)
-
-				return convergedClient.Client
-			},
-			id: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-			},
-			want: &imageModels.Image{
-				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-				Name:  ptr.To("example"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "image name found",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]imageModels.Image{
-						{
-							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-							Name:  ptr.To("example"),
-						},
-					}, nil)
-
-				return convergedClient.Client
-			},
-			id: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("example"),
-			},
-			want: &imageModels.Image{
-				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-				Name:  ptr.To("example"),
-			},
-		},
-		{
-			name: "image name matches multiple images",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]imageModels.Image{
-						{
-							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-							Name:  ptr.To("example"),
-						},
-						{
-							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c6"),
-							Name:  ptr.To("example"),
-						},
-						{
-							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c7"),
-							Name:  ptr.To("example"),
-						},
-					}, nil)
-
-				return convergedClient.Client
-			},
-			id: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("example"),
-			},
-			wantErr: true,
-		},
-		{
-			name: "image name matches zero images",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]imageModels.Image{}, nil,
-				)
-
-				return convergedClient.Client
-			},
-			id: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("example"),
-			},
-			wantErr: true,
-		},
-		{
-			name: "image name matches zero images",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]imageModels.Image{}, nil,
-				)
-
-				return convergedClient.Client
-			},
-			id: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("example"),
-			},
-			wantErr: true,
-		},
-		{
-			name: "image name matches one image",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]imageModels.Image{
-						{
-							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-							Name:  ptr.To("example"),
-						},
-					}, nil,
-				)
-
-				return convergedClient.Client
-			},
-			id: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("example"),
-			},
-			want: &imageModels.Image{
-				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-				Name:  ptr.To("example"),
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Log("Running test case ", tt.name)
-			ctx := context.Background()
-			got, err := GetImage(ctx, tt.clientBuilder(), tt.id, tt.project, tt.pcVersion)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetImageByNameOrUUID() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GetImageByNameOrUUID() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestFindVMByUUID(t *testing.T) {
-	ctx := context.Background()
-	projectExtID := "test-project-uuid"
-	pcVersion := "7.6"
-
-	t.Run("returns VM when found and project matches", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		convergedClient := NewMockConvergedClient(ctrl)
-		expectedVM := &vmmModels.Vm{
-			ExtId: ptr.To("test-vm-uuid"),
-			Name:  ptr.To("test-vm"),
-			Project: &vmmModels.ProjectReference{
-				ExtId: ptr.To(projectExtID),
-			},
-		}
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), "test-vm-uuid").Return(expectedVM, nil)
-
-		vm, err := FindVMByUUID(ctx, convergedClient.Client, "test-vm-uuid", &projectExtID, pcVersion)
-		require.NoError(t, err)
-		require.NotNil(t, vm)
-		assert.Equal(t, "test-vm-uuid", *vm.ExtId)
-	})
-
-	t.Run("returns error when VM found but project does not match", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		convergedClient := NewMockConvergedClient(ctrl)
-		expectedVM := &vmmModels.Vm{
-			ExtId: ptr.To("test-vm-uuid"),
-			Name:  ptr.To("test-vm"),
-			Project: &vmmModels.ProjectReference{
-				ExtId: ptr.To("different-project-uuid"),
-			},
-		}
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), "test-vm-uuid").Return(expectedVM, nil)
-
-		vm, err := FindVMByUUID(ctx, convergedClient.Client, "test-vm-uuid", &projectExtID, pcVersion)
-		require.Error(t, err)
-		require.Nil(t, vm)
-		assert.Contains(t, err.Error(), "not in project")
-	})
-
-	t.Run("returns error when VM found but has no project", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		convergedClient := NewMockConvergedClient(ctrl)
-		expectedVM := &vmmModels.Vm{
-			ExtId:   ptr.To("test-vm-uuid"),
-			Name:    ptr.To("test-vm"),
-			Project: nil,
-		}
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), "test-vm-uuid").Return(expectedVM, nil)
-
-		vm, err := FindVMByUUID(ctx, convergedClient.Client, "test-vm-uuid", &projectExtID, pcVersion)
-		require.Error(t, err)
-		require.Nil(t, vm)
-		assert.Contains(t, err.Error(), "not in project")
-	})
-
-	t.Run("returns nil when VM not found (classified ErrNotFound)", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		convergedClient := NewMockConvergedClient(ctrl)
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), "missing-vm-uuid").
-			Return(nil, &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")})
-
-		vm, err := FindVMByUUID(ctx, convergedClient.Client, "missing-vm-uuid", &projectExtID, pcVersion)
-		require.NoError(t, err)
-		require.Nil(t, vm)
-	})
-
-	t.Run("returns error when API returns non-NotFound error", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		convergedClient := NewMockConvergedClient(ctrl)
-		apiErr := errors.New("rate limit exceeded")
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), "test-vm-uuid").Return(nil, apiErr)
-
-		vm, err := FindVMByUUID(ctx, convergedClient.Client, "test-vm-uuid", &projectExtID, pcVersion)
-		require.Error(t, err)
-		require.Nil(t, vm)
-		assert.ErrorIs(t, err, apiErr)
-	})
-}
-
-func TestFindVM(t *testing.T) {
-	ctx := context.Background()
-	recordedUUID := "68d4847f-a7c1-4ed9-75fe-3c0f941363a7"
-	liveUUID := "11111111-2222-3333-4444-555555555555"
-	vmName := "abhay-mgmt-wqfmw-m7vmr"
-
-	metroMachine := &capiv1beta2.Machine{
-		ObjectMeta: metav1.ObjectMeta{Name: vmName},
-		Spec:       capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "metro0-s1"},
-		Status: capiv1beta2.MachineStatus{
-			NodeInfo: &corev1.NodeSystemInfo{SystemUUID: recordedUUID},
-		},
-	}
-	nonMetroMachine := &capiv1beta2.Machine{
-		ObjectMeta: metav1.ObjectMeta{Name: vmName},
-		Status: capiv1beta2.MachineStatus{
-			NodeInfo: &corev1.NodeSystemInfo{SystemUUID: recordedUUID},
-		},
-	}
-	ntnxMachine := &infrav1.NutanixMachine{
-		ObjectMeta: metav1.ObjectMeta{Name: vmName},
-		Status:     infrav1.NutanixMachineStatus{VmUUID: recordedUUID},
-	}
-
-	t.Run("metro returns VM found by name after recorded UUID 404", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		convergedClient := NewMockConvergedClient(ctrl)
-		liveVM := &vmmModels.Vm{ExtId: ptr.To(liveUUID), Name: ptr.To(vmName)}
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
-			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
-		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*liveVM}, nil)
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), liveUUID).Return(liveVM, nil)
-
-		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, nil, "", nil)
-		require.NoError(t, err)
-		require.NotNil(t, vm)
-		assert.Equal(t, liveUUID, *vm.ExtId)
-	})
-
-	t.Run("metro returns expected-to-be-present when UUID 404 and name search is empty", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		convergedClient := NewMockConvergedClient(ctrl)
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
-			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
-		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{}, nil)
-
-		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, nil, "", nil)
-		require.Error(t, err)
-		require.Nil(t, vm)
-		assert.Contains(t, err.Error(), "but was expected to be present")
-	})
-
-	t.Run("non-metro UUID 404 does not search by name", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		convergedClient := NewMockConvergedClient(ctrl)
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
-			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
-
-		vm, err := FindVM(ctx, convergedClient.Client, nonMetroMachine, ntnxMachine, vmName, nil, "", nil)
-		require.Error(t, err)
-		require.Nil(t, vm)
-		assert.Contains(t, err.Error(), "but was expected to be present")
-	})
-
-	t.Run("metro by-name lookup skips a same-named VM outside the project", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		convergedClient := NewMockConvergedClient(ctrl)
-		projectExtID := "aaaaaaaa-0000-0000-0000-000000000001"
-		otherUUID := "99999999-2222-3333-4444-555555555555"
-		otherVM := &vmmModels.Vm{
-			ExtId: ptr.To(otherUUID), Name: ptr.To(vmName),
-			Project: &vmmModels.ProjectReference{ExtId: ptr.To("bbbbbbbb-0000-0000-0000-000000000002")},
-		}
-		liveVM := &vmmModels.Vm{
-			ExtId: ptr.To(liveUUID), Name: ptr.To(vmName),
-			Project: &vmmModels.ProjectReference{ExtId: ptr.To(projectExtID)},
-		}
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
-			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
-		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*otherVM, *liveVM}, nil)
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), otherUUID).Return(otherVM, nil)
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), liveUUID).Return(liveVM, nil)
-
-		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, &projectExtID, "7.6", nil)
-		require.NoError(t, err)
-		require.NotNil(t, vm)
-		assert.Equal(t, liveUUID, *vm.ExtId)
-	})
-
-	t.Run("metro skips decoupled leftover and returns recovered VM by name", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		convergedClient := NewMockConvergedClient(ctrl)
-		mockV3 := mocknutanixv3.NewMockService(ctrl)
-		decoupledVM := &vmmModels.Vm{ExtId: ptr.To(recordedUUID), Name: ptr.To(vmName)}
-		liveVM := &vmmModels.Vm{ExtId: ptr.To(liveUUID), Name: ptr.To(vmName)}
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(nil,
-			&converged.APIError{Kind: converged.ErrNotFound, Message: "vm not found"})
-		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*decoupledVM, *liveVM}, nil)
-		mockV3.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).DoAndReturn(
-			func(_ context.Context, req *prismclientv3.GroupsGetEntitiesRequest) (*prismclientv3.GroupsGetEntitiesResponse, error) {
-				if strings.Contains(req.FilterCriteria, recordedUUID) {
-					return drConfigGroupsResponse(drRoleDecoupled), nil
-				}
-				return drConfigGroupsResponse("kActive"), nil
-			},
-		).AnyTimes()
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), liveUUID).Return(liveVM, nil)
-
-		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, nil, "", mockV3)
-		require.NoError(t, err)
-		require.NotNil(t, vm)
-		assert.Equal(t, liveUUID, *vm.ExtId)
-	})
-
-	t.Run("metro does not adopt a decoupled UUID GET; looks up recovered VM by name", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		convergedClient := NewMockConvergedClient(ctrl)
-		mockV3 := mocknutanixv3.NewMockService(ctrl)
-		decoupledVM := &vmmModels.Vm{ExtId: ptr.To(recordedUUID), Name: ptr.To(vmName)}
-		liveVM := &vmmModels.Vm{ExtId: ptr.To(liveUUID), Name: ptr.To(vmName)}
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), recordedUUID).Return(decoupledVM, nil)
-		mockV3.EXPECT().GroupsGetEntities(gomock.Any(), gomock.Any()).DoAndReturn(
-			func(_ context.Context, req *prismclientv3.GroupsGetEntitiesRequest) (*prismclientv3.GroupsGetEntitiesResponse, error) {
-				if strings.Contains(req.FilterCriteria, recordedUUID) {
-					return drConfigGroupsResponse(drRoleDecoupled), nil
-				}
-				return drConfigGroupsResponse("kActive"), nil
-			},
-		).AnyTimes()
-		convergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*decoupledVM, *liveVM}, nil)
-		convergedClient.MockVMs.EXPECT().Get(gomock.Any(), liveUUID).Return(liveVM, nil)
-
-		vm, err := FindVM(ctx, convergedClient.Client, metroMachine, ntnxMachine, vmName, nil, "", mockV3)
-		require.NoError(t, err)
-		require.NotNil(t, vm)
-		assert.Equal(t, liveUUID, *vm.ExtId)
-	})
-}
-
-func TestGetPEUUID(t *testing.T) {
-	ctx := context.Background()
-
-	tests := []struct {
-		name          string
-		clientBuilder func() *v4Converged.Client
-		peName        *string
-		peUUID        *string
-		want          string
-		wantErr       bool
-		errorContains string
-	}{
-		{
-			name: "PE cluster UUID not found (classified ErrNotFound)",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockClusters.EXPECT().Get(gomock.Any(), "missing-pe-uuid").
-					Return(nil, &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")})
-				return convergedClient.Client
-			},
-			peUUID:        ptr.To("missing-pe-uuid"),
-			wantErr:       true,
-			errorContains: "failed to find Prism Element cluster with UUID",
-		},
-		{
-			name: "PE cluster UUID found",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockClusters.EXPECT().Get(gomock.Any(), "found-pe-uuid").Return(
-					&clusterModels.Cluster{
-						ExtId: ptr.To("found-pe-uuid"),
-						Name:  ptr.To("my-cluster"),
-					}, nil)
-				return convergedClient.Client
-			},
-			peUUID:  ptr.To("found-pe-uuid"),
-			want:    "found-pe-uuid",
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := GetPEUUID(ctx, tt.clientBuilder(), nil, tt.peName, tt.peUUID)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetPEUUID() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if tt.wantErr && tt.errorContains != "" && (err == nil || !strings.Contains(err.Error(), tt.errorContains)) {
-				t.Errorf("GetPEUUID() error = %v, want to contain %q", err, tt.errorContains)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("GetPEUUID() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestGetSubnetUUID(t *testing.T) {
-	ctx := context.Background()
-	peUUID := "11111111-1111-1111-1111-111111111111"
-
-	tests := []struct {
-		name          string
-		clientBuilder func() *v4Converged.Client
-		peUUID        string
-		subnetName    *string
-		subnetUUID    *string
-		project       *nctx.ProjectInfo
-		pcVersion     string
-		want          string
-		wantErr       bool
-	}{
-		{
-			name: "missing name and UUID in the input",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				return convergedClient.Client
-			},
-			peUUID:  peUUID,
-			wantErr: true,
-		},
-		{
-			name: "subnet UUID not found (classified ErrNotFound)",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), "missing-uuid").
-					Return(nil, &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")})
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetUUID: ptr.To("missing-uuid"),
-			wantErr:    true,
-		},
-		{
-			name: "subnet UUID not found (unclassified error)",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), "test-uuid").Return(nil, errors.New("generic API error"))
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetUUID: ptr.To("test-uuid"),
-			wantErr:    true,
-		},
-		{
-			name: "subnet UUID found",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), "found-subnet-uuid").Return(
-					&subnetModels.Subnet{
-						ExtId: ptr.To("found-subnet-uuid"),
-						Name:  ptr.To("my-subnet"),
-					}, nil)
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetUUID: ptr.To("found-subnet-uuid"),
-			want:       "found-subnet-uuid",
-			wantErr:    false,
-		},
-		{
-			name: "subnet name query fails",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("fake error"))
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetName: ptr.To("my-subnet"),
-			wantErr:    true,
-		},
-		{
-			name: "subnet name found - overlay subnet",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				subnetType := subnetModels.SUBNETTYPE_OVERLAY
-				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]subnetModels.Subnet{
-						{
-							ExtId:      ptr.To("overlay-subnet-uuid"),
-							Name:       ptr.To("my-overlay"),
-							SubnetType: &subnetType,
-						},
-					}, nil)
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetName: ptr.To("my-overlay"),
-			want:       "overlay-subnet-uuid",
-			wantErr:    false,
-		},
-		{
-			name: "subnet name found - VLAN subnet with ClusterReference",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				subnetType := subnetModels.SUBNETTYPE_VLAN
-				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]subnetModels.Subnet{
-						{
-							ExtId:            ptr.To("vlan-subnet-uuid"),
-							Name:             ptr.To("my-vlan"),
-							SubnetType:       &subnetType,
-							ClusterReference: ptr.To(peUUID),
-						},
-					}, nil)
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetName: ptr.To("my-vlan"),
-			want:       "vlan-subnet-uuid",
-			wantErr:    false,
-		},
-		{
-			name: "subnet name matches zero subnets",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return([]subnetModels.Subnet{}, nil)
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetName: ptr.To("nonexistent"),
-			wantErr:    true,
-		},
-		{
-			name: "subnet name matches multiple subnets",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				subnetType := subnetModels.SUBNETTYPE_OVERLAY
-				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]subnetModels.Subnet{
-						{ExtId: ptr.To("uuid-1"), Name: ptr.To("dup"), SubnetType: &subnetType},
-						{ExtId: ptr.To("uuid-2"), Name: ptr.To("dup"), SubnetType: &subnetType},
-					}, nil)
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetName: ptr.To("dup"),
-			wantErr:    true,
-		},
-		{
-			name: "project-aware UUID lookup succeeds when subnet owned by project",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), "owned-subnet-uuid").Return(
-					&subnetModels.Subnet{
-						ExtId:        ptr.To("owned-subnet-uuid"),
-						Name:         ptr.To("my-subnet"),
-						ProjectExtId: ptr.To("project-a"),
-					}, nil)
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetUUID: ptr.To("owned-subnet-uuid"),
-			project:    &nctx.ProjectInfo{ExtID: ptr.To("project-a"), Name: ptr.To("project-a-name")},
-			pcVersion:  "7.6",
-			want:       "owned-subnet-uuid",
-			wantErr:    false,
-		},
-		{
-			name: "project-aware UUID lookup succeeds when subnet shared with project",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), "shared-subnet-uuid").Return(
-					&subnetModels.Subnet{
-						ExtId:              ptr.To("shared-subnet-uuid"),
-						Name:               ptr.To("my-subnet"),
-						ProjectExtId:       ptr.To("project-owner"),
-						SharedWithProjects: []string{"project-a"},
-					}, nil)
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetUUID: ptr.To("shared-subnet-uuid"),
-			project:    &nctx.ProjectInfo{ExtID: ptr.To("project-a"), Name: ptr.To("project-a-name")},
-			pcVersion:  "7.6",
-			want:       "shared-subnet-uuid",
-			wantErr:    false,
-		},
-		{
-			name: "project-aware UUID lookup fails when subnet not accessible in project",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), "other-subnet-uuid").Return(
-					&subnetModels.Subnet{
-						ExtId:        ptr.To("other-subnet-uuid"),
-						Name:         ptr.To("my-subnet"),
-						ProjectExtId: ptr.To("project-b"),
-					}, nil)
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetUUID: ptr.To("other-subnet-uuid"),
-			project:    &nctx.ProjectInfo{ExtID: ptr.To("project-a"), Name: ptr.To("project-a-name")},
-			pcVersion:  "7.6",
-			wantErr:    true,
-		},
-		{
-			name: "project-aware name lookup prefers project-owned over shared subnet",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				subnetType := subnetModels.SUBNETTYPE_OVERLAY
-				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]subnetModels.Subnet{
-						{
-							ExtId:              ptr.To("shared-uuid"),
-							Name:               ptr.To("dup"),
-							SubnetType:         &subnetType,
-							ProjectExtId:       ptr.To("project-owner"),
-							SharedWithProjects: []string{"project-a"},
-						},
-						{
-							ExtId:        ptr.To("owned-uuid"),
-							Name:         ptr.To("dup"),
-							SubnetType:   &subnetType,
-							ProjectExtId: ptr.To("project-a"),
-						},
-					}, nil)
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetName: ptr.To("dup"),
-			project:    &nctx.ProjectInfo{ExtID: ptr.To("project-a"), Name: ptr.To("project-a-name")},
-			pcVersion:  "7.6",
-			want:       "owned-uuid",
-			wantErr:    false,
-		},
-		{
-			name: "project-aware name lookup falls back to shared subnet when none owned",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				subnetType := subnetModels.SUBNETTYPE_OVERLAY
-				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]subnetModels.Subnet{
-						{
-							ExtId:              ptr.To("shared-uuid"),
-							Name:               ptr.To("my-subnet"),
-							SubnetType:         &subnetType,
-							ProjectExtId:       ptr.To("project-owner"),
-							SharedWithProjects: []string{"project-a"},
-						},
-					}, nil)
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetName: ptr.To("my-subnet"),
-			project:    &nctx.ProjectInfo{ExtID: ptr.To("project-a"), Name: ptr.To("project-a-name")},
-			pcVersion:  "7.6",
-			want:       "shared-uuid",
-			wantErr:    false,
-		},
-		{
-			name: "project-aware name lookup fails when no subnet accessible in project",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				subnetType := subnetModels.SUBNETTYPE_OVERLAY
-				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]subnetModels.Subnet{
-						{
-							ExtId:        ptr.To("other-uuid"),
-							Name:         ptr.To("my-subnet"),
-							SubnetType:   &subnetType,
-							ProjectExtId: ptr.To("project-b"),
-						},
-					}, nil)
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetName: ptr.To("my-subnet"),
-			project:    &nctx.ProjectInfo{ExtID: ptr.To("project-a"), Name: ptr.To("project-a-name")},
-			pcVersion:  "7.6",
-			wantErr:    true,
-		},
-		{
-			name: "project-aware name lookup fails when multiple owned subnets",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				subnetType := subnetModels.SUBNETTYPE_OVERLAY
-				convergedClient.MockSubnets.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]subnetModels.Subnet{
-						{ExtId: ptr.To("owned-1"), Name: ptr.To("dup"), SubnetType: &subnetType, ProjectExtId: ptr.To("project-a")},
-						{ExtId: ptr.To("owned-2"), Name: ptr.To("dup"), SubnetType: &subnetType, ProjectExtId: ptr.To("project-a")},
-					}, nil)
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetName: ptr.To("dup"),
-			project:    &nctx.ProjectInfo{ExtID: ptr.To("project-a"), Name: ptr.To("project-a-name")},
-			pcVersion:  "7.6",
-			wantErr:    true,
-		},
-		{
-			name: "PC below 7.6 ignores project scoping (legacy behavior)",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), "legacy-subnet-uuid").Return(
-					&subnetModels.Subnet{
-						ExtId:        ptr.To("legacy-subnet-uuid"),
-						Name:         ptr.To("my-subnet"),
-						ProjectExtId: ptr.To("project-b"),
-					}, nil)
-				return convergedClient.Client
-			},
-			peUUID:     peUUID,
-			subnetUUID: ptr.To("legacy-subnet-uuid"),
-			project:    &nctx.ProjectInfo{ExtID: ptr.To("project-a"), Name: ptr.To("project-a-name")},
-			pcVersion:  "7.5",
-			want:       "legacy-subnet-uuid",
-			wantErr:    false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := GetSubnetUUID(ctx, tt.clientBuilder(), tt.peUUID, tt.subnetName, tt.subnetUUID, tt.project, tt.pcVersion)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetSubnetUUID() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("GetSubnetUUID() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestGetSubnetUUIDList(t *testing.T) {
-	ctx := context.Background()
-	peUUID := "11111111-1111-1111-1111-111111111111"
-
-	t.Run("returns list of subnet UUIDs", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		convergedClient := NewMockConvergedClient(ctrl)
-		subnetUUID1 := "subnet-uuid-1"
-		subnetUUID2 := "subnet-uuid-2"
-
-		convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), subnetUUID1).Return(
-			&subnetModels.Subnet{ExtId: &subnetUUID1}, nil)
-		convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), subnetUUID2).Return(
-			&subnetModels.Subnet{ExtId: &subnetUUID2}, nil)
-
-		machineSubnets := []infrav1.NutanixResourceIdentifier{
-			{Type: infrav1.NutanixIdentifierUUID, UUID: &subnetUUID1},
-			{Type: infrav1.NutanixIdentifierUUID, UUID: &subnetUUID2},
-		}
-
-		got, err := GetSubnetUUIDList(ctx, convergedClient.Client, machineSubnets, peUUID, nil, "")
-		require.NoError(t, err)
-		require.Len(t, got, 2)
-		assert.Equal(t, subnetUUID1, got[0])
-		assert.Equal(t, subnetUUID2, got[1])
-	})
-
-	t.Run("returns error when GetSubnetUUID fails", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		convergedClient := NewMockConvergedClient(ctrl)
-		convergedClient.MockSubnets.EXPECT().Get(gomock.Any(), gomock.Any()).
-			Return(nil, &converged.APIError{Kind: converged.ErrNotFound, Cause: errors.New("entity not found")})
-
-		machineSubnets := []infrav1.NutanixResourceIdentifier{
-			{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To("missing-uuid")},
-		}
-
-		got, err := GetSubnetUUIDList(ctx, convergedClient.Client, machineSubnets, peUUID, nil, "")
-		require.Error(t, err)
-		assert.Empty(t, got)
-	})
-}
-
-func TestSubnetNetworkKey(t *testing.T) {
-	vlan := subnetModels.SUBNETTYPE_VLAN
-	overlay := subnetModels.SUBNETTYPE_OVERLAY
-
-	tests := []struct {
-		name string
-		in   *subnetModels.Subnet
-		want string
-	}{
-		{
-			name: "vlan with id and cidr",
-			in: &subnetModels.Subnet{
-				SubnetType: &vlan,
-				NetworkId:  ptr.To(41),
-				IpPrefix:   ptr.To("10.0.0.0/24"),
-			},
-			want: "VLAN|41|10.0.0.0/24",
-		},
-		{
-			name: "overlay with vni",
-			in: &subnetModels.Subnet{
-				SubnetType: &overlay,
-				NetworkId:  ptr.To(5000),
-				IpPrefix:   ptr.To("192.168.0.0/16"),
-			},
-			want: "OVERLAY|5000|192.168.0.0/16",
-		},
-		{
-			name: "nil subnet",
-			in:   nil,
-			want: "UNKNOWN||",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, subnetNetworkKey(tt.in))
-		})
-	}
-}
-
-func TestMetroSubnetsMatch(t *testing.T) {
-	ctx := context.Background()
-	pe0 := "00000000-0000-0000-0000-000000000010"
-	pe1 := "00000000-0000-0000-0000-000000000011"
-	subnet0 := "00000000-0000-0000-0000-0000000000a1"
-	subnet1 := "00000000-0000-0000-0000-0000000000a2"
-	vlan := subnetModels.SUBNETTYPE_VLAN
-
-	pe0ID := infrav1.NutanixResourceIdentifier{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(pe0)}
-	pe1ID := infrav1.NutanixResourceIdentifier{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(pe1)}
-	subnet0ID := []infrav1.NutanixResourceIdentifier{{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(subnet0)}}
-	subnet1ID := []infrav1.NutanixResourceIdentifier{{Type: infrav1.NutanixIdentifierUUID, UUID: ptr.To(subnet1)}}
-
-	t.Run("matches when VLAN ID and CIDR are equal across differently named subnets", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		client := NewMockConvergedClient(ctrl)
-		client.MockClusters.EXPECT().Get(gomock.Any(), pe0).Return(&clusterModels.Cluster{ExtId: ptr.To(pe0)}, nil)
-		client.MockClusters.EXPECT().Get(gomock.Any(), pe1).Return(&clusterModels.Cluster{ExtId: ptr.To(pe1)}, nil)
-		client.MockSubnets.EXPECT().Get(gomock.Any(), subnet0).Return(&subnetModels.Subnet{
-			ExtId: ptr.To(subnet0), Name: ptr.To("Vlan-041-site-01"), SubnetType: &vlan, NetworkId: ptr.To(41), IpPrefix: ptr.To("10.0.0.0/24"),
-		}, nil)
-		client.MockSubnets.EXPECT().Get(gomock.Any(), subnet1).Return(&subnetModels.Subnet{
-			ExtId: ptr.To(subnet1), Name: ptr.To("Vlan-041-site-02"), SubnetType: &vlan, NetworkId: ptr.To(41), IpPrefix: ptr.To("10.0.0.0/24"),
-		}, nil)
-
-		match, machineKeys, fdKeys, err := metroSubnetsMatch(ctx, client.Client, subnet1ID, subnet0ID, pe1ID, pe0ID)
-		require.NoError(t, err)
-		assert.True(t, match)
-		assert.Equal(t, []string{"VLAN|41|10.0.0.0/24"}, machineKeys)
-		assert.Equal(t, []string{"VLAN|41|10.0.0.0/24"}, fdKeys)
-	})
-
-	t.Run("does not match when VLAN IDs differ", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		client := NewMockConvergedClient(ctrl)
-		client.MockClusters.EXPECT().Get(gomock.Any(), pe0).Return(&clusterModels.Cluster{ExtId: ptr.To(pe0)}, nil)
-		client.MockClusters.EXPECT().Get(gomock.Any(), pe1).Return(&clusterModels.Cluster{ExtId: ptr.To(pe1)}, nil)
-		client.MockSubnets.EXPECT().Get(gomock.Any(), subnet0).Return(&subnetModels.Subnet{
-			ExtId: ptr.To(subnet0), Name: ptr.To("Vlan-041-site-01"), SubnetType: &vlan, NetworkId: ptr.To(41), IpPrefix: ptr.To("10.0.0.0/24"),
-		}, nil)
-		client.MockSubnets.EXPECT().Get(gomock.Any(), subnet1).Return(&subnetModels.Subnet{
-			ExtId: ptr.To(subnet1), Name: ptr.To("Vlan-100-site-02"), SubnetType: &vlan, NetworkId: ptr.To(100), IpPrefix: ptr.To("10.0.1.0/24"),
-		}, nil)
-
-		match, machineKeys, fdKeys, err := metroSubnetsMatch(ctx, client.Client, subnet1ID, subnet0ID, pe1ID, pe0ID)
-		require.NoError(t, err)
-		assert.False(t, match)
-		assert.Equal(t, []string{"VLAN|100|10.0.1.0/24"}, machineKeys)
-		assert.Equal(t, []string{"VLAN|41|10.0.0.0/24"}, fdKeys)
-	})
-}
-
-func TestCreateDataDiskList(t *testing.T) {
-	expectedStorageContainers := []clusterModels.StorageContainer{
-		{
-			ContainerExtId: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
-			ClusterExtId:   ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
-		},
-	}
-
-	tests := []struct {
-		name             string
-		convergedBuilder func() *v4Converged.Client
-		dataDiskSpecs    []infrav1.NutanixMachineVMDisk
-		peUUID           string
-		wantDisks        func() []vmmModels.Disk
-		wantCdRoms       func() []vmmModels.CdRom
-		wantErr          bool
-		errorMessage     string
-	}{
-		{
-			name: "successful data disk creation without image reference",
-			convergedBuilder: func() *v4Converged.Client {
-				convergedClient := NewMockConvergedClient(gomock.NewController(t))
-				convergedClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(expectedStorageContainers, nil)
-				return convergedClient.Client
-			},
-			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
-				{
-					DiskSize: resource.MustParse("20Gi"),
-					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
-						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
-						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
-					},
-					StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
-						DiskMode: infrav1.NutanixMachineDiskModeStandard,
-						StorageContainer: &infrav1.NutanixResourceIdentifier{
-							UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
-							Type: infrav1.NutanixIdentifierUUID,
-						},
-					},
-				},
-			},
-			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
-			wantDisks: func() []vmmModels.Disk {
-				disk := vmmModels.NewDisk()
-				disk.DiskAddress = vmmModels.NewDiskAddress()
-				disk.DiskAddress.Index = ptr.To(1)
-				disk.DiskAddress.BusType = vmmModels.DISKBUSTYPE_SCSI.Ref()
-
-				vmDisk := vmmModels.NewVmDisk()
-				vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
-				vmDisk.StorageConfig = vmmModels.NewVmDiskStorageConfig()
-				vmDisk.StorageConfig.IsFlashModeEnabled = ptr.To(false)
-				vmDisk.StorageContainer = vmmModels.NewVmDiskContainerReference()
-				vmDisk.StorageContainer.ExtId = ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91")
-				_ = disk.SetBackingInfo(*vmDisk)
-
-				return []vmmModels.Disk{*disk}
-			},
-			wantCdRoms: func() []vmmModels.CdRom { return []vmmModels.CdRom{} },
-			wantErr:    false,
-		},
-		{
-			name: "successful data disk creation with image reference",
-			convergedBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				expectedImage := &imageModels.Image{
-					ExtId: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
-					Name:  ptr.To("data-image"),
-				}
-				convergedClient.MockImages.EXPECT().Get(gomock.Any(), "f47ac10b-58cc-4372-a567-0e02b2c3d479").Return(expectedImage, nil)
-				convergedClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(expectedStorageContainers, nil)
-				return convergedClient.Client
-			},
-			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
-				{
-					DiskSize: resource.MustParse("20Gi"),
-					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
-						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
-						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
-					},
-					DataSource: &infrav1.NutanixResourceIdentifier{
-						UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
-						Type: infrav1.NutanixIdentifierUUID,
-					},
-					StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
-						DiskMode: infrav1.NutanixMachineDiskModeStandard,
-						StorageContainer: &infrav1.NutanixResourceIdentifier{
-							UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
-							Type: infrav1.NutanixIdentifierUUID,
-						},
-					},
-				},
-			},
-			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
-			wantDisks: func() []vmmModels.Disk {
-				disk := vmmModels.NewDisk()
-				disk.DiskAddress = vmmModels.NewDiskAddress()
-				disk.DiskAddress.Index = ptr.To(1)
-				disk.DiskAddress.BusType = vmmModels.DISKBUSTYPE_SCSI.Ref()
-
-				vmDisk := vmmModels.NewVmDisk()
-				vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
-
-				imageRef := vmmModels.NewImageReference()
-				imageRef.ImageExtId = ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479")
-				vmDisk.DataSource = vmmModels.NewDataSource()
-				_ = vmDisk.DataSource.SetReference(*imageRef)
-				vmDisk.DataSource.ReferenceItemDiscriminator_ = nil
-
-				vmDisk.StorageConfig = vmmModels.NewVmDiskStorageConfig()
-				vmDisk.StorageConfig.IsFlashModeEnabled = ptr.To(false)
-
-				vmDisk.StorageContainer = vmmModels.NewVmDiskContainerReference()
-				vmDisk.StorageContainer.ExtId = ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91")
-				_ = disk.SetBackingInfo(*vmDisk)
-
-				return []vmmModels.Disk{*disk}
-			},
-			wantCdRoms: func() []vmmModels.CdRom { return []vmmModels.CdRom{} },
-			wantErr:    false,
-		},
-		{
-			name: "failed image lookup for data source",
-			convergedBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().Get(gomock.Any(), "f47ac10b-58cc-4372-a567-0e02b2c3d479").Return(nil, errors.New("image not found"))
-				return convergedClient.Client
-			},
-			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
-				{
-					DiskSize: resource.MustParse("20Gi"),
-					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
-						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
-						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
-					},
-					DataSource: &infrav1.NutanixResourceIdentifier{
-						UUID: ptr.To("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
-						Type: infrav1.NutanixIdentifierUUID,
-					},
-				},
-			},
-			peUUID:       "00062e56-b9ac-7253-1946-7cc25586eeee",
-			wantDisks:    func() []vmmModels.Disk { return nil },
-			wantCdRoms:   func() []vmmModels.CdRom { return nil },
-			wantErr:      true,
-			errorMessage: "image not found",
-		},
-		{
-			name: "multiple data disks with different adapter types",
-			convergedBuilder: func() *v4Converged.Client {
-				convergedClient := NewMockConvergedClient(gomock.NewController(t))
-				return convergedClient.Client
-			},
-			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
-				{
-					DiskSize: resource.MustParse("20Gi"),
-					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
-						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
-						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
-					},
-				},
-				{
-					DiskSize: resource.MustParse("30Gi"),
-					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
-						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
-						AdapterType: infrav1.NutanixMachineDiskAdapterTypeIDE,
-					},
-				},
-			},
-			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
-			wantDisks: func() []vmmModels.Disk {
-				disk1 := vmmModels.NewDisk()
-				disk1.DiskAddress = vmmModels.NewDiskAddress()
-				disk1.DiskAddress.Index = ptr.To(1)
-				disk1.DiskAddress.BusType = vmmModels.DISKBUSTYPE_SCSI.Ref()
-
-				vmDisk1 := vmmModels.NewVmDisk()
-				vmDisk1.DiskSizeBytes = ptr.To(int64(21474836480))
-				_ = disk1.SetBackingInfo(*vmDisk1)
-
-				disk2 := vmmModels.NewDisk()
-				disk2.DiskAddress = vmmModels.NewDiskAddress()
-				disk2.DiskAddress.Index = ptr.To(1)
-				disk2.DiskAddress.BusType = vmmModels.DISKBUSTYPE_IDE.Ref()
-
-				vmDisk2 := vmmModels.NewVmDisk()
-				vmDisk2.DiskSizeBytes = ptr.To(int64(32212254720))
-				_ = disk2.SetBackingInfo(*vmDisk2)
-				return []vmmModels.Disk{*disk1, *disk2}
-			},
-			wantCdRoms: func() []vmmModels.CdRom { return []vmmModels.CdRom{} },
-			wantErr:    false,
-		},
-		{
-			name: "data disk with flash mode enabled",
-			convergedBuilder: func() *v4Converged.Client {
-				convergedClient := NewMockConvergedClient(gomock.NewController(t))
-				convergedClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(expectedStorageContainers, nil)
-				return convergedClient.Client
-			},
-			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
-				{
-					DiskSize: resource.MustParse("20Gi"),
-					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
-						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
-						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
-					},
-					StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
-						DiskMode: infrav1.NutanixMachineDiskModeFlash,
-						StorageContainer: &infrav1.NutanixResourceIdentifier{
-							UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
-							Type: infrav1.NutanixIdentifierUUID,
-						},
-					},
-				},
-			},
-			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
-			wantDisks: func() []vmmModels.Disk {
-				disk := vmmModels.NewDisk()
-				disk.DiskAddress = vmmModels.NewDiskAddress()
-				disk.DiskAddress.Index = ptr.To(1)
-				disk.DiskAddress.BusType = vmmModels.DISKBUSTYPE_SCSI.Ref()
-
-				vmDisk := vmmModels.NewVmDisk()
-				vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
-
-				vmDisk.StorageConfig = vmmModels.NewVmDiskStorageConfig()
-				vmDisk.StorageConfig.IsFlashModeEnabled = ptr.To(true)
-
-				vmDisk.StorageContainer = vmmModels.NewVmDiskContainerReference()
-				vmDisk.StorageContainer.ExtId = ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91")
-				_ = disk.SetBackingInfo(*vmDisk)
-
-				return []vmmModels.Disk{*disk}
-			},
-			wantCdRoms: func() []vmmModels.CdRom { return []vmmModels.CdRom{} },
-			wantErr:    false,
-		},
-		{
-			name: "data disk with custom device index",
-			convergedBuilder: func() *v4Converged.Client {
-				convergedClient := NewMockConvergedClient(gomock.NewController(t))
-				return convergedClient.Client
-			},
-			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
-				{
-					DiskSize: resource.MustParse("20Gi"),
-					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
-						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
-						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
-						DeviceIndex: 5,
-					},
-				},
-			},
-			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
-			wantDisks: func() []vmmModels.Disk {
-				disk := vmmModels.NewDisk()
-				disk.DiskAddress = vmmModels.NewDiskAddress()
-				disk.DiskAddress.Index = ptr.To(5)
-				disk.DiskAddress.BusType = vmmModels.DISKBUSTYPE_SCSI.Ref()
-
-				vmDisk := vmmModels.NewVmDisk()
-				vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
-				_ = disk.SetBackingInfo(*vmDisk)
-
-				return []vmmModels.Disk{*disk}
-			},
-			wantCdRoms: func() []vmmModels.CdRom { return []vmmModels.CdRom{} },
-			wantErr:    false,
-		},
-		{
-			name: "data disk with CDRom device type",
-			convergedBuilder: func() *v4Converged.Client {
-				convergedClient := NewMockConvergedClient(gomock.NewController(t))
-				return convergedClient.Client
-			},
-			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
-				{
-					DiskSize: resource.MustParse("1Gi"),
-					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
-						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeCDRom,
-						AdapterType: infrav1.NutanixMachineDiskAdapterTypeIDE,
-					},
-				},
-			},
-			peUUID:    "00062e56-b9ac-7253-1946-7cc25586eeee",
-			wantDisks: func() []vmmModels.Disk { return []vmmModels.Disk{} },
-			wantCdRoms: func() []vmmModels.CdRom {
-				cdRom := vmmModels.NewCdRom()
-				cdRom.DiskAddress = vmmModels.NewCdRomAddress()
-				cdRom.DiskAddress.Index = ptr.To(1)
-				cdRom.DiskAddress.BusType = vmmModels.CDROMBUSTYPE_IDE.Ref()
-
-				vmDisk := vmmModels.NewVmDisk()
-				vmDisk.DiskSizeBytes = ptr.To(int64(1073741824))
-				cdRom.BackingInfo = vmDisk
-
-				return []vmmModels.CdRom{*cdRom}
-			},
-			wantErr: false,
-		},
-		{
-			name: "data disk with default values when no device properties provided",
-			convergedBuilder: func() *v4Converged.Client {
-				convergedClient := NewMockConvergedClient(gomock.NewController(t))
-				return convergedClient.Client
-			},
-			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
-				{
-					DiskSize: resource.MustParse("20Gi"),
-					// No DeviceProperties provided - should use defaults
-				},
-			},
-			peUUID: "00062e56-b9ac-7253-1946-7cc25586eeee",
-			wantDisks: func() []vmmModels.Disk {
-				disk := vmmModels.NewDisk()
-				disk.DiskAddress = vmmModels.NewDiskAddress()
-				disk.DiskAddress.Index = ptr.To(1)
-				disk.DiskAddress.BusType = vmmModels.DISKBUSTYPE_SCSI.Ref()
-
-				vmDisk := vmmModels.NewVmDisk()
-				vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
-				_ = disk.SetBackingInfo(*vmDisk)
-
-				return []vmmModels.Disk{*disk}
-			},
-			wantCdRoms: func() []vmmModels.CdRom { return []vmmModels.CdRom{} },
-			wantErr:    false,
-		},
-		{
-			name: "data disk with storage container lookup failure",
-			convergedBuilder: func() *v4Converged.Client {
-				convergedClient := NewMockConvergedClient(gomock.NewController(t))
-				convergedClient.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("fake error"))
-				return convergedClient.Client
-			},
-			dataDiskSpecs: []infrav1.NutanixMachineVMDisk{
-				{
-					DiskSize: resource.MustParse("20Gi"),
-					DeviceProperties: &infrav1.NutanixMachineVMDiskDeviceProperties{
-						DeviceType:  infrav1.NutanixMachineDiskDeviceTypeDisk,
-						AdapterType: infrav1.NutanixMachineDiskAdapterTypeSCSI,
-					},
-					StorageConfig: &infrav1.NutanixMachineVMStorageConfig{
-						DiskMode: infrav1.NutanixMachineDiskModeStandard,
-						StorageContainer: &infrav1.NutanixResourceIdentifier{
-							UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
-							Type: infrav1.NutanixIdentifierUUID,
-						},
-					},
-				},
-			},
-			peUUID:       "00062e56-b9ac-7253-1946-7cc25586eeee",
-			wantDisks:    func() []vmmModels.Disk { return nil },
-			wantCdRoms:   func() []vmmModels.CdRom { return nil },
-			wantErr:      true,
-			errorMessage: "fake error",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Log("Running test case ", tt.name)
-			ctx := context.Background()
-			disks, cdRoms, err := CreateDataDiskList(
-				ctx,
-				tt.convergedBuilder(),
-				tt.dataDiskSpecs,
-				tt.peUUID,
-				nil,
-				"",
-				nil,
-			)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("CreateDataDiskList() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(disks, tt.wantDisks()) {
-				t.Errorf("CreateDataDiskList() = %v, want %v", disks, tt.wantDisks())
-			}
-			if !reflect.DeepEqual(cdRoms, tt.wantCdRoms()) {
-				t.Errorf("CreateDataDiskList() = %v, want %v", cdRoms, tt.wantCdRoms())
-			}
-			if tt.errorMessage != "" && err != nil {
-				if !strings.Contains(err.Error(), tt.errorMessage) {
-					t.Errorf("CreateDataDiskList() error message = %v, want to contain %v", err.Error(), tt.errorMessage)
-				}
-			}
-		})
-	}
-}
-
-func TestGetImageByLookup(t *testing.T) {
-	tests := []struct {
-		name          string
-		clientBuilder func() *v4Converged.Client
-		baseOS        string
-		imageTemplate string
-		k8sVersion    string
-		want          *imageModels.Image
-		wantErr       bool
-		errorMessage  string
-	}{
-		{
-			name: "successful image lookup with v prefix",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]imageModels.Image{
-						{
-							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-							Name:  ptr.To("capx-ubuntu-1.31.4"),
-						},
-					}, nil,
-				)
-				return convergedClient.Client
-			},
-			baseOS:        "ubuntu",
-			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
-			k8sVersion:    "v1.31.4",
-			want: &imageModels.Image{
-				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-				Name:  ptr.To("capx-ubuntu-1.31.4"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "successful image lookup without v prefix",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]imageModels.Image{
-						{
-							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-							Name:  ptr.To("capx-ubuntu-1.31.4"),
-						},
-					}, nil,
-				)
-				return convergedClient.Client
-			},
-			baseOS:        "ubuntu",
-			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
-			k8sVersion:    "1.31.4",
-			want: &imageModels.Image{
-				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-				Name:  ptr.To("capx-ubuntu-1.31.4"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "successful image lookup with complex template",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]imageModels.Image{
-						{
-							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-							Name:  ptr.To("k8s-ubuntu-20.04-1.31.4"),
-						},
-					}, nil,
-				)
-				return convergedClient.Client
-			},
-			baseOS:        "ubuntu-20.04",
-			imageTemplate: "k8s-{{.BaseOS}}-{{.K8sVersion}}",
-			k8sVersion:    "v1.31.4",
-			want: &imageModels.Image{
-				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-				Name:  ptr.To("k8s-ubuntu-20.04-1.31.4"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "failed template parsing with invalid field",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				return convergedClient.Client
-			},
-			baseOS:        "ubuntu",
-			imageTemplate: "invalid-template-{{.InvalidField}}",
-			k8sVersion:    "v1.31.4",
-			want:          nil,
-			wantErr:       true,
-			errorMessage:  "failed to substitute string",
-		},
-		{
-			name: "failed template parsing with malformed template",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				return convergedClient.Client
-			},
-			baseOS:        "ubuntu",
-			imageTemplate: "invalid-template-{{.BaseOS",
-			k8sVersion:    "v1.31.4",
-			want:          nil,
-			wantErr:       true,
-			errorMessage:  "failed to parse template",
-		},
-		{
-			name: "failed template execution with invalid data",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				return convergedClient.Client
-			},
-			baseOS:        "ubuntu",
-			imageTemplate: "{{.BaseOS}}-{{.K8sVersion}}-{{.NonExistentField}}",
-			k8sVersion:    "v1.31.4",
-			want:          nil,
-			wantErr:       true,
-			errorMessage:  "failed to substitute string",
-		},
-		{
-			name: "client list images fails",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("API error"))
-				return convergedClient.Client
-			},
-			baseOS:        "ubuntu",
-			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
-			k8sVersion:    "v1.31.4",
-			want:          nil,
-			wantErr:       true,
-			errorMessage:  "API error",
-		},
-		{
-			name: "no matching image found",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]imageModels.Image{}, nil,
-				)
-				return convergedClient.Client
-			},
-			baseOS:        "ubuntu",
-			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
-			k8sVersion:    "v1.31.4",
-			want:          nil,
-			wantErr:       true,
-			errorMessage:  "failed to find image with filter",
-		},
-		{
-			name: "multiple images, return latest by creation time",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]imageModels.Image{
-						{
-							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-							Name:       ptr.To("capx-ubuntu-1.31.4"),
-							CreateTime: ptr.To(time.Date(2023, 10, 1, 0, 0, 0, 0, time.UTC)),
-						},
-						{
-							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c6"),
-							Name:       ptr.To("capx-ubuntu-1.31.4"),
-							CreateTime: ptr.To(time.Date(2023, 10, 2, 0, 0, 0, 0, time.UTC)),
-						},
-						{
-							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c7"),
-							Name:       ptr.To("capx-ubuntu-1.31.4"),
-							CreateTime: ptr.To(time.Date(2023, 10, 3, 0, 0, 0, 0, time.UTC)),
-						},
-					}, nil,
-				)
-				return convergedClient.Client
-			},
-			baseOS:        "ubuntu",
-			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
-			k8sVersion:    "v1.31.4",
-			want: &imageModels.Image{
-				ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c7"),
-				Name:       ptr.To("capx-ubuntu-1.31.4"),
-				CreateTime: ptr.To(time.Date(2023, 10, 3, 0, 0, 0, 0, time.UTC)),
-			},
-			wantErr: false,
-		},
-		{
-			name: "multiple images with nil creation times, prioritize non-nil",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]imageModels.Image{
-						{
-							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-							Name:       ptr.To("capx-ubuntu-1.31.4"),
-							CreateTime: nil,
-						},
-						{
-							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c6"),
-							Name:       ptr.To("capx-ubuntu-1.31.4"),
-							CreateTime: ptr.To(time.Date(2023, 10, 2, 0, 0, 0, 0, time.UTC)),
-						},
-						{
-							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c7"),
-							Name:       ptr.To("capx-ubuntu-1.31.4"),
-							CreateTime: nil,
-						},
-					}, nil,
-				)
-				return convergedClient.Client
-			},
-			baseOS:        "ubuntu",
-			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
-			k8sVersion:    "v1.31.4",
-			want: &imageModels.Image{
-				ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c6"),
-				Name:       ptr.To("capx-ubuntu-1.31.4"),
-				CreateTime: ptr.To(time.Date(2023, 10, 2, 0, 0, 0, 0, time.UTC)),
-			},
-			wantErr: false,
-		},
-		{
-			name: "multiple images with all nil creation times, return first",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]imageModels.Image{
-						{
-							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-							Name:       ptr.To("capx-ubuntu-1.31.4"),
-							CreateTime: nil,
-						},
-						{
-							ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c6"),
-							Name:       ptr.To("capx-ubuntu-1.31.4"),
-							CreateTime: nil,
-						},
-					}, nil,
-				)
-				return convergedClient.Client
-			},
-			baseOS:        "ubuntu",
-			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
-			k8sVersion:    "v1.31.4",
-			want: &imageModels.Image{
-				ExtId:      ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-				Name:       ptr.To("capx-ubuntu-1.31.4"),
-				CreateTime: nil,
-			},
-			wantErr: false,
-		},
-		{
-			name: "k8s version with multiple v prefixes",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]imageModels.Image{
-						{
-							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-							Name:  ptr.To("capx-ubuntu-v1.31.4"),
-						},
-					}, nil,
-				)
-				return convergedClient.Client
-			},
-			baseOS:        "ubuntu",
-			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
-			k8sVersion:    "vv1.31.4",
-			want: &imageModels.Image{
-				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-				Name:  ptr.To("capx-ubuntu-v1.31.4"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "k8s version with v in the middle",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]imageModels.Image{
-						{
-							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-							Name:  ptr.To("capx-ubuntu-1.31.4"),
-						},
-					}, nil,
-				)
-				return convergedClient.Client
-			},
-			baseOS:        "ubuntu",
-			imageTemplate: "capx-{{.BaseOS}}-{{.K8sVersion}}",
-			k8sVersion:    "1.v31.4",
-			want: &imageModels.Image{
-				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-				Name:  ptr.To("capx-ubuntu-1.31.4"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "template with special characters",
-			clientBuilder: func() *v4Converged.Client {
-				mockctrl := gomock.NewController(t)
-				convergedClient := NewMockConvergedClient(mockctrl)
-				convergedClient.MockImages.EXPECT().List(gomock.Any(), gomock.Any()).Return(
-					[]imageModels.Image{
-						{
-							ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-							Name:  ptr.To("k8s-ubuntu-20.04-1.31.4"),
-						},
-					}, nil,
-				)
-				return convergedClient.Client
-			},
-			baseOS:        "ubuntu-20.04",
-			imageTemplate: "k8s-{{.BaseOS}}-{{.K8sVersion}}",
-			k8sVersion:    "v1.31.4",
-			want: &imageModels.Image{
-				ExtId: ptr.To("32432daf-fb0e-4202-b444-2439f43a24c5"),
-				Name:  ptr.To("k8s-ubuntu-20.04-1.31.4"),
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Log("Running test case ", tt.name)
-			ctx := context.Background()
-			got, err := GetImageByLookup(
-				ctx,
-				tt.clientBuilder(),
-				&tt.imageTemplate,
-				&tt.baseOS,
-				&tt.k8sVersion,
-				nil,
-				"",
-			)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetImageByLookup() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GetImageByLookup() = %v, want %v", got, tt.want)
-			}
-			if tt.errorMessage != "" && err != nil {
-				if !strings.Contains(err.Error(), tt.errorMessage) {
-					t.Errorf("GetImageByLookup() error message = %v, want to contain %v", err.Error(), tt.errorMessage)
-				}
-			}
-		})
-	}
-}
-
-func TestGetDefaultCAPICategoryIdentifiers(t *testing.T) {
-	clusterName := "my-cluster"
-	ids := GetDefaultCAPICategoryIdentifiers(clusterName)
-	require.Len(t, ids, 1)
-	require.NotNil(t, ids[0])
-	assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, ids[0].Key)
-	assert.Equal(t, clusterName, ids[0].Value)
-}
-
-func TestGetObsoleteDefaultCAPICategoryIdentifiers(t *testing.T) {
-	clusterName := "my-cluster"
-	ids := GetObsoleteDefaultCAPICategoryIdentifiers(clusterName)
-	require.Len(t, ids, 1)
-	require.NotNil(t, ids[0])
-	assert.Equal(t, infrav1.ObsoleteDefaultCAPICategoryPrefix+clusterName, ids[0].Key)
-	assert.Equal(t, infrav1.ObsoleteDefaultCAPICategoryOwnedValue, ids[0].Value)
-}
-
-func TestGetOrCreateCategories_Existing(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-	mockClient := NewMockConvergedClient(ctrl)
-
-	ids := []*infrav1.NutanixCategoryIdentifier{{
-		Key:   infrav1.DefaultCAPICategoryKeyForName,
-		Value: "my-cluster",
-	}}
-
-	// Category already exists → List returns non-empty; Create should not be called
-	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{}}, nil)
-
-	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
-	require.NoError(t, err)
-	require.Len(t, got, 1)
-}
-
-func TestGetOrCreateCategories_Create(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-	mockClient := NewMockConvergedClient(ctrl)
-
-	ids := []*infrav1.NutanixCategoryIdentifier{{
-		Key:   infrav1.DefaultCAPICategoryKeyForName,
-		Value: "my-cluster",
-	}}
-
-	// Not found first → Create called with expected description
-	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
-	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
-			assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, *in.Key)
-			assert.Equal(t, "my-cluster", *in.Value)
-			assert.Equal(t, infrav1.DefaultCAPICategoryDescription, *in.Description)
-			return in, nil
-		},
-	)
-
-	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
-	require.NoError(t, err)
-	require.Len(t, got, 1)
-}
-
-func TestGetOrCreateCategoriesForProject_CreateWhenExistingCategoryIsInDifferentProject(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-	mockClient := NewMockConvergedClient(ctrl)
-	defaultProjectExtID := "default-project"
-	targetProjectExtID := "target-project"
-	defaultCategoryExtID := "default-category"
-	targetCategoryExtID := "target-category"
-	ids := []*infrav1.NutanixCategoryIdentifier{{
-		Key:   infrav1.DefaultCAPICategoryKeyForName,
-		Value: "my-cluster",
-	}}
-
-	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{
-		ExtId:        ptr.To(defaultCategoryExtID),
-		Key:          ptr.To(infrav1.DefaultCAPICategoryKeyForName),
-		Value:        ptr.To("my-cluster"),
-		ProjectExtId: ptr.To(defaultProjectExtID),
-	}}, nil)
-	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
-			require.NotNil(t, in.ProjectExtId)
-			assert.Equal(t, targetProjectExtID, *in.ProjectExtId)
-			in.ExtId = ptr.To(targetCategoryExtID)
-			return in, nil
-		},
-	)
-
-	got, err := GetOrCreateCategoriesForProject(ctx, mockClient.Client, ids, ptr.To(targetProjectExtID))
-	require.NoError(t, err)
-	require.Len(t, got, 1)
-	assert.Equal(t, targetCategoryExtID, *got[0].ExtId)
-}
-
-func TestGetOrCreateCategories_DoesNotSetProjectWhenUnscoped(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-	mockClient := NewMockConvergedClient(ctrl)
-	createdCategoryExtID := "created-category"
-	ids := []*infrav1.NutanixCategoryIdentifier{{
-		Key:   infrav1.DefaultCAPICategoryKeyForName,
-		Value: "my-cluster",
-	}}
-
-	// No matching category exists yet → Create is invoked.
-	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
-	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
-			// Without a project in scope the category must be created without a project.
-			// This is the path callers use on PC < 7.6, where project-scoped categories
-			// do not exist (the caller passes a nil project).
-			assert.Nil(t, in.ProjectExtId)
-			in.ExtId = ptr.To(createdCategoryExtID)
-			return in, nil
-		},
-	)
-
-	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
-	require.NoError(t, err)
-	require.Len(t, got, 1)
-	assert.Equal(t, createdCategoryExtID, *got[0].ExtId)
-}
-
-func TestExistingCategoryExtID(t *testing.T) {
-	extID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-	got, ok, err := existingCategoryExtID(fmt.Errorf("400 InvalidArgument: Operation failed as a category with the provided key and value already exists with extId: %s", extID))
-	require.NoError(t, err)
-	assert.True(t, ok)
-	assert.Equal(t, extID, got)
-
-	got, ok, err = existingCategoryExtID(errors.New("category with the provided key and value already exists"))
-	require.NoError(t, err)
-	assert.True(t, ok)
-	assert.Empty(t, got)
-
-	_, ok, err = existingCategoryExtID(errors.New("prism unavailable"))
-	require.NoError(t, err)
-	assert.False(t, ok)
-	_, ok, err = existingCategoryExtID(nil)
-	require.NoError(t, err)
-	assert.False(t, ok)
-}
-
-func TestGetOrCreateCategories_CreateAlreadyExists(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-	mockClient := NewMockConvergedClient(ctrl)
-	existingCategoryExtID := "existing-category"
-	ids := []*infrav1.NutanixCategoryIdentifier{{
-		Key:   infrav1.DefaultCAPICategoryKeyForName,
-		Value: "my-cluster",
-	}}
-
-	// List misses the category (for example a concurrent create). Create then fails
-	// with Prism's already-exists error, which carries the existing extId and no body.
-	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
-	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
-			assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, *in.Key)
-			assert.Equal(t, "my-cluster", *in.Value)
-			assert.Nil(t, in.ProjectExtId)
-			return nil, fmt.Errorf("400 InvalidArgument: Operation failed as a category with the provided key and value already exists with extId: %s", existingCategoryExtID)
-		},
-	)
-
-	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
-	require.NoError(t, err)
-	require.Len(t, got, 1)
-	require.NotNil(t, got[0])
-	assert.Equal(t, existingCategoryExtID, *got[0].ExtId)
-	assert.Equal(t, infrav1.DefaultCAPICategoryKeyForName, *got[0].Key)
-	assert.Equal(t, "my-cluster", *got[0].Value)
-}
-
-func TestGetOrCreateCategoriesForProject_CreateAlreadyExists(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-	mockClient := NewMockConvergedClient(ctrl)
-	targetProjectExtID := "target-project"
-	existingCategoryExtID := "existing-project-category"
-	ids := []*infrav1.NutanixCategoryIdentifier{{
-		Key:   infrav1.DefaultCAPICategoryKeyForName,
-		Value: "my-cluster",
-	}}
-
-	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
-	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).DoAndReturn(
-		func(_ context.Context, in *prismModels.Category) (*prismModels.Category, error) {
-			require.NotNil(t, in.ProjectExtId)
-			assert.Equal(t, targetProjectExtID, *in.ProjectExtId)
-			return nil, errors.New("400 InvalidArgument: Operation failed as a category with the provided key and value already exists with extId: " + existingCategoryExtID)
-		},
-	)
-
-	got, err := GetOrCreateCategoriesForProject(ctx, mockClient.Client, ids, ptr.To(targetProjectExtID))
-	require.NoError(t, err)
-	require.Len(t, got, 1)
-	require.NotNil(t, got[0])
-	assert.Equal(t, existingCategoryExtID, *got[0].ExtId)
-	assert.Equal(t, targetProjectExtID, *got[0].ProjectExtId)
-}
-
-func TestGetOrCreateCategories_CreateFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-	mockClient := NewMockConvergedClient(ctrl)
-	ids := []*infrav1.NutanixCategoryIdentifier{{
-		Key:   infrav1.DefaultCAPICategoryKeyForName,
-		Value: "my-cluster",
-	}}
-
-	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
-	mockClient.MockCategories.EXPECT().Create(ctx, gomock.Any()).Return(nil, errors.New("prism unavailable"))
-
-	got, err := GetOrCreateCategories(ctx, mockClient.Client, ids)
-	require.Error(t, err)
-	assert.Empty(t, got)
-	assert.Contains(t, err.Error(), "failed to create category with key")
-	assert.Contains(t, err.Error(), "prism unavailable")
-}
-
-func TestGetPrismReferencesOfCategoryIdentifiersForProject_UsesSharedCategory(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-	mockClient := NewMockConvergedClient(ctrl)
-	targetProjectExtID := "target-project"
-	categoryExtID := "shared-category"
-	ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
-
-	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{{
-		ExtId:                   ptr.To(categoryExtID),
-		Key:                     ptr.To("k"),
-		Value:                   ptr.To("v"),
-		IsSharedWithAllProjects: ptr.To(true),
-	}}, nil)
-
-	got, err := GetPrismReferencesOfCategoryIdentifiersForProject(ctx, mockClient.Client, ids, ptr.To(targetProjectExtID))
-	require.NoError(t, err)
-	require.Len(t, got, 1)
-	assert.Equal(t, categoryExtID, *got[0].ExtId)
-}
-
-func TestGetPrismReferencesOfCategoryIdentifiersForProject_ReturnsNotFoundWithoutCreating(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-	mockClient := NewMockConvergedClient(ctrl)
-	targetProjectExtID := "target-project"
-	ids := []*infrav1.NutanixCategoryIdentifier{{Key: "missing-key", Value: "missing-value"}}
-
-	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
-
-	got, err := GetPrismReferencesOfCategoryIdentifiersForProject(ctx, mockClient.Client, ids, ptr.To(targetProjectExtID))
-	require.Error(t, err)
-	assert.Nil(t, got)
-	assert.Contains(t, err.Error(), "category value missing-value not found in category missing-key")
-}
-
-func TestGetStorageContainerInCluster(t *testing.T) {
-	storageContainers := []clusterModels.StorageContainer{
-		{
-			ClusterName:    ptr.To("pe_cluster"),
-			ClusterExtId:   ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
-			Name:           ptr.To("SelfServiceContainer"),
-			ContainerExtId: ptr.To("2a61b02a-54a6-475e-93b9-5efc895b48e3"),
-		},
-	}
-
-	mockctl := gomock.NewController(t)
-	defer mockctl.Finish()
-
-	tests := []struct {
-		name               string
-		mockBuilder        func() *v4Converged.Client
-		rg                 *projectModels.ResourceGroup
-		storageContainerId infrav1.NutanixResourceIdentifier
-		clusterId          infrav1.NutanixResourceIdentifier
-		want               *clusterModels.StorageContainer
-		wantErr            bool
-		errorMessage       string
-		assertNotFound     bool
-	}{
-		{
-			name: "GetStorageContainerInCluster succeeds with ID UUID",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				mockClientWrapper.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(storageContainers, nil)
-				return mockClientWrapper.Client
-			},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("2a61b02a-54a6-475e-93b9-5efc895b48e3"),
-			},
-			want:         &storageContainers[0],
-			wantErr:      false,
-			errorMessage: "",
-		},
-		{
-			name: "GetStorageContainerInCluster succeeds with ID Name",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				mockClientWrapper.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(storageContainers, nil)
-				return mockClientWrapper.Client
-			},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("SelfServiceContainer"),
-			},
-			want:         &storageContainers[0],
-			wantErr:      false,
-			errorMessage: "",
-		},
-		{
-			name: "GetStorageContainerInCluster succeeds with ID UUID and cluster name",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				mockClientWrapper.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(storageContainers, nil)
-				return mockClientWrapper.Client
-			},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("pe_cluster"),
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("2a61b02a-54a6-475e-93b9-5efc895b48e3"),
-			},
-			want:         &storageContainers[0],
-			wantErr:      false,
-			errorMessage: "",
-		},
-		{
-			name: "GetStorageContainerInCluster succeeds with ID Name and cluster name",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				mockClientWrapper.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(storageContainers, nil)
-				return mockClientWrapper.Client
-			},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("pe_cluster"),
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("SelfServiceContainer"),
-			},
-			want:         &storageContainers[0],
-			wantErr:      false,
-			errorMessage: "",
-		},
-		{
-			name: "GetStorageContainerInCluster returns classified not found when no containers match",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				mockClientWrapper.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return([]clusterModels.StorageContainer{}, nil)
-				return mockClientWrapper.Client
-			},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("2a61b02a-54a6-475e-93b9-5efc895b48e3"),
-			},
-			want:           nil,
-			wantErr:        true,
-			errorMessage:   "found no storage container using filter",
-			assertNotFound: true,
-		},
-		{
-			name: "GetStorageContainerInCluster fails",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				mockClientWrapper.MockStorageContainers.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("fake error"))
-				return mockClientWrapper.Client
-			},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("2a61b02a-54a6-475e-93b9-5efc895b48e3"),
-			},
-			want:         nil,
-			wantErr:      true,
-			errorMessage: "fake error",
-		},
-		{
-			name: "GetStorageContainerInCluster fails with wrong cluster and storage container identifier type",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				return mockClientWrapper.Client
-			},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: "qweqweqwe",
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: "qweqweqwe",
-			},
-			want:         nil,
-			wantErr:      true,
-			errorMessage: "storage container identifier is missing both name and uuid",
-		},
-		{
-			name: "GetStorageContainerInCluster fails with wrong cluster identifier type and storage container ID UUID",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				return mockClientWrapper.Client
-			},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: "qweqweqwe",
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("06b1ce03-f384-4488-9ba1-ae17ebcf1f91"),
-			},
-			want:         nil,
-			wantErr:      true,
-			errorMessage: "cluster identifier is missing both name and uuid",
-		},
-		{
-			name: "GetStorageContainerInCluster fails with wrong cluster identifier type and storage container ID Name",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				return mockClientWrapper.Client
-			},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: "qweqweqwe",
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("SelfServiceContainer"),
-			},
-			want:         nil,
-			wantErr:      true,
-			errorMessage: "cluster identifier is missing both name and uuid",
-		},
-		{
-			name: "GetStorageContainerInCluster fails with wrong storage container identifier type and cluster ID UUID",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				return mockClientWrapper.Client
-			},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: "qweqweqwe",
-			},
-			want:         nil,
-			wantErr:      true,
-			errorMessage: "storage container identifier is missing both name and uuid",
-		},
-		{
-			name: "GetStorageContainerInCluster fails with wrong storage container identifier type and cluster ID Name",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				return mockClientWrapper.Client
-			},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: "qweqweqwe",
-			},
-			want:         nil,
-			wantErr:      true,
-			errorMessage: "storage container identifier is missing both name and uuid",
-		},
-		{
-			name: "GetStorageContainerInCluster succeeds via resource group with SC UUID and PE UUID",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				mockClientWrapper.MockResourceGroups.EXPECT().ListStorageContainers(gomock.Any(), "rg-uuid").Return(
-					[]converged.StorageContainerInfo{
-						{
-							ExtId: "2a61b02a-54a6-475e-93b9-5efc895b48e3",
-							Name:  "SelfServiceContainer",
-							PrismElement: converged.PrismElementInfo{
-								ExtId: "00062e56-b9ac-7253-1946-7cc25586eeee",
-								Name:  "pe_cluster",
-							},
-						},
-					}, nil)
-				return mockClientWrapper.Client
-			},
-			rg: &projectModels.ResourceGroup{ExtId: ptr.To("rg-uuid")},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("2a61b02a-54a6-475e-93b9-5efc895b48e3"),
-			},
-			want: &clusterModels.StorageContainer{
-				ContainerExtId: ptr.To("2a61b02a-54a6-475e-93b9-5efc895b48e3"),
-				Name:           ptr.To("SelfServiceContainer"),
-				ClusterExtId:   ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
-				ClusterName:    ptr.To("pe_cluster"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "GetStorageContainerInCluster succeeds via resource group with SC Name and PE Name",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				mockClientWrapper.MockResourceGroups.EXPECT().ListStorageContainers(gomock.Any(), "rg-uuid").Return(
-					[]converged.StorageContainerInfo{
-						{
-							ExtId: "2a61b02a-54a6-475e-93b9-5efc895b48e3",
-							Name:  "SelfServiceContainer",
-							PrismElement: converged.PrismElementInfo{
-								ExtId: "00062e56-b9ac-7253-1946-7cc25586eeee",
-								Name:  "pe_cluster",
-							},
-						},
-					}, nil)
-				return mockClientWrapper.Client
-			},
-			rg: &projectModels.ResourceGroup{ExtId: ptr.To("rg-uuid")},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("pe_cluster"),
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("SelfServiceContainer"),
-			},
-			want: &clusterModels.StorageContainer{
-				ContainerExtId: ptr.To("2a61b02a-54a6-475e-93b9-5efc895b48e3"),
-				Name:           ptr.To("SelfServiceContainer"),
-				ClusterExtId:   ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
-				ClusterName:    ptr.To("pe_cluster"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "GetStorageContainerInCluster via resource group fails when storage container not in PE",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				mockClientWrapper.MockResourceGroups.EXPECT().ListStorageContainers(gomock.Any(), "rg-uuid").Return(
-					[]converged.StorageContainerInfo{
-						{
-							ExtId: "2a61b02a-54a6-475e-93b9-5efc895b48e3",
-							Name:  "SelfServiceContainer",
-							PrismElement: converged.PrismElementInfo{
-								ExtId: "00062e56-b9ac-7253-1946-7cc25586eeee",
-								Name:  "pe_cluster",
-							},
-						},
-					}, nil)
-				return mockClientWrapper.Client
-			},
-			rg: &projectModels.ResourceGroup{ExtId: ptr.To("rg-uuid")},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("pe_cluster"),
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("missing-container"),
-			},
-			want:           nil,
-			wantErr:        true,
-			errorMessage:   "found in resource group which is associated with prism element",
-			assertNotFound: true,
-		},
-		{
-			name: "GetStorageContainerInCluster via resource group fails when PE not authorized",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				mockClientWrapper.MockResourceGroups.EXPECT().ListStorageContainers(gomock.Any(), "rg-uuid").Return(
-					[]converged.StorageContainerInfo{
-						{
-							ExtId: "2a61b02a-54a6-475e-93b9-5efc895b48e3",
-							Name:  "SelfServiceContainer",
-							PrismElement: converged.PrismElementInfo{
-								ExtId: "00062e56-b9ac-7253-1946-7cc25586eeee",
-								Name:  "pe_cluster",
-							},
-						},
-					}, nil)
-				return mockClientWrapper.Client
-			},
-			rg: &projectModels.ResourceGroup{ExtId: ptr.To("rg-uuid")},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("other_pe"),
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("SelfServiceContainer"),
-			},
-			want:           nil,
-			wantErr:        true,
-			errorMessage:   "found in resource group which is associated with prism element",
-			assertNotFound: true,
-		},
-		{
-			name: "GetStorageContainerInCluster via resource group fails on list error",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				mockClientWrapper.MockResourceGroups.EXPECT().ListStorageContainers(gomock.Any(), "rg-uuid").Return(
-					nil, fmt.Errorf("boom"))
-				return mockClientWrapper.Client
-			},
-			rg: &projectModels.ResourceGroup{ExtId: ptr.To("rg-uuid")},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("2a61b02a-54a6-475e-93b9-5efc895b48e3"),
-			},
-			want:         nil,
-			wantErr:      true,
-			errorMessage: "failed to list storage containers for resource group rg-uuid",
-		},
-		{
-			name: "GetStorageContainerInCluster via resource group fails when rg has no ExtId",
-			mockBuilder: func() *v4Converged.Client {
-				mockClientWrapper := NewMockConvergedClient(mockctl)
-				return mockClientWrapper.Client
-			},
-			rg: &projectModels.ResourceGroup{},
-			clusterId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("00062e56-b9ac-7253-1946-7cc25586eeee"),
-			},
-			storageContainerId: infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: ptr.To("2a61b02a-54a6-475e-93b9-5efc895b48e3"),
-			},
-			want:         nil,
-			wantErr:      true,
-			errorMessage: "resource group has no ExtId",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			got, err := GetStorageContainerInCluster(ctx, tt.mockBuilder(), tt.rg, tt.storageContainerId, tt.clusterId)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetStorageContainerInCluster() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GetStorageContainerInCluster() = %v, want %v", got, tt.want)
-			}
-			if tt.errorMessage != "" {
-				assert.Contains(t, err.Error(), tt.errorMessage)
-			}
-			if tt.assertNotFound {
-				assert.True(t, isTerminalError(err))
-			}
-		})
-	}
-}
-
-func TestGetPrismReferencesOfCategoryIdentifiers_NotFoundClassification(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-	mockClient := NewMockConvergedClient(ctrl)
-	mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil)
-
-	_, err := GetPrismReferencesOfCategoryIdentifiers(ctx, mockClient.Client, []*infrav1.NutanixCategoryIdentifier{
-		{
-			Key:   "cluster-name",
-			Value: "missing",
-		},
-	})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found in category")
-	assert.True(t, isTerminalError(err))
-}
-
-func TestGetProjectUUID_NotFoundClassification(t *testing.T) {
-	t.Run("returns classified not found for missing project UUID", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		ctx := context.Background()
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		client := &prismclientv3.Client{V3: mockV3Client}
-		rctx := &nctx.MachineContext{
-			Context:       ctx,
-			NutanixClient: client,
-		}
-		projectUUID := "missing-project-uuid"
-		projectRef := &infrav1.NutanixResourceIdentifier{
-			UUID: &projectUUID,
-		}
-
-		mockV3Client.EXPECT().GetProject(ctx, projectUUID).Return(nil, errors.New("ENTITY_NOT_FOUND"))
-
-		_, err := GetProjectV3(rctx, projectRef)
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to find project with UUID")
-		assert.True(t, isTerminalError(err))
-	})
-
-	t.Run("returns classified not found for missing project name", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		ctx := context.Background()
-		mockV3Client := mocknutanixv3.NewMockService(ctrl)
-		client := &prismclientv3.Client{V3: mockV3Client}
-		rctx := &nctx.MachineContext{
-			Context:       ctx,
-			NutanixClient: client,
-		}
-		projectName := "missing-project-name"
-		projectRef := &infrav1.NutanixResourceIdentifier{
-			Name: &projectName,
-		}
-
-		mockV3Client.EXPECT().ListAllProject(ctx, "").Return(&prismclientv3.ProjectListResponse{
-			Entities: []*prismclientv3.Project{},
-		}, nil)
-
-		_, err := GetProjectV3(rctx, projectRef)
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to retrieve project by name")
-		assert.True(t, isTerminalError(err))
-	})
-}
-
-func TestDeleteVM(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-
-	t.Run("should skip deletion when vmUUID is empty", func(t *testing.T) {
-		// Test the early return case when vmUUID is empty
-		result, err := DeleteVM(ctx, nil, "test-vm", "")
-
-		assert.Nil(t, err)
-		assert.Empty(t, result)
-	})
-
-	t.Run("should handle successful deletion", func(t *testing.T) {
-		// Create mock client
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-		mockOperation := mockconverged.NewMockOperation[converged.NoEntity](ctrl)
-
-		vmName := "test-vm"
-		vmUUID := "test-vm-uuid"
-		taskUUID := "task-uuid"
-
-		// Mock the VMs service to return a task (requeue case)
-		mockClientWrapper.MockVMs.EXPECT().DeleteAsync(ctx, vmUUID).Return(mockOperation, nil)
-		mockOperation.EXPECT().UUID().Return(taskUUID).AnyTimes()
-
-		result, err := DeleteVM(ctx, mockClientWrapper.Client, vmName, vmUUID)
-
-		assert.NoError(t, err)
-		assert.NotEmpty(t, result)
-		assert.Equal(t, taskUUID, result)
-	})
-
-	t.Run("should return error when DeleteAsync fails", func(t *testing.T) {
-		// Create mock client
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		vmName := "test-vm"
-		vmUUID := "test-vm-uuid"
-		expectedError := errors.New("delete failed")
-
-		// Mock the VMs service to return an error
-		mockClientWrapper.MockVMs.EXPECT().DeleteAsync(ctx, vmUUID).Return(nil, expectedError)
-
-		result, err := DeleteVM(ctx, mockClientWrapper.Client, vmName, vmUUID)
-
-		assert.Error(t, err)
-		assert.Equal(t, expectedError, err)
-		assert.Empty(t, result)
-	})
-
-	t.Run("should return error when task is nil", func(t *testing.T) {
-		// Create mock client
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		vmName := "test-vm"
-		vmUUID := "test-vm-uuid"
-
-		// Mock the VMs service to return a task (requeue case)
-		mockClientWrapper.MockVMs.EXPECT().DeleteAsync(ctx, vmUUID).Return(nil, nil)
-
-		result, err := DeleteVM(ctx, mockClientWrapper.Client, vmName, vmUUID)
-
-		assert.Error(t, err)
-		assert.Empty(t, result)
-	})
-}
-
-func drConfigGroupsResponse(role string) *prismclientv3.GroupsGetEntitiesResponse {
-	return &prismclientv3.GroupsGetEntitiesResponse{
-		GroupResults: []*prismclientv3.GroupsGroupResult{
-			{
-				EntityResults: []*prismclientv3.GroupsEntity{
-					{
-						Data: []*prismclientv3.GroupsFieldData{
-							{Name: drConfigRoleAttribute, Values: []*prismclientv3.GroupsTimevaluePair{{Values: []string{role}}}},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func TestUseMetroDRDeletePath(t *testing.T) {
-	t.Run("false when context is empty", func(t *testing.T) {
-		assert.False(t, useMetroDRDeletePath(nil))
-		assert.False(t, useMetroDRDeletePath(&nctx.MachineContext{
-			Machine:        &capiv1beta2.Machine{},
-			NutanixMachine: &infrav1.NutanixMachine{},
-		}))
-	})
-
-	t.Run("true for metro site failure domain", func(t *testing.T) {
-		assert.True(t, useMetroDRDeletePath(&nctx.MachineContext{
-			Machine: &capiv1beta2.Machine{
-				Spec: capiv1beta2.MachineSpec{FailureDomain: metroSiteFailureDomainPrefix + "metro0-s1"},
-			},
-		}))
-	})
-
-	t.Run("true when delete already recorded a recovered VM", func(t *testing.T) {
-		assert.True(t, useMetroDRDeletePath(&nctx.MachineContext{
-			Machine: &capiv1beta2.Machine{},
-			NutanixMachine: &infrav1.NutanixMachine{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{recoveredVMUUIDAnnotation: "live-uuid"},
-				},
-			},
-		}))
-	})
-}
-
-func TestIsVMDecoupled(t *testing.T) {
-	ctx := context.Background()
-	vmUUID := "e530a7a6-3e93-4408-77af-d7ce41a3997c"
-
-	t.Run("returns false when v3 client is nil", func(t *testing.T) {
-		decoupled, err := isVMDecoupled(ctx, nil, vmUUID)
-		assert.NoError(t, err)
-		assert.False(t, decoupled)
-	})
-
-	t.Run("returns true when role is kDecoupled", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-		mockV3 := mocknutanixv3.NewMockService(ctrl)
-		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(drConfigGroupsResponse(drRoleDecoupled), nil)
-
-		decoupled, err := isVMDecoupled(ctx, mockV3, vmUUID)
-		assert.NoError(t, err)
-		assert.True(t, decoupled)
-	})
-
-	t.Run("returns false when role is not decoupled", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-		mockV3 := mocknutanixv3.NewMockService(ctrl)
-		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(drConfigGroupsResponse("kActive"), nil)
-
-		decoupled, err := isVMDecoupled(ctx, mockV3, vmUUID)
-		assert.NoError(t, err)
-		assert.False(t, decoupled)
-	})
-
-	t.Run("returns error when groups API fails", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-		mockV3 := mocknutanixv3.NewMockService(ctrl)
-		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(nil, errors.New("pc unavailable"))
-
-		decoupled, err := isVMDecoupled(ctx, mockV3, vmUUID)
-		assert.Error(t, err)
-		assert.False(t, decoupled)
-		assert.Contains(t, err.Error(), "failed to get DR config")
-	})
-}
-
-func TestFindNonDecoupledVMByName(t *testing.T) {
-	ctx := context.Background()
-	vmName := "cp1"
-	decoupledUUID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-	liveUUID := "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
-
-	t.Run("skips decoupled VM and returns recovered VM", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		decoupledVM := vmmModels.NewVm()
-		decoupledVM.Name = ptr.To(vmName)
-		decoupledVM.ExtId = ptr.To(decoupledUUID)
-		liveVM := vmmModels.NewVm()
-		liveVM.Name = ptr.To(vmName)
-		liveVM.ExtId = ptr.To(liveUUID)
-
-		mockClient := NewMockConvergedClient(ctrl)
-		mockV3 := mocknutanixv3.NewMockService(ctrl)
-		mockClient.MockVMs.EXPECT().List(ctx, gomock.Any()).Return([]vmmModels.Vm{*decoupledVM, *liveVM}, nil)
-		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).DoAndReturn(
-			func(_ context.Context, req *prismclientv3.GroupsGetEntitiesRequest) (*prismclientv3.GroupsGetEntitiesResponse, error) {
-				if strings.Contains(req.FilterCriteria, decoupledUUID) {
-					return drConfigGroupsResponse(drRoleDecoupled), nil
-				}
-				return drConfigGroupsResponse("kActive"), nil
-			},
-		).AnyTimes()
-		mockClient.MockVMs.EXPECT().Get(ctx, liveUUID).Return(liveVM, nil)
-
-		got, err := findNonDecoupledVMByName(ctx, mockClient.Client, mockV3, []string{vmName}, nil, "")
-		assert.NoError(t, err)
-		require.NotNil(t, got)
-		assert.Equal(t, liveUUID, *got.ExtId)
-	})
-
-	t.Run("returns nil when only decoupled VMs exist", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		decoupledVM := vmmModels.NewVm()
-		decoupledVM.Name = ptr.To(vmName)
-		decoupledVM.ExtId = ptr.To(decoupledUUID)
-
-		mockClient := NewMockConvergedClient(ctrl)
-		mockV3 := mocknutanixv3.NewMockService(ctrl)
-		mockClient.MockVMs.EXPECT().List(ctx, gomock.Any()).Return([]vmmModels.Vm{*decoupledVM}, nil)
-		mockV3.EXPECT().GroupsGetEntities(ctx, gomock.Any()).Return(drConfigGroupsResponse(drRoleDecoupled), nil)
-
-		got, err := findNonDecoupledVMByName(ctx, mockClient.Client, mockV3, []string{vmName}, nil, "")
-		assert.NoError(t, err)
-		assert.Nil(t, got)
-	})
-}
-
-func TestDeleteCategoryKeyValues(t *testing.T) {
-	ctx := context.Background()
-
-	t.Run("category value retrieval error returns error", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockClient := NewMockConvergedClient(ctrl)
-
-		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
-		// getCategoryValue (outer) -> error not containing CATEGORY_NAME_VALUE_MISMATCH
-		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return(nil, errors.New("oops")).Times(1)
-
-		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to retrieve category value")
-	})
-
-	t.Run("value not found continues and returns nil", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockClient := NewMockConvergedClient(ctrl)
-
-		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
-		// getCategoryValue (outer) -> not found
-		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{}, nil).Times(1)
-
-		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids)
-		assert.NoError(t, err)
-	})
-
-	t.Run("delete value success returns nil", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockClient := NewMockConvergedClient(ctrl)
-
-		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
-		valExt := "val-id"
-		name := "k"
-		value := "v"
-		valCat := prismModels.Category{ExtId: &valExt, Key: &name, Value: &value}
-
-		// 1) getCategoryValue (outer) to check existence before delete
-		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
-		// 2) delete value by ExtId
-		mockClient.MockCategories.EXPECT().Delete(ctx, valExt).Return(nil).Times(1)
-
-		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids)
-		assert.NoError(t, err)
-	})
-
-	t.Run("deleteCategoryValue error causes early nil return (do not error)", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockClient := NewMockConvergedClient(ctrl)
-
-		ids := []*infrav1.NutanixCategoryIdentifier{{Key: "k", Value: "v"}}
-		valExt := "val-id"
-		name := "k"
-		value := "v"
-		valCat := prismModels.Category{ExtId: &valExt, Key: &name, Value: &value}
-
-		// 1) getCategoryValue (outer)
-		mockClient.MockCategories.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Category{valCat}, nil).Times(1)
-		// 2) delete value fails
-		mockClient.MockCategories.EXPECT().Delete(ctx, valExt).Return(errors.New("in use")).Times(1)
-
-		// Function should return nil early due to special-case handling
-		err := deleteCategoryKeyValues(ctx, mockClient.Client, ids)
-		assert.NoError(t, err)
-	})
-}
-
-// TestGetGPUList tests the GetGPUList function
-func TestGetGPUList(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-	peUUID := "test-pe-uuid"
-
-	t.Run("should return list of GPUs successfully", func(t *testing.T) {
-		// Create mock client
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		// Create test GPU
-		gpu := infrav1.NutanixGPU{
-			Type: infrav1.NutanixGPUIdentifierName,
-			Name: ptr.To("test-gpu-1"),
-		}
-
-		// Mock the GetGPUsForPE calls
-		physicalGPU := clusterModels.PhysicalGpuProfile{
-			PhysicalGpuConfig: &clusterModels.PhysicalGpuConfig{
-				DeviceName: ptr.To("test-gpu-1"),
-				DeviceId:   ptr.To(int64(123)),
-				IsInUse:    ptr.To(false),
-				Type:       clusterModels.GPUTYPE_PASSTHROUGH_COMPUTE.Ref(),
-				VendorName: ptr.To("kNvidia"),
-			},
-		}
-
-		mockClientWrapper.MockClusters.EXPECT().
-			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
-			Return([]clusterModels.PhysicalGpuProfile{physicalGPU}, nil).
-			AnyTimes()
-
-		mockClientWrapper.MockClusters.EXPECT().
-			ListClusterVirtualGPUs(ctx, peUUID, gomock.Any()).
-			Return([]clusterModels.VirtualGpuProfile{}, nil).
-			AnyTimes()
-
-		gpus := []infrav1.NutanixGPU{gpu}
-
-		result, err := GetGPUList(ctx, mockClientWrapper.Client, gpus, peUUID, "")
-		assert.NoError(t, err)
-		assert.Len(t, result, 1)
-		assert.Equal(t, "test-gpu-1", *result[0].Name)
-	})
-
-	t.Run("should resolve a GPU by profile name via AHV profile APIs", func(t *testing.T) {
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		gpu := infrav1.NutanixGPU{
-			Type: infrav1.NutanixGPUIdentifierProfile,
-			Profile: &infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("A100-4Q"),
-			},
-		}
-
-		mockClientWrapper.MockClusters.EXPECT().
-			ListAHVPhysicalGPUProfiles(ctx, peUUID, gomock.Any()).
-			Return([]clusterAhvModels.PhysicalGpuProfile{}, nil)
-		mockClientWrapper.MockClusters.EXPECT().
-			ListAHVVirtualGPUProfiles(ctx, peUUID, gomock.Any()).
-			Return([]clusterAhvModels.VirtualGpuProfile{
-				{
-					ExtId:         ptr.To("vgpu-profile-uuid"),
-					Configuration: &clusterAhvModels.VirtualGpuProfileConfiguration{Name: ptr.To("A100-4Q")},
-				},
-			}, nil)
-
-		result, err := GetGPUList(ctx, mockClientWrapper.Client, []infrav1.NutanixGPU{gpu}, peUUID, "7.6")
-		assert.NoError(t, err)
-		assert.Len(t, result, 1)
-		require.NotNil(t, result[0].BackingInfo)
-		backing, ok := result[0].BackingInfo.GetValue().(vmmModels.VirtualGpu)
-		require.True(t, ok)
-		require.NotNil(t, backing.VirtualGpuProfileReference)
-		assert.Equal(t, "vgpu-profile-uuid", *backing.VirtualGpuProfileReference.ExtId)
-	})
-}
-
-// TestGetGPU tests the GetGPU function
-func TestGetGPU(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-	peUUID := "test-pe-uuid"
-
-	t.Run("should return error when no available GPUs found", func(t *testing.T) {
-		// Create mock client
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		gpu := infrav1.NutanixGPU{
-			Type: infrav1.NutanixGPUIdentifierName,
-			Name: ptr.To("non-existent-gpu"),
-		}
-
-		// Mock GetGPUsForPE to return empty list
-		mockClientWrapper.MockClusters.EXPECT().
-			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
-			Return([]clusterModels.PhysicalGpuProfile{}, nil).
-			AnyTimes()
-		mockClientWrapper.MockClusters.EXPECT().
-			ListClusterVirtualGPUs(ctx, peUUID, gomock.Any()).
-			Return([]clusterModels.VirtualGpuProfile{}, nil).
-			AnyTimes()
-
-		_, err := GetGPU(ctx, mockClientWrapper.Client, peUUID, gpu, "")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "no available GPUs found")
-		assert.True(t, isTerminalError(err))
-	})
-
-	t.Run("should error when profile used on PC below 7.6", func(t *testing.T) {
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		gpu := infrav1.NutanixGPU{
-			Type: infrav1.NutanixGPUIdentifierProfile,
-			Profile: &infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("A100-4Q"),
-			},
-		}
-
-		_, err := GetGPU(ctx, mockClientWrapper.Client, peUUID, gpu, "7.5")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "requires Prism Central 7.6 or later")
-		assert.True(t, isTerminalError(err))
-	})
-
-	t.Run("should resolve a physical GPU profile by name", func(t *testing.T) {
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		gpu := infrav1.NutanixGPU{
-			Type: infrav1.NutanixGPUIdentifierProfile,
-			Profile: &infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("TeslaT4"),
-			},
-		}
-
-		mockClientWrapper.MockClusters.EXPECT().
-			ListAHVPhysicalGPUProfiles(ctx, peUUID, gomock.Any()).
-			Return([]clusterAhvModels.PhysicalGpuProfile{
-				{
-					ExtId:         ptr.To("pgpu-profile-uuid"),
-					Configuration: &clusterAhvModels.PhysicalGpuProfileConfiguration{Name: ptr.To("TeslaT4")},
-				},
-			}, nil)
-		mockClientWrapper.MockClusters.EXPECT().
-			ListAHVVirtualGPUProfiles(ctx, peUUID, gomock.Any()).
-			Return([]clusterAhvModels.VirtualGpuProfile{}, nil)
-
-		result, err := GetGPU(ctx, mockClientWrapper.Client, peUUID, gpu, "7.6")
-		assert.NoError(t, err)
-		require.NotNil(t, result.BackingInfo)
-		backing, ok := result.BackingInfo.GetValue().(vmmModels.PhysicalGpu)
-		require.True(t, ok)
-		require.NotNil(t, backing.PhysicalGpuProfileReference)
-		assert.Equal(t, "pgpu-profile-uuid", *backing.PhysicalGpuProfileReference.ExtId)
-	})
-
-	t.Run("should error when profile name matches no profiles", func(t *testing.T) {
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		gpu := infrav1.NutanixGPU{
-			Type: infrav1.NutanixGPUIdentifierProfile,
-			Profile: &infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("missing"),
-			},
-		}
-
-		mockClientWrapper.MockClusters.EXPECT().
-			ListAHVPhysicalGPUProfiles(ctx, peUUID, gomock.Any()).
-			Return([]clusterAhvModels.PhysicalGpuProfile{}, nil)
-		mockClientWrapper.MockClusters.EXPECT().
-			ListAHVVirtualGPUProfiles(ctx, peUUID, gomock.Any()).
-			Return([]clusterAhvModels.VirtualGpuProfile{}, nil)
-
-		_, err := GetGPU(ctx, mockClientWrapper.Client, peUUID, gpu, "7.6")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), `no GPU profile found with name="missing"`)
-		assert.True(t, isTerminalError(err))
-	})
-
-	t.Run("should error when profile name matches multiple profiles", func(t *testing.T) {
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		gpu := infrav1.NutanixGPU{
-			Type: infrav1.NutanixGPUIdentifierProfile,
-			Profile: &infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierName,
-				Name: ptr.To("dup"),
-			},
-		}
-
-		mockClientWrapper.MockClusters.EXPECT().
-			ListAHVPhysicalGPUProfiles(ctx, peUUID, gomock.Any()).
-			Return([]clusterAhvModels.PhysicalGpuProfile{
-				{ExtId: ptr.To("pgpu-1"), Configuration: &clusterAhvModels.PhysicalGpuProfileConfiguration{Name: ptr.To("dup")}},
-			}, nil)
-		mockClientWrapper.MockClusters.EXPECT().
-			ListAHVVirtualGPUProfiles(ctx, peUUID, gomock.Any()).
-			Return([]clusterAhvModels.VirtualGpuProfile{
-				{ExtId: ptr.To("vgpu-1"), Configuration: &clusterAhvModels.VirtualGpuProfileConfiguration{Name: ptr.To("dup")}},
-			}, nil)
-
-		_, err := GetGPU(ctx, mockClientWrapper.Client, peUUID, gpu, "7.6")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), `more than one GPU profile found with name="dup"`)
-	})
-
-	t.Run("should resolve a virtual GPU profile by UUID", func(t *testing.T) {
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-		profileUUID := "30f46867-4eb4-48c6-b3ab-c1ca2a2e2d85"
-		profileFilter := gomock.Cond(func(option converged.ODataOption) bool {
-			params, err := v4Converged.OptsToV4ODataParams(option)
-			return err == nil && params.Filter != nil && *params.Filter == fmt.Sprintf("extId eq '%s'", profileUUID)
-		})
-		gpu := infrav1.NutanixGPU{
-			Type: infrav1.NutanixGPUIdentifierProfile,
-			Profile: &infrav1.NutanixResourceIdentifier{
-				Type: infrav1.NutanixIdentifierUUID,
-				UUID: &profileUUID,
-			},
-		}
-
-		mockClientWrapper.MockClusters.EXPECT().
-			ListAHVPhysicalGPUProfiles(ctx, peUUID, profileFilter).
-			Return([]clusterAhvModels.PhysicalGpuProfile{}, nil)
-		mockClientWrapper.MockClusters.EXPECT().
-			ListAHVVirtualGPUProfiles(ctx, peUUID, profileFilter).
-			Return([]clusterAhvModels.VirtualGpuProfile{
-				{ExtId: &profileUUID},
-			}, nil)
-
-		result, err := GetGPU(ctx, mockClientWrapper.Client, peUUID, gpu, "7.6")
-		require.NoError(t, err)
-		backing, ok := result.BackingInfo.GetValue().(vmmModels.VirtualGpu)
-		require.True(t, ok)
-		assert.Equal(t, profileUUID, *backing.VirtualGpuProfileReference.ExtId)
-	})
-}
-
-// TestGetGPUsForPE tests the GetGPUsForPE function
-func TestGetGPUsForPE(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-	peUUID := "test-pe-uuid"
-
-	t.Run("should return physical GPUs filtered by device ID", func(t *testing.T) {
-		// Create mock client
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		deviceID := int64(123)
-		gpu := infrav1.NutanixGPU{
-			Type:     infrav1.NutanixGPUIdentifierDeviceID,
-			DeviceID: &deviceID,
-		}
-
-		// Mock physical GPU response
-		physicalGPU := clusterModels.PhysicalGpuProfile{
-			PhysicalGpuConfig: &clusterModels.PhysicalGpuConfig{
-				DeviceName: ptr.To("test-gpu"),
-				DeviceId:   ptr.To(int64(123)),
-				IsInUse:    ptr.To(false),
-				Mode:       clusterModels.GPUMODE_UNUSED.Ref(),
-				VendorName: ptr.To("kNvidia"),
-			},
-		}
-
-		mockClientWrapper.MockClusters.EXPECT().
-			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
-			Return([]clusterModels.PhysicalGpuProfile{physicalGPU}, nil)
-
-		mockClientWrapper.MockClusters.EXPECT().
-			ListClusterVirtualGPUs(ctx, peUUID, gomock.Any()).
-			Return([]clusterModels.VirtualGpuProfile{}, nil)
-
-		gpus, err := GetGPUsForPE(ctx, mockClientWrapper.Client, peUUID, gpu)
-
-		assert.NoError(t, err)
-		assert.Len(t, gpus, 1)
-		assert.Equal(t, "test-gpu", *gpus[0].Name)
-		assert.Equal(t, 123, *gpus[0].DeviceId)
-		assert.Equal(t, vmmModels.GPUMODE_PASSTHROUGH_COMPUTE, *gpus[0].Mode)
-		assert.Equal(t, vmmModels.GPUVENDOR_NVIDIA, *gpus[0].Vendor)
-	})
-
-	t.Run("should return physical GPUs filtered by name", func(t *testing.T) {
-		// Create mock client
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		gpuName := "test-gpu"
-		gpu := infrav1.NutanixGPU{
-			Type: infrav1.NutanixGPUIdentifierName,
-			Name: &gpuName,
-		}
-
-		// Mock physical GPU response
-		physicalGPU := clusterModels.PhysicalGpuProfile{
-			PhysicalGpuConfig: &clusterModels.PhysicalGpuConfig{
-				DeviceName: ptr.To("test-gpu"),
-				DeviceId:   ptr.To(int64(456)),
-				IsInUse:    ptr.To(false),
-				Type:       clusterModels.GPUTYPE_PASSTHROUGH_GRAPHICS.Ref(),
-				VendorName: ptr.To("kAmd"),
-			},
-		}
-
-		mockClientWrapper.MockClusters.EXPECT().
-			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
-			Return([]clusterModels.PhysicalGpuProfile{physicalGPU}, nil)
-
-		mockClientWrapper.MockClusters.EXPECT().
-			ListClusterVirtualGPUs(ctx, peUUID, gomock.Any()).
-			Return([]clusterModels.VirtualGpuProfile{}, nil)
-
-		gpus, err := GetGPUsForPE(ctx, mockClientWrapper.Client, peUUID, gpu)
-
-		assert.NoError(t, err)
-		assert.Len(t, gpus, 1)
-		assert.Equal(t, "test-gpu", *gpus[0].Name)
-		assert.Equal(t, 456, *gpus[0].DeviceId)
-		assert.Equal(t, vmmModels.GPUMODE_PASSTHROUGH_GRAPHICS, *gpus[0].Mode)
-		assert.Equal(t, vmmModels.GPUVENDOR_AMD, *gpus[0].Vendor)
-	})
-
-	t.Run("should return virtual GPUs", func(t *testing.T) {
-		// Create mock client
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		deviceID := int64(789)
-		gpu := infrav1.NutanixGPU{
-			Type:     infrav1.NutanixGPUIdentifierDeviceID,
-			DeviceID: &deviceID,
-		}
-
-		// Mock virtual GPU response
-		virtualGPU := clusterModels.VirtualGpuProfile{
-			VirtualGpuConfig: &clusterModels.VirtualGpuConfig{
-				DeviceName: ptr.To("virtual-gpu"),
-				DeviceId:   ptr.To(int64(789)),
-				IsInUse:    ptr.To(false),
-				VendorName: ptr.To("kIntel"),
-			},
-		}
-
-		mockClientWrapper.MockClusters.EXPECT().
-			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
-			Return([]clusterModels.PhysicalGpuProfile{}, nil)
-
-		mockClientWrapper.MockClusters.EXPECT().
-			ListClusterVirtualGPUs(ctx, peUUID, gomock.Any()).
-			Return([]clusterModels.VirtualGpuProfile{virtualGPU}, nil)
-
-		gpus, err := GetGPUsForPE(ctx, mockClientWrapper.Client, peUUID, gpu)
-
-		assert.NoError(t, err)
-		assert.Len(t, gpus, 1)
-		assert.Equal(t, "virtual-gpu", *gpus[0].Name)
-		assert.Equal(t, 789, *gpus[0].DeviceId)
-		assert.Equal(t, vmmModels.GPUMODE_VIRTUAL, *gpus[0].Mode)
-		assert.Equal(t, vmmModels.GPUVENDOR_INTEL, *gpus[0].Vendor)
-	})
-
-	t.Run("should return error when physical GPU API call fails", func(t *testing.T) {
-		// Create mock client
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		deviceID := int64(123)
-		gpu := infrav1.NutanixGPU{
-			Type:     infrav1.NutanixGPUIdentifierDeviceID,
-			DeviceID: &deviceID,
-		}
-
-		expectedError := errors.New("API call failed")
-		mockClientWrapper.MockClusters.EXPECT().
-			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
-			Return(nil, expectedError)
-
-		_, err := GetGPUsForPE(ctx, mockClientWrapper.Client, peUUID, gpu)
-		assert.Error(t, err)
-		assert.Equal(t, expectedError, err)
-	})
-
-	t.Run("should return error when virtual GPU API call fails", func(t *testing.T) {
-		// Create mock client
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		deviceID := int64(123)
-		gpu := infrav1.NutanixGPU{
-			Type:     infrav1.NutanixGPUIdentifierDeviceID,
-			DeviceID: &deviceID,
-		}
-
-		// Mock successful physical GPU call
-		mockClientWrapper.MockClusters.EXPECT().
-			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
-			Return([]clusterModels.PhysicalGpuProfile{}, nil)
-
-		expectedError := errors.New("virtual GPU API call failed")
-		mockClientWrapper.MockClusters.EXPECT().
-			ListClusterVirtualGPUs(ctx, peUUID, gomock.Any()).
-			Return(nil, expectedError)
-
-		_, err := GetGPUsForPE(ctx, mockClientWrapper.Client, peUUID, gpu)
-		assert.Error(t, err)
-		assert.Equal(t, expectedError, err)
-	})
-
-	t.Run("should skip GPUs that are in use", func(t *testing.T) {
-		// Create mock client
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		deviceID := int64(123)
-		gpu := infrav1.NutanixGPU{
-			Type:     infrav1.NutanixGPUIdentifierDeviceID,
-			DeviceID: &deviceID,
-		}
-
-		// Mock physical GPU that is in use
-		physicalGPUInUse := clusterModels.PhysicalGpuProfile{
-			PhysicalGpuConfig: &clusterModels.PhysicalGpuConfig{
-				DeviceName: ptr.To("in-use-gpu"),
-				DeviceId:   ptr.To(int64(123)),
-				IsInUse:    ptr.To(true), // This GPU is in use
-				Mode:       clusterModels.GPUMODE_USED_FOR_PASSTHROUGH.Ref(),
-				VendorName: ptr.To("kNvidia"),
-			},
-		}
-
-		// Mock physical GPU that is not in use
-		physicalGPUAvailable := clusterModels.PhysicalGpuProfile{
-			PhysicalGpuConfig: &clusterModels.PhysicalGpuConfig{
-				DeviceName: ptr.To("available-gpu"),
-				DeviceId:   ptr.To(int64(456)),
-				IsInUse:    ptr.To(false), // This GPU is available
-				Mode:       clusterModels.GPUMODE_UNUSED.Ref(),
-				VendorName: ptr.To("kNvidia"),
-			},
-		}
-
-		mockClientWrapper.MockClusters.EXPECT().
-			ListClusterPhysicalGPUs(ctx, peUUID, gomock.Any()).
-			Return([]clusterModels.PhysicalGpuProfile{physicalGPUInUse, physicalGPUAvailable}, nil)
-
-		mockClientWrapper.MockClusters.EXPECT().
-			ListClusterVirtualGPUs(ctx, peUUID, gomock.Any()).
-			Return([]clusterModels.VirtualGpuProfile{}, nil)
-
-		gpus, err := GetGPUsForPE(ctx, mockClientWrapper.Client, peUUID, gpu)
-
-		assert.NoError(t, err)
-		assert.Len(t, gpus, 1) // Only the available GPU should be returned
-		assert.Equal(t, "available-gpu", *gpus[0].Name)
-		assert.Equal(t, 456, *gpus[0].DeviceId)
-	})
-}
-
-// TestGpuVendorStringToGpuVendor tests the gpuVendorStringToGpuVendor function
-func TestGpuVendorStringToGpuVendor(t *testing.T) {
-	tests := []struct {
-		name     string
-		vendor   string
-		expected vmmModels.GpuVendor
-	}{
-		{
-			name:     "NVIDIA vendor",
-			vendor:   "kNvidia",
-			expected: vmmModels.GPUVENDOR_NVIDIA,
-		},
-		{
-			name:     "Intel vendor",
-			vendor:   "kIntel",
-			expected: vmmModels.GPUVENDOR_INTEL,
-		},
-		{
-			name:     "AMD vendor",
-			vendor:   "kAmd",
-			expected: vmmModels.GPUVENDOR_AMD,
-		},
-		{
-			name:     "Unknown vendor",
-			vendor:   "kUnknown",
-			expected: vmmModels.GPUVENDOR_UNKNOWN,
-		},
-		{
-			name:     "Empty vendor",
-			vendor:   "",
-			expected: vmmModels.GPUVENDOR_UNKNOWN,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := gpuVendorStringToGpuVendor(tt.vendor)
-			assert.Equal(t, tt.expected, *result)
-		})
-	}
-}
-
-func TestDetachVolumeGroupsFromVM(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-
-	t.Run("should skip detachment when no disks provided", func(t *testing.T) {
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		vmName := "test-vm"
-		vmUUID := "00000000-0000-0000-0000-000000000001"
-		vmDisks := []vmmModels.Disk{}
-
-		// No expectations: DetachFromVM should NOT be called
-		err := detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
-
-		assert.NoError(t, err)
-	})
-
-	t.Run("should skip detachment when disk has no backing info", func(t *testing.T) {
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		vmName := "test-vm"
-		vmUUID := "00000000-0000-0000-0000-000000000001"
-
-		// Disk without VG backing (leave BackingInfo nil)
-		disk := vmmModels.NewDisk()
-		vmDisks := []vmmModels.Disk{*disk}
-
-		// No expectations: DetachFromVM should NOT be called
-		err := detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
-
-		assert.NoError(t, err)
-	})
-
-	t.Run("should skip detachment when disk is not backed by volume group", func(t *testing.T) {
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		vmName := "test-vm"
-		vmUUID := "00000000-0000-0000-0000-000000000001"
-
-		// Disk backed by VmDisk (not volume group)
-		disk := vmmModels.NewDisk()
-		vmDisk := vmmModels.NewVmDisk()
-		vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
-		err := disk.SetBackingInfo(*vmDisk)
-		require.NoError(t, err)
-
-		vmDisks := []vmmModels.Disk{*disk}
-
-		// No expectations: DetachFromVM should NOT be called
-		err = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
-
-		assert.NoError(t, err)
-	})
-
-	t.Run("should successfully detach single volume group", func(t *testing.T) {
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		vmName := "test-vm"
-		vmUUID := "00000000-0000-0000-0000-000000000001"
-		vgID := "11111111-1111-1111-1111-111111111111"
-
-		// Build a Disk backed by an ADSFVolumeGroupReference
-		disk := vmmModels.NewDisk()
-		ref := vmmModels.NewADSFVolumeGroupReference()
-		ref.VolumeGroupExtId = &vgID
-		err := disk.SetBackingInfo(*ref)
-		require.NoError(t, err)
-
-		vmDisks := []vmmModels.Disk{*disk}
-
-		expectedVG := &volumesconfig.VolumeGroup{
-			ExtId: ptr.To(vgID),
-		}
-
-		// Expect DetachFromVM to be called once with the correct VG ID
-		mockClientWrapper.MockVolumeGroups.EXPECT().
-			DetachFromVM(ctx, vgID, gomock.Any()).
-			DoAndReturn(func(_ context.Context, _ string, attachment volumesconfig.VmAttachment) (*volumesconfig.VolumeGroup, error) {
-				assert.Equal(t, vmUUID, *attachment.ExtId)
-				return expectedVG, nil
-			})
-
-		err = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
-
-		assert.NoError(t, err)
-	})
-
-	t.Run("should return error when DetachFromVM fails", func(t *testing.T) {
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		vmName := "test-vm"
-		vmUUID := "00000000-0000-0000-0000-000000000001"
-		vgID := "22222222-2222-2222-2222-222222222222"
-
-		disk := vmmModels.NewDisk()
-		ref := vmmModels.NewADSFVolumeGroupReference()
-		ref.VolumeGroupExtId = &vgID
-		err := disk.SetBackingInfo(*ref)
-		require.NoError(t, err)
-
-		vmDisks := []vmmModels.Disk{*disk}
-
-		expectedError := errors.New("failed to detach volume group")
-
-		// Return error from DetachFromVM
-		mockClientWrapper.MockVolumeGroups.EXPECT().
-			DetachFromVM(ctx, vgID, gomock.Any()).
-			Return(nil, expectedError)
-
-		err = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to detach volume group")
-		assert.Contains(t, err.Error(), vgID)
-		assert.Contains(t, err.Error(), vmUUID)
-	})
-
-	t.Run("should return after detaching first volume group", func(t *testing.T) {
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		vmName := "test-vm"
-		vmUUID := "00000000-0000-0000-0000-000000000001"
-		vgID1 := "11111111-1111-1111-1111-111111111111"
-		vgID2 := "22222222-2222-2222-2222-222222222222"
-
-		// Build two disks backed by volume groups
-		disk1 := vmmModels.NewDisk()
-		ref1 := vmmModels.NewADSFVolumeGroupReference()
-		ref1.VolumeGroupExtId = &vgID1
-		err := disk1.SetBackingInfo(*ref1)
-		require.NoError(t, err)
-
-		disk2 := vmmModels.NewDisk()
-		ref2 := vmmModels.NewADSFVolumeGroupReference()
-		ref2.VolumeGroupExtId = &vgID2
-		err = disk2.SetBackingInfo(*ref2)
-		require.NoError(t, err)
-
-		vmDisks := []vmmModels.Disk{*disk1, *disk2}
-
-		// Only expect DetachFromVM to be called once (for the first VG)
-		// The function returns after the first detachment
-		mockClientWrapper.MockVolumeGroups.EXPECT().
-			DetachFromVM(ctx, vgID1, gomock.Any()).
-			Return(&volumesconfig.VolumeGroup{}, nil).
-			Times(1)
-
-		err = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
-
-		assert.NoError(t, err)
-	})
-
-	t.Run("should handle mixed disk types and only detach volume groups", func(t *testing.T) {
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		vmName := "test-vm"
-		vmUUID := "00000000-0000-0000-0000-000000000001"
-		vgID := "11111111-1111-1111-1111-111111111111"
-
-		// First disk: regular VmDisk (should be skipped)
-		disk1 := vmmModels.NewDisk()
-		vmDisk := vmmModels.NewVmDisk()
-		vmDisk.DiskSizeBytes = ptr.To(int64(21474836480))
-		err := disk1.SetBackingInfo(*vmDisk)
-		require.NoError(t, err)
-
-		// Second disk: backed by volume group (should be detached)
-		disk2 := vmmModels.NewDisk()
-		ref := vmmModels.NewADSFVolumeGroupReference()
-		ref.VolumeGroupExtId = &vgID
-		err = disk2.SetBackingInfo(*ref)
-		require.NoError(t, err)
-
-		vmDisks := []vmmModels.Disk{*disk1, *disk2}
-
-		// Only expect DetachFromVM to be called for the volume group disk
-		mockClientWrapper.MockVolumeGroups.EXPECT().
-			DetachFromVM(ctx, vgID, gomock.Any()).
-			Return(&volumesconfig.VolumeGroup{}, nil)
-
-		err = detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
-
-		assert.NoError(t, err)
-	})
-
-	t.Run("should handle nil volume group ExtId gracefully", func(t *testing.T) {
-		mockClientWrapper := NewMockConvergedClient(ctrl)
-
-		vmName := "test-vm"
-		vmUUID := "00000000-0000-0000-0000-000000000001"
-
-		// Build a disk with volume group reference but nil ExtId
-		disk := vmmModels.NewDisk()
-		ref := vmmModels.NewADSFVolumeGroupReference()
-		ref.VolumeGroupExtId = nil // Nil ExtId must be skipped, not dereferenced
-		err := disk.SetBackingInfo(*ref)
-		require.NoError(t, err)
-
-		vmDisks := []vmmModels.Disk{*disk}
-
-		// A nil VolumeGroupExtId should be skipped gracefully without panicking
-		// or calling DetachFromVM (no mock expectation is set).
-		assert.NotPanics(t, func() {
-			err := detachVolumeGroupsFromVM(ctx, mockClientWrapper.Client, vmName, vmUUID, vmDisks)
-			assert.NoError(t, err)
-		})
-	})
-}
-
-type MockConvergedClientWrapper struct {
-	Client *v4Converged.Client
-
-	MockAntiAffinityPolicies *mockconverged.MockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy]
-	MockClusters             *mockconverged.MockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile, clusterAhvModels.VirtualGpuProfile, clusterAhvModels.PhysicalGpuProfile, clusterModels.Host]
-	MockCategories           *mockconverged.MockCategories[prismModels.Category]
-	MockImages               *mockconverged.MockImages[imageModels.Image, imageModels.FileDetail]
-	MockStorageContainers    *mockconverged.MockStorageContainers[clusterModels.StorageContainer]
-	MockSubnets              *mockconverged.MockSubnets[subnetModels.Subnet, networkingPrismModels.TaskReference]
-	MockVMs                  *mockconverged.MockVMs[vmmModels.Vm, vmmModels.Nic, vmmModels.Disk]
-	MockTasks                *mockconverged.MockTasks[prismModels.Task, prismErrors.AppMessage]
-	MockVolumeGroups         *mockconverged.MockVolumeGroups[volumesconfig.VolumeGroup, volumesconfig.VmAttachment]
-	MockVMProfiles           *mockconverged.MockVMProfiles[vmmModels.VmProfile, vmmModels.Vm, vmmModels.DeployVmFromVmProfileParams]
-	MockDomainManager        *mockconverged.MockDomainManager[prismModels.DomainManager]
-	MockUsers                *mockconverged.MockUsers[iamModels.User]
-	MockTemplates            *mockconverged.MockTemplates[imageModels.Template, vmmModels.Vm, imageModels.TemplateDeployment]
-	MockOvas                 *mockconverged.MockOvas[imageModels.Ova, imageModels.FileDetail]
-	MockProtectionPolicies   *mockconverged.MockProtectionPolicies[dpModels.ProtectionPolicy]
-	MockRecoveryPlans        *mockconverged.MockRecoveryPlans[dpModels.RecoveryPlan]
-	MockProjects             *mockconverged.MockProjects[projectModels.Project]
-	MockResourceGroups       *mockconverged.MockResourceGroups[projectModels.ResourceGroup]
-}
-
-// NewMockConvergedClient creates a new mock converged client
-func NewMockConvergedClient(ctrl *gomock.Controller) *MockConvergedClientWrapper {
-	mockAntiAffinityPolicies := mockconverged.NewMockAntiAffinityPolicies[policyModels.VmAntiAffinityPolicy](ctrl)
-	mockClusters := mockconverged.NewMockClusters[clusterModels.Cluster, clusterModels.VirtualGpuProfile, clusterModels.PhysicalGpuProfile, clusterAhvModels.VirtualGpuProfile, clusterAhvModels.PhysicalGpuProfile, clusterModels.Host](ctrl)
-	mockCategories := mockconverged.NewMockCategories[prismModels.Category](ctrl)
-	mockImages := mockconverged.NewMockImages[imageModels.Image, imageModels.FileDetail](ctrl)
-	mockStorageContainers := mockconverged.NewMockStorageContainers[clusterModels.StorageContainer](ctrl)
-	mockSubnets := mockconverged.NewMockSubnets[subnetModels.Subnet, networkingPrismModels.TaskReference](ctrl)
-	mockTasks := mockconverged.NewMockTasks[prismModels.Task, prismErrors.AppMessage](ctrl)
-	mockVMs := mockconverged.NewMockVMs[vmmModels.Vm, vmmModels.Nic, vmmModels.Disk](ctrl)
-	mockVolumeGroups := mockconverged.NewMockVolumeGroups[volumesconfig.VolumeGroup, volumesconfig.VmAttachment](ctrl)
-	mockVMProfiles := mockconverged.NewMockVMProfiles[vmmModels.VmProfile, vmmModels.Vm, vmmModels.DeployVmFromVmProfileParams](ctrl)
-	mockDomainManager := mockconverged.NewMockDomainManager[prismModels.DomainManager](ctrl)
-	mockUsers := mockconverged.NewMockUsers[iamModels.User](ctrl)
-	mockTemplates := mockconverged.NewMockTemplates[imageModels.Template, vmmModels.Vm, imageModels.TemplateDeployment](ctrl)
-	mockOvas := mockconverged.NewMockOvas[imageModels.Ova, imageModels.FileDetail](ctrl)
-	mockProtectionPolicies := mockconverged.NewMockProtectionPolicies[dpModels.ProtectionPolicy](ctrl)
-	mockRecoveryPlans := mockconverged.NewMockRecoveryPlans[dpModels.RecoveryPlan](ctrl)
-	mockProjects := mockconverged.NewMockProjects[projectModels.Project](ctrl)
-	mockResourceGroups := mockconverged.NewMockResourceGroups[projectModels.ResourceGroup](ctrl)
-
-	realClient := &v4Converged.Client{
-		Client: converged.Client[
-			policyModels.VmAntiAffinityPolicy,
-			clusterModels.Cluster,
-			clusterModels.VirtualGpuProfile,
-			clusterModels.PhysicalGpuProfile,
-			clusterAhvModels.VirtualGpuProfile,
-			clusterAhvModels.PhysicalGpuProfile,
-			clusterModels.Host,
-			prismModels.Category,
-			imageModels.Image,
-			imageModels.FileDetail,
-			clusterModels.StorageContainer,
-			subnetModels.Subnet,
-			networkingPrismModels.TaskReference,
-			vmmModels.Vm,
-			vmmModels.Nic,
-			vmmModels.Disk,
-			prismModels.Task,
-			prismErrors.AppMessage,
-			volumesconfig.VolumeGroup,
-			volumesconfig.VmAttachment,
-			vmmModels.VmProfile,
-			vmmModels.DeployVmFromVmProfileParams,
-			prismModels.DomainManager,
-			iamModels.User,
-			iamAuthzModels.Role,
-			iamAuthzModels.RoleMembership,
-			iamAuthzModels.RoleMembershipProjection,
-			iamAuthzModels.AuthorizationPolicy,
-			iamAuthzModels.AuthorizationPolicyProjection,
-			iamAuthzModels.Operation,
-			imageModels.Template,
-			imageModels.TemplateDeployment,
-			imageModels.Ova,
-			imageModels.FileDetail,
-			dpModels.ProtectionPolicy,
-			dpModels.RecoveryPlan,
-			projectModels.Project,
-			projectModels.ResourceGroup,
-			clusterModels.Disk,
-			alertModels.Alert,
-		]{
-			AntiAffinityPolicies: mockAntiAffinityPolicies,
-			Clusters:             mockClusters,
-			Categories:           mockCategories,
-			Images:               mockImages,
-			StorageContainers:    mockStorageContainers,
-			Subnets:              mockSubnets,
-			VMs:                  mockVMs,
-			Tasks:                mockTasks,
-			VolumeGroups:         mockVolumeGroups,
-			VMProfiles:           mockVMProfiles,
-			DomainManager:        mockDomainManager,
-			Users:                mockUsers,
-			Templates:            mockTemplates,
-			Ovas:                 mockOvas,
-			DataPolicies: converged.DataPolicies[dpModels.ProtectionPolicy, dpModels.RecoveryPlan]{
-				ProtectionPolicies: mockProtectionPolicies,
-				RecoveryPlans:      mockRecoveryPlans,
-			},
-			Projects:       mockProjects,
-			ResourceGroups: mockResourceGroups,
-		},
-	}
-
-	return &MockConvergedClientWrapper{
-		Client:                   realClient,
-		MockAntiAffinityPolicies: mockAntiAffinityPolicies,
-		MockClusters:             mockClusters,
-		MockCategories:           mockCategories,
-		MockImages:               mockImages,
-		MockStorageContainers:    mockStorageContainers,
-		MockSubnets:              mockSubnets,
-		MockVMs:                  mockVMs,
-		MockTasks:                mockTasks,
-		MockVolumeGroups:         mockVolumeGroups,
-		MockVMProfiles:           mockVMProfiles,
-		MockDomainManager:        mockDomainManager,
-		MockUsers:                mockUsers,
-		MockTemplates:            mockTemplates,
-		MockOvas:                 mockOvas,
-		MockProtectionPolicies:   mockProtectionPolicies,
-		MockRecoveryPlans:        mockRecoveryPlans,
-		MockProjects:             mockProjects,
-		MockResourceGroups:       mockResourceGroups,
-	}
-}
-
-func TestSubnetBelongsToCluster(t *testing.T) {
-	peUUID := "11111111-1111-1111-1111-111111111111"
-	otherUUID := "22222222-2222-2222-2222-222222222222"
-	anotherUUID := "33333333-3333-3333-3333-333333333333"
-
-	tests := []struct {
-		name           string
-		subnet         *subnetModels.Subnet
-		peUUID         string
-		expectedResult bool
-		description    string
-	}{
-		{
-			name: "subnet with matching ClusterReference",
-			subnet: &subnetModels.Subnet{
-				ClusterReference: ptr.To(peUUID),
-			},
-			peUUID:         peUUID,
-			expectedResult: true,
-			description:    "Should return true when ClusterReference matches the PE UUID",
-		},
-		{
-			name: "subnet with non-matching ClusterReference",
-			subnet: &subnetModels.Subnet{
-				ClusterReference: ptr.To(otherUUID),
-			},
-			peUUID:         peUUID,
-			expectedResult: false,
-			description:    "Should return false when ClusterReference does not match the PE UUID",
-		},
-		{
-			name: "subnet with matching UUID in ClusterReferenceList",
-			subnet: &subnetModels.Subnet{
-				ClusterReferenceList: []string{otherUUID, peUUID, anotherUUID},
-			},
-			peUUID:         peUUID,
-			expectedResult: true,
-			description:    "Should return true when PE UUID is in ClusterReferenceList",
-		},
-		{
-			name: "subnet with non-matching ClusterReferenceList",
-			subnet: &subnetModels.Subnet{
-				ClusterReferenceList: []string{otherUUID, anotherUUID},
-			},
-			peUUID:         peUUID,
-			expectedResult: false,
-			description:    "Should return false when PE UUID is not in ClusterReferenceList",
-		},
-		{
-			name: "subnet with both ClusterReference and ClusterReferenceList matching",
-			subnet: &subnetModels.Subnet{
-				ClusterReference:     ptr.To(peUUID),
-				ClusterReferenceList: []string{peUUID, otherUUID},
-			},
-			peUUID:         peUUID,
-			expectedResult: true,
-			description:    "Should return true when both ClusterReference and ClusterReferenceList contain PE UUID",
-		},
-		{
-			name: "subnet with ClusterReference matching but ClusterReferenceList not matching",
-			subnet: &subnetModels.Subnet{
-				ClusterReference:     ptr.To(peUUID),
-				ClusterReferenceList: []string{otherUUID},
-			},
-			peUUID:         peUUID,
-			expectedResult: true,
-			description:    "Should return true when ClusterReference matches even if ClusterReferenceList doesn't",
-		},
-		{
-			name: "subnet with ClusterReferenceList matching but ClusterReference not matching",
-			subnet: &subnetModels.Subnet{
-				ClusterReference:     ptr.To(otherUUID),
-				ClusterReferenceList: []string{peUUID},
-			},
-			peUUID:         peUUID,
-			expectedResult: true,
-			description:    "Should return true when ClusterReferenceList matches even if ClusterReference doesn't",
-		},
-		{
-			name: "subnet with nil ClusterReference and nil ClusterReferenceList",
-			subnet: &subnetModels.Subnet{
-				ClusterReference:     nil,
-				ClusterReferenceList: nil,
-			},
-			peUUID:         peUUID,
-			expectedResult: false,
-			description:    "Should return false when both ClusterReference and ClusterReferenceList are nil",
-		},
-		{
-			name: "subnet with nil ClusterReference and empty ClusterReferenceList",
-			subnet: &subnetModels.Subnet{
-				ClusterReference:     nil,
-				ClusterReferenceList: []string{},
-			},
-			peUUID:         peUUID,
-			expectedResult: false,
-			description:    "Should return false when ClusterReference is nil and ClusterReferenceList is empty",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := subnetBelongsToCluster(tt.subnet, tt.peUUID)
-			assert.Equal(t, tt.expectedResult, result, tt.description)
-		})
-	}
-}
-
-func TestGetVMUUID(t *testing.T) {
-	validUUID := "550e8400-e29b-41d4-a716-446655440000"
-	invalidUUID := "not-a-valid-uuid"
-	anotherValidUUID := "660e8400-e29b-41d4-a716-446655440001"
-
-	tests := []struct {
-		name           string
-		machine        *capiv1beta2.Machine
-		nutanixMachine *infrav1.NutanixMachine
-		want           string
-		wantErr        bool
-		errorMessage   string
-	}{
-		{
-			name: "should return systemUUID from Machine.Status.NodeInfo when available",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: &corev1.NodeSystemInfo{
-						SystemUUID: validUUID,
-					},
-				},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: anotherValidUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
-		},
-		{
-			name: "should fall back to VmUUID when Machine.Status.NodeInfo is nil",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: nil,
-				},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
-		},
-		{
-			name: "should fall back to VmUUID when Machine.Status.NodeInfo.SystemUUID is empty",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: &corev1.NodeSystemInfo{
-						SystemUUID: "",
-					},
-				},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
-		},
-		{
-			name:    "should fall back to VmUUID when machine is nil",
-			machine: nil,
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
-		},
-		{
-			name: "should return empty string when both systemUUID and VmUUID are not available",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: nil,
-				},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: "",
-				},
-			},
-			want:    "",
-			wantErr: false,
-		},
-		{
-			name: "should return error when systemUUID is not a valid UUID",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: &corev1.NodeSystemInfo{
-						SystemUUID: invalidUUID,
-					},
-				},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: "",
-				},
-			},
-			want:         "",
-			wantErr:      true,
-			errorMessage: "Machine.Status.NodeInfo.SystemUUID was set but was not a valid UUID",
-		},
-		{
-			name: "should return error when VmUUID is not a valid UUID",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: nil,
-				},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: invalidUUID,
-				},
-			},
-			want:         "",
-			wantErr:      true,
-			errorMessage: "VMUUID was set but was not a valid UUID",
-		},
-		{
-			name: "should prioritize systemUUID even when VmUUID has different UUID",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: &corev1.NodeSystemInfo{
-						SystemUUID: validUUID,
-					},
-				},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: anotherValidUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
-		},
-		{
-			name: "should use VmUUID when SystemUUID is empty",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{
-					NodeInfo: &corev1.NodeSystemInfo{
-						SystemUUID: "",
-					},
-				},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
-		},
-		{
-			name: "should handle Machine with empty Status",
-			machine: &capiv1beta2.Machine{
-				Status: capiv1beta2.MachineStatus{},
-			},
-			nutanixMachine: &infrav1.NutanixMachine{
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
-		},
-		{
-			name:    "should fall back to Spec.ProviderID when systemUUID and Status.VmUUID are both unavailable",
-			machine: nil,
-			nutanixMachine: &infrav1.NutanixMachine{
-				Spec: infrav1.NutanixMachineSpec{
-					ProviderID: providerIdPrefix + validUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
-		},
-		{
-			name:    "should prioritize Status.VmUUID over Spec.ProviderID",
-			machine: nil,
-			nutanixMachine: &infrav1.NutanixMachine{
-				Spec: infrav1.NutanixMachineSpec{
-					ProviderID: providerIdPrefix + anotherValidUUID,
-				},
-				Status: infrav1.NutanixMachineStatus{
-					VmUUID: validUUID,
-				},
-			},
-			want:    validUUID,
-			wantErr: false,
-		},
-		{
-			// Templates can pre-populate NutanixMachineTemplate.spec.template.spec.providerID
-			// with a placeholder (the e2e fixture uses "nutanix://${CLUSTER_NAME}-m1"), so a
-			// value without the expected prefix must be silently ignored, not treated as an
-			// error - an error here would permanently block reconciliation for such machines.
-			name:    "should silently ignore Spec.ProviderID lacking the nutanix:// prefix",
-			machine: nil,
-			nutanixMachine: &infrav1.NutanixMachine{
-				Spec: infrav1.NutanixMachineSpec{
-					ProviderID: validUUID,
-				},
-			},
-			want:    "",
-			wantErr: false,
-		},
-		{
-			name:    "should silently ignore a non-UUID Spec.ProviderID (e.g. a template placeholder)",
-			machine: nil,
-			nutanixMachine: &infrav1.NutanixMachine{
-				Spec: infrav1.NutanixMachineSpec{
-					ProviderID: providerIdPrefix + invalidUUID,
-				},
-			},
-			want:    "",
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Log("Running test case ", tt.name)
-			got, err := GetVMUUID(tt.machine, tt.nutanixMachine)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetVMUUID() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("GetVMUUID() = %v, want %v", got, tt.want)
-			}
-			if tt.errorMessage != "" && err != nil {
-				if !strings.Contains(err.Error(), tt.errorMessage) {
-					t.Errorf("GetVMUUID() error message = %v, want to contain %v", err.Error(), tt.errorMessage)
-				}
-			}
-		})
-	}
-}
-
-func TestGetProjectUUID(t *testing.T) {
-	ctx := context.Background()
-
-	t.Run("returns error when both name and uuid are nil", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-		mockV3 := mocknutanixv3.NewMockService(ctrl)
-		client := &prismclientv3.Client{V3: mockV3}
-		rctx := &nctx.MachineContext{
-			Context:       ctx,
-			NutanixClient: client,
-		}
-		projectRef := &infrav1.NutanixResourceIdentifier{
-			UUID: nil,
-			Name: nil,
-		}
-		projectInfo, err := GetProjectV3(rctx, projectRef)
-		assert.Error(t, err)
-		assert.Nil(t, projectInfo)
-		assert.Contains(t, err.Error(), "name or uuid must be passed")
-	})
-
-	t.Run("returns project info when lookup by uuid succeeds", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-		projectUUID := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-		projectName := "proj"
-		mockV3 := mocknutanixv3.NewMockService(ctrl)
-		mockV3.EXPECT().GetProject(ctx, projectUUID).Return(&prismclientv3.Project{
-			Metadata: &prismclientv3.Metadata{UUID: &projectUUID},
-			Spec:     &prismclientv3.ProjectSpec{Name: projectName},
-		}, nil)
-		client := &prismclientv3.Client{V3: mockV3}
-		rctx := &nctx.MachineContext{
-			Context:       ctx,
-			NutanixClient: client,
-		}
-		projectRef := &infrav1.NutanixResourceIdentifier{
-			UUID: &projectUUID,
-		}
-		projectInfo, err := GetProjectV3(rctx, projectRef)
-		assert.NoError(t, err)
-		assert.Equal(t, projectUUID, *projectInfo.ExtID)
-		assert.Equal(t, projectName, *projectInfo.Name)
-	})
-
-	t.Run("returns error when get project by uuid returns ENTITY_NOT_FOUND", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-		projectUUID := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-		mockV3 := mocknutanixv3.NewMockService(ctrl)
-		mockV3.EXPECT().GetProject(ctx, projectUUID).Return(nil, errors.New("ENTITY_NOT_FOUND: not found"))
-		client := &prismclientv3.Client{V3: mockV3}
-		rctx := &nctx.MachineContext{
-			Context:       ctx,
-			NutanixClient: client,
-		}
-		projectRef := &infrav1.NutanixResourceIdentifier{
-			UUID: &projectUUID,
-		}
-		projectInfo, err := GetProjectV3(rctx, projectRef)
-		assert.Error(t, err)
-		assert.Nil(t, projectInfo)
-		assert.Contains(t, err.Error(), "failed to find project with UUID")
-	})
-
-	t.Run("returns project info when lookup by name succeeds", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-		projectName := "my-project"
-		projectUUID := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-		mockV3 := mocknutanixv3.NewMockService(ctrl)
-		mockV3.EXPECT().ListAllProject(ctx, "").Return(&prismclientv3.ProjectListResponse{
-			Entities: []*prismclientv3.Project{
-				{
-					Metadata: &prismclientv3.Metadata{UUID: &projectUUID},
-					Spec:     &prismclientv3.ProjectSpec{Name: projectName},
-				},
-			},
-		}, nil)
-		client := &prismclientv3.Client{V3: mockV3}
-		rctx := &nctx.MachineContext{
-			Context:       ctx,
-			NutanixClient: client,
-		}
-		projectRef := &infrav1.NutanixResourceIdentifier{
-			Name: &projectName,
-		}
-		projectInfo, err := GetProjectV3(rctx, projectRef)
-		assert.NoError(t, err)
-		assert.Equal(t, projectUUID, *projectInfo.ExtID)
-		assert.Equal(t, projectName, *projectInfo.Name)
-	})
-
-	t.Run("returns error when no project found by name", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-		projectName := "nonexistent"
-		mockV3 := mocknutanixv3.NewMockService(ctrl)
-		mockV3.EXPECT().ListAllProject(ctx, "").Return(&prismclientv3.ProjectListResponse{
-			Entities: []*prismclientv3.Project{},
-		}, nil)
-		client := &prismclientv3.Client{V3: mockV3}
-		rctx := &nctx.MachineContext{
-			Context:       ctx,
-			NutanixClient: client,
-		}
-		projectRef := &infrav1.NutanixResourceIdentifier{
-			Name: &projectName,
-		}
-		projectInfo, err := GetProjectV3(rctx, projectRef)
-		assert.Error(t, err)
-		assert.Nil(t, projectInfo)
-		assert.Contains(t, err.Error(), "failed to retrieve project by name")
-	})
-
-	t.Run("returns error when multiple projects found with same name", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-		projectName := "dup"
-		uuid1 := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-		uuid2 := "bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee"
-		mockV3 := mocknutanixv3.NewMockService(ctrl)
-		mockV3.EXPECT().ListAllProject(ctx, "").Return(&prismclientv3.ProjectListResponse{
-			Entities: []*prismclientv3.Project{
-				{Metadata: &prismclientv3.Metadata{UUID: &uuid1}, Spec: &prismclientv3.ProjectSpec{Name: projectName}},
-				{Metadata: &prismclientv3.Metadata{UUID: &uuid2}, Spec: &prismclientv3.ProjectSpec{Name: projectName}},
-			},
-		}, nil)
-		client := &prismclientv3.Client{V3: mockV3}
-		rctx := &nctx.MachineContext{
-			Context:       ctx,
-			NutanixClient: client,
-		}
-		projectRef := &infrav1.NutanixResourceIdentifier{
-			Name: &projectName,
-		}
-		projectInfo, err := GetProjectV3(rctx, projectRef)
-		assert.Error(t, err)
-		assert.Nil(t, projectInfo)
-		assert.Contains(t, err.Error(), "more than one project found")
-	})
-}
-
-func TestGetProjectV4(t *testing.T) {
-	ctx := context.Background()
-
-	t.Run("returns error when both name and uuid are nil", func(t *testing.T) {
-		// GetProjectV4 does not need a real client for this path
-		rctx := &nctx.MachineContext{
-			Context: ctx,
-		}
-		projectRef := &infrav1.NutanixResourceIdentifier{
-			UUID: nil,
-			Name: nil,
-		}
-		projectInfo, err := GetProjectV4(rctx, projectRef)
-		assert.Error(t, err)
-		assert.Nil(t, projectInfo)
-		assert.Contains(t, err.Error(), "name or uuid must be passed")
-	})
-}
-
-func TestGetDefaultProjectUUID(t *testing.T) {
-	t.Run("returns empty string when PC version is pc.7.5.0.5", func(t *testing.T) {
-		rctx := &nctx.MachineContext{PCVersion: "pc.7.5.0.5"}
-		uuid, err := GetDefaultProjectUUID(rctx)
-		assert.NoError(t, err)
-		assert.Empty(t, uuid)
-	})
-
-	t.Run("returns empty string when PC version is 7.5.0", func(t *testing.T) {
-		rctx := &nctx.MachineContext{PCVersion: "7.5.0"}
-		uuid, err := GetDefaultProjectUUID(rctx)
-		assert.NoError(t, err)
-		assert.Empty(t, uuid)
-	})
-}
-
-func TestGetResourceGroupForProject(t *testing.T) {
-	ctx := context.Background()
-	projectExtID := "11111111-1111-1111-1111-111111111111"
-
-	t.Run("returns the resource group owned by the project", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-		rgExtID := "rg-uuid"
-		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return([]projectModels.ResourceGroup{
-			{ExtId: ptr.To("other-rg"), ProjectExtId: ptr.To("other-project")},
-			{ExtId: ptr.To(rgExtID), ProjectExtId: ptr.To(projectExtID)},
-		}, nil)
-
-		rg, err := GetResourceGroupForProject(ctx, mockConvergedClient.Client, projectExtID)
-		require.NoError(t, err)
-		require.NotNil(t, rg)
-		assert.Equal(t, rgExtID, *rg.ExtId)
-	})
-
-	t.Run("returns nil when no resource group matches the project", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return([]projectModels.ResourceGroup{
-			{ExtId: ptr.To("other-rg"), ProjectExtId: ptr.To("other-project")},
-		}, nil)
-
-		rg, err := GetResourceGroupForProject(ctx, mockConvergedClient.Client, projectExtID)
-		require.NoError(t, err)
-		assert.Nil(t, rg)
-	})
-
-	t.Run("propagates list error", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("list failed"))
-
-		rg, err := GetResourceGroupForProject(ctx, mockConvergedClient.Client, projectExtID)
-		require.Error(t, err)
-		assert.Nil(t, rg)
-		assert.Contains(t, err.Error(), "list failed")
-	})
-}
-
-func TestResolveResourceGroup(t *testing.T) {
-	ctx := context.Background()
-	projectExtID := "11111111-1111-1111-1111-111111111111"
-	defaultProjectExtID := "00000000-default-project"
-
-	t.Run("returns nil when the effective project is the default project", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-		mockConvergedClient.MockProjects.EXPECT().GetDefaultProject(ctx).Return(&projectModels.Project{
-			ExtId: ptr.To(defaultProjectExtID),
-		}, nil)
-
-		rctx := &nctx.MachineContext{
-			Context:         ctx,
-			PCVersion:       "7.6",
-			ConvergedClient: mockConvergedClient.Client,
-		}
-		effectiveProject := &nctx.ProjectInfo{
-			ExtID: ptr.To(defaultProjectExtID),
-			Name:  ptr.To("default"),
-		}
-
-		rg, err := resolveResourceGroup(rctx, effectiveProject)
-		require.NoError(t, err)
-		assert.Nil(t, rg)
-	})
-
-	t.Run("returns the resource group for a non-default project", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-		mockConvergedClient.MockProjects.EXPECT().GetDefaultProject(ctx).Return(&projectModels.Project{
-			ExtId: ptr.To(defaultProjectExtID),
-		}, nil)
-		rgExtID := "rg-uuid"
-		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return([]projectModels.ResourceGroup{
-			{ExtId: ptr.To(rgExtID), ProjectExtId: ptr.To(projectExtID)},
-		}, nil)
-
-		rctx := &nctx.MachineContext{
-			Context:         ctx,
-			PCVersion:       "7.6",
-			ConvergedClient: mockConvergedClient.Client,
-		}
-		effectiveProject := &nctx.ProjectInfo{
-			ExtID: ptr.To(projectExtID),
-			Name:  ptr.To("nkp-test"),
-		}
-
-		rg, err := resolveResourceGroup(rctx, effectiveProject)
-		require.NoError(t, err)
-		require.NotNil(t, rg)
-		assert.Equal(t, rgExtID, *rg.ExtId)
-	})
-
-	t.Run("returns a terminal error naming the project when no resource group exists", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-		mockConvergedClient.MockProjects.EXPECT().GetDefaultProject(ctx).Return(&projectModels.Project{
-			ExtId: ptr.To(defaultProjectExtID),
-		}, nil)
-		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return([]projectModels.ResourceGroup{}, nil)
-
-		rctx := &nctx.MachineContext{
-			Context:         ctx,
-			PCVersion:       "7.6",
-			ConvergedClient: mockConvergedClient.Client,
-		}
-		effectiveProject := &nctx.ProjectInfo{
-			ExtID: ptr.To(projectExtID),
-			Name:  ptr.To("nkp-test"),
-		}
-
-		rg, err := resolveResourceGroup(rctx, effectiveProject)
-		require.Error(t, err)
-		assert.Nil(t, rg)
-		assert.Contains(t, err.Error(), "no resource group found for project nkp-test")
-		var termErr *terminalError
-		assert.ErrorAs(t, err, &termErr)
-	})
-
-	t.Run("falls back to zero UUID and still resolves when default project lookup fails", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-		mockConvergedClient.MockProjects.EXPECT().GetDefaultProject(ctx).Return(nil, errors.New("permission denied"))
-		rgExtID := "rg-uuid"
-		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return([]projectModels.ResourceGroup{
-			{ExtId: ptr.To(rgExtID), ProjectExtId: ptr.To(projectExtID)},
-		}, nil)
-
-		rctx := &nctx.MachineContext{
-			Context:         ctx,
-			PCVersion:       "7.6",
-			ConvergedClient: mockConvergedClient.Client,
-		}
-		effectiveProject := &nctx.ProjectInfo{
-			ExtID: ptr.To(projectExtID),
-			Name:  ptr.To("nkp-test"),
-		}
-
-		rg, err := resolveResourceGroup(rctx, effectiveProject)
-		require.NoError(t, err)
-		require.NotNil(t, rg)
-		assert.Equal(t, rgExtID, *rg.ExtId)
-	})
-}
-
-func TestResolveResourceGroupForProjectPolicy(t *testing.T) {
-	ctx := context.Background()
-	defaultProjectExtID := "00000000-default-project"
-	namedProjectExtID := "11111111-1111-1111-1111-111111111111"
-
-	t.Run("returns nil for an unrestricted policy without any client calls", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-
-		rg, err := resolveResourceGroupForProjectPolicy(ctx, mockConvergedClient.Client, CAPXProjectPolicyUnrestricted, "", "7.6")
-		require.NoError(t, err)
-		assert.Nil(t, rg)
-	})
-
-	t.Run("returns nil when PC version is below 7.6", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-
-		rg, err := resolveResourceGroupForProjectPolicy(ctx, mockConvergedClient.Client, CAPXProjectPolicySingleProject, namedProjectExtID, "7.5")
-		require.NoError(t, err)
-		assert.Nil(t, rg)
-	})
-
-	t.Run("returns nil for the default-only policy (default project has no resource group)", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-		mockConvergedClient.MockProjects.EXPECT().GetDefaultProject(ctx).Return(&projectModels.Project{
-			ExtId: ptr.To(defaultProjectExtID),
-		}, nil).Times(2)
-
-		rg, err := resolveResourceGroupForProjectPolicy(ctx, mockConvergedClient.Client, CAPXProjectPolicyDefaultOnly, "", "7.6")
-		require.NoError(t, err)
-		assert.Nil(t, rg)
-	})
-
-	t.Run("resolves the resource group for a single-project policy", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-		mockConvergedClient.MockProjects.EXPECT().GetDefaultProject(ctx).Return(&projectModels.Project{
-			ExtId: ptr.To(defaultProjectExtID),
-		}, nil)
-		rgExtID := "rg-uuid"
-		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return([]projectModels.ResourceGroup{
-			{ExtId: ptr.To(rgExtID), ProjectExtId: ptr.To(namedProjectExtID)},
-		}, nil)
-
-		rg, err := resolveResourceGroupForProjectPolicy(ctx, mockConvergedClient.Client, CAPXProjectPolicySingleProject, namedProjectExtID, "7.6")
-		require.NoError(t, err)
-		require.NotNil(t, rg)
-		assert.Equal(t, rgExtID, *rg.ExtId)
-	})
-
-	t.Run("returns a terminal error when a single-project policy has no resource group", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-		mockConvergedClient.MockProjects.EXPECT().GetDefaultProject(ctx).Return(&projectModels.Project{
-			ExtId: ptr.To(defaultProjectExtID),
-		}, nil)
-		mockConvergedClient.MockResourceGroups.EXPECT().List(gomock.Any(), gomock.Any()).Return([]projectModels.ResourceGroup{}, nil)
-
-		rg, err := resolveResourceGroupForProjectPolicy(ctx, mockConvergedClient.Client, CAPXProjectPolicySingleProject, namedProjectExtID, "7.6")
-		require.Error(t, err)
-		assert.Nil(t, rg)
-		assert.Contains(t, err.Error(), "no resource group found for project")
-		var termErr *terminalError
-		assert.ErrorAs(t, err, &termErr)
-	})
-
-	t.Run("returns error when single-project policy is missing project UUID", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockConvergedClient := NewMockConvergedClient(ctrl)
-
-		rg, err := resolveResourceGroupForProjectPolicy(ctx, mockConvergedClient.Client, CAPXProjectPolicySingleProject, "", "7.6")
-		require.Error(t, err)
-		assert.Nil(t, rg)
-		assert.Contains(t, err.Error(), "single-project policy requires")
-	})
-}
-
-func TestEnrichTaskErrorWithFailedSubtasks(t *testing.T) {
-	parentUUID := "parent-create-vm"
-	childUUID := "child-vnic"
-	parentErr := errors.New("task parent-create-vm failed: Failed to perform the operation on the VM with UUID 'EMPTY' as '' is not defined")
-	dhcpMsg := "Cannot allocate address! No DHCP pool is defined or the DHCP pool is exhausted"
-
-	t.Run("appends failed child subtask errors from list", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockClient := NewMockConvergedClient(ctrl)
-		failedStatus := prismModels.TASKSTATUS_FAILED
-		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{
-			{
-				ExtId:                ptr.To(childUUID),
-				Status:               &failedStatus,
-				OperationDescription: ptr.To("Create VM vNIC port"),
-				ErrorMessages: []prismErrors.AppMessage{
-					{Message: ptr.To(dhcpMsg)},
-				},
-			},
-		}, nil)
-		// Nested collect for the failed child lists its own children.
-		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
-
-		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
-		require.Error(t, err)
-		assert.ErrorContains(t, err, parentErr.Error())
-		assert.ErrorContains(t, err, "failed_subtasks:")
-		assert.ErrorContains(t, err, dhcpMsg)
-		assert.ErrorContains(t, err, "Create VM vNIC port")
-	})
-
-	t.Run("does not fall back to Get when list returns empty", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockClient := NewMockConvergedClient(ctrl)
-		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
-
-		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
-		require.Error(t, err)
-		assert.Equal(t, parentErr, err)
-	})
-
-	t.Run("falls back to parent subtask references when list errors", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockClient := NewMockConvergedClient(ctrl)
-		failedStatus := prismModels.TASKSTATUS_FAILED
-		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("list failed"))
-		mockClient.MockTasks.EXPECT().Get(gomock.Any(), parentUUID).Return(&prismModels.Task{
-			ExtId: ptr.To(parentUUID),
-			SubTasks: []prismModels.TaskReferenceInternal{
-				{ExtId: ptr.To(childUUID)},
-			},
-		}, nil)
-		mockClient.MockTasks.EXPECT().Get(gomock.Any(), childUUID).Return(&prismModels.Task{
-			ExtId:                ptr.To(childUUID),
-			Status:               &failedStatus,
-			OperationDescription: ptr.To("Create VM vNIC port"),
-			LegacyErrorMessage:   ptr.To(dhcpMsg),
-		}, nil)
-		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
-
-		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
-		require.Error(t, err)
-		assert.ErrorContains(t, err, dhcpMsg)
-	})
-
-	t.Run("deduplicates identical ErrorMessages and LegacyErrorMessage", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockClient := NewMockConvergedClient(ctrl)
-		failedStatus := prismModels.TASKSTATUS_FAILED
-		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{
-			{
-				ExtId:                ptr.To(childUUID),
-				Status:               &failedStatus,
-				OperationDescription: ptr.To("Create VM vNIC port"),
-				ErrorMessages: []prismErrors.AppMessage{
-					{Message: ptr.To(dhcpMsg)},
-				},
-				LegacyErrorMessage: ptr.To(dhcpMsg),
-			},
-		}, nil)
-		mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
-
-		err := enrichTaskErrorWithFailedSubtasks(context.Background(), mockClient.Client, parentUUID, parentErr)
-		require.Error(t, err)
-		assert.Equal(t, 1, strings.Count(err.Error(), dhcpMsg))
-	})
-
-	t.Run("returns original error when parent error is nil", func(t *testing.T) {
-		err := enrichTaskErrorWithFailedSubtasks(context.Background(), nil, parentUUID, nil)
-		assert.NoError(t, err)
-	})
-}
-
-func TestWaitForConvergedOperation_EnrichesFailedWait(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.Background()
-	parentUUID := "parent-task"
-	childUUID := "child-task"
-	waitErr := errors.New("task parent-task failed: generic parent error")
-	childMsg := "Cannot allocate address! No DHCP pool is defined or the DHCP pool is exhausted"
-
-	mockClient := NewMockConvergedClient(ctrl)
-	mockOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
-	mockOp.EXPECT().Wait(ctx).Return(nil, waitErr)
-	mockOp.EXPECT().UUID().Return(parentUUID)
-
-	failedStatus := prismModels.TASKSTATUS_FAILED
-	mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{
-		{
-			ExtId:                ptr.To(childUUID),
-			Status:               &failedStatus,
-			OperationDescription: ptr.To("Create VM vNIC port"),
-			ErrorMessages: []prismErrors.AppMessage{
-				{Message: ptr.To(childMsg)},
-			},
-		},
-	}, nil)
-	mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
-
-	_, err := waitForConvergedOperation(ctx, mockClient.Client, mockOp)
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "generic parent error")
-	assert.ErrorContains(t, err, childMsg)
 }
