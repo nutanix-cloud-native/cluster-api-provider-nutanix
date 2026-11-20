@@ -3621,8 +3621,14 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		// idempotency key. Assert the wrapped context is what reaches CreateAsync, so a change
 		// that passes the plain ctx (and silently drops the key) fails here.
 		mockCreateOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
+		mockCreateOp.EXPECT().UUID().Return("create-task-uuid").AnyTimes()
 		mockCreateOp.EXPECT().Wait(gomock.Any()).Return([]*vmmModels.Vm{createdVM}, nil)
 		mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctxWithRequestID(), gomock.Any()).Return(mockCreateOp, nil)
+		// createAndWaitForVM checks the create task status once before resolving the VM.
+		mockConvergedClient.MockTasks.EXPECT().Get(ctxWithRequestID(), "create-task-uuid").Return(&prismModels.Task{
+			ExtId:  ptr.To("create-task-uuid"),
+			Status: ptr.To(prismModels.TASKSTATUS_SUCCEEDED),
+		}, nil)
 
 		// Create machine context (PC 7.5 uses V3 project API, so ListAllProject mock is used)
 		rctx := &nctx.MachineContext{
@@ -3816,8 +3822,13 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		createdVM.Name = ptr.To(vmName)
 		createdVM.ExtId = nil
 		mockCreateOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
+		mockCreateOp.EXPECT().UUID().Return("create-task-uuid").AnyTimes()
 		mockCreateOp.EXPECT().Wait(gomock.Any()).Return([]*vmmModels.Vm{createdVM}, nil)
 		mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctxWithRequestID(), gomock.Any()).Return(mockCreateOp, nil)
+		mockConvergedClient.MockTasks.EXPECT().Get(ctxWithRequestID(), "create-task-uuid").Return(&prismModels.Task{
+			ExtId:  ptr.To("create-task-uuid"),
+			Status: ptr.To(prismModels.TASKSTATUS_SUCCEEDED),
+		}, nil)
 
 		rctx := &nctx.MachineContext{
 			Context:         ctx,
@@ -4115,34 +4126,87 @@ func Test_createAndWaitForVM(t *testing.T) {
 	createdVM.Name = ptr.To(vmName)
 	createdVM.ExtId = ptr.To("vm-uuid")
 
+	const taskUUID = "task-uuid"
+
 	tests := []struct {
-		name           string
-		waitResult     []*vmmModels.Vm
-		wantErrSubstr  string
-		wantFailure    bool
-		wantReturnedVM bool
+		name string
+		// taskStatus is the status returned by Tasks.Get for the create task.
+		taskStatus prismModels.TaskStatus
+		// taskGetErr, when set, makes Tasks.Get return an error (transient).
+		taskGetErr error
+		// nilTask, when true, makes Tasks.Get return a (nil, nil) response.
+		nilTask bool
+		// expectWait is true when the status check is expected to proceed to op.Wait.
+		expectWait bool
+		waitResult []*vmmModels.Vm
+
+		wantErrSubstr    string
+		wantInProgress   bool
+		wantFailure      bool
+		wantReturnedVM   bool
+		wantNoFailureSet bool
 	}{
 		{
-			name:           "returns the VM when wait yields exactly one",
+			name:           "returns the VM when task succeeded and wait yields exactly one",
+			taskStatus:     prismModels.TASKSTATUS_SUCCEEDED,
+			expectWait:     true,
 			waitResult:     []*vmmModels.Vm{createdVM},
 			wantReturnedVM: true,
 		},
 		{
-			name:          "fails when wait yields no VMs",
+			name:          "fails when task succeeded but wait yields no VMs",
+			taskStatus:    prismModels.TASKSTATUS_SUCCEEDED,
+			expectWait:    true,
 			waitResult:    []*vmmModels.Vm{},
 			wantErrSubstr: "expected exactly 1 VM, got 0",
 			wantFailure:   true,
 		},
 		{
-			name:          "fails when wait yields a nil VM",
+			name:          "fails when task succeeded but wait yields a nil VM",
+			taskStatus:    prismModels.TASKSTATUS_SUCCEEDED,
+			expectWait:    true,
 			waitResult:    []*vmmModels.Vm{nil},
 			wantErrSubstr: "expected exactly 1 VM, got 1",
 			wantFailure:   true,
 		},
 		{
-			name:          "fails when wait yields more than one VM",
+			name:          "fails when task succeeded but wait yields more than one VM",
+			taskStatus:    prismModels.TASKSTATUS_SUCCEEDED,
+			expectWait:    true,
 			waitResult:    []*vmmModels.Vm{createdVM, createdVM},
 			wantErrSubstr: "expected exactly 1 VM, got 2",
+			wantFailure:   true,
+		},
+		{
+			name:           "requeues (in progress) when task is still running",
+			taskStatus:     prismModels.TASKSTATUS_RUNNING,
+			wantInProgress: true,
+		},
+		{
+			name:           "requeues (in progress) when task is still queued",
+			taskStatus:     prismModels.TASKSTATUS_QUEUED,
+			wantInProgress: true,
+		},
+		{
+			name:           "requeues (in progress) when the task cannot be read yet",
+			taskGetErr:     fmt.Errorf("transient read error"),
+			wantInProgress: true,
+		},
+		{
+			name:           "requeues (in progress) when the task has no status yet",
+			nilTask:        true,
+			wantInProgress: true,
+		},
+		{
+			name:          "fails when the task failed",
+			taskStatus:    prismModels.TASKSTATUS_FAILED,
+			wantErrSubstr: "ended with status FAILED",
+			wantFailure:   true,
+		},
+		{
+			name:          "fails when the task was canceled",
+			taskStatus:    prismModels.TASKSTATUS_CANCELED,
+			wantErrSubstr: "ended with status CANCELED",
 			wantFailure:   true,
 		},
 	}
@@ -4154,8 +4218,31 @@ func Test_createAndWaitForVM(t *testing.T) {
 
 			mockConvergedClient := NewMockConvergedClient(ctrl)
 			mockCreateOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
-			mockCreateOp.EXPECT().Wait(ctx).Return(tt.waitResult, nil)
+			mockCreateOp.EXPECT().UUID().Return(taskUUID).AnyTimes()
 			mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctx, gomock.Any()).Return(mockCreateOp, nil)
+
+			switch {
+			case tt.taskGetErr != nil:
+				mockConvergedClient.MockTasks.EXPECT().Get(ctx, taskUUID).Return(nil, tt.taskGetErr)
+			case tt.nilTask:
+				mockConvergedClient.MockTasks.EXPECT().Get(ctx, taskUUID).Return(nil, nil)
+			default:
+				mockConvergedClient.MockTasks.EXPECT().Get(ctx, taskUUID).Return(&prismModels.Task{
+					ExtId:  ptr.To(taskUUID),
+					Status: ptr.To(tt.taskStatus),
+				}, nil)
+			}
+
+			if tt.expectWait {
+				mockCreateOp.EXPECT().Wait(ctx).Return(tt.waitResult, nil)
+			}
+			// Failed/canceled branches enrich the error by listing failed subtasks.
+			if tt.taskStatus == prismModels.TASKSTATUS_FAILED ||
+				tt.taskStatus == prismModels.TASKSTATUS_CANCELED ||
+				tt.taskStatus == prismModels.TASKSTATUS_CANCELING {
+				mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil).AnyTimes()
+				mockConvergedClient.MockTasks.EXPECT().Get(ctx, gomock.Any()).Return(nil, nil).AnyTimes()
+			}
 
 			ntnxMachine := &infrav1.NutanixMachine{}
 			rctx := &nctx.MachineContext{
@@ -4165,6 +4252,15 @@ func Test_createAndWaitForVM(t *testing.T) {
 			}
 
 			vm, err := createAndWaitForVM(ctx, rctx, vmmModels.NewVm(), vmName)
+
+			if tt.wantInProgress {
+				require.Error(t, err)
+				assert.True(t, isVMCreationInProgress(err), "expected errVMCreationInProgress, got %v", err)
+				assert.Nil(t, vm)
+				assert.Nil(t, ntnxMachine.Status.FailureReason)
+				return
+			}
+
 			if tt.wantReturnedVM {
 				require.NoError(t, err)
 				require.NotNil(t, vm)
@@ -4174,6 +4270,7 @@ func Test_createAndWaitForVM(t *testing.T) {
 			}
 
 			require.Error(t, err)
+			assert.False(t, isVMCreationInProgress(err))
 			assert.Nil(t, vm)
 			assert.ErrorContains(t, err, tt.wantErrSubstr)
 			if tt.wantFailure {
