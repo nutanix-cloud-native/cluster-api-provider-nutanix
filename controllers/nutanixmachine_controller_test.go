@@ -4520,9 +4520,10 @@ func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
 		err := reconciler.assignAddressesToMachine(rctx, buildVM(newNicWithDeprecatedNetworkInfo("10.10.10.10")))
 
 		require.NoError(t, err)
-		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 3)
 		assert.Equal(t, "10.10.10.10", rctx.NutanixMachine.Status.Addresses[0].Address)
 		assert.Equal(t, "vm-name", rctx.NutanixMachine.Status.Addresses[1].Address)
+		assert.Equal(t, "vm-name", rctx.NutanixMachine.Status.Addresses[2].Address)
 	})
 
 	t.Run("new NicNetworkInfo with static IP", func(t *testing.T) {
@@ -4531,8 +4532,8 @@ func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
 		err := reconciler.assignAddressesToMachine(rctx, buildVM(newNicWithVirtualEthernetInfo("10.10.10.12")))
 
 		require.NoError(t, err)
-		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
-		assert.Equal(t, "10.10.10.12", rctx.NutanixMachine.Status.Addresses[0].Address)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 3)
+		assert.Equal(t, "10.10.10.12", rctx.NutanixMachine.Status.Addresses[0].Address, rctx.NutanixMachine.Status.Addresses[1].Address)
 	})
 
 	t.Run("new NicNetworkInfo with learned IPs", func(t *testing.T) {
@@ -4541,7 +4542,7 @@ func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
 		err := reconciler.assignAddressesToMachine(rctx, buildVM(newNicWithLearnedIPs("10.10.10.13")))
 
 		require.NoError(t, err)
-		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 3)
 		assert.Equal(t, "10.10.10.13", rctx.NutanixMachine.Status.Addresses[0].Address)
 	})
 
@@ -4551,7 +4552,7 @@ func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
 		err := reconciler.assignAddressesToMachine(rctx, buildVM(newNicWithDpOffloadInfo("10.10.10.20")))
 
 		require.NoError(t, err)
-		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 3)
 		assert.Equal(t, "10.10.10.20", rctx.NutanixMachine.Status.Addresses[0].Address)
 	})
 
@@ -4566,7 +4567,7 @@ func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
 		err := reconciler.assignAddressesToMachine(rctx, buildVM(nic))
 
 		require.NoError(t, err)
-		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 3)
 		assert.Equal(t, "10.10.10.30", rctx.NutanixMachine.Status.Addresses[0].Address)
 	})
 
@@ -4579,9 +4580,10 @@ func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
 		))
 
 		require.NoError(t, err)
-		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 3)
 		assert.Equal(t, "10.10.10.10", rctx.NutanixMachine.Status.Addresses[0].Address)
 		assert.Equal(t, "vm-name", rctx.NutanixMachine.Status.Addresses[1].Address)
+		assert.Equal(t, "vm-name", rctx.NutanixMachine.Status.Addresses[2].Address)
 	})
 
 	t.Run("prefers new NicNetworkInfo over deprecated NetworkInfo", func(t *testing.T) {
@@ -4596,7 +4598,7 @@ func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
 		err := reconciler.assignAddressesToMachine(rctx, buildVM(nic))
 
 		require.NoError(t, err)
-		require.Len(t, rctx.NutanixMachine.Status.Addresses, 2)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 3)
 		assert.Equal(t, "10.10.10.50", rctx.NutanixMachine.Status.Addresses[0].Address)
 	})
 
@@ -4609,7 +4611,7 @@ func TestNutanixMachineReconciler_assignAddressesToMachine(t *testing.T) {
 		))
 
 		require.NoError(t, err)
-		require.Len(t, rctx.NutanixMachine.Status.Addresses, 3)
+		require.Len(t, rctx.NutanixMachine.Status.Addresses, 4)
 	})
 
 	t.Run("fails if no IP addresses found", func(t *testing.T) {
