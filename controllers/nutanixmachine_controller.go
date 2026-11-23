@@ -2226,6 +2226,15 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 		// An adopted VM no longer needs a create backoff or a failure count.
 		if clearErr := r.clearVMCreateRecoveryAnnotations(rctx); clearErr != nil {
 			log.Error(clearErr, "failed to clear vm create recovery annotations after adopting existing VM")
+		if vmFound.ExtId != nil {
+			vmUUID := *vmFound.ExtId
+			before := rctx.NutanixMachine.DeepCopy()
+			rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUUID)
+			rctx.NutanixMachine.Status.VmUUID = vmUUID
+			if err := r.patchMachine(rctx, before); err != nil {
+				log.Error(err, "failed to patch NutanixMachine after adopting existing VM")
+				return nil, err
+			}
 		}
 		markVMProvisioned(rctx)
 		return vmFound, nil

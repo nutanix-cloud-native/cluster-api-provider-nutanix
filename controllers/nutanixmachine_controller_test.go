@@ -3724,6 +3724,22 @@ func TestAddGuestCustomizationNilBootstrapRef(t *testing.T) {
 	require.Error(t, err)
 }
 
+// newGetOrCreateVMFakeClient builds a fake controller-runtime client seeded with the given
+// NutanixMachine (status subresource enabled) so getOrCreateVM's patchMachine calls exercise the
+// real v1beta1patch.Helper diffing/patching logic instead of a hand-rolled mock.
+func newGetOrCreateVMFakeClient(t *testing.T, ntnxMachine *infrav1.NutanixMachine) client.Client {
+	t.Helper()
+	scheme := runtime.NewScheme()
+	require.NoError(t, infrav1.AddToScheme(scheme))
+	require.NoError(t, capiv1beta2.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+	return fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ntnxMachine).
+		WithStatusSubresource(ntnxMachine).
+		Build()
+}
+
 func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 	t.Run("should return existing VM when found by UUID", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -3782,8 +3798,8 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
-		// Create reconciler
-		reconciler := &NutanixMachineReconciler{}
+		// Create reconciler with a fake client so the adoption path can persist identity.
+		reconciler := &NutanixMachineReconciler{Client: newGetOrCreateVMFakeClient(t, ntnxMachine)}
 
 		// Test getOrCreateVM
 		vm, err := reconciler.getOrCreateVM(rctx, &nctx.ProjectInfo{ExtID: &testProjectExtID, Name: ptr.To("test-project")}, nil)
@@ -3793,6 +3809,8 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		assert.NotNil(t, vm)
 		assert.Equal(t, vmName, *vm.Name)
 		assert.Equal(t, vmUUID, *vm.ExtId)
+		assert.Equal(t, fmt.Sprintf("nutanix://%s", vmUUID), ntnxMachine.Spec.ProviderID)
+		assert.Equal(t, vmUUID, ntnxMachine.Status.VmUUID)
 	})
 
 	t.Run("should return existing VM when found by name", func(t *testing.T) {
@@ -3803,13 +3821,19 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		vmName := "test-vm"
 		vmUUID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
 
-		// Create NutanixMachine without VM UUID
+		// Create NutanixMachine whose ProviderID still holds the template placeholder
+		// (for example "nutanix://${CLUSTER_NAME}-m1") and has no VmUUID yet. This is the state
+		// a machine is in on the reconcile that follows a still-in-progress create: the VM now
+		// exists in Prism and is located by name, and the adoption path must overwrite the
+		// placeholder with the real VM UUID.
 		ntnxMachine := &infrav1.NutanixMachine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-machine",
 				Namespace: "default",
 			},
-			Spec: infrav1.NutanixMachineSpec{},
+			Spec: infrav1.NutanixMachineSpec{
+				ProviderID: "nutanix://test-cluster-m1",
+			},
 		}
 
 		machine := &capiv1beta2.Machine{
@@ -3848,8 +3872,9 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
-		// Create reconciler
-		reconciler := &NutanixMachineReconciler{}
+		// Create reconciler with a fake client so the adoption path can persist identity.
+		fakeClient := newGetOrCreateVMFakeClient(t, ntnxMachine)
+		reconciler := &NutanixMachineReconciler{Client: fakeClient}
 
 		// Test getOrCreateVM
 		vm, err := reconciler.getOrCreateVM(rctx, &nctx.ProjectInfo{ExtID: &testProjectExtID, Name: ptr.To("test-project")}, nil)
@@ -3858,6 +3883,16 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, vm)
 		assert.Equal(t, vmName, *vm.Name)
+		// The placeholder ProviderID must be overwritten with the real VM UUID, and VmUUID set,
+		// both in memory and durably via patchMachine. Without this the CAPI Machine's
+		// spec.providerID never matches a real node and the machine waits forever for a Node.
+		assert.Equal(t, fmt.Sprintf("nutanix://%s", vmUUID), ntnxMachine.Spec.ProviderID)
+		assert.Equal(t, vmUUID, ntnxMachine.Status.VmUUID)
+
+		persisted := &infrav1.NutanixMachine{}
+		require.NoError(t, fakeClient.Get(ctx, client.ObjectKeyFromObject(ntnxMachine), persisted))
+		assert.Equal(t, fmt.Sprintf("nutanix://%s", vmUUID), persisted.Spec.ProviderID)
+		assert.Equal(t, vmUUID, persisted.Status.VmUUID)
 	})
 
 	t.Run("should return existing VM even when it is powered off", func(t *testing.T) {
@@ -3913,7 +3948,7 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
-		reconciler := &NutanixMachineReconciler{}
+		reconciler := &NutanixMachineReconciler{Client: newGetOrCreateVMFakeClient(t, ntnxMachine)}
 		vm, err := reconciler.getOrCreateVM(rctx, &nctx.ProjectInfo{ExtID: &testProjectExtID, Name: ptr.To("test-project")}, nil)
 
 		assert.NoError(t, err)
@@ -5370,8 +5405,8 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
-		// Create reconciler
-		reconciler := &NutanixMachineReconciler{}
+		// Create reconciler with a fake client so the adoption path can persist identity.
+		reconciler := &NutanixMachineReconciler{Client: newGetOrCreateVMFakeClient(t, ntnxMachine)}
 
 		// Test getOrCreateVM - should use systemUUID, not VmUUID
 		vm, err := reconciler.getOrCreateVM(rctx, &nctx.ProjectInfo{ExtID: &testProjectExtID, Name: ptr.To("test-project")}, nil)
@@ -5442,8 +5477,8 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
-		// Create reconciler
-		reconciler := &NutanixMachineReconciler{}
+		// Create reconciler with a fake client so the adoption path can persist identity.
+		reconciler := &NutanixMachineReconciler{Client: newGetOrCreateVMFakeClient(t, ntnxMachine)}
 
 		// Test getOrCreateVM - should use VmUUID
 		vm, err := reconciler.getOrCreateVM(rctx, &nctx.ProjectInfo{ExtID: &testProjectExtID, Name: ptr.To("test-project")}, nil)
@@ -5516,8 +5551,8 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
-		// Create reconciler
-		reconciler := &NutanixMachineReconciler{}
+		// Create reconciler with a fake client so the adoption path can persist identity.
+		reconciler := &NutanixMachineReconciler{Client: newGetOrCreateVMFakeClient(t, ntnxMachine)}
 
 		// Test getOrCreateVM - should use VmUUID
 		vm, err := reconciler.getOrCreateVM(rctx, &nctx.ProjectInfo{ExtID: &testProjectExtID, Name: ptr.To("test-project")}, nil)
