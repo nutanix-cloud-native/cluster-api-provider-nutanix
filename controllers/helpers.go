@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,6 +61,13 @@ const (
 	// Reusing the failed request id forever replays the same FAILED task.
 	failedVMCreateRetryAfter = 30 * time.Minute
 
+	// maxFailedVMCreateAttempts is how many confirmed Prism CreateVm task failures
+	// CAPX tolerates before setting failureReason. Attempts 1..max-1 wait
+	// failedVMCreateRetryAfter and retry. The next confirmed failure is terminal.
+	// Prism task text is not classified: "not enough cores", quota, and invalid
+	// config all look the same, and capacity errors can become retryable.
+	maxFailedVMCreateAttempts = 4
+
 	ImageStateDeletePending    = "DELETE_PENDING"
 	ImageStateDeleteInProgress = "DELETE_IN_PROGRESS"
 
@@ -85,6 +93,11 @@ const (
 	// must not mint a new create request-id or call Prism CreateVm. The annotation is durable
 	// across reconcile re-entry and controller restarts; RequeueAfter alone is not.
 	VMCreateRetryAfterAnnotation = "capx.nutanix.com/vm-create-retry-after"
+
+	// VMCreateFailureCountAnnotation counts confirmed Prism CreateVm task failures
+	// that did not adopt a VM. It survives the retry-after window so a later failure
+	// can become terminal. Cleared once a VM is adopted or created.
+	VMCreateFailureCountAnnotation = "capx.nutanix.com/vm-create-failure-count"
 
 	metroFailureDomainPrefix         = "NutanixMetro/"
 	metroSiteFailureDomainPrefix     = "NutanixMetroSite/"
@@ -217,6 +230,24 @@ func remainingVMCreateBackoff(nm *infrav1.NutanixMachine, now time.Time) (time.D
 		return 0, false
 	}
 	return remaining, true
+}
+
+// vmCreateFailureCount returns the persisted count of confirmed CreateVm task
+// failures. Missing or unparseable values count as zero so a bad annotation
+// cannot force an immediate terminal failure.
+func vmCreateFailureCount(nm *infrav1.NutanixMachine) int {
+	if nm == nil || nm.Annotations == nil {
+		return 0
+	}
+	raw := nm.Annotations[VMCreateFailureCountAnnotation]
+	if raw == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
 }
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler

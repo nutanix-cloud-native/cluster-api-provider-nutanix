@@ -1192,6 +1192,27 @@ func Test_remainingVMCreateBackoff(t *testing.T) {
 	})
 }
 
+func Test_vmCreateFailureCount(t *testing.T) {
+	t.Run("missing annotation is zero", func(t *testing.T) {
+		assert.Zero(t, vmCreateFailureCount(&infrav1.NutanixMachine{}))
+		assert.Zero(t, vmCreateFailureCount(nil))
+	})
+
+	t.Run("parses a count", func(t *testing.T) {
+		nm := &infrav1.NutanixMachine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+			VMCreateFailureCountAnnotation: "3",
+		}}}
+		assert.Equal(t, 3, vmCreateFailureCount(nm))
+	})
+
+	t.Run("unparseable annotation is zero", func(t *testing.T) {
+		nm := &infrav1.NutanixMachine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+			VMCreateFailureCountAnnotation: "nope",
+		}}}
+		assert.Zero(t, vmCreateFailureCount(nm))
+	})
+}
+
 func TestGetDefaultCAPICategoryIdentifiers(t *testing.T) {
 	clusterName := "my-cluster"
 	ids := GetDefaultCAPICategoryIdentifiers(clusterName)

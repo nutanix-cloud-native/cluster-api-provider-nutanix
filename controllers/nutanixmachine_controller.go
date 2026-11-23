@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1988,17 +1989,23 @@ func (r *NutanixMachineReconciler) getOrMintVMCreationRequestID(rctx *nctx.Machi
 	return requestID, nil
 }
 
-// persistFailedVMCreateBackoff sets the durable create backoff timestamp and clears
-// the create request-id in one patch. Clearing the request-id without the backoff
-// annotation would let a watch-triggered reconcile mint a new id and CreateVm again
-// immediately.
-func (r *NutanixMachineReconciler) persistFailedVMCreateBackoff(rctx *nctx.MachineContext, retryAt time.Time) error {
+// persistFailedVMCreateBackoff records a confirmed create failure and clears the
+// create request-id in one patch. A non-nil retryAt arms the durable backoff;
+// a nil retryAt means retries are exhausted and must not schedule another create.
+// Clearing the request-id without the backoff annotation would let a watch-triggered
+// reconcile mint a new id and CreateVm again immediately.
+func (r *NutanixMachineReconciler) persistFailedVMCreateBackoff(rctx *nctx.MachineContext, retryAt *time.Time, failureCount int) error {
 	patched := rctx.NutanixMachine.DeepCopy()
 	if patched.Annotations == nil {
 		patched.Annotations = map[string]string{}
 	}
-	patched.Annotations[VMCreateRetryAfterAnnotation] = retryAt.UTC().Format(time.RFC3339)
 	delete(patched.Annotations, VMCreationRequestIDAnnotation)
+	patched.Annotations[VMCreateFailureCountAnnotation] = strconv.Itoa(failureCount)
+	if retryAt != nil {
+		patched.Annotations[VMCreateRetryAfterAnnotation] = retryAt.UTC().Format(time.RFC3339)
+	} else {
+		delete(patched.Annotations, VMCreateRetryAfterAnnotation)
+	}
 
 	if err := r.Patch(rctx.Context, patched, client.MergeFrom(rctx.NutanixMachine)); err != nil {
 		return err
@@ -2007,8 +2014,13 @@ func (r *NutanixMachineReconciler) persistFailedVMCreateBackoff(rctx *nctx.Machi
 	if rctx.NutanixMachine.Annotations == nil {
 		rctx.NutanixMachine.Annotations = map[string]string{}
 	}
-	rctx.NutanixMachine.Annotations[VMCreateRetryAfterAnnotation] = retryAt.UTC().Format(time.RFC3339)
 	delete(rctx.NutanixMachine.Annotations, VMCreationRequestIDAnnotation)
+	rctx.NutanixMachine.Annotations[VMCreateFailureCountAnnotation] = strconv.Itoa(failureCount)
+	if retryAt != nil {
+		rctx.NutanixMachine.Annotations[VMCreateRetryAfterAnnotation] = retryAt.UTC().Format(time.RFC3339)
+	} else {
+		delete(rctx.NutanixMachine.Annotations, VMCreateRetryAfterAnnotation)
+	}
 	return nil
 }
 
@@ -2027,10 +2039,37 @@ func (r *NutanixMachineReconciler) clearVMCreateRetryAfter(rctx *nctx.MachineCon
 	return nil
 }
 
-// setVMProvisionedTaskFailedCondition records the Prism create failure for admins
-// without setting failureReason/failureMessage (which would stop reconcileNormal).
-func setVMProvisionedTaskFailedCondition(rctx *nctx.MachineContext, retryAfter time.Duration, createErr error) {
-	msg := fmt.Sprintf("Prism VM create failed; will retry after %s: %v", retryAfter, createErr)
+// clearVMCreateRecoveryAnnotations removes the backoff and failure-count annotations
+// after a VM is adopted or created. clearVMCreateRetryAfter leaves the count in place
+// so an expired backoff does not reset the attempt budget.
+func (r *NutanixMachineReconciler) clearVMCreateRecoveryAnnotations(rctx *nctx.MachineContext) error {
+	if rctx.NutanixMachine.Annotations[VMCreateRetryAfterAnnotation] == "" &&
+		rctx.NutanixMachine.Annotations[VMCreateFailureCountAnnotation] == "" {
+		return nil
+	}
+
+	patched := rctx.NutanixMachine.DeepCopy()
+	delete(patched.Annotations, VMCreateRetryAfterAnnotation)
+	delete(patched.Annotations, VMCreateFailureCountAnnotation)
+	if err := r.Patch(rctx.Context, patched, client.MergeFrom(rctx.NutanixMachine)); err != nil {
+		return err
+	}
+	delete(rctx.NutanixMachine.Annotations, VMCreateRetryAfterAnnotation)
+	delete(rctx.NutanixMachine.Annotations, VMCreateFailureCountAnnotation)
+	return nil
+}
+
+// setVMProvisionedTaskFailedCondition records a Prism create task failure.
+// Attempts below maxFailedVMCreateAttempts leave failureReason unset so reconcile
+// continues after the backoff. The final attempt is terminal; the caller sets
+// failureReason, which stops reconcileNormal.
+func setVMProvisionedTaskFailedCondition(rctx *nctx.MachineContext, attempt int, retryAfter time.Duration, createErr error) {
+	var msg string
+	if attempt >= maxFailedVMCreateAttempts {
+		msg = fmt.Sprintf("Prism VM create failed %d times; not retrying: %v", attempt, createErr)
+	} else {
+		msg = fmt.Sprintf("Prism VM create failed (attempt %d/%d); will retry after %s: %v", attempt, maxFailedVMCreateAttempts, retryAfter, createErr)
+	}
 	v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, infrav1.VMProvisionedTaskFailed, capiv1beta1.ConditionSeverityError, "%s", msg)
 	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
 		Type:    string(infrav1.VMProvisionedCondition),
@@ -2062,8 +2101,8 @@ func (r *NutanixMachineReconciler) adoptVMAfterFailedCreate(rctx *nctx.MachineCo
 
 	log.Info("Adopting VM found after Prism create task failure; not clearing creation request id",
 		"vmUUID", ptr.Deref(found.ExtId, ""))
-	if clearErr := r.clearVMCreateRetryAfter(rctx); clearErr != nil {
-		log.Error(clearErr, "failed to clear vm create retry-after after adopting VM from failed create")
+	if clearErr := r.clearVMCreateRecoveryAnnotations(rctx); clearErr != nil {
+		log.Error(clearErr, "failed to clear vm create recovery annotations after adopting VM from failed create")
 	}
 	markVMProvisioned(rctx)
 	return found, nil
@@ -2073,6 +2112,8 @@ func (r *NutanixMachineReconciler) adoptVMAfterFailedCreate(rctx *nctx.MachineCo
 // task failure when no VM UUID is recorded and a post-failure lookup found no VM.
 // The sticky request-id is cleared so the next attempt (after backoff) mints a fresh
 // idempotency key instead of replaying the same FAILED task.
+// The fourth confirmed failure sets failureReason and does not schedule another
+// retry. Task error text is not classified.
 func (r *NutanixMachineReconciler) recoverStickyFailedVMCreate(rctx *nctx.MachineContext, createErr error) error {
 	if !isPrismTaskFailed(createErr) {
 		return createErr
@@ -2090,14 +2131,30 @@ func (r *NutanixMachineReconciler) recoverStickyFailedVMCreate(rctx *nctx.Machin
 		return createErr
 	}
 
+	failureCount := vmCreateFailureCount(rctx.NutanixMachine) + 1
+	if failureCount >= maxFailedVMCreateAttempts {
+		if persistErr := r.persistFailedVMCreateBackoff(rctx, nil, failureCount); persistErr != nil {
+			return fmt.Errorf("failed to persist vm create failure count after failed create: %w (create error: %v)", persistErr, createErr)
+		}
+		terminalErr := fmt.Errorf("Prism VM create failed %d times; not retrying: %w", failureCount, createErr)
+		setVMProvisionedTaskFailedCondition(rctx, failureCount, 0, createErr)
+		rctx.SetFailureStatus(createErrorFailureReason, terminalErr)
+		log.Info("Prism VM create exhausted retries; set failureReason",
+			"attempts", failureCount,
+			"failureReason", createErrorFailureReason)
+		return terminalErr
+	}
+
 	retryAt := nowFunc().Add(failedVMCreateRetryAfter)
-	if persistErr := r.persistFailedVMCreateBackoff(rctx, retryAt); persistErr != nil {
+	if persistErr := r.persistFailedVMCreateBackoff(rctx, &retryAt, failureCount); persistErr != nil {
 		return fmt.Errorf("failed to persist vm create backoff after failed create: %w (create error: %v)", persistErr, createErr)
 	}
 
-	setVMProvisionedTaskFailedCondition(rctx, failedVMCreateRetryAfter, createErr)
+	setVMProvisionedTaskFailedCondition(rctx, failureCount, failedVMCreateRetryAfter, createErr)
 
 	log.Info("Armed VM create backoff after Prism create task failure; will retry with a new idempotency key",
+		"attempt", failureCount,
+		"maxAttempts", maxFailedVMCreateAttempts,
 		"retryAfter", failedVMCreateRetryAfter.String(),
 		"retryAt", retryAt.UTC().Format(time.RFC3339))
 	return &delayedReconcileError{after: failedVMCreateRetryAfter, err: createErr}
@@ -2146,9 +2203,9 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	// if VM exists
 	if vmFound != nil {
 		log.Info(fmt.Sprintf("vm %s found with UUID %s", ptr.Deref(vmFound.Name, vmName), rctx.NutanixMachine.Status.VmUUID))
-		// An adopted VM no longer needs a create backoff window.
-		if clearErr := r.clearVMCreateRetryAfter(rctx); clearErr != nil {
-			log.Error(clearErr, "failed to clear vm create retry-after after adopting existing VM")
+		// An adopted VM no longer needs a create backoff or a failure count.
+		if clearErr := r.clearVMCreateRecoveryAnnotations(rctx); clearErr != nil {
+			log.Error(clearErr, "failed to clear vm create recovery annotations after adopting existing VM")
 		}
 		markVMProvisioned(rctx)
 		return vmFound, nil
@@ -2335,6 +2392,8 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 
 	// set the VM UUID on the nutanix machine as soon as it is available. VM UUID can be used for cleanup in case of failure
 	before := rctx.NutanixMachine.DeepCopy()
+	delete(rctx.NutanixMachine.Annotations, VMCreateFailureCountAnnotation)
+	delete(rctx.NutanixMachine.Annotations, VMCreateRetryAfterAnnotation)
 	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(vmUuid)
 	rctx.NutanixMachine.Status.VmUUID = vmUuid
 
