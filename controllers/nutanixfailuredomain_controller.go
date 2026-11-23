@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	capxmetrics "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/metrics"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -180,6 +181,9 @@ func (r *NutanixFailureDomainReconciler) mapNutanixMetroSiteToNutanixFailureDoma
 func (r *NutanixFailureDomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, reterr error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.Info("Reconciling the NutanixFailureDomain")
+	defer func() {
+		recordControllerReconcileError(capxmetrics.ResourceNutanixFailureDomain, capxmetrics.OpReconcile, reterr)
+	}()
 
 	// Fetch the NutanixFailureDomain instance
 	fd := &infrav1.NutanixFailureDomain{}

@@ -52,6 +52,7 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	capxmetrics "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/metrics"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/services"
 	credentialTypes "github.com/nutanix-cloud-native/prism-go-client/environment/credentials"
 )
@@ -168,6 +169,9 @@ func (r *NutanixClusterReconciler) mapNutanixFailureDomainToNutanixCluster() han
 func (r *NutanixClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, reterr error) {
 	log := ctrl.LoggerFrom(ctx)
 	log.Info("Reconciling the NutanixCluster")
+	defer func() {
+		recordControllerReconcileError(capxmetrics.ResourceNutanixCluster, capxmetrics.OpReconcile, reterr)
+	}()
 
 	var err error
 

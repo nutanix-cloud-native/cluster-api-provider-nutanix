@@ -43,6 +43,7 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	capxmetrics "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/metrics"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/services"
 	"github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
@@ -74,6 +75,15 @@ const (
 	// clusterctl move drops status on Create for objects with the status subresource enabled,
 	// while metadata (including annotations) passes through unchanged.
 	VMCreationRequestIDAnnotation = "capx.nutanix.com/vm-creation-request-id"
+
+	// VMCreateStartedAtAnnotation is an RFC3339 timestamp stamped once when CAPX first
+	// enters the Prism VM create path for a NutanixMachine. Reconcile compares it to
+	// wall clock to detect create loops that never reach Status.Ready.
+	VMCreateStartedAtAnnotation = "capx.nutanix.com/vm-create-started-at"
+
+	// vmCreateStuckAfter is how long a NutanixMachine may stay not Ready after
+	// vm-create-started-at before CAPX counts it as create-stuck for alerting.
+	vmCreateStuckAfter = 10 * time.Minute
 
 	metroFailureDomainPrefix         = "NutanixMetro/"
 	metroSiteFailureDomainPrefix     = "NutanixMetroSite/"
@@ -134,6 +144,95 @@ func resourceIdsEquals(nris1, nris2 []infrav1.NutanixResourceIdentifier) bool {
 
 	return true
 }
+
+// recordInfraOutcome counts one infrastructure failure. terminal follows the
+// controller decision: true only when the NutanixMachine is marked failed.
+// A local terminalError is a configuration failure, not a Prism HTTP response,
+// so it is counted as class=client. The Prism sentence stays on
+// status.failureMessage; it is never a Prometheus label.
+func recordInfraOutcome(rctx *nctx.MachineContext, operation string, err error, terminal bool) {
+	class := capxmetrics.ErrorClass(err)
+	if services.IsTerminalError(err) {
+		class = capxmetrics.ClassClient
+	}
+	capxmetrics.RecordClass(capxmetrics.ResourceNutanixMachine, operation, class, capxmetrics.HTTPStatus(err), terminal)
+	if terminal && rctx != nil && rctx.NutanixMachine != nil {
+		capxmetrics.RecordMachineFailed(
+			capxmetrics.ResourceNutanixMachine,
+			rctx.NutanixMachine.Namespace,
+			rctx.NutanixMachine.Name,
+			operation,
+		)
+	}
+}
+
+// recordAndCheckTerminal reports whether the error fails the NutanixMachine,
+// and counts that decision. Callers keep the existing SetFailureStatus branch.
+func recordAndCheckTerminal(rctx *nctx.MachineContext, operation string, err error) bool {
+	terminal := !isRetryableAPIError(err)
+	recordInfraOutcome(rctx, operation, err, terminal)
+	return terminal
+}
+
+func recordTerminalInfraError(rctx *nctx.MachineContext, operation string, err error) {
+	recordInfraOutcome(rctx, operation, err, true)
+}
+
+func recordRetryableInfraError(rctx *nctx.MachineContext, operation string, err error) {
+	recordInfraOutcome(rctx, operation, err, false)
+}
+
+// recordControllerReconcileError counts a non-machine controller reconcile failure.
+// Those controllers requeue and do not set NutanixMachine failureReason.
+func recordControllerReconcileError(resource, operation string, err error) {
+	if err == nil {
+		return
+	}
+	capxmetrics.RecordClass(resource, operation, capxmetrics.ErrorClass(err), capxmetrics.HTTPStatus(err), false)
+}
+
+// vmCreateStartedAt returns the durable create-start time from the NutanixMachine.
+func vmCreateStartedAt(nm *infrav1.NutanixMachine) (time.Time, bool) {
+	raw := nutanixMachineAnnotation(nm, VMCreateStartedAtAnnotation)
+	if raw == "" {
+		return time.Time{}, false
+	}
+	startedAt, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return startedAt, true
+}
+
+// refreshVMCreateStuckMetric updates the create-stuck gauge for one machine.
+// Stuck means Status.Ready is false and wall clock is past vmCreateStuckAfter
+// since vm-create-started-at. Returns true when the machine newly crossed the threshold.
+func refreshVMCreateStuckMetric(nm *infrav1.NutanixMachine, now time.Time) bool {
+	if nm == nil {
+		return false
+	}
+	resource := capxmetrics.ResourceNutanixMachine
+	if nm.Status.Ready {
+		capxmetrics.ClearMachineCreateStuck(resource, nm.Namespace, nm.Name)
+		return false
+	}
+	startedAt, ok := vmCreateStartedAt(nm)
+	if !ok || now.Sub(startedAt) < vmCreateStuckAfter {
+		capxmetrics.ClearMachineCreateStuck(resource, nm.Namespace, nm.Name)
+		return false
+	}
+	return capxmetrics.RecordMachineCreateStuck(resource, nm.Namespace, nm.Name)
+}
+
+func clearVMCreateStuckMetric(nm *infrav1.NutanixMachine) {
+	if nm == nil {
+		return
+	}
+	capxmetrics.ClearMachineCreateStuck(capxmetrics.ResourceNutanixMachine, nm.Namespace, nm.Name)
+}
+
+// nowFunc is overridable in unit tests for create-stuck timing.
+var nowFunc = time.Now
 
 // DeleteVM deletes a VM and is invoked by the NutanixMachineReconciler
 func DeleteVM(ctx context.Context, client *v4Converged.Client, vmName, vmUUID string) (string, error) {
@@ -621,7 +720,9 @@ func detachVolumeGroupsFromVM(ctx context.Context, client *v4Converged.Client, v
 
 		_, err := client.VolumeGroups.DetachFromVM(ctx, volumeGroupExtId, *body)
 		if err != nil {
-			return fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroupExtId, vmUUID, err)
+			detachErr := fmt.Errorf("failed to detach volume group %s from virtual machine %s: %w", volumeGroupExtId, vmUUID, err)
+			recordInfraOutcome(nil, capxmetrics.OpVolumeGroupDetach, err, false)
+			return detachErr
 		}
 		return nil
 	}
@@ -759,6 +860,7 @@ func deleteCategoryKeyValuesForProject(ctx context.Context, client *v4Converged.
 			prismCategory := getCategoryForProject(categories, projectExtID)
 			if prismCategory == nil {
 				log.V(1).Info(fmt.Sprintf("Category with value %s in category %s not found. Already deleted?", value, key))
+				capxmetrics.RecordIdempotentAccept(capxmetrics.ResourceNutanixMachine, capxmetrics.OpCategoryDelete, capxmetrics.IdempotentAlreadyAbsent)
 				continue
 			}
 
@@ -768,6 +870,8 @@ func deleteCategoryKeyValuesForProject(ctx context.Context, client *v4Converged.
 				log.Error(errorMsg, "failed to delete category value")
 				// NCN-101935: If the category value still has VMs assigned, do not delete the category key:value
 				// TODO:deepakmntnx Add a check for specific error mentioned in NCN-101935
+				// Behavior is unchanged (return nil). The counter records the swallowed error.
+				recordInfraOutcome(nil, capxmetrics.OpCategoryDelete, err, false)
 				return nil
 			}
 		}

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	clusterAhvModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/ahv/config"
 	clusterModels "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
@@ -42,14 +43,18 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	mockconverged "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/converged"
@@ -57,6 +62,7 @@ import (
 	mocknutanixv3 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/nutanix"
 	nutanixclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/client"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	capxmetrics "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/metrics"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/services"
 	converged "github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
@@ -1932,6 +1938,123 @@ func TestResolveResourceGroupForProjectPolicy(t *testing.T) {
 		assert.Nil(t, rg)
 		assert.Contains(t, err.Error(), "single-project policy requires")
 	})
+}
+
+func Test_refreshVMCreateStuckMetric(t *testing.T) {
+	capxmetrics.MachinesCreateStuck.Reset()
+	fixedNow := time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)
+
+	t.Run("marks stuck when not Ready past threshold", func(t *testing.T) {
+		ns, name := "ns-refresh-stuck", "m-refresh-stuck"
+		capxmetrics.ClearMachineCreateStuck(capxmetrics.ResourceNutanixMachine, ns, name)
+		nm := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: ns,
+				Annotations: map[string]string{
+					VMCreateStartedAtAnnotation: fixedNow.Add(-11 * time.Minute).Format(time.RFC3339),
+				},
+			},
+		}
+		assert.True(t, refreshVMCreateStuckMetric(nm, fixedNow))
+		assert.False(t, refreshVMCreateStuckMetric(nm, fixedNow)) // already counted
+		assert.Equal(t, 1.0, testutil.ToFloat64(capxmetrics.MachinesCreateStuck.WithLabelValues(capxmetrics.ResourceNutanixMachine)))
+		capxmetrics.ClearMachineCreateStuck(capxmetrics.ResourceNutanixMachine, ns, name)
+	})
+
+	t.Run("clears when Ready", func(t *testing.T) {
+		ns, name := "ns-refresh-ready", "m-refresh-ready"
+		capxmetrics.ClearMachineCreateStuck(capxmetrics.ResourceNutanixMachine, ns, name)
+		_ = capxmetrics.RecordMachineCreateStuck(capxmetrics.ResourceNutanixMachine, ns, name)
+		nm := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: ns,
+				Annotations: map[string]string{
+					VMCreateStartedAtAnnotation: fixedNow.Add(-20 * time.Minute).Format(time.RFC3339),
+				},
+			},
+			Status: infrav1.NutanixMachineStatus{Ready: true},
+		}
+		assert.False(t, refreshVMCreateStuckMetric(nm, fixedNow))
+		assert.Equal(t, 0.0, testutil.ToFloat64(capxmetrics.MachinesCreateStuck.WithLabelValues(capxmetrics.ResourceNutanixMachine)))
+	})
+
+	t.Run("not stuck before threshold", func(t *testing.T) {
+		ns, name := "ns-refresh-early", "m-refresh-early"
+		capxmetrics.ClearMachineCreateStuck(capxmetrics.ResourceNutanixMachine, ns, name)
+		nm := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: ns,
+				Annotations: map[string]string{
+					VMCreateStartedAtAnnotation: fixedNow.Add(-5 * time.Minute).Format(time.RFC3339),
+				},
+			},
+		}
+		assert.False(t, refreshVMCreateStuckMetric(nm, fixedNow))
+		assert.Equal(t, 0.0, testutil.ToFloat64(capxmetrics.MachinesCreateStuck.WithLabelValues(capxmetrics.ResourceNutanixMachine)))
+	})
+}
+
+func TestNutanixMachineReconciler_ensureVMCreateStartedAt(t *testing.T) {
+	fixedNow := time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)
+	oldNow := nowFunc
+	nowFunc = func() time.Time { return fixedNow }
+	t.Cleanup(func() { nowFunc = oldNow })
+
+	t.Run("persists annotation once", func(t *testing.T) {
+		ctx := context.Background()
+		stored := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-machine", Namespace: "default"},
+		}
+		scheme := runtime.NewScheme()
+		require.NoError(t, infrav1.AddToScheme(scheme))
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(stored).Build()
+
+		live := stored.DeepCopy()
+		reconciler := &NutanixMachineReconciler{Client: fakeClient}
+		rctx := &nctx.MachineContext{Context: ctx, NutanixMachine: live}
+
+		require.NoError(t, reconciler.ensureVMCreateStartedAt(rctx))
+		assert.Equal(t, fixedNow.Format(time.RFC3339), live.Annotations[VMCreateStartedAtAnnotation])
+
+		require.NoError(t, reconciler.ensureVMCreateStartedAt(rctx)) // no-op
+		assert.Equal(t, fixedNow.Format(time.RFC3339), live.Annotations[VMCreateStartedAtAnnotation])
+
+		persisted := &infrav1.NutanixMachine{}
+		require.NoError(t, fakeClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "test-machine"}, persisted))
+		assert.Equal(t, fixedNow.Format(time.RFC3339), persisted.Annotations[VMCreateStartedAtAnnotation])
+	})
+}
+
+func Test_recordAndCheckTerminal(t *testing.T) {
+	capxmetrics.InfraOperationErrors.Reset()
+	capxmetrics.MachinesFailed.Reset()
+	rctx := &nctx.MachineContext{
+		NutanixMachine: &infrav1.NutanixMachine{ObjectMeta: metav1.ObjectMeta{Name: "m1", Namespace: "ns"}},
+	}
+
+	notFound := &converged.APIError{Kind: converged.ErrNotFound, Message: "not found"}
+	require.True(t, recordAndCheckTerminal(rctx, capxmetrics.OpVMCreate, notFound))
+	assert.Equal(t, 1.0, testutil.ToFloat64(capxmetrics.InfraOperationErrors.WithLabelValues(
+		capxmetrics.ResourceNutanixMachine, capxmetrics.OpVMCreate, capxmetrics.OutcomeTerminal, capxmetrics.ClassNotFound, capxmetrics.HTTPStatusNone,
+	)))
+	assert.Equal(t, 1.0, testutil.ToFloat64(capxmetrics.MachinesFailed.WithLabelValues(
+		capxmetrics.ResourceNutanixMachine, capxmetrics.OpVMCreate,
+	)))
+
+	rateLimited := &converged.APIError{Kind: converged.ErrRateLimit, Message: "rate limited", Cause: errors.New("429 Too Many Requests")}
+	require.False(t, recordAndCheckTerminal(rctx, capxmetrics.OpCategory, rateLimited))
+	assert.Equal(t, 1.0, testutil.ToFloat64(capxmetrics.InfraOperationErrors.WithLabelValues(
+		capxmetrics.ResourceNutanixMachine, capxmetrics.OpCategory, capxmetrics.OutcomeRetryable, capxmetrics.ClassRateLimit, "429",
+	)))
+
+	configErr := services.NewTerminalError("subnet is missing")
+	require.True(t, recordAndCheckTerminal(rctx, capxmetrics.OpMachineConfig, configErr))
+	assert.Equal(t, 1.0, testutil.ToFloat64(capxmetrics.InfraOperationErrors.WithLabelValues(
+		capxmetrics.ResourceNutanixMachine, capxmetrics.OpMachineConfig, capxmetrics.OutcomeTerminal, capxmetrics.ClassClient, capxmetrics.HTTPStatusNone,
+	)))
 }
 
 func TestControllerHelpers(t *testing.T) {

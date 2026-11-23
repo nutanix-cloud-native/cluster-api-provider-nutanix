@@ -1,0 +1,64 @@
+# Alerts for CAPX infrastructure creation failures and slow Prism calls.
+# Scraped from the controller-manager /metrics endpoint by monitor.yaml.
+#
+# On NKP / kube-prometheus-stack:
+# - PrometheusRule selection uses release: kube-prometheus-stack
+# - ServiceMonitor selection uses prometheus.kommander.d2iq.io/select: "true"
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    control-plane: controller-manager
+    release: kube-prometheus-stack
+  name: controller-manager-infra-alerts
+  namespace: system
+spec:
+  groups:
+    - name: capx-infra
+      rules:
+        - alert: CAPXInfraOperationTerminal
+          # A terminal error means CAPX set status.failureReason and will not retry that object.
+          expr: sum by (operation, class, http_status) (increase(capx_infra_operation_errors_total{outcome="terminal"}[15m])) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: CAPX failed an infrastructure operation
+            description: "operation={{ $labels.operation }} class={{ $labels.class }} http_status={{ $labels.http_status }} had terminal errors in the last 15m. The NutanixMachine is marked failed. Inspect status.failureMessage on the machine (the Prism sentence is not a Prometheus label)."
+        - alert: CAPXInfraOperationRetrying
+          # Sustained retries mean Prism or the network is still failing and
+          # the same machine is not making progress.
+          expr: sum by (operation, class) (rate(capx_infra_operation_errors_total{outcome="retryable"}[15m])) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: CAPX is still retrying an infrastructure operation
+            description: "operation={{ $labels.operation }} class={{ $labels.class }} has been retrying for 15m. The NutanixMachine is not marked failed yet."
+        - alert: CAPXInfraPrismTaskSlow
+          # Prism Wait is slow. Uses the task duration histogram (no task UUID label).
+          expr: histogram_quantile(0.95, sum by (le, operation) (rate(capx_infra_prism_task_duration_seconds_bucket[15m]))) > 120
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: CAPX Prism task Wait is slow
+            description: "operation={{ $labels.operation }} p95 Prism Wait over 15m is above 120s. Check Prism Central load and CAPX controller logs."
+        - alert: CAPXInfraVMCreateSlow
+          # End-to-end FindVM through VMProvisioned is slow.
+          expr: histogram_quantile(0.95, sum by (le, result) (rate(capx_infra_vm_create_duration_seconds_bucket{result="success"}[15m]))) > 300
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: CAPX VM create path is slow
+            description: "p95 successful VM create duration over 15m is above 300s. Compare with capx_infra_prism_task_duration_seconds by operation."
+        - alert: CAPXInfraVMCreateStuck
+          # A NutanixMachine has been not Ready for more than 10 minutes since CAPX
+          # stamped capx.nutanix.com/vm-create-started-at (create/retry loop).
+          expr: sum(capx_infra_machines_create_stuck) > 0
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: NutanixMachine VM create stuck for over 10 minutes
+            description: "One or more NutanixMachines have not become Ready for more than 10 minutes since CAPX started VM creation. This often indicates a Prism or infrastructure issue. Check NutanixMachine status.failureMessage / conditions and CAPX controller logs."
