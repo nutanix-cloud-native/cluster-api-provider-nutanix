@@ -487,4 +487,96 @@ func TestComputeMetroPlacementIndex(t *testing.T) {
 		// The new MachineSet splits evenly despite the old generation being skewed onto fd-a.
 		g.Expect(perFD).To(Equal([]int{2, 2}))
 	})
+
+	t.Run("patches the native label before the next machine lists", func(t *testing.T) {
+		g := NewWithT(t)
+		nmA := placementNM("nm-a", "", false)
+		nmB := placementNM("nm-b", "", false)
+		reconciler, base := newPlacementReconciler(g,
+			nmA,
+			nmB,
+			placementMachine("nm-a", "nm-a", "wmd"),
+			placementMachine("nm-b", "nm-b", "wmd"),
+		)
+		fds := []*infrav1.NutanixFailureDomain{fdA, fdB}
+
+		rctxA := &nctx.MachineContext{
+			Context:        base.Context,
+			Cluster:        base.Cluster,
+			NutanixCluster: base.NutanixCluster,
+			NutanixMachine: nmA,
+			Machine:        placementMachine("nm-a", "nm-a", "wmd"),
+			Datastore:      map[string]*string{},
+		}
+		idxA, err := reconciler.assignAndPersistMetroPlacement(rctxA, "metro-1", fds)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(idxA).To(Equal(0))
+		g.Expect(nmA.Labels[metroNativeFailureDomainLabelKey]).To(Equal("fd-a"))
+		g.Expect(nmA.ResourceVersion).ToNot(BeEmpty())
+
+		stored := &infrav1.NutanixMachine{}
+		g.Expect(reconciler.Get(base.Context, client.ObjectKey{Namespace: placementNamespace, Name: "nm-a"}, stored)).To(Succeed())
+		g.Expect(stored.Labels[metroNativeFailureDomainLabelKey]).To(Equal("fd-a"))
+
+		rctxB := &nctx.MachineContext{
+			Context:        base.Context,
+			Cluster:        base.Cluster,
+			NutanixCluster: base.NutanixCluster,
+			NutanixMachine: nmB,
+			Machine:        placementMachine("nm-b", "nm-b", "wmd"),
+			Datastore:      map[string]*string{},
+		}
+		idxB, err := reconciler.assignAndPersistMetroPlacement(rctxB, "metro-1", fds)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(idxB).To(Equal(1))
+		g.Expect(nmB.Labels[metroNativeFailureDomainLabelKey]).To(Equal("fd-b"))
+	})
+
+	t.Run("parallel placement patches a balanced split", func(t *testing.T) {
+		g := NewWithT(t)
+
+		const machineCount = 4
+		names := []string{"nm-1", "nm-2", "nm-3", "nm-4"}
+		objs := make([]client.Object, 0, machineCount*2)
+		for _, name := range names {
+			objs = append(objs, placementNM(name, "", false))
+			objs = append(objs, placementMachine(name, name, "wmd"))
+		}
+
+		reconciler, base := newPlacementReconciler(g, objs...)
+		fds := []*infrav1.NutanixFailureDomain{fdA, fdB}
+
+		errs := make([]error, machineCount)
+		var wg sync.WaitGroup
+		wg.Add(machineCount)
+		for i, name := range names {
+			go func(i int, name string) {
+				defer wg.Done()
+				stored := &infrav1.NutanixMachine{}
+				if err := reconciler.Get(base.Context, client.ObjectKey{Namespace: placementNamespace, Name: name}, stored); err != nil {
+					errs[i] = err
+					return
+				}
+				rctx := &nctx.MachineContext{
+					Context:        base.Context,
+					Cluster:        base.Cluster,
+					NutanixCluster: base.NutanixCluster,
+					NutanixMachine: stored,
+					Machine:        placementMachine(name, name, "wmd"),
+					Datastore:      map[string]*string{},
+				}
+				_, errs[i] = reconciler.assignAndPersistMetroPlacement(rctx, "metro-1", fds)
+			}(i, name)
+		}
+		wg.Wait()
+
+		perFD := map[string]int{}
+		for i, name := range names {
+			g.Expect(errs[i]).ToNot(HaveOccurred())
+			stored := &infrav1.NutanixMachine{}
+			g.Expect(reconciler.Get(base.Context, client.ObjectKey{Namespace: placementNamespace, Name: name}, stored)).To(Succeed())
+			perFD[stored.Labels[metroNativeFailureDomainLabelKey]]++
+		}
+		g.Expect(perFD).To(Equal(map[string]int{"fd-a": 2, "fd-b": 2}))
+	})
 }

@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -25,6 +26,7 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/services"
 	"github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 )
@@ -177,4 +179,19 @@ func appendUnique(parts []string, msg string) []string {
 		}
 	}
 	return append(parts, msg)
+}
+
+func isRetryableAPIError(err error) bool {
+	switch {
+	case converged.IsNotFound(err), services.IsTerminalError(err):
+		return false
+	case converged.IsRateLimit(err), converged.IsInternal(err):
+		return true
+	default:
+		var apiErr *converged.APIError
+		if errors.As(err, &apiErr) {
+			return false
+		}
+		return true
+	}
 }

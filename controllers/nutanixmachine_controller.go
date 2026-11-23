@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -61,6 +62,7 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/services"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 )
@@ -94,6 +96,10 @@ type NutanixMachineReconciler struct {
 	ConfigMapInformer coreinformers.ConfigMapInformer
 	Scheme            *runtime.Scheme
 	controllerConfig  *ControllerConfig
+	// metroPlacementLocks serializes metro placement per namespace/cluster/metro inside this process.
+	// The critical section is the uncached sibling list, the least-count simulation, and the native
+	// placement label patch. It is not held across Prism calls. Replicas do not share the lock.
+	metroPlacementLocks sync.Map // map[string]*sync.Mutex
 }
 
 func NewNutanixMachineReconciler(client client.Client, secretInformer coreinformers.SecretInformer, configMapInformer coreinformers.ConfigMapInformer, scheme *runtime.Scheme, copts ...ControllerConfigOpts) (*NutanixMachineReconciler, error) {
@@ -668,7 +674,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	// PC 7.6+ concept, so skip resolution entirely on older PC versions even when an
 	// explicit (v3-resolved) project is present.
 	var resourceGroup *multidomainModels.ResourceGroup
-	if isPCVersionHigherThan75(rctx.PCVersion) && effectiveProject != nil && effectiveProject.ExtID != nil {
+	if services.IsPCVersionHigherThan75(rctx.PCVersion) && effectiveProject != nil && effectiveProject.ExtID != nil {
 		resourceGroup, err = resolveResourceGroup(rctx, effectiveProject)
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to resolve resource group for VM %s: %w", rctx.Machine.Name, err)
@@ -935,7 +941,7 @@ func (r *NutanixMachineReconciler) checkFailureDomainSubnets(
 		), nil
 	}
 
-	match, machineKeys, fdKeys, err := metroSubnetsMatch(
+	match, machineKeys, fdKeys, err := services.MetroSubnetsMatch(
 		rctx.Context,
 		rctx.ConvergedClient,
 		rctx.NutanixMachine.Spec.Subnets,
@@ -1022,13 +1028,13 @@ func (r *NutanixMachineReconciler) getFailureDomainSpec(rctx *nctx.MachineContex
 func (r *NutanixMachineReconciler) validateFailureDomainSpec(rctx *nctx.MachineContext, fdSpec *infrav1.NutanixFailureDomainSpec, effectiveProject *nctx.ProjectInfo, resourceGroup *multidomainModels.ResourceGroup) error {
 	// Validate the failure domain configuration.
 	pe := fdSpec.PrismElementCluster
-	peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient, resourceGroup, pe.Name, pe.UUID)
+	peUUID, err := services.GetPEUUID(rctx.Context, rctx.ConvergedClient, resourceGroup, pe.Name, pe.UUID)
 	if err != nil {
 		return err
 	}
 
 	subnets := fdSpec.Subnets
-	_, err = GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, subnets, peUUID, effectiveProject, rctx.PCVersion)
+	_, err = services.GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, subnets, peUUID, effectiveProject, rctx.PCVersion)
 	if err != nil {
 		return err
 	}
@@ -1056,35 +1062,42 @@ func (r *NutanixMachineReconciler) getMetroFailureDomainSpec(rctx *nctx.MachineC
 	}
 
 	fdCount := len(metroObj.Spec.FailureDomains)
+	if fdCount == 0 {
+		return nil, fmt.Errorf("the NutanixMetro %s has no failureDomains", metroName)
+	}
+
 	fdObjs := make([]*infrav1.NutanixFailureDomain, fdCount)
+	nativeIdx := -1
 	for i, fdRef := range metroObj.Spec.FailureDomains {
 		fdObj, err := getNutanixFailureDomainObject(rctx.Context, r.Client, fdRef.Name, namespace)
 		if err != nil {
 			return nil, err
 		}
-
-		// return the failureDomain spec if it is the native-failuredomain. The placement was already
-		// decided on a previous reconcile, but we must still repopulate the reconcile Datastore
-		// (preferred failureDomain + PE) so a VM (re)created on this reconcile still receives its
-		// vHADomain category and metro custom attributes.
-		if nativeFdName == fdObj.Name {
-			r.storeMetroPlacementSelection(rctx, fdObj)
-			return &fdObj.Spec, nil
-		}
-
 		fdObjs[i] = fdObj
+		if nativeFdName != "" && nativeFdName == fdObj.Name {
+			nativeIdx = i
+		}
 	}
 
-	if fdCount == 0 {
-		return nil, fmt.Errorf("the NutanixMetro %s has no failureDomains", metroName)
-	}
-
-	// Round-robin: deterministically select the failureDomain for this machine, the other is the
-	// remaining. The selection balances placement across failureDomains and is concurrency-safe
-	// without serializing reconciles (see computeMetroPlacementIndex).
-	idx, err := r.computeMetroPlacementIndex(rctx, fdObjs)
-	if err != nil {
-		return nil, err
+	var idx int
+	if nativeIdx >= 0 {
+		// Placement was already decided on a previous reconcile (the native-failuredomain label is
+		// set). Reuse that selection instead of re-balancing, and repopulate the reconcile Datastore
+		// (preferred failureDomain + PE) so a VM (re)created on this reconcile still receives its
+		// vHADomain category and metro custom attributes. We intentionally do NOT return early here:
+		// the recovery-plan resolution and validation fallback below still run, so a machine whose
+		// native PE is temporarily unhealthy is placed on the paired site for this reconcile instead
+		// of being pinned to the unhealthy site until that PE recovers.
+		idx = nativeIdx
+		r.storeMetroPlacementSelection(rctx, fdObjs[idx])
+	} else {
+		// Select and patch the native failure domain before any Prism call. The lock makes this
+		// machine's label visible to the next reconcile's uncached list.
+		var err error
+		idx, err = r.assignAndPersistMetroPlacement(rctx, metroName, fdObjs)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var selectedFd, remainingFd *infrav1.NutanixFailureDomain
@@ -1096,8 +1109,7 @@ func (r *NutanixMachineReconciler) getMetroFailureDomainSpec(rctx *nctx.MachineC
 		}
 	}
 
-	// Persist native placement semantics first, then derive active placement for VM creation.
-	r.storeMetroPlacementSelection(rctx, selectedFd)
+	// Native placement is already persisted. Derive active placement for VM creation.
 	placementFd, perr := r.resolveMetroPlacementFailureDomainFromRecoveryPlanJob(rctx, metroName, selectedFd, fdObjs)
 	if perr != nil {
 		log.Error(perr, "Failed to resolve Metro active placement from Recovery Plan Job, fallback to native selection", "metro", metroName)
@@ -1108,7 +1120,7 @@ func (r *NutanixMachineReconciler) getMetroFailureDomainSpec(rctx *nctx.MachineC
 	}
 
 	// Metro failure domains always use the default project (nil effectiveProject and resourceGroup)
-	if err = r.validateFailureDomainSpec(rctx, &placementFd.Spec, nil, nil); err != nil {
+	if err := r.validateFailureDomainSpec(rctx, &placementFd.Spec, nil, nil); err != nil {
 		log.Error(err, fmt.Sprintf("The selected failureDomain %s failed at validation. Try with the other failureDomain.", placementFd.Name))
 
 		if remainingFd == nil {
@@ -1282,7 +1294,7 @@ func pairedFailureDomainIfNativePEUnavailable(
 
 	log := ctrl.LoggerFrom(rctx.Context)
 	pe := nativeFd.Spec.PrismElementCluster
-	peCluster, err := GetPEClusterByIdentifier(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
+	peCluster, err := services.GetPEClusterByIdentifier(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
 	if err != nil {
 		log.Error(err, "Failed to read native Prism Element availability with no Recovery Plan Job; keeping native placement", "failureDomain", nativeFd.Name)
 		return nil
@@ -1408,7 +1420,7 @@ func activePlacementPEUUIDFromRecoveryPlanJob(job *prismclientv3.RecoveryPlanJob
 
 func resolveFailureDomainPEUUID(rctx *nctx.MachineContext, fdSpec *infrav1.NutanixFailureDomainSpec) (string, error) {
 	pe := fdSpec.PrismElementCluster
-	peCluster, err := GetPEClusterByIdentifier(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
+	peCluster, err := services.GetPEClusterByIdentifier(rctx.Context, rctx.ConvergedClient, pe.Name, pe.UUID)
 	if err != nil {
 		return "", err
 	}
@@ -1455,14 +1467,11 @@ func (r *NutanixMachineReconciler) setMetroRecoveryPlacementStatus(
 	)
 }
 
-// computeMetroPlacementIndex deterministically selects, for the machine being reconciled, the index
-// into fdObjs (the metro's failureDomains) on which it should be placed. It balances placement
-// without serializing reconciles (no concurrentReconciles=1) and without a name hash.
-//
-// Why it is concurrency-safe: every machine's NutanixMachine object already exists before its
-// reconcile runs, so all concurrent reconciles enumerate the same set of siblings, sort the
-// not-yet-placed ("pending") machines by name, and run the identical greedy least-count simulation.
-// Each machine therefore lands in a distinct, balanced slot regardless of reconcile interleaving.
+// computeMetroPlacementIndex selects, for the machine being reconciled, the index into fdObjs
+// (the metro's failureDomains) on which it should be placed. Pending machines are sorted by name
+// and assigned greedy least-count. assignAndPersistMetroPlacement holds metroPlacementLocks across
+// this read and the native-label patch, so a placement committed before a sibling existed is
+// visible to the next reconcile. The lock is process-local.
 //
 //   - balancing is scoped to the machine's group (MachineSet, then MachineDeployment, then
 //     MachinePool, or the control plane; see metroPlacementGroupKey), so each group is spread evenly
@@ -1472,8 +1481,8 @@ func (r *NutanixMachineReconciler) setMetroRecoveryPlacementStatus(
 //   - already-placed machines (carry the native-failuredomain label) seed per-FD counts, so the
 //     result self-heals after uneven scale-downs.
 //   - terminating machines are skipped so in-flight scale-downs free up their slot.
-//   - the sibling list is read uncached (APIReader) so a lagging informer cache cannot make two
-//     machines pick the same slot.
+//   - the sibling list is read uncached (APIReader) so a label just patched under the placement
+//     lock is visible, instead of a lagging informer cache.
 //
 // Ties (equal counts) are broken by failureDomain order in fdObjs.
 func (r *NutanixMachineReconciler) computeMetroPlacementIndex(rctx *nctx.MachineContext, fdObjs []*infrav1.NutanixFailureDomain) (int, error) {
@@ -1553,6 +1562,69 @@ func (r *NutanixMachineReconciler) computeMetroPlacementIndex(rctx *nctx.Machine
 	}
 
 	return 0, nil
+}
+
+// lockMetroPlacement serializes placement for one metro inside this process. The returned function
+// releases the lock.
+func (r *NutanixMachineReconciler) lockMetroPlacement(rctx *nctx.MachineContext, metroName string) func() {
+	ns := ""
+	clusterName := ""
+	if rctx != nil && rctx.NutanixCluster != nil {
+		ns = rctx.NutanixCluster.Namespace
+		clusterName = rctx.NutanixCluster.Name
+	}
+	if ns == "" && rctx != nil && rctx.NutanixMachine != nil {
+		ns = rctx.NutanixMachine.Namespace
+	}
+	key := ns + "/" + clusterName + "/" + metroName
+	val, _ := r.metroPlacementLocks.LoadOrStore(key, &sync.Mutex{})
+	mu := val.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
+
+// assignAndPersistMetroPlacement chooses a failure domain and patches the native placement labels
+// before returning. The lock covers the uncached sibling list, the simulation, and the patch, and
+// is released before the caller talks to Prism.
+func (r *NutanixMachineReconciler) assignAndPersistMetroPlacement(rctx *nctx.MachineContext, metroName string, fdObjs []*infrav1.NutanixFailureDomain) (int, error) {
+	unlock := r.lockMetroPlacement(rctx, metroName)
+	defer unlock()
+
+	idx, err := r.computeMetroPlacementIndex(rctx, fdObjs)
+	if err != nil {
+		return 0, err
+	}
+	if idx < 0 || idx >= len(fdObjs) || fdObjs[idx] == nil {
+		return 0, fmt.Errorf("metro placement index %d is outside the failure domain list", idx)
+	}
+	if err := r.persistMetroNativePlacement(rctx, fdObjs[idx]); err != nil {
+		return 0, err
+	}
+	return idx, nil
+}
+
+// persistMetroNativePlacement writes the native failure-domain labels before the deferred
+// end-of-reconcile patch. The patch is applied to a copy so earlier in-memory changes stay on
+// rctx.NutanixMachine. The resourceVersion is deliberately not copied back: client.MergeFrom
+// patches do not carry the resourceVersion on their own, so the deferred end-of-reconcile patch
+// has no stale-version problem. Copying the new version onto rctx.NutanixMachine would instead
+// inject it into that merge diff as a precondition and make the later patch fail with a 409 once
+// any earlier write (syncVmUUID, checkFailureDomainStatus, the conditions patch) bumped the
+// version first.
+func (r *NutanixMachineReconciler) persistMetroNativePlacement(rctx *nctx.MachineContext, selectedFd *infrav1.NutanixFailureDomain) error {
+	patched := rctx.NutanixMachine.DeepCopy()
+	if patched.Labels == nil {
+		patched.Labels = map[string]string{}
+	}
+	patched.Labels[metroNativeFailureDomainLabelKey] = selectedFd.Name
+	patched.Labels[metroNativePELabelKey] = selectedFd.Spec.PrismElementCluster.String()
+
+	if err := r.Patch(rctx.Context, patched, client.MergeFrom(rctx.NutanixMachine)); err != nil {
+		return fmt.Errorf("failed to persist metro native placement for %s: %w", rctx.NutanixMachine.Name, err)
+	}
+
+	r.storeMetroPlacementSelection(rctx, selectedFd)
+	return nil
 }
 
 // metroPlacementGroupOwnerLabels is the ordered list of CAPI owner labels used to attribute a machine
@@ -1694,8 +1766,8 @@ func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineConte
 	diskSize := rctx.NutanixMachine.Spec.SystemDiskSize
 	// Validate disk size
 	if diskSize.Cmp(minMachineSystemDiskSize) < 0 {
-		diskSizeMib := GetMibValueOfQuantity(diskSize)
-		minMachineSystemDiskSizeMib := GetMibValueOfQuantity(minMachineSystemDiskSize)
+		diskSizeMib := services.GetMibValueOfQuantity(diskSize)
+		minMachineSystemDiskSizeMib := services.GetMibValueOfQuantity(minMachineSystemDiskSize)
 		return fmt.Errorf("minimum systemDiskSize is %vMib but given %vMib", minMachineSystemDiskSizeMib, diskSizeMib)
 	}
 
@@ -1704,8 +1776,8 @@ func (r *NutanixMachineReconciler) validateMachineConfig(rctx *nctx.MachineConte
 		memorySize := rctx.NutanixMachine.Spec.MemorySize
 		// Validate memory size
 		if memorySize.Cmp(minMachineMemorySize) < 0 {
-			memorySizeMib := GetMibValueOfQuantity(memorySize)
-			minMachineMemorySizeMib := GetMibValueOfQuantity(minMachineMemorySize)
+			memorySizeMib := services.GetMibValueOfQuantity(memorySize)
+			minMachineMemorySizeMib := services.GetMibValueOfQuantity(minMachineMemorySize)
 			return fmt.Errorf("minimum memorySize is %vMib but given %vMib", minMachineMemorySizeMib, memorySizeMib)
 		}
 
@@ -1736,8 +1808,8 @@ func (r *NutanixMachineReconciler) validateDataDisks(dataDisks []infrav1.Nutanix
 	for _, disk := range dataDisks {
 
 		if disk.DiskSize.Cmp(minMachineDataDiskSize) < 0 {
-			diskSizeMib := GetMibValueOfQuantity(disk.DiskSize)
-			minMachineDataDiskSizeMib := GetMibValueOfQuantity(minMachineDataDiskSize)
+			diskSizeMib := services.GetMibValueOfQuantity(disk.DiskSize)
+			minMachineDataDiskSizeMib := services.GetMibValueOfQuantity(minMachineDataDiskSize)
 			errors = append(errors, fmt.Errorf("minimum data disk size is %vMib but given %vMib", minMachineDataDiskSizeMib, diskSizeMib))
 		}
 
@@ -2000,7 +2072,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	// versions so the category layer uses the non-project lookup, even when an explicit
 	// (v3-resolved) project ext ID is present.
 	var categoryProjectExtID *string
-	if isPCVersionHigherThan75(rctx.PCVersion) {
+	if services.IsPCVersionHigherThan75(rctx.PCVersion) {
 		categoryProjectExtID = effectiveProjectExtID
 	}
 
@@ -2055,7 +2127,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	}
 
 	// Get GPU list
-	gpus, err := GetGPUList(ctx, convergedClient, rctx.NutanixMachine.Spec.GPUs, peUUID, rctx.PCVersion)
+	gpus, err := services.GetGPUList(ctx, convergedClient, rctx.NutanixMachine.Spec.GPUs, peUUID, rctx.PCVersion)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the GPU list to create the VM %s: %w", vmName, err)
 		if !isRetryableAPIError(err) {
@@ -2274,7 +2346,7 @@ func (r *NutanixMachineReconciler) getVMProfileForDeploy(rctx *nctx.MachineConte
 	convergedClient := rctx.ConvergedClient
 
 	log.Info(fmt.Sprintf("Validating VM profile for VM %s", vmName))
-	vmProfile, err := GetVMProfile(ctx, convergedClient, *rctx.NutanixMachine.Spec.VMProfile, effectiveProject)
+	vmProfile, err := services.GetVMProfile(ctx, convergedClient, *rctx.NutanixMachine.Spec.VMProfile, effectiveProject)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to validate VM profile for VM %s: %w", vmName, err)
 		if !isRetryableAPIError(err) {
@@ -2316,7 +2388,7 @@ func (r *NutanixMachineReconciler) buildDeployParamsFromProfile(
 	var categoryProjectExtID *string
 	if effectiveProject != nil {
 		deployParams.ProjectExtId = effectiveProject.ExtID
-		if isPCVersionHigherThan75(rctx.PCVersion) {
+		if services.IsPCVersionHigherThan75(rctx.PCVersion) {
 			categoryProjectExtID = effectiveProject.ExtID
 		}
 		v1beta1conditions.MarkTrue(rctx.NutanixMachine, infrav1.ProjectAssignedCondition)
@@ -2612,7 +2684,7 @@ func getVmProfileDeployDisks(rctx *nctx.MachineContext, effectiveProject *nctx.P
 	var nodeOSImage *imageModels.Image
 	var err error
 	if rctx.NutanixMachine.Spec.Image != nil {
-		nodeOSImage, err = GetImage(
+		nodeOSImage, err = services.GetImage(
 			rctx.Context,
 			rctx.ConvergedClient,
 			*rctx.NutanixMachine.Spec.Image,
@@ -2620,7 +2692,7 @@ func getVmProfileDeployDisks(rctx *nctx.MachineContext, effectiveProject *nctx.P
 			rctx.PCVersion,
 		)
 	} else if rctx.NutanixMachine.Spec.ImageLookup != nil {
-		nodeOSImage, err = GetImageByLookup(
+		nodeOSImage, err = services.GetImageByLookup(
 			rctx.Context,
 			rctx.ConvergedClient,
 			rctx.NutanixMachine.Spec.ImageLookup.Format,
@@ -2635,7 +2707,7 @@ func getVmProfileDeployDisks(rctx *nctx.MachineContext, effectiveProject *nctx.P
 	if err != nil {
 		return nil, fmt.Errorf("failed to get system disk image %q: %w", rctx.NutanixMachine.Spec.Image, err)
 	}
-	markedForDeletion, err := ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, nodeOSImage)
+	markedForDeletion, err := services.ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, nodeOSImage)
 	if err != nil {
 		return nil, err
 	}
@@ -2701,7 +2773,7 @@ func getSystemDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectInfo
 	var nodeOSImage *imageModels.Image
 	var err error
 	if rctx.NutanixMachine.Spec.Image != nil {
-		nodeOSImage, err = GetImage(
+		nodeOSImage, err = services.GetImage(
 			rctx.Context,
 			rctx.ConvergedClient,
 			*rctx.NutanixMachine.Spec.Image,
@@ -2709,7 +2781,7 @@ func getSystemDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectInfo
 			rctx.PCVersion,
 		)
 	} else if rctx.NutanixMachine.Spec.ImageLookup != nil {
-		nodeOSImage, err = GetImageByLookup(
+		nodeOSImage, err = services.GetImageByLookup(
 			rctx.Context,
 			rctx.ConvergedClient,
 			rctx.NutanixMachine.Spec.ImageLookup.Format,
@@ -2729,7 +2801,7 @@ func getSystemDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectInfo
 	// Consider this a precaution. If the image is marked for deletion after we
 	// create the "VM create" task, then that task will fail. We will handle that
 	// failure separately.
-	markedForDeletion, err := ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, nodeOSImage)
+	markedForDeletion, err := services.ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, nodeOSImage)
 	if err != nil {
 		return nil, err
 	}
@@ -2740,7 +2812,7 @@ func getSystemDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectInfo
 	}
 
 	systemDiskSizeInBytes := rctx.NutanixMachine.Spec.SystemDiskSize.Value()
-	systemDisk, err := CreateSystemDiskSpec(*nodeOSImage.ExtId, systemDiskSizeInBytes)
+	systemDisk, err := services.CreateSystemDiskSpec(*nodeOSImage.ExtId, systemDiskSizeInBytes)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating system disk spec: %w", err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
@@ -2755,7 +2827,7 @@ func getBootstrapDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectI
 		Type: infrav1.NutanixIdentifierName,
 		Name: ptr.To(rctx.NutanixMachine.Spec.BootstrapRef.Name),
 	}
-	bootstrapImage, err := GetImage(rctx.Context, rctx.ConvergedClient, bootstrapImageRef, effectiveProject, rctx.PCVersion)
+	bootstrapImage, err := services.GetImage(rctx.Context, rctx.ConvergedClient, bootstrapImageRef, effectiveProject, rctx.PCVersion)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get bootstrap disk image %q: %w", bootstrapImageRef, err)
 		if !isRetryableAPIError(err) {
@@ -2766,7 +2838,7 @@ func getBootstrapDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectI
 	// Consider this a precaution. If the image is marked for deletion after we
 	// create the "VM create" task, then that task will fail. We will handle that
 	// failure separately.
-	markedForDeletion, err := ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, bootstrapImage)
+	markedForDeletion, err := services.ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, bootstrapImage)
 	if err != nil {
 		return nil, err
 	}
@@ -2780,13 +2852,13 @@ func getBootstrapDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectI
 	cdRom.DiskAddress = vmmconfig.NewCdRomAddress()
 	cdRom.DiskAddress.Index = ptr.To(0)
 	cdRom.DiskAddress.BusType = vmmconfig.CDROMBUSTYPE_IDE.Ref()
-	cdRom.BackingInfo = newVmDiskWithImageRef(bootstrapImage.ExtId, 0)
+	cdRom.BackingInfo = services.NewVMDiskWithImageRef(bootstrapImage.ExtId, 0)
 
 	return cdRom, nil
 }
 
 func getDataDisks(rctx *nctx.MachineContext, peUUID string, effectiveProject *nctx.ProjectInfo, resourceGroup *multidomainModels.ResourceGroup) ([]vmmconfig.Disk, []vmmconfig.CdRom, error) {
-	dataDisks, dataCdRoms, err := CreateDataDiskList(rctx.Context, rctx.ConvergedClient, rctx.NutanixMachine.Spec.DataDisks, peUUID, effectiveProject, rctx.PCVersion, resourceGroup)
+	dataDisks, dataCdRoms, err := services.CreateDataDiskList(rctx.Context, rctx.ConvergedClient, rctx.NutanixMachine.Spec.DataDisks, peUUID, effectiveProject, rctx.PCVersion, resourceGroup)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating data disk spec: %w", err)
 		if !isRetryableAPIError(err) {
@@ -2923,6 +2995,9 @@ func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineCo
 	addresses = append(addresses, capiv1beta1.MachineAddress{
 		Type:    capiv1beta1.MachineHostName,
 		Address: *vm.Name,
+	}, capiv1beta1.MachineAddress{
+		Type:    capiv1beta1.MachineInternalDNS,
+		Address: *vm.Name,
 	})
 
 	rctx.IP = addresses[0].Address
@@ -3017,7 +3092,7 @@ func (r *NutanixMachineReconciler) resolveEffectiveProject(rctx *nctx.MachineCon
 		// explicitly-requested project via the v3 client instead.
 		var project *nctx.ProjectInfo
 		var err error
-		if isPCVersionHigherThan75(rctx.PCVersion) {
+		if services.IsPCVersionHigherThan75(rctx.PCVersion) {
 			project, err = GetProjectV4(rctx, projectRef)
 		} else {
 			project, err = GetProjectV3(rctx, projectRef)
@@ -3032,7 +3107,7 @@ func (r *NutanixMachineReconciler) resolveEffectiveProject(rctx *nctx.MachineCon
 	}
 
 	// No project specified - PC < 7.6 doesn't support default project concept
-	if !isPCVersionHigherThan75(rctx.PCVersion) {
+	if !services.IsPCVersionHigherThan75(rctx.PCVersion) {
 		log.Info("PC version < 7.6, no project specified - skipping project validation")
 		return nil, nil
 	}
@@ -3075,7 +3150,7 @@ func (r *NutanixMachineReconciler) validateProjectPolicy(
 				rctx.NutanixMachine.Name, *effectiveProject.Name, defaultUUID)
 			log.Error(errorMsg, "project policy violation attempt")
 			r.markProjectAssignationFailed(rctx, errorMsg)
-			return &terminalError{message: errorMsg.Error()}
+			return services.NewTerminalError(errorMsg.Error())
 		}
 		return nil
 
@@ -3085,7 +3160,7 @@ func (r *NutanixMachineReconciler) validateProjectPolicy(
 			errorMsg := fmt.Errorf("single-project policy requires %s annotation on the Cluster", CAPXProjectUUIDAnnotation)
 			log.Error(errorMsg, "missing project-uuid annotation for single-project policy")
 			r.markProjectAssignationFailed(rctx, errorMsg)
-			return &terminalError{message: errorMsg.Error()}
+			return services.NewTerminalError(errorMsg.Error())
 		}
 
 		if effectiveProject != nil && *effectiveProject.ExtID != policyProjectUUID {
@@ -3093,7 +3168,7 @@ func (r *NutanixMachineReconciler) validateProjectPolicy(
 				rctx.NutanixMachine.Name, *effectiveProject.Name, policyProjectUUID)
 			log.Error(errorMsg, "project policy violation attempt")
 			r.markProjectAssignationFailed(rctx, errorMsg)
-			return &terminalError{message: errorMsg.Error()}
+			return services.NewTerminalError(errorMsg.Error())
 		}
 		return nil
 
@@ -3101,7 +3176,7 @@ func (r *NutanixMachineReconciler) validateProjectPolicy(
 		errorMsg := fmt.Errorf("invalid project policy %q", rctx.ProjectPolicy)
 		log.Error(errorMsg, "unknown project policy")
 		r.markProjectAssignationFailed(rctx, errorMsg)
-		return &terminalError{message: errorMsg.Error()}
+		return services.NewTerminalError(errorMsg.Error())
 	}
 }
 
@@ -3149,17 +3224,67 @@ func (r *NutanixMachineReconciler) GetSubnetAndPEUUIDs(rctx *nctx.MachineContext
 		return "", nil, fmt.Errorf("cannot create machine config if machine context is nil")
 	}
 
-	peUUID, err := GetPEUUID(rctx.Context, rctx.ConvergedClient, resourceGroup, rctx.NutanixMachine.Spec.Cluster.Name, rctx.NutanixMachine.Spec.Cluster.UUID)
+	peUUID, err := services.GetPEUUID(rctx.Context, rctx.ConvergedClient, resourceGroup, rctx.NutanixMachine.Spec.Cluster.Name, rctx.NutanixMachine.Spec.Cluster.UUID)
 	if err != nil {
 		return "", nil, err
 	}
 
-	subnetUUIDs, err := GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, rctx.NutanixMachine.Spec.Subnets, peUUID, effectiveProject, rctx.PCVersion)
+	subnetUUIDs, err := services.GetSubnetUUIDList(rctx.Context, rctx.ConvergedClient, rctx.NutanixMachine.Spec.Subnets, peUUID, effectiveProject, rctx.PCVersion)
 	if err != nil {
 		return "", nil, err
 	}
 
 	return peUUID, subnetUUIDs, nil
+}
+
+// uncachedGetClient serves Get from an API reader so the patch helper's conflict
+// retry observes the live resourceVersion. Writes stay on the embedded client.
+type uncachedGetClient struct {
+	client.Client
+	reader client.Reader
+}
+
+func (c uncachedGetClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	return c.reader.Get(ctx, key, obj, opts...)
+}
+
+// patchClusterCategoryCondition reads the NutanixCluster directly from the API server
+// (bypassing the cache) so the skip/mutate decision is based on authoritative state, then
+// patches it via the CAPI patch helper. The helper performs its own optimistic-locked,
+// conflict-retrying write of the conditions, so parallel machine reconciles do not race on
+// the shared object. mutate returns false to skip the patch (no-op).
+func (r *NutanixMachineReconciler) patchClusterCategoryCondition(
+	ctx context.Context,
+	key client.ObjectKey,
+	mutate func(*infrav1.NutanixCluster) bool,
+) error {
+	// Read uncached so a True just written by a sibling machine reconcile is observed, instead
+	// of a stale informer-cache copy that would trigger a redundant patch.
+	reader := client.Reader(r.Client)
+	if r.APIReader != nil {
+		reader = r.APIReader
+	}
+
+	nc := &infrav1.NutanixCluster{}
+	if err := reader.Get(ctx, key, nc); err != nil {
+		return err
+	}
+	// Hand the patch helper a client whose Get delegates to the uncached reader. The helper
+	// runs its own optimistic-locked conflict-retry loop and re-Gets the object on every
+	// attempt; without this, those re-reads hit the stale informer cache and keep observing the
+	// same resourceVersion, so all internal retries conflict and the write ultimately fails.
+	// Writes stay on r.Client.
+	ph, err := v1beta1patch.NewHelper(nc, uncachedGetClient{Client: r.Client, reader: reader})
+	if err != nil {
+		return fmt.Errorf("failed to init patch helper for NutanixCluster %s/%s: %w", nc.Namespace, nc.Name, err)
+	}
+	if !mutate(nc) {
+		return nil
+	}
+	if err := ph.Patch(ctx, nc); err != nil {
+		return fmt.Errorf("failed to patch ClusterCategoryCreatedCondition on NutanixCluster %s/%s: %w", nc.Namespace, nc.Name, err)
+	}
+	return nil
 }
 
 // markClusterCategoryCreated sets ClusterCategoryCreatedCondition=True on the
@@ -3169,21 +3294,23 @@ func (r *NutanixMachineReconciler) markClusterCategoryCreated(rctx *nctx.Machine
 		return nil
 	}
 
-	patchHelper, err := v1beta1patch.NewHelper(rctx.NutanixCluster, r.Client)
-	if err != nil {
-		return fmt.Errorf("failed to init patch helper for NutanixCluster %s/%s: %w", rctx.NutanixCluster.Namespace, rctx.NutanixCluster.Name, err)
+	if err := r.patchClusterCategoryCondition(rctx.Context, client.ObjectKeyFromObject(rctx.NutanixCluster), func(nc *infrav1.NutanixCluster) bool {
+		if v1beta1conditions.IsTrue(nc, infrav1.ClusterCategoryCreatedCondition) {
+			return false
+		}
+		v1beta1conditions.MarkTrue(nc, infrav1.ClusterCategoryCreatedCondition)
+		v1beta2conditions.Set(nc, metav1.Condition{
+			Type:   string(infrav1.ClusterCategoryCreatedCondition),
+			Status: metav1.ConditionTrue,
+			Reason: infrav1.Succeeded,
+		})
+		return true
+	}); err != nil {
+		return err
 	}
 
+	// Mirror onto the local copy so later calls in this reconcile short-circuit.
 	v1beta1conditions.MarkTrue(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition)
-	v1beta2conditions.Set(rctx.NutanixCluster, metav1.Condition{
-		Type:   string(infrav1.ClusterCategoryCreatedCondition),
-		Status: metav1.ConditionTrue,
-		Reason: infrav1.Succeeded,
-	})
-
-	if err := patchHelper.Patch(rctx.Context, rctx.NutanixCluster); err != nil {
-		return fmt.Errorf("failed to patch ClusterCategoryCreatedCondition on NutanixCluster %s/%s: %w", rctx.NutanixCluster.Namespace, rctx.NutanixCluster.Name, err)
-	}
 	return nil
 }
 
@@ -3195,21 +3322,17 @@ func (r *NutanixMachineReconciler) markClusterCategoryCreationFailed(rctx *nctx.
 		return nil
 	}
 
-	patchHelper, err := v1beta1patch.NewHelper(rctx.NutanixCluster, r.Client)
-	if err != nil {
-		return fmt.Errorf("failed to init patch helper for NutanixCluster %s/%s: %w", rctx.NutanixCluster.Namespace, rctx.NutanixCluster.Name, err)
-	}
-
-	v1beta1conditions.MarkFalse(rctx.NutanixCluster, infrav1.ClusterCategoryCreatedCondition, infrav1.ClusterCategoryCreationFailed, capiv1beta1.ConditionSeverityError, "%s", cause.Error())
-	v1beta2conditions.Set(rctx.NutanixCluster, metav1.Condition{
-		Type:    string(infrav1.ClusterCategoryCreatedCondition),
-		Status:  metav1.ConditionFalse,
-		Reason:  infrav1.ClusterCategoryCreationFailed,
-		Message: cause.Error(),
+	return r.patchClusterCategoryCondition(rctx.Context, client.ObjectKeyFromObject(rctx.NutanixCluster), func(nc *infrav1.NutanixCluster) bool {
+		if v1beta1conditions.IsTrue(nc, infrav1.ClusterCategoryCreatedCondition) {
+			return false
+		}
+		v1beta1conditions.MarkFalse(nc, infrav1.ClusterCategoryCreatedCondition, infrav1.ClusterCategoryCreationFailed, capiv1beta1.ConditionSeverityError, "%s", cause.Error())
+		v1beta2conditions.Set(nc, metav1.Condition{
+			Type:    string(infrav1.ClusterCategoryCreatedCondition),
+			Status:  metav1.ConditionFalse,
+			Reason:  infrav1.ClusterCategoryCreationFailed,
+			Message: cause.Error(),
+		})
+		return true
 	})
-
-	if err := patchHelper.Patch(rctx.Context, rctx.NutanixCluster); err != nil {
-		return fmt.Errorf("failed to patch ClusterCategoryCreatedCondition on NutanixCluster %s/%s: %w", rctx.NutanixCluster.Namespace, rctx.NutanixCluster.Name, err)
-	}
-	return nil
 }
