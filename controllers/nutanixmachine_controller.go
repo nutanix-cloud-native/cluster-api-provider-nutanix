@@ -2136,7 +2136,7 @@ func (r *NutanixMachineReconciler) recoverStickyFailedVMCreate(rctx *nctx.Machin
 		if persistErr := r.persistFailedVMCreateBackoff(rctx, nil, failureCount); persistErr != nil {
 			return fmt.Errorf("failed to persist vm create failure count after failed create: %w (create error: %v)", persistErr, createErr)
 		}
-		terminalErr := fmt.Errorf("Prism VM create failed %d times; not retrying: %w", failureCount, createErr)
+		terminalErr := fmt.Errorf("prism VM create failed %d times; not retrying: %w", failureCount, createErr)
 		setVMProvisionedTaskFailedCondition(rctx, failureCount, 0, createErr)
 		rctx.SetFailureStatus(createErrorFailureReason, terminalErr)
 		log.Info("Prism VM create exhausted retries; set failureReason",
