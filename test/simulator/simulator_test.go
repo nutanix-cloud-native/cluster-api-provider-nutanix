@@ -222,6 +222,7 @@ func TestCAPXMachineLifecycle(t *testing.T) {
 	require.Len(t, found, 1)
 	_, err = client.Categories.Create(ctx, category)
 	require.Error(t, err, "duplicate category must be rejected")
+	require.Contains(t, err.Error(), "category with the provided key and value already exists with extId:")
 
 	// VM create, as getOrCreateVM does, then the providerID custom attribute.
 	vmSpec := capxVM("c1-md-0-abc", peExtID, subnetExtID, imageExtID)
@@ -243,7 +244,7 @@ func TestCAPXMachineLifecycle(t *testing.T) {
 	require.Contains(t, updated.CustomAttributes, "providerid:nutanix://"+vmExtID)
 
 	// Power on and read the learned IP that populates status.addresses.
-	powerOn, err := client.VMs.PowerOnVM(vmExtID)
+	powerOn, err := client.VMs.PowerOnVM(ctx, vmExtID)
 	require.NoError(t, err)
 	_, err = powerOn.Wait(ctx)
 	require.NoError(t, err)
@@ -341,10 +342,26 @@ func TestListPagination(t *testing.T) {
 	vms, err := client.VMs.List(context.Background())
 	require.NoError(t, err)
 	require.Len(t, vms, n)
+	seen := map[string]struct{}{}
+	for _, vm := range vms {
+		seen[*vm.ExtId] = struct{}{}
+	}
+	require.Len(t, seen, n, "a full walk must not repeat or skip VMs")
 
-	page, err := client.VMs.List(context.Background(), converged.WithPage(1), converged.WithLimit(50))
+	page0, err := client.VMs.List(context.Background(), converged.WithPage(0), converged.WithLimit(50))
 	require.NoError(t, err)
-	require.Len(t, page, 50)
+	page1, err := client.VMs.List(context.Background(), converged.WithPage(1), converged.WithLimit(50))
+	require.NoError(t, err)
+	require.Len(t, page0, 50)
+	require.Len(t, page1, 50)
+	first := map[string]struct{}{}
+	for _, vm := range page0 {
+		first[*vm.ExtId] = struct{}{}
+	}
+	for _, vm := range page1 {
+		_, dup := first[*vm.ExtId]
+		require.False(t, dup, "page 1 repeats %s from page 0", *vm.ExtId)
+	}
 }
 
 func TestTaskFailureInjection(t *testing.T) {
@@ -358,6 +375,9 @@ func TestTaskFailureInjection(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "injected task failure")
 	require.Equal(t, uint64(1), env.sim.Stats().Tasks[opVMCreate].Failed)
+	found, err := client.VMs.List(context.Background(), converged.WithFilter("name eq 'doomed'"))
+	require.NoError(t, err)
+	require.Empty(t, found, "a failed create must not leave a VM that CAPX would adopt")
 }
 
 func TestInternalErrorInjection(t *testing.T) {
@@ -399,7 +419,7 @@ func TestIfMatchIsEnforced(t *testing.T) {
 	require.NoError(t, json.NewDecoder(get.Body).Decode(&envelope))
 	require.Equal(t, etag, envelope.Reserved["ETag"], "envelope $reserved carries the ETag")
 	require.Equal(t, etag, envelope.Data.Reserved["ETag"], "entity $reserved carries the ETag")
-	require.Equal(t, "v4.r2", envelope.Data.Reserved["$fv"], "SDK-provided $reserved fields are preserved")
+	require.Equal(t, "v4.r3", envelope.Data.Reserved["$fv"], "SDK-provided $reserved fields are preserved")
 
 	resp = env.rawRequest(t, http.MethodPost, path+"/$actions/power-on", map[string]string{"If-Match": etag})
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
@@ -440,4 +460,98 @@ func TestLatencyInjection(t *testing.T) {
 	resp := env.rawRequest(t, http.MethodGet, "/api/clustermgmt/v4.2/config/clusters", nil)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.GreaterOrEqual(t, time.Since(start), cfg.Faults.Latency)
+}
+
+func TestDomainManagerVersion(t *testing.T) {
+	env := newTestEnv(t, DefaultConfig())
+	version, err := env.convergedClient(t).DomainManager.GetPrismCentralVersion(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, defaultPCVersion, version)
+}
+
+func TestCreateRequestIDIsIdempotent(t *testing.T) {
+	env := newTestEnv(t, DefaultConfig())
+	client := env.convergedClient(t)
+	pe, subnet, image := seededIDs(t, env)
+	ctx := v4Converged.WithRequestID(context.Background(), "same-request")
+
+	first, err := client.VMs.Create(ctx, capxVM("idem-a", pe, subnet, image))
+	require.NoError(t, err)
+	second, err := client.VMs.Create(ctx, capxVM("idem-b", pe, subnet, image))
+	require.NoError(t, err)
+	require.Equal(t, *first.ExtId, *second.ExtId)
+
+	vms, err := client.VMs.List(context.Background())
+	require.NoError(t, err)
+	require.Len(t, vms, 1)
+	require.Equal(t, "idem-a", *vms[0].Name)
+}
+
+func TestPowerOnFailsWhenPoolIsExhausted(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Seed.Subnets = []SubnetSeed{{
+		Name:  "subnet-sim",
+		CIDR:  "10.10.0.0/16",
+		Start: "10.10.0.10",
+		End:   "10.10.0.10",
+	}}
+	env := newTestEnv(t, cfg)
+	client := env.convergedClient(t)
+	pe, subnet, image := seededIDs(t, env)
+	ctx := context.Background()
+
+	first, err := client.VMs.Create(ctx, capxVM("one", pe, subnet, image))
+	require.NoError(t, err)
+	second, err := client.VMs.Create(ctx, capxVM("two", pe, subnet, image))
+	require.NoError(t, err)
+
+	op, err := client.VMs.PowerOnVM(ctx, *first.ExtId)
+	require.NoError(t, err)
+	_, err = op.Wait(ctx)
+	require.NoError(t, err)
+
+	op, err = client.VMs.PowerOnVM(ctx, *second.ExtId)
+	require.NoError(t, err)
+	_, err = op.Wait(ctx)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "subnet pool exhausted")
+
+	got, err := client.VMs.Get(ctx, *second.ExtId)
+	require.NoError(t, err)
+	require.Equal(t, vmmconfig.POWERSTATE_OFF, *got.PowerState)
+}
+
+func TestSessionCookieIsChecked(t *testing.T) {
+	env := newTestEnv(t, DefaultConfig())
+	login, err := http.NewRequestWithContext(context.Background(), http.MethodGet, env.server.URL+"/api/nutanix/v3/users/me", nil)
+	require.NoError(t, err)
+	login.SetBasicAuth(testUser, testPass)
+	resp, err := env.rawClient().Do(login)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var session *http.Cookie
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == "NTNX_IGW_SESSION" {
+			session = cookie
+		}
+	}
+	require.NotNil(t, session)
+
+	clusters := env.server.URL + "/api/clustermgmt/v4.2/config/clusters"
+	authed, err := http.NewRequestWithContext(context.Background(), http.MethodGet, clusters, nil)
+	require.NoError(t, err)
+	authed.AddCookie(session)
+	resp, err = env.rawClient().Do(authed)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	bogus, err := http.NewRequestWithContext(context.Background(), http.MethodGet, clusters, nil)
+	require.NoError(t, err)
+	bogus.AddCookie(&http.Cookie{Name: "NTNX_IGW_SESSION", Value: "not-issued"})
+	resp, err = env.rawClient().Do(bogus)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }

@@ -31,6 +31,8 @@ func (s *Simulator) registerPrismRoutes() {
 	m.HandleFunc("POST /api/prism/{version}/config/categories", s.handleCreateCategory)
 	m.HandleFunc("GET /api/prism/{version}/config/categories/{extId}", s.handleGetCategory)
 	m.HandleFunc("DELETE /api/prism/{version}/config/categories/{extId}", s.handleDeleteCategory)
+	m.HandleFunc("GET /api/prism/{version}/config/domain-managers", s.handleListDomainManagers)
+	m.HandleFunc("GET /api/prism/{version}/config/domain-managers/{extId}", s.handleGetDomainManager)
 	m.HandleFunc("GET /api/prism/{version}/config/tasks", s.handleListTasks)
 	m.HandleFunc("GET /api/prism/{version}/config/tasks/{extId}", s.handleGetTask)
 }
@@ -62,8 +64,7 @@ func (s *Simulator) handleListCategories(w http.ResponseWriter, r *http.Request)
 	}
 	categories := make([]prismconfig.Category, 0, len(page))
 	for _, rec := range page {
-		setETag(rec.category, etagFor(rec.version))
-		categories = append(categories, *rec.category)
+		categories = append(categories, cloneWithETag(rec.category, etagFor(rec.version)))
 	}
 	resp := prismconfig.NewListCategoriesApiResponse()
 	resp.Metadata = prismMetadata(total)
@@ -83,9 +84,8 @@ func (s *Simulator) handleGetCategory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	etag := etagFor(rec.version)
-	setETag(rec.category, etag)
 	resp := prismconfig.NewGetCategoryApiResponse()
-	if err := resp.SetData(*rec.category); err != nil {
+	if err := resp.SetData(cloneWithETag(rec.category, etag)); err != nil {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
@@ -104,22 +104,52 @@ func (s *Simulator) handleCreateCategory(w http.ResponseWriter, r *http.Request)
 	s.store.mu.Lock()
 	defer s.store.mu.Unlock()
 	if existing := s.store.findCategory(*in.Key, *in.Value); existing != nil {
+		// CAPX treats this phrase, including the "extId:" spelling, as the
+		// list/create race and adopts the existing category.
 		writeError(w, http.StatusConflict, "CATEGORY_ALREADY_EXISTS",
-			fmt.Sprintf("category %s:%s already exists with extId %s", *in.Key, *in.Value, *existing.category.ExtId))
+			fmt.Sprintf("category with the provided key and value already exists with extId: %s", *existing.category.ExtId))
 		return
 	}
 	rec := s.store.addCategory(*in.Key, *in.Value)
 	if in.Description != nil {
 		rec.category.Description = in.Description
+		rec.doc.store(rec.category)
 	}
 	etag := etagFor(rec.version)
-	setETag(rec.category, etag)
 	resp := prismconfig.NewCreateCategoryApiResponse()
-	if err := resp.SetData(*rec.category); err != nil {
+	if err := resp.SetData(cloneWithETag(rec.category, etag)); err != nil {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
 	writeJSON(w, http.StatusCreated, etag, resp)
+}
+
+func (s *Simulator) handleListDomainManagers(w http.ResponseWriter, _ *http.Request) {
+	s.store.mu.RLock()
+	defer s.store.mu.RUnlock()
+	resp := prismconfig.NewListDomainManagerApiResponse()
+	resp.Metadata = prismMetadata(1)
+	if err := setListData(resp, []prismconfig.DomainManager{*s.store.domainManager.entity}); err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, "", resp)
+}
+
+func (s *Simulator) handleGetDomainManager(w http.ResponseWriter, r *http.Request) {
+	s.store.mu.RLock()
+	defer s.store.mu.RUnlock()
+	dm := s.store.domainManager.entity
+	if dm.ExtId == nil || r.PathValue("extId") != *dm.ExtId {
+		writeNotFound(w, "domain manager", r.PathValue("extId"))
+		return
+	}
+	resp := prismconfig.NewGetDomainManagerApiResponse()
+	if err := resp.SetData(*dm); err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, etagFor(1), resp)
 }
 
 func (s *Simulator) handleDeleteCategory(w http.ResponseWriter, r *http.Request) {

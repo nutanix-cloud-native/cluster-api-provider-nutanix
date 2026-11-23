@@ -16,7 +16,7 @@ plus a thin binary (`test/simulator/cmd/ntnx-sim`).
 | vmm | VMs list/get/create/delete, `$actions/power-on`, `$actions/power-off`, `$actions/add-custom-attributes`; images list/get |
 | clustermgmt | clusters list/get; storage containers list |
 | networking | subnets list/get |
-| prism | categories list/get/create/delete; tasks list/get |
+| prism | categories list/get/create/delete; domain managers list/get; tasks list/get |
 | operational | `GET /-/healthz`, `GET /-/stats` (per-route request counters, task outcomes, injected faults, store sizes) |
 
 Everything else under `/api` answers **501** so an unexpected call fails loudly
@@ -41,9 +41,16 @@ Behaviours CAPX depends on:
 - `$filter` is evaluated by a small OData parser covering `eq/ne/gt/ge/lt/le`,
   `and/or/not`, parentheses, typed enum literals such as
   `Prism.Config.TaskStatus'RUNNING'` and the `entitiesAffected/any(a:a/extId eq '...')`
-  lambda. `$page`/`$limit` paginate the way the converged iterator expects.
+  lambda. `$page`/`$limit` paginate in `extId` order, which is what the converged
+  iterator needs to walk a list without skipping or repeating entities.
+- VM create stays invisible until its task succeeds. A repeated create that
+  sends the same `Ntnx-Request-Id` returns that task instead of a second VM.
+- `GET /api/prism/{version}/config/domain-managers` reports `pcVersion`
+  (default `pc.7.5`). CAPX reads this before it creates a machine. `pc.7.5`
+  keeps it off the Prism Central 7.6 project and GPU-profile calls.
 - Powering a VM on allocates an address from the subnet's pool and reports it as
   a learned IP on the NIC, which populates `NutanixMachine.status.addresses`.
+  An exhausted pool fails the power-on task.
 - Empty lists omit `data`, as Prism Central does; the SDK cannot decode `[]`.
 
 ## Running it

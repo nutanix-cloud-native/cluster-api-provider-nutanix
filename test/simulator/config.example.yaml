@@ -17,6 +17,8 @@ faults:
   taskFailureEvery: 0
 limits:
   maxVMs: 0           # 0 = unlimited
+# Reported by the domain manager. pc.7.5 keeps CAPX off the 7.6 project/GPU-profile path.
+pcVersion: pc.7.5
 seed:
   clusters:
     - name: pe-sim-1

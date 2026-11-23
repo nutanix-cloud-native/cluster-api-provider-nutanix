@@ -76,6 +76,7 @@ func (s *Simulator) newTask(operation string, refs ...entityRef) *taskRecord {
 		task.EntitiesAffected = append(task.EntitiesAffected, *er)
 	}
 	rec := &taskRecord{task: task}
+	rec.doc.store(task)
 	s.store.tasks[*task.ExtId] = rec
 	s.pruneTasks(now)
 	return rec
@@ -94,34 +95,102 @@ func (s *Simulator) pruneTasks(now time.Time) {
 }
 
 // completeFn mutates the store when a task succeeds. It runs with the store
-// lock held and may return a callback to run after the lock is released
-// (used for lifecycle hooks).
-type completeFn func() func()
+// lock held. A non-empty failMsg fails the task instead of marking it
+// succeeded. The returned callback runs after the lock is released.
+type completeFn func() (after func(), failMsg string)
 
 // scheduleTask completes rec after d, either by running complete or, when
 // fault injection selects this task, by failing it.
 func (s *Simulator) scheduleTask(rec *taskRecord, d time.Duration, complete completeFn) {
-	fail := s.cfg.Faults.TaskFailureEvery > 0 && s.taskSeq.Add(1)%uint64(s.cfg.Faults.TaskFailureEvery) == 0
+	injected := s.cfg.Faults.TaskFailureEvery > 0 && s.taskSeq.Add(1)%uint64(s.cfg.Faults.TaskFailureEvery) == 0
 	time.AfterFunc(d, func() {
 		var after func()
+		failed := injected
+		message := "injected task failure"
 		s.store.mu.Lock()
 		now := time.Now().UTC()
-		if fail {
-			s.failTask(rec, now, "injected task failure")
+		if injected {
+			s.failTask(rec, now, message)
 		} else {
-			after = complete()
-			rec.task.Status = ptr.To(prismconfig.TASKSTATUS_SUCCEEDED)
-			rec.task.ProgressPercentage = ptr.To(100)
+			var msg string
+			after, msg = complete()
+			if msg != "" {
+				failed = true
+				message = msg
+				s.failTask(rec, now, msg)
+			} else {
+				rec.task.Status = ptr.To(prismconfig.TASKSTATUS_SUCCEEDED)
+				rec.task.ProgressPercentage = ptr.To(100)
+			}
 		}
 		rec.task.CompletedTime = ptr.To(now)
 		rec.task.LastUpdatedTime = ptr.To(now)
-		rec.doc.invalidate()
+		rec.doc.store(rec.task)
+		if failed {
+			s.markCreateFailed(*rec.task.ExtId, message)
+		}
 		s.store.mu.Unlock()
-		s.stats.taskCompleted(*rec.task.Operation, fail)
-		if after != nil {
+		s.stats.taskCompleted(*rec.task.Operation, failed)
+		if after != nil && !failed {
 			after()
 		}
 	})
+}
+
+func (s *Simulator) rememberCreate(requestID string, attempt *createAttempt) {
+	if requestID == "" {
+		return
+	}
+	s.store.creates[requestID] = attempt
+	s.store.createByTask[attempt.taskExtID] = requestID
+}
+
+func (s *Simulator) markCreateFailed(taskExtID, message string) {
+	requestID, ok := s.store.createByTask[taskExtID]
+	if !ok {
+		return
+	}
+	attempt := s.store.creates[requestID]
+	attempt.failed = true
+	attempt.message = message
+}
+
+// ensureCreateTask puts attempt's task back if retention pruned it, so a
+// replayed Ntnx-Request-Id can still be polled by Operation.Wait.
+func (s *Simulator) ensureCreateTask(attempt *createAttempt) {
+	if _, ok := s.store.tasks[attempt.taskExtID]; ok {
+		return
+	}
+	task := prismconfig.NewTask()
+	task.ExtId = ptr.To(attempt.taskExtID)
+	task.Operation = ptr.To(opVMCreate)
+	task.OperationDescription = ptr.To(opVMCreate)
+	now := time.Now().UTC()
+	task.CreatedTime = ptr.To(now)
+	task.StartedTime = ptr.To(now)
+	task.LastUpdatedTime = ptr.To(now)
+	task.CompletedTime = ptr.To(now)
+	task.IsCancelable = ptr.To(false)
+	task.IsBackgroundTask = ptr.To(false)
+	task.NumberOfSubtasks = ptr.To(0)
+	task.NumberOfEntitiesAffected = ptr.To(1)
+	ref := prismconfig.NewEntityReference()
+	ref.ExtId = ptr.To(attempt.vmExtID)
+	ref.Rel = ptr.To(relVM)
+	task.EntitiesAffected = []prismconfig.EntityReference{*ref}
+	rec := &taskRecord{task: task}
+	if attempt.failed || s.store.vms[attempt.vmExtID] == nil {
+		msg := attempt.message
+		if msg == "" {
+			msg = "vm create failed"
+		}
+		s.failTask(rec, now, msg)
+	} else {
+		task.Status = ptr.To(prismconfig.TASKSTATUS_SUCCEEDED)
+		task.ProgressPercentage = ptr.To(100)
+	}
+	rec.doc.store(task)
+	s.store.tasks[attempt.taskExtID] = rec
 }
 
 func (s *Simulator) failTask(rec *taskRecord, now time.Time, message string) {

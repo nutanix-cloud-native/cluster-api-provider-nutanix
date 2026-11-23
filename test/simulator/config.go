@@ -40,7 +40,13 @@ type Config struct {
 	// APIVersion is the v4 API version reported to SDK version negotiation.
 	// Defaults to "v4.2".
 	APIVersion string `json:"apiVersion,omitempty"`
+	// PCVersion is the Prism Central version reported by the domain manager.
+	// Defaults to "pc.7.5", which keeps CAPX on the pre-7.6 code path.
+	PCVersion string `json:"pcVersion,omitempty"`
 }
+
+// defaultPCVersion is old enough that CAPX does not call project or GPU-profile APIs.
+const defaultPCVersion = "pc.7.5"
 
 // Auth is the credential set the simulator validates requests against.
 type Auth struct {
@@ -141,6 +147,7 @@ type CategorySeed struct {
 func DefaultConfig() Config {
 	return Config{
 		APIVersion: "v4.2",
+		PCVersion:  defaultPCVersion,
 		Seed: Seed{
 			Clusters:          []ClusterSeed{{Name: "pe-sim"}},
 			Subnets:           []SubnetSeed{{Name: "subnet-sim", CIDR: "10.10.0.0/16", VlanID: 0}},
@@ -168,6 +175,9 @@ func LoadConfig(path string) (Config, error) {
 	}
 	if fileCfg.APIVersion != "" {
 		cfg.APIVersion = fileCfg.APIVersion
+	}
+	if fileCfg.PCVersion != "" {
+		cfg.PCVersion = fileCfg.PCVersion
 	}
 	cfg.Auth = fileCfg.Auth
 	cfg.Timing = fileCfg.Timing

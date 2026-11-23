@@ -34,7 +34,7 @@ limitations under the License.
 //   - vmm:         VMs list/get/create/delete, power-on, power-off, add-custom-attributes; images list/get
 //   - clustermgmt: clusters list/get; storage containers list
 //   - networking:  subnets list/get
-//   - prism:       categories list/get/create/delete; tasks list/get
+//   - prism:       categories list/get/create/delete; domain managers list/get; tasks list/get
 //
 // Every other path under /api returns 501 so an unexpected call fails loudly.
 //
@@ -48,9 +48,12 @@ limitations under the License.
 //   - $filter is evaluated by a small OData parser that understands the
 //     expressions CAPX issues, including the entitiesAffected/any(...) lambda
 //     and enum-typed literals such as Prism.Config.TaskStatus'RUNNING'.
+//   - A VM create is invisible until its task succeeds. Repeating the create
+//     with the same Ntnx-Request-Id returns the original task.
 //   - Powering a VM on allocates an address from the subnet's pool and reports
 //     it as a learned IP on the NIC, which is what populates
-//     NutanixMachine.status.addresses.
+//     NutanixMachine.status.addresses. An exhausted pool fails the task.
+//   - List responses are ordered by extId, so $page/$limit walks are stable.
 //
 // Lifecycle hooks (Hooks) fire when a VM is created, powered on/off or deleted,
 // which is where a scale harness plugs in its fake-node backend. Fault

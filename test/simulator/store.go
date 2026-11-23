@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	clustermgmtconfig "github.com/nutanix/ntnx-api-golang-clients/clustermgmt-go-client/v4/models/clustermgmt/v4/config"
 	networkingconfig "github.com/nutanix/ntnx-api-golang-clients/networking-go-client/v4/models/networking/v4/config"
+	prismclustermgmt "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/clustermgmt/v4/config"
 	prismconfig "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	vmmconfig "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 	vmmcontent "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/content"
@@ -40,10 +41,7 @@ type cachedDoc struct {
 	doc map[string]any
 }
 
-func (c *cachedDoc) get(entity any) (map[string]any, error) {
-	if c.doc != nil {
-		return c.doc, nil
-	}
+func toDoc(entity any) (map[string]any, error) {
 	raw, err := json.Marshal(entity)
 	if err != nil {
 		return nil, err
@@ -52,8 +50,26 @@ func (c *cachedDoc) get(entity any) (map[string]any, error) {
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, err
 	}
-	c.doc = doc
 	return doc, nil
+}
+
+// get returns the cached document. On a miss it marshals entity without storing
+// the result: list handlers call get while holding only the read lock.
+func (c *cachedDoc) get(entity any) (map[string]any, error) {
+	if c.doc != nil {
+		return c.doc, nil
+	}
+	return toDoc(entity)
+}
+
+// store caches entity's document. The caller must hold the store write lock.
+func (c *cachedDoc) store(entity any) {
+	doc, err := toDoc(entity)
+	if err != nil {
+		c.doc = nil
+		return
+	}
+	c.doc = doc
 }
 
 func (c *cachedDoc) invalidate() { c.doc = nil }
@@ -69,7 +85,7 @@ type vmRecord struct {
 func (r *vmRecord) touch() {
 	r.version++
 	r.vm.UpdateTime = ptr.To(time.Now().UTC())
-	r.doc.invalidate()
+	r.doc.store(r.vm)
 }
 
 type allocatedIP struct {
@@ -86,6 +102,15 @@ type categoryRecord struct {
 type taskRecord struct {
 	task *prismconfig.Task
 	doc  cachedDoc
+}
+
+// createAttempt remembers one VM create so a repeated Ntnx-Request-Id returns
+// the original task instead of creating another VM.
+type createAttempt struct {
+	taskExtID string
+	vmExtID   string
+	failed    bool
+	message   string
 }
 
 type seededEntity[T any] struct {
@@ -105,14 +130,19 @@ type store struct {
 	vms               map[string]*vmRecord
 	tasks             map[string]*taskRecord
 	pools             map[string]*ipPool
+	domainManager     *seededEntity[prismconfig.DomainManager]
+	creates           map[string]*createAttempt
+	createByTask      map[string]string
 }
 
-func newStore(seed Seed) (*store, error) {
+func newStore(seed Seed, pcVersion string) (*store, error) {
 	s := &store{
-		categories: map[string]*categoryRecord{},
-		vms:        map[string]*vmRecord{},
-		tasks:      map[string]*taskRecord{},
-		pools:      map[string]*ipPool{},
+		categories:   map[string]*categoryRecord{},
+		vms:          map[string]*vmRecord{},
+		tasks:        map[string]*taskRecord{},
+		pools:        map[string]*ipPool{},
+		creates:      map[string]*createAttempt{},
+		createByTask: map[string]string{},
 	}
 	if len(seed.Clusters) == 0 {
 		return nil, fmt.Errorf("seed must contain at least one cluster")
@@ -139,7 +169,28 @@ func newStore(seed Seed) (*store, error) {
 	for _, c := range seed.Categories {
 		s.addCategory(c.Key, c.Value)
 	}
+	s.domainManager = newSeedDomainManager(pcVersion, s.clusters[0].entity)
 	return s, nil
+}
+
+func newSeedDomainManager(pcVersion string, cluster *clustermgmtconfig.Cluster) *seededEntity[prismconfig.DomainManager] {
+	if pcVersion == "" {
+		pcVersion = defaultPCVersion
+	}
+	dm := prismconfig.NewDomainManager()
+	dm.ExtId = ptr.To(uuid.NewString())
+	dm.HostingClusterExtId = cluster.ExtId
+	dm.IsRegisteredWithHostingCluster = ptr.To(true)
+	dm.CreatedTime = ptr.To(time.Now().UTC())
+	dm.Config = prismconfig.NewDomainManagerClusterConfig()
+	dm.Config.Name = ptr.To("pc-sim")
+	build := prismclustermgmt.NewBuildInfo()
+	build.Version = ptr.To(pcVersion)
+	dm.Config.BuildInfo = build
+	dm.Network = prismconfig.NewDomainManagerNetwork()
+	entity := &seededEntity[prismconfig.DomainManager]{entity: dm}
+	entity.doc.store(dm)
+	return entity
 }
 
 func orUUID(id string) string {
@@ -259,6 +310,7 @@ func (s *store) addCategory(key, value string) *categoryRecord {
 	category.Value = ptr.To(value)
 	category.Type = ptr.To(prismconfig.CATEGORYTYPE_USER)
 	rec := &categoryRecord{category: category, version: 1}
+	rec.doc.store(category)
 	s.categories[*category.ExtId] = rec
 	return rec
 }

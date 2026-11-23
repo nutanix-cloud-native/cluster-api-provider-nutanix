@@ -66,6 +66,7 @@ type flags struct {
 	taskFail   int
 	maxVMs     int
 	apiVersion string
+	pcVersion  string
 	profiler   string
 }
 
@@ -90,6 +91,7 @@ func parseFlags() *flags {
 	flag.IntVar(&f.taskFail, "task-failure-every", -1, "override: fail every Nth task")
 	flag.IntVar(&f.maxVMs, "max-vms", -1, "override: reject VM creation beyond this many VMs")
 	flag.StringVar(&f.apiVersion, "api-version", "", "override the v4 API version reported to SDK negotiation")
+	flag.StringVar(&f.pcVersion, "pc-version", "", "override the Prism Central version reported by the domain manager")
 	flag.StringVar(&f.profiler, "profiler-address", ":6060", "pprof listen address; empty disables")
 	flag.Parse()
 	return f
@@ -128,6 +130,9 @@ func (f *flags) apply(cfg *simulator.Config) {
 	}
 	if f.apiVersion != "" {
 		cfg.APIVersion = f.apiVersion
+	}
+	if f.pcVersion != "" {
+		cfg.PCVersion = f.pcVersion
 	}
 }
 

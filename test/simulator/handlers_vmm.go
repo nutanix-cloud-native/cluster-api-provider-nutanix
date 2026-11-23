@@ -78,8 +78,7 @@ func (s *Simulator) handleListVMs(w http.ResponseWriter, r *http.Request) {
 	}
 	vms := make([]vmmconfig.Vm, 0, len(page))
 	for _, rec := range page {
-		setETag(rec.vm, etagFor(rec.version))
-		vms = append(vms, *rec.vm)
+		vms = append(vms, cloneWithETag(rec.vm, etagFor(rec.version)))
 	}
 	resp := vmmconfig.NewListVmsApiResponse()
 	resp.Metadata = vmmMetadata(total)
@@ -104,9 +103,8 @@ func (s *Simulator) handleGetVM(w http.ResponseWriter, r *http.Request) {
 // writeVM writes a GetVmApiResponse. The store lock must be held.
 func (s *Simulator) writeVM(w http.ResponseWriter, rec *vmRecord) {
 	etag := etagFor(rec.version)
-	setETag(rec.vm, etag)
 	resp := vmmconfig.NewGetVmApiResponse()
-	if err := resp.SetData(*rec.vm); err != nil {
+	if err := resp.SetData(cloneWithETag(rec.vm, etag)); err != nil {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
 		return
 	}
@@ -120,6 +118,13 @@ func (s *Simulator) handleCreateVM(w http.ResponseWriter, r *http.Request) {
 	}
 	s.store.mu.Lock()
 	defer s.store.mu.Unlock()
+	if requestID := r.Header.Get("NTNX-Request-Id"); requestID != "" {
+		if attempt, ok := s.store.creates[requestID]; ok {
+			s.ensureCreateTask(attempt)
+			s.writeCreateTask(w, attempt.taskExtID)
+			return
+		}
+	}
 	if msg := s.validateNewVM(vm); msg != "" {
 		writeBadRequest(w, msg)
 		return
@@ -130,14 +135,24 @@ func (s *Simulator) handleCreateVM(w http.ResponseWriter, r *http.Request) {
 	}
 	s.initialiseVM(vm)
 	rec := &vmRecord{vm: vm, version: 1, ips: map[string]allocatedIP{}}
-	s.store.vms[*vm.ExtId] = rec
 	task := s.newTask(opVMCreate, entityRef{extID: *vm.ExtId, name: *vm.Name, rel: relVM})
-	s.scheduleTask(task, s.cfg.Timing.VMCreate, func() func() {
-		rec.touch()
-		return s.vmHook(s.hooks.OnVMCreated, rec)
+	s.rememberCreate(r.Header.Get("NTNX-Request-Id"), &createAttempt{
+		taskExtID: *task.task.ExtId,
+		vmExtID:   *vm.ExtId,
 	})
+	// The VM stays out of the store until the task succeeds. A failed create
+	// must not be adoptable by a later list-by-name.
+	s.scheduleTask(task, s.cfg.Timing.VMCreate, func() (func(), string) {
+		s.store.vms[*vm.ExtId] = rec
+		rec.touch()
+		return s.vmHook(s.hooks.OnVMCreated, rec), ""
+	})
+	s.writeCreateTask(w, *task.task.ExtId)
+}
+
+func (s *Simulator) writeCreateTask(w http.ResponseWriter, taskExtID string) {
 	resp := vmmconfig.NewCreateVmApiResponse()
-	_ = resp.SetData(taskReference(*task.task.ExtId))
+	_ = resp.SetData(taskReference(taskExtID))
 	writeJSON(w, http.StatusAccepted, "", resp)
 }
 
@@ -265,14 +280,16 @@ func (s *Simulator) handlePowerOnVM(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	task := s.newTask(opVMPowerOn, entityRef{extID: *rec.vm.ExtId, name: *rec.vm.Name, rel: relVM})
-	s.scheduleTask(task, s.cfg.Timing.VMPowerOn, func() func() {
-		if _, gone := s.store.vms[*rec.vm.ExtId]; !gone {
-			return nil
+	s.scheduleTask(task, s.cfg.Timing.VMPowerOn, func() (func(), string) {
+		if _, present := s.store.vms[*rec.vm.ExtId]; !present {
+			return nil, ""
+		}
+		if err := s.assignAddresses(rec); err != nil {
+			return nil, err.Error()
 		}
 		rec.vm.PowerState = ptr.To(vmmconfig.POWERSTATE_ON)
-		s.assignAddresses(rec)
 		rec.touch()
-		return s.vmHook(s.hooks.OnVMPoweredOn, rec)
+		return s.vmHook(s.hooks.OnVMPoweredOn, rec), ""
 	})
 	resp := vmmconfig.NewPowerOnVmApiResponse()
 	_ = resp.SetData(taskReference(*task.task.ExtId))
@@ -287,14 +304,14 @@ func (s *Simulator) handlePowerOffVM(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	task := s.newTask(opVMPowerOff, entityRef{extID: *rec.vm.ExtId, name: *rec.vm.Name, rel: relVM})
-	s.scheduleTask(task, s.cfg.Timing.VMPowerOn, func() func() {
-		if _, gone := s.store.vms[*rec.vm.ExtId]; !gone {
-			return nil
+	s.scheduleTask(task, s.cfg.Timing.VMPowerOn, func() (func(), string) {
+		if _, present := s.store.vms[*rec.vm.ExtId]; !present {
+			return nil, ""
 		}
 		rec.vm.PowerState = ptr.To(vmmconfig.POWERSTATE_OFF)
 		s.releaseAddresses(rec)
 		rec.touch()
-		return s.vmHook(s.hooks.OnVMPoweredOff, rec)
+		return s.vmHook(s.hooks.OnVMPoweredOff, rec), ""
 	})
 	resp := vmmconfig.NewPowerOffVmApiResponse()
 	_ = resp.SetData(taskReference(*task.task.ExtId))
@@ -303,8 +320,24 @@ func (s *Simulator) handlePowerOffVM(w http.ResponseWriter, r *http.Request) {
 
 // assignAddresses gives every NIC an address from its subnet pool and reports
 // it as a learned IP, the way AHV does once the guest brings the interface
-// up. A statically requested address is honoured as-is.
-func (s *Simulator) assignAddresses(rec *vmRecord) {
+// up. A statically requested address is honoured as-is. Allocations are rolled
+// back and an error is returned when a pool cannot satisfy a NIC, so the
+// power-on task fails instead of reporting a VM with no address.
+func (s *Simulator) assignAddresses(rec *vmRecord) error {
+	type pending struct {
+		nicID string
+		alloc allocatedIP
+		idx   int
+	}
+	var assigned []pending
+	rollback := func() {
+		for _, p := range assigned {
+			if pool := s.store.pools[p.alloc.subnetExtID]; pool != nil {
+				pool.release(p.alloc.ip)
+			}
+			delete(rec.ips, p.nicID)
+		}
+	}
 	for i := range rec.vm.Nics {
 		nic := &rec.vm.Nics[i]
 		if nic.NetworkInfo == nil {
@@ -319,20 +352,27 @@ func (s *Simulator) assignAddresses(rec *vmRecord) {
 		subnetID := nicSubnetExtID(*nic)
 		pool := s.store.pools[subnetID]
 		if pool == nil {
-			continue
+			rollback()
+			return fmt.Errorf("subnet %s has no address pool", subnetID)
 		}
 		ip, ok := pool.allocate()
 		if !ok {
-			s.log.Warn("subnet pool exhausted", "subnet", subnetID, "vm", *rec.vm.ExtId)
-			continue
+			rollback()
+			return fmt.Errorf("subnet pool exhausted")
 		}
-		rec.ips[*nic.ExtId] = allocatedIP{subnetExtID: subnetID, ip: ip}
+		alloc := allocatedIP{subnetExtID: subnetID, ip: ip}
+		rec.ips[*nic.ExtId] = alloc
+		assigned = append(assigned, pending{nicID: *nic.ExtId, alloc: alloc, idx: i})
+	}
+	for _, p := range assigned {
+		nic := &rec.vm.Nics[p.idx]
 		addr := vmmcommon.NewIPv4Address()
-		addr.Value = ptr.To(uint32ToIP(ip).String())
-		addr.PrefixLength = ptr.To(pool.prefixLen)
+		addr.Value = ptr.To(uint32ToIP(p.alloc.ip).String())
+		addr.PrefixLength = ptr.To(s.store.pools[p.alloc.subnetExtID].prefixLen)
 		nic.NetworkInfo.Ipv4Info = vmmconfig.NewIpv4Info()
 		nic.NetworkInfo.Ipv4Info.LearnedIpAddresses = []vmmcommon.IPv4Address{*addr}
 	}
+	return nil
 }
 
 func (s *Simulator) releaseAddresses(rec *vmRecord) {
@@ -361,9 +401,9 @@ func (s *Simulator) handleAddVMCustomAttributes(w http.ResponseWriter, r *http.R
 		return
 	}
 	task := s.newTask(opVMUpdate, entityRef{extID: *rec.vm.ExtId, name: *rec.vm.Name, rel: relVM})
-	s.scheduleTask(task, s.cfg.Timing.VMUpdate, func() func() {
-		if _, gone := s.store.vms[*rec.vm.ExtId]; !gone {
-			return nil
+	s.scheduleTask(task, s.cfg.Timing.VMUpdate, func() (func(), string) {
+		if _, present := s.store.vms[*rec.vm.ExtId]; !present {
+			return nil, ""
 		}
 		for _, attr := range params.CustomAttributes {
 			if !containsString(rec.vm.CustomAttributes, attr) {
@@ -371,7 +411,7 @@ func (s *Simulator) handleAddVMCustomAttributes(w http.ResponseWriter, r *http.R
 			}
 		}
 		rec.touch()
-		return nil
+		return nil, ""
 	})
 	resp := vmmconfig.NewAddVmCustomAttributesApiResponse()
 	_ = resp.SetData(taskReference(*task.task.ExtId))
@@ -395,16 +435,16 @@ func (s *Simulator) handleDeleteVM(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	task := s.newTask(opVMDelete, entityRef{extID: *rec.vm.ExtId, name: *rec.vm.Name, rel: relVM})
-	s.scheduleTask(task, s.cfg.Timing.VMDelete, func() func() {
+	s.scheduleTask(task, s.cfg.Timing.VMDelete, func() (func(), string) {
 		if _, present := s.store.vms[*rec.vm.ExtId]; !present {
-			return nil
+			return nil, ""
 		}
 		// Build the event before releasing addresses so the hook sees the
 		// address the VM had while it was running.
 		after := s.vmHook(s.hooks.OnVMDeleted, rec)
 		s.releaseAddresses(rec)
 		delete(s.store.vms, *rec.vm.ExtId)
-		return after
+		return after, ""
 	})
 	resp := vmmconfig.NewDeleteVmApiResponse()
 	_ = resp.SetData(taskReference(*task.task.ExtId))

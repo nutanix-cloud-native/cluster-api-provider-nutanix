@@ -61,6 +61,10 @@ type Simulator struct {
 
 	reqSeq  atomic.Uint64
 	taskSeq atomic.Uint64
+
+	sessionsMu sync.Mutex
+	// sessions holds NTNX_IGW_SESSION values issued by /api/nutanix/v3/users/me.
+	sessions map[string]struct{}
 }
 
 // Option customises a Simulator.
@@ -77,15 +81,19 @@ func New(cfg Config, opts ...Option) (*Simulator, error) {
 	if cfg.APIVersion == "" {
 		cfg.APIVersion = "v4.2"
 	}
-	st, err := newStore(cfg.Seed)
+	if cfg.PCVersion == "" {
+		cfg.PCVersion = defaultPCVersion
+	}
+	st, err := newStore(cfg.Seed, cfg.PCVersion)
 	if err != nil {
 		return nil, fmt.Errorf("seeding store: %w", err)
 	}
 	s := &Simulator{
-		cfg:   cfg,
-		log:   slog.Default(),
-		store: st,
-		stats: newStats(),
+		cfg:      cfg,
+		log:      slog.Default(),
+		store:    st,
+		stats:    newStats(),
+		sessions: map[string]struct{}{},
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -138,7 +146,7 @@ func (s *Simulator) handleVersionInfo(w http.ResponseWriter, _ *http.Request) {
 func (s *Simulator) handleV3UsersMe(w http.ResponseWriter, _ *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "NTNX_IGW_SESSION",
-		Value:    uuid.NewString(),
+		Value:    s.issueSession(),
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
@@ -183,11 +191,30 @@ func (s *Simulator) authenticate(next http.Handler) http.Handler {
 	})
 }
 
+func (s *Simulator) issueSession() string {
+	token := uuid.NewString()
+	s.sessionsMu.Lock()
+	s.sessions[token] = struct{}{}
+	s.sessionsMu.Unlock()
+	return token
+}
+
+func (s *Simulator) sessionValid(r *http.Request) bool {
+	cookie, err := r.Cookie("NTNX_IGW_SESSION")
+	if err != nil || cookie.Value == "" {
+		return false
+	}
+	s.sessionsMu.Lock()
+	defer s.sessionsMu.Unlock()
+	_, ok := s.sessions[cookie.Value]
+	return ok
+}
+
 func (s *Simulator) credentialsValid(r *http.Request) bool {
 	if s.cfg.Auth.APIKey != "" && subtle.ConstantTimeCompare([]byte(r.Header.Get("X-ntnx-api-key")), []byte(s.cfg.Auth.APIKey)) == 1 {
 		return true
 	}
-	if _, err := r.Cookie("NTNX_IGW_SESSION"); err == nil && r.Header.Get("Authorization") == "" {
+	if r.Header.Get("Authorization") == "" && s.sessionValid(r) {
 		// Session cookies are issued by /users/me after a successful login.
 		return true
 	}

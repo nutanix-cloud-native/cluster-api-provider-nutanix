@@ -252,7 +252,7 @@ SIM_ARGS ?=
 .PHONY: test-sim
 test-sim: ntnx-sim ## Run the CAPX manager and CAPI core against ntnx-sim under envtest; no Nutanix hardware needed.
 	go build -o bin/manager .
-	go build -o bin/capi-manager sigs.k8s.io/cluster-api
+	go build -o bin/capi-manager sigs.k8s.io/cluster-api/core
 	go build -o bin/simrun ./test/simulator/cmd/simrun
 	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" bin/simrun --machines $(SIM_MACHINES) $(SIM_ARGS)
 

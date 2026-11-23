@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"sort"
 	"strconv"
 
 	prismcommon "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/common/v1/config"
@@ -36,8 +37,14 @@ const (
 	maxPageSize     = 100
 )
 
-// setETag records etag in the $reserved map of an SDK model, which is where
-// the SDK's GetEtag reads it from. entity must be a pointer to a model struct.
+// cloneWithETag returns a shallow copy of entity with etag stamped into
+// $reserved. The stored entity is left unchanged so list and get handlers can
+// do this while holding only the read lock.
+func cloneWithETag[T any](entity *T, etag string) T {
+	cp := *entity
+	setETag(&cp, etag)
+	return cp
+}
 func setETag(entity any, etag string) {
 	v := reflect.ValueOf(entity)
 	if v.Kind() != reflect.Pointer || v.Elem().Kind() != reflect.Struct {
@@ -181,26 +188,32 @@ func intParam(raw string, def int) (int, error) {
 }
 
 // selectPage applies the filter to every item (via its cached JSON document)
-// and returns the requested page plus the total number of matches.
+// and returns the requested page plus the total number of matches. Pages are
+// ordered by extId so repeated walks do not skip or repeat entities.
 func selectPage[T any](q *listQuery, items []T, docOf func(T) (map[string]any, error)) ([]T, int, error) {
-	matched := make([]T, 0, len(items))
+	type scored struct {
+		item  T
+		extID string
+	}
+	matched := make([]scored, 0, len(items))
 	for _, item := range items {
-		ok := true
+		doc, err := docOf(item)
+		if err != nil {
+			return nil, 0, err
+		}
 		if q.matcher.expr != nil {
-			doc, err := docOf(item)
-			if err != nil {
-				return nil, 0, err
-			}
 			res, err := q.matcher.expr.eval(doc, nil)
 			if err != nil {
 				return nil, 0, err
 			}
-			ok = truthy(res)
+			if !truthy(res) {
+				continue
+			}
 		}
-		if ok {
-			matched = append(matched, item)
-		}
+		extID, _ := doc["extId"].(string)
+		matched = append(matched, scored{item: item, extID: extID})
 	}
+	sort.Slice(matched, func(i, j int) bool { return matched[i].extID < matched[j].extID })
 	total := len(matched)
 	start := q.page * q.limit
 	if start >= total {
@@ -210,7 +223,11 @@ func selectPage[T any](q *listQuery, items []T, docOf func(T) (map[string]any, e
 	if end > total {
 		end = total
 	}
-	return matched[start:end], total, nil
+	out := make([]T, 0, end-start)
+	for _, item := range matched[start:end] {
+		out = append(out, item.item)
+	}
+	return out, total, nil
 }
 
 // dataSetter is implemented by every SDK list response envelope.
