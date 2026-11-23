@@ -62,6 +62,7 @@ import (
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
+	capxmetrics "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/metrics"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/services"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
@@ -333,6 +334,14 @@ func (r *NutanixMachineReconciler) reconcileDelete(rctx *nctx.MachineContext) (r
 	log := ctrl.LoggerFrom(ctx)
 	convergedClient := rctx.ConvergedClient
 	vmName := rctx.Machine.Name
+	if rctx.NutanixMachine.Status.FailureReason != nil || rctx.NutanixMachine.Status.FailureMessage != nil {
+		capxmetrics.ClearMachineFailed(
+			capxmetrics.ResourceNutanixMachine,
+			rctx.NutanixMachine.Namespace,
+			rctx.NutanixMachine.Name,
+		)
+	}
+	clearVMCreateStuckMetric(rctx.NutanixMachine)
 	log.Info(fmt.Sprintf("Handling deletion of VM: %s", vmName))
 	v1beta1conditions.MarkFalse(rctx.NutanixMachine, infrav1.VMProvisionedCondition, capiv1beta1.DeletingReason, capiv1beta1.ConditionSeverityInfo, "")
 	v1beta2conditions.Set(rctx.NutanixMachine, metav1.Condition{
@@ -578,6 +587,16 @@ func (r *NutanixMachineReconciler) detachVolumeGroups(rctx *nctx.MachineContext,
 //nolint:gocognit // reconcileNormal orchestrates the full VM provisioning flow; splitting it would reduce readability
 func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (reconcile.Result, error) {
 	log := ctrl.LoggerFrom(rctx.Context)
+	// Compare durable create-start time to wall clock across requeues so a create
+	// loop that never reaches Ready can raise capx_infra_machines_create_stuck.
+	defer func() {
+		if newlyStuck := refreshVMCreateStuckMetric(rctx.NutanixMachine, nowFunc()); newlyStuck {
+			log.Info("NutanixMachine has not become Ready within the VM create stuck threshold; possible infrastructure issue",
+				"threshold", vmCreateStuckAfter.String(),
+				"startedAt", nutanixMachineAnnotation(rctx.NutanixMachine, VMCreateStartedAtAnnotation),
+			)
+		}
+	}()
 	if rctx.NutanixMachine.Status.FailureReason != nil || rctx.NutanixMachine.Status.FailureMessage != nil {
 		log.Error(fmt.Errorf("nutanix machine has failed. Will not reconcile"), "nutanix machine failed")
 		return reconcile.Result{}, nil
@@ -632,6 +651,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	pcVersion, err := rctx.ConvergedClient.DomainManager.GetPrismCentralVersion(rctx.Context)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("failed to get the PC version for cluster %s", rctx.NutanixCluster.Name))
+		recordRetryableInfraError(rctx, capxmetrics.OpPCVersion, err)
 		return reconcile.Result{}, fmt.Errorf("failed to get the PC version for cluster %s: %w", rctx.NutanixCluster.Name, err)
 	}
 
@@ -651,14 +671,14 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 	effectiveProject, err := r.resolveEffectiveProject(rctx)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while resolving project for VM %s: %w", rctx.Machine.Name, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpProject, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return reconcile.Result{}, errorMsg
 	}
 	if err := r.validateProjectPolicy(rctx, effectiveProject); err != nil {
 		errorMsg := fmt.Errorf("project policy validation failed for VM %s: %w", rctx.Machine.Name, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpProjectPolicy, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return reconcile.Result{}, errorMsg
@@ -678,7 +698,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		resourceGroup, err = resolveResourceGroup(rctx, effectiveProject)
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to resolve resource group for VM %s: %w", rctx.Machine.Name, err)
-			if !isRetryableAPIError(err) {
+			if recordAndCheckTerminal(rctx, capxmetrics.OpResourceGroup, err) {
 				rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 			}
 			return reconcile.Result{}, errorMsg
@@ -1985,15 +2005,44 @@ func (r *NutanixMachineReconciler) getOrMintVMCreationRequestID(rctx *nctx.Machi
 	return requestID, nil
 }
 
+// ensureVMCreateStartedAt persists the first time CAPX enters the Prism create path
+// for this machine. Later reconciles use it to detect create-stuck (> vmCreateStuckAfter).
+func (r *NutanixMachineReconciler) ensureVMCreateStartedAt(rctx *nctx.MachineContext) error {
+	if nutanixMachineAnnotation(rctx.NutanixMachine, VMCreateStartedAtAnnotation) != "" {
+		return nil
+	}
+
+	startedAt := nowFunc().UTC().Format(time.RFC3339)
+	patched := rctx.NutanixMachine.DeepCopy()
+	if patched.Annotations == nil {
+		patched.Annotations = map[string]string{}
+	}
+	patched.Annotations[VMCreateStartedAtAnnotation] = startedAt
+
+	if err := r.Patch(rctx.Context, patched, client.MergeFrom(rctx.NutanixMachine)); err != nil {
+		return fmt.Errorf("failed to persist vm create started-at: %w", err)
+	}
+	setNutanixMachineAnnotation(rctx.NutanixMachine, VMCreateStartedAtAnnotation, startedAt)
+	return nil
+}
+
 // GetOrCreateVM creates a VM and is invoked by the NutanixMachineReconciler
 //
 //nolint:gocognit // VM creation has multiple provider-specific setup steps.
-func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectInfo, resourceGroup *multidomainModels.ResourceGroup) (*vmmconfig.Vm, error) {
+func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectInfo, resourceGroup *multidomainModels.ResourceGroup) (vm *vmmconfig.Vm, retErr error) {
 	var err error
 	ctx := rctx.Context
 	log := ctrl.LoggerFrom(ctx)
 	vmName := rctx.Machine.Name
 	convergedClient := rctx.ConvergedClient
+	createStart := time.Now()
+	defer func() {
+		result := capxmetrics.CreateResultSuccess
+		if retErr != nil {
+			result = capxmetrics.CreateResultError
+		}
+		capxmetrics.ObserveVMCreateDuration(capxmetrics.ResourceNutanixMachine, result, time.Since(createStart))
+	}()
 
 	var effectiveProjectExtID *string
 	if effectiveProject != nil {
@@ -2004,27 +2053,37 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	vmFound, err := FindVM(ctx, convergedClient, rctx.Machine, rctx.NutanixMachine, vmName, effectiveProjectExtID, rctx.PCVersion, nutanixV3Service(rctx))
 	if err != nil {
 		log.Error(err, fmt.Sprintf("error occurred finding VM %s by name or uuid", vmName))
+		recordRetryableInfraError(rctx, capxmetrics.OpVMLookup, err)
 		return nil, err
 	}
 
 	// if VM exists
 	if vmFound != nil {
 		log.Info(fmt.Sprintf("vm %s found with UUID %s", ptr.Deref(vmFound.Name, vmName), rctx.NutanixMachine.Status.VmUUID))
+		capxmetrics.RecordIdempotentAccept(capxmetrics.ResourceNutanixMachine, capxmetrics.OpVMCreate, capxmetrics.IdempotentExistingVM)
 		markVMProvisioned(rctx)
 		return vmFound, nil
 	}
 
 	log.Info(fmt.Sprintf("No existing VM found. Starting creation process of VM %s.", vmName))
 
+	// Stamp create-start once so reconcile can detect long-running create loops.
+	if err := r.ensureVMCreateStartedAt(rctx); err != nil {
+		recordRetryableInfraError(rctx, capxmetrics.OpMachinePatch, err)
+		return nil, err
+	}
+
 	// Mint (or recall) the idempotency key before doing anything else, so it is durably
 	// persisted ahead of the actual Create call below. See getOrMintVMCreationRequestID.
 	requestID, err := r.getOrMintVMCreationRequestID(rctx)
 	if err != nil {
+		recordRetryableInfraError(rctx, capxmetrics.OpRequestID, err)
 		return nil, err
 	}
 
 	err = r.validateMachineConfig(rctx, effectiveProject, resourceGroup)
 	if err != nil {
+		recordTerminalInfraError(rctx, capxmetrics.OpMachineConfig, err)
 		rctx.SetFailureStatus(createErrorFailureReason, err)
 		return nil, err
 	}
@@ -2032,6 +2091,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	peUUID, subnetUUIDs, err := r.GetSubnetAndPEUUIDs(rctx, effectiveProject, resourceGroup)
 	if err != nil {
 		log.Error(err, fmt.Sprintf("failed to get the config for VM %s.", vmName))
+		recordTerminalInfraError(rctx, capxmetrics.OpSubnetPE, err)
 		rctx.SetFailureStatus(createErrorFailureReason, err)
 		return nil, err
 	}
@@ -2042,7 +2102,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	}
 
 	// Traditional VM creation path (without VMProfile)
-	vm := &vmmconfig.Vm{
+	vm = &vmmconfig.Vm{
 		Name:                  &vmName,
 		MemorySizeBytes:       ptr.To(rctx.NutanixMachine.Spec.MemorySize.Value()),
 		NumCoresPerSocket:     ptr.To(int(rctx.NutanixMachine.Spec.VCPUsPerSocket)),
@@ -2079,7 +2139,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	defaultCategoryIdentifiers := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
 	if _, err := GetOrCreateCategoriesForProject(ctx, rctx.ConvergedClient, defaultCategoryIdentifiers, categoryProjectExtID); err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %w", vmName, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpCategory, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		if cerr := r.markClusterCategoryCreationFailed(rctx, errorMsg); cerr != nil {
@@ -2095,7 +2155,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	categoryIdentifiers, err := r.getMachineCategoryIdentifiers(rctx)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while getting category identifiers for vm %s: %w", vmName, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpCategory, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return nil, errorMsg
@@ -2109,7 +2169,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %w", vmName, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpCategory, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return nil, errorMsg
@@ -2120,7 +2180,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	err = r.addVMToProject(rctx, vm, effectiveProjectExtID)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while trying to add VM %s to project: %w", vmName, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpProjectAssign, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return nil, errorMsg
@@ -2130,7 +2190,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	gpus, err := services.GetGPUList(ctx, convergedClient, rctx.NutanixMachine.Spec.GPUs, peUUID, rctx.PCVersion)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the GPU list to create the VM %s: %w", vmName, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpGPU, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return nil, errorMsg
@@ -2140,7 +2200,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	disks, cdRoms, err := getDiskList(rctx, peUUID, effectiveProject, resourceGroup)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the disk list to create the VM %s: %w", vmName, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpDisk, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return nil, errorMsg
@@ -2150,6 +2210,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 
 	if err := r.addGuestCustomizationToVM(rctx, vm); err != nil {
 		errorMsg := fmt.Errorf("error occurred while adding guest customization to vm spec: %w", err)
+		recordTerminalInfraError(rctx, capxmetrics.OpGuestCustomization, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, errorMsg
 	}
@@ -2158,6 +2219,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	err = r.addBootTypeToVM(rctx, vm)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while adding boot type to vm spec: %w", err)
+		recordTerminalInfraError(rctx, capxmetrics.OpBootType, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, errorMsg
 	}
@@ -2187,6 +2249,7 @@ func (r *NutanixMachineReconciler) getOrCreateVM(rctx *nctx.MachineContext, effe
 	err = r.patchMachine(rctx, before)
 	if err != nil {
 		log.Error(err, "failed to patch NutanixMachine after setting VmUUID")
+		recordRetryableInfraError(rctx, capxmetrics.OpMachinePatch, err)
 		return nil, err
 	}
 
@@ -2209,12 +2272,13 @@ func createAndWaitForVM(ctx context.Context, rctx *nctx.MachineContext, vm *vmmc
 	if err != nil {
 		return nil, vmCreateFailure(rctx, vmName, err)
 	}
-	createdVMs, err := waitForConvergedOperation(ctx, convergedClient, createOp)
+	createdVMs, err := waitForConvergedOperation(ctx, convergedClient, createOp, capxmetrics.OpVMCreate)
 	if err != nil {
 		return nil, vmCreateFailure(rctx, vmName, err)
 	}
 	if len(createdVMs) != 1 || createdVMs[0] == nil {
 		errorMsg := fmt.Errorf("failed to create VM %s: operation completed but expected exactly 1 VM, got %d", vmName, len(createdVMs))
+		recordTerminalInfraError(rctx, capxmetrics.OpVMCreate, errorMsg)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, errorMsg
 	}
@@ -2223,7 +2287,7 @@ func createAndWaitForVM(ctx context.Context, rctx *nctx.MachineContext, vm *vmmc
 
 func vmCreateFailure(rctx *nctx.MachineContext, vmName string, err error) error {
 	errorMsg := fmt.Errorf("failed to create VM %s: %w", vmName, err)
-	if !isRetryableAPIError(err) {
+	if recordAndCheckTerminal(rctx, capxmetrics.OpVMCreate, err) {
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 	}
 	return errorMsg
@@ -2248,6 +2312,7 @@ func (r *NutanixMachineReconciler) deployVMFromProfile(rctx *nctx.MachineContext
 	deployParamsJSON, err := json.MarshalIndent(deployParams, "", "  ")
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to marshal deploy params: %w", err)
+		recordTerminalInfraError(rctx, capxmetrics.OpVMProfile, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, err
 	}
@@ -2256,23 +2321,26 @@ func (r *NutanixMachineReconciler) deployVMFromProfile(rctx *nctx.MachineContext
 	vmOp, err := convergedClient.VMProfiles.DeployVmWithVmProfile(ctx, vmProfileUUID, deployParams)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to deploy VM %s from profile %s. error: %w", vmName, vmProfileUUID, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpVMProfile, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return nil, errorMsg
 	}
 
 	// Wait for the operation to complete
+	waitStart := time.Now()
 	vmCreatedList, err := vmOp.Wait(ctx)
+	observePrismWait(capxmetrics.OpVMProfile, waitStart, err)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to wait for VM %s deployment from profile %s. error: %w", vmName, vmProfileUUID, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpVMProfile, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return nil, errorMsg
 	}
 	if len(vmCreatedList) == 0 {
 		errorMsg := fmt.Errorf("no VM returned from deployment operation for VM %s from profile %s", vmName, vmProfileUUID)
+		recordTerminalInfraError(rctx, capxmetrics.OpVMProfile, errorMsg)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, errorMsg
 	}
@@ -2332,7 +2400,7 @@ func (r *NutanixMachineReconciler) addCustomAttributes(rctx *nctx.MachineContext
 	_, err := convergedClient.VMs.AddVmCustomAttributes(ctx, vmUUID, []string{desiredAttr})
 	if err != nil {
 		errMsg := fmt.Errorf("failed to update custom attributes on VM %s with UUID %s: %w", vmName, vmUUID, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpCustomAttributes, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errMsg)
 		}
 		return errMsg
@@ -2349,13 +2417,14 @@ func (r *NutanixMachineReconciler) getVMProfileForDeploy(rctx *nctx.MachineConte
 	vmProfile, err := services.GetVMProfile(ctx, convergedClient, *rctx.NutanixMachine.Spec.VMProfile, effectiveProject)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to validate VM profile for VM %s: %w", vmName, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpVMProfile, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return nil, "", errorMsg
 	}
 	if vmProfile.ExtId == nil {
 		errorMsg := fmt.Errorf("VM profile has no UUID")
+		recordTerminalInfraError(rctx, capxmetrics.OpVMProfile, errorMsg)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, "", errorMsg
 	}
@@ -2401,7 +2470,7 @@ func (r *NutanixMachineReconciler) buildDeployParamsFromProfile(
 	defaultCategoryIdentifiers := GetDefaultCAPICategoryIdentifiers(rctx.Cluster.Name)
 	if _, err := GetOrCreateCategoriesForProject(ctx, convergedClient, defaultCategoryIdentifiers, categoryProjectExtID); err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %w", vmName, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpCategory, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		if cerr := r.markClusterCategoryCreationFailed(rctx, errorMsg); cerr != nil {
@@ -2422,7 +2491,7 @@ func (r *NutanixMachineReconciler) buildDeployParamsFromProfile(
 	categoryIdentifiers, err := r.getMachineCategoryIdentifiers(rctx)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while getting category identifiers for vm %s: %w", vmName, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpCategory, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return nil, errorMsg
@@ -2436,7 +2505,7 @@ func (r *NutanixMachineReconciler) buildDeployParamsFromProfile(
 	)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating category spec for vm %s: %w", vmName, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpCategory, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return nil, errorMsg
@@ -2451,7 +2520,7 @@ func (r *NutanixMachineReconciler) buildDeployParamsFromProfile(
 	deployDisks, err := getVmProfileDeployDisks(rctx, effectiveProject)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get the disk list to create the VM %s: %w", vmName, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpDisk, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return nil, err
@@ -2460,6 +2529,7 @@ func (r *NutanixMachineReconciler) buildDeployParamsFromProfile(
 
 	if err := r.addGuestCustomizationToDeployParams(rctx, deployParams); err != nil {
 		errorMsg := fmt.Errorf("error occurred while adding guest customization to vm spec: %w", err)
+		recordTerminalInfraError(rctx, capxmetrics.OpGuestCustomization, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, err
 	}
@@ -2483,6 +2553,7 @@ func (r *NutanixMachineReconciler) buildDeployNicsFromProfile(
 	if len(subnetUUIDs) > len(vmProfile.VmConfiguration.Nics) {
 		log.Info(fmt.Sprintf("vmProfile has %d NICs but %d subnets provided; cannot map vmProfileNicExtId", len(vmProfile.VmConfiguration.Nics), len(subnetUUIDs)))
 		err := fmt.Errorf("vmProfile has %d NICs but %d subnets provided; cannot map vmProfileNicExtId", len(vmProfile.VmConfiguration.Nics), len(subnetUUIDs))
+		recordTerminalInfraError(rctx, capxmetrics.OpProfileNIC, err)
 		rctx.SetFailureStatus(createErrorFailureReason, err)
 		return nil, err
 	}
@@ -2492,6 +2563,7 @@ func (r *NutanixMachineReconciler) buildDeployNicsFromProfile(
 		profileNic := vmProfile.VmConfiguration.Nics[idx]
 		if profileNic.ExtId == nil || *profileNic.ExtId == "" {
 			err := fmt.Errorf("vmProfile NIC extId missing for nic index %d", idx)
+			recordTerminalInfraError(rctx, capxmetrics.OpProfileNIC, err)
 			rctx.SetFailureStatus(createErrorFailureReason, err)
 			return nil, err
 		}
@@ -2604,15 +2676,17 @@ func (r *NutanixMachineReconciler) powerOnVM(rctx *nctx.MachineContext, vmUUID, 
 	powerOnTask, err := convergedClient.VMs.PowerOnVM(ctx, vmUUID)
 	if err != nil {
 		errMsg := fmt.Errorf("error occured while powering on VM %s: %w", vmName, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpPowerOn, err) {
 			rctx.SetFailureStatus(powerOnErrorFailureReason, errMsg)
 		}
 		return nil, errMsg
 	}
+	waitStart := time.Now()
 	_, err = powerOnTask.Wait(ctx)
+	observePrismWait(capxmetrics.OpPowerOn, waitStart, err)
 	if err != nil {
 		errMsg := fmt.Errorf("error occured while waiting for VM %s to power on: %w", vmName, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpPowerOn, err) {
 			rctx.SetFailureStatus(powerOnErrorFailureReason, errMsg)
 		}
 		return nil, errMsg
@@ -2622,7 +2696,7 @@ func (r *NutanixMachineReconciler) powerOnVM(rctx *nctx.MachineContext, vmUUID, 
 	vm, err := FindVMByUUID(ctx, convergedClient, vmUUID, effectiveProjectExtID, rctx.PCVersion)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while getting VM %s after power on: %w", vmName, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpPowerOn, err) {
 			rctx.SetFailureStatus(powerOnErrorFailureReason, errorMsg)
 		}
 		return nil, errorMsg
@@ -2793,7 +2867,7 @@ func getSystemDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectInfo
 	}
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get system disk image %q: %w", rctx.NutanixMachine.Spec.Image, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpImage, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return nil, errorMsg
@@ -2803,10 +2877,12 @@ func getSystemDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectInfo
 	// failure separately.
 	markedForDeletion, err := services.ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, nodeOSImage)
 	if err != nil {
+		recordRetryableInfraError(rctx, capxmetrics.OpImage, err)
 		return nil, err
 	}
 	if markedForDeletion {
 		err := fmt.Errorf("system disk image %s is being deleted", *nodeOSImage.ExtId)
+		recordTerminalInfraError(rctx, capxmetrics.OpImage, err)
 		rctx.SetFailureStatus(createErrorFailureReason, err)
 		return nil, err
 	}
@@ -2815,6 +2891,7 @@ func getSystemDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectInfo
 	systemDisk, err := services.CreateSystemDiskSpec(*nodeOSImage.ExtId, systemDiskSizeInBytes)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating system disk spec: %w", err)
+		recordTerminalInfraError(rctx, capxmetrics.OpDisk, err)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		return nil, errorMsg
 	}
@@ -2830,7 +2907,7 @@ func getBootstrapDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectI
 	bootstrapImage, err := services.GetImage(rctx.Context, rctx.ConvergedClient, bootstrapImageRef, effectiveProject, rctx.PCVersion)
 	if err != nil {
 		errorMsg := fmt.Errorf("failed to get bootstrap disk image %q: %w", bootstrapImageRef, err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpImage, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return nil, errorMsg
@@ -2840,10 +2917,12 @@ func getBootstrapDisk(rctx *nctx.MachineContext, effectiveProject *nctx.ProjectI
 	// failure separately.
 	markedForDeletion, err := services.ImageMarkedForDeletion(rctx.Context, rctx.ConvergedClient, bootstrapImage)
 	if err != nil {
+		recordRetryableInfraError(rctx, capxmetrics.OpImage, err)
 		return nil, err
 	}
 	if markedForDeletion {
 		err := fmt.Errorf("bootstrap disk image %s is being deleted", *bootstrapImage.ExtId)
+		recordTerminalInfraError(rctx, capxmetrics.OpImage, err)
 		rctx.SetFailureStatus(createErrorFailureReason, err)
 		return nil, err
 	}
@@ -2861,7 +2940,7 @@ func getDataDisks(rctx *nctx.MachineContext, peUUID string, effectiveProject *nc
 	dataDisks, dataCdRoms, err := services.CreateDataDiskList(rctx.Context, rctx.ConvergedClient, rctx.NutanixMachine.Spec.DataDisks, peUUID, effectiveProject, rctx.PCVersion, resourceGroup)
 	if err != nil {
 		errorMsg := fmt.Errorf("error occurred while creating data disk spec: %w", err)
-		if !isRetryableAPIError(err) {
+		if recordAndCheckTerminal(rctx, capxmetrics.OpDisk, err) {
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 		}
 		return nil, nil, errorMsg

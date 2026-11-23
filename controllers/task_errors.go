@@ -21,11 +21,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	prismModels "github.com/nutanix/ntnx-api-golang-clients/prism-go-client/v4/models/prism/v4/config"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	capxmetrics "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/metrics"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/services"
 	"github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
@@ -36,16 +38,34 @@ const failedSubtasksFilter = "parentTask/extId eq '%s' and status eq Prism.Confi
 // waitForConvergedOperation waits for a Prism task and, on failure, appends
 // error messages from failed child subtasks so callers see the actionable
 // infrastructure reason (for example DHCP pool exhaustion) rather than only
-// the generic parent-task error.
-func waitForConvergedOperation[T any](ctx context.Context, client *v4Converged.Client, op converged.Operation[T]) ([]*T, error) {
+// the generic parent-task error. operation is a closed metrics label; the task
+// UUID is never a Prometheus label.
+func waitForConvergedOperation[T any](ctx context.Context, client *v4Converged.Client, op converged.Operation[T], operation string) ([]*T, error) {
 	if op == nil {
 		return nil, fmt.Errorf("operation is nil")
 	}
+	start := time.Now()
 	result, err := op.Wait(ctx)
 	if err != nil {
-		return nil, enrichTaskErrorWithFailedSubtasks(ctx, client, op.UUID(), err)
+		err = enrichTaskErrorWithFailedSubtasks(ctx, client, op.UUID(), err)
+	}
+	state := capxmetrics.TaskStateFromError(err)
+	capxmetrics.ObservePrismTask(capxmetrics.ResourceNutanixMachine, operation, state, time.Since(start))
+	if err != nil {
+		return nil, err
 	}
 	return result, nil
+}
+
+// observePrismWait records Wait duration and state for call sites that cannot
+// use waitForConvergedOperation (for example profile deploy).
+func observePrismWait(operation string, start time.Time, err error) {
+	capxmetrics.ObservePrismTask(
+		capxmetrics.ResourceNutanixMachine,
+		operation,
+		capxmetrics.TaskStateFromError(err),
+		time.Since(start),
+	)
 }
 
 func enrichTaskErrorWithFailedSubtasks(ctx context.Context, client *v4Converged.Client, parentTaskUUID string, parentErr error) error {

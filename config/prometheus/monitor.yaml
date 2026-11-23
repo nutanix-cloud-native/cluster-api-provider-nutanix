@@ -4,6 +4,9 @@ kind: ServiceMonitor
 metadata:
   labels:
     control-plane: controller-manager
+    # NKP / kube-prometheus-stack selects ServiceMonitors with these labels.
+    release: kube-prometheus-stack
+    prometheus.kommander.d2iq.io/select: "true"
   name: controller-manager-metrics-monitor
   namespace: system
 spec:

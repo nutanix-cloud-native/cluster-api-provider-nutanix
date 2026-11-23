@@ -28,6 +28,7 @@ import (
 	vmmModels "github.com/nutanix/ntnx-api-golang-clients/vmm-go-client/v4/models/vmm/v4/ahv/config"
 
 	mockconverged "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/converged"
+	capxmetrics "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/metrics"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/services"
 	converged "github.com/nutanix-cloud-native/prism-go-client/converged"
 
@@ -216,7 +217,7 @@ func TestWaitForConvergedOperation_EnrichesFailedWait(t *testing.T) {
 	}, nil)
 	mockClient.MockTasks.EXPECT().List(gomock.Any(), gomock.Any()).Return([]prismModels.Task{}, nil)
 
-	_, err := waitForConvergedOperation(ctx, mockClient.Client, mockOp)
+	_, err := waitForConvergedOperation(ctx, mockClient.Client, mockOp, capxmetrics.OpVMCreate)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "generic parent error")
 	assert.ErrorContains(t, err, childMsg)

@@ -22,6 +22,7 @@ import (
 	"sort"
 
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
+	capxmetrics "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/metrics"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
@@ -163,8 +164,11 @@ func (r *MetroScaleDownBalancerReconciler) mapClusterToMachineSets() handler.Map
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters;clusters/status,verbs=get;list;watch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=nutanixmachines,verbs=get;list;watch
 
-func (r *MetroScaleDownBalancerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *MetroScaleDownBalancerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, reterr error) {
 	log := ctrl.LoggerFrom(ctx)
+	defer func() {
+		recordControllerReconcileError(capxmetrics.ResourceMetroScaleDownBalancer, capxmetrics.OpReconcile, reterr)
+	}()
 
 	ms := &capiv1beta2.MachineSet{}
 	if err := r.Get(ctx, req.NamespacedName, ms); err != nil {
