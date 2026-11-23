@@ -65,6 +65,7 @@ import (
 	infrav1 "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/api/v1beta1"
 	nctx "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/context"
 	"github.com/nutanix-cloud-native/cluster-api-provider-nutanix/pkg/services"
+	"github.com/nutanix-cloud-native/prism-go-client/converged"
 	v4Converged "github.com/nutanix-cloud-native/prism-go-client/converged/v4"
 	prismclientv3 "github.com/nutanix-cloud-native/prism-go-client/v3"
 )
@@ -87,9 +88,35 @@ const (
 // waiting for the task to complete. See createAndWaitForVM and the Reconcile create path.
 var errVMCreationInProgress = errors.New("vm creation task still in progress")
 
+// errVMCreationTaskNotFound means the stored create-task UUID is gone. The caller should
+// drop the annotation and fall back to the idempotent getOrCreateVM path.
+var errVMCreationTaskNotFound = errors.New("vm creation task not found")
+
+// vmEntityRel is the Prism entity type for an AHV VM on a task's EntitiesAffected list.
+const vmEntityRel = "vmm:ahv:vm"
+
 // isVMCreationInProgress reports whether err is (or wraps) errVMCreationInProgress.
 func isVMCreationInProgress(err error) bool {
 	return errors.Is(err, errVMCreationInProgress)
+}
+
+// isVMCreationTaskNotFound reports whether err is (or wraps) errVMCreationTaskNotFound.
+func isVMCreationTaskNotFound(err error) bool {
+	return errors.Is(err, errVMCreationTaskNotFound)
+}
+
+func setVMCreationTaskID(machine *infrav1.NutanixMachine, taskUUID string) {
+	if machine.Annotations == nil {
+		machine.Annotations = map[string]string{}
+	}
+	machine.Annotations[VMCreationTaskIDAnnotation] = taskUUID
+}
+
+func clearVMCreationTaskID(machine *infrav1.NutanixMachine) {
+	if machine.Annotations == nil {
+		return
+	}
+	delete(machine.Annotations, VMCreationTaskIDAnnotation)
 }
 
 func init() {
@@ -641,6 +668,24 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, nil
 	}
 
+	// A create task already submitted to Prism is polled by UUID. That is one Tasks.Get,
+	// and it skips PC version, project, resource-group, and VM-spec lookups while the
+	// task is still running. A missing task falls through to the full create path.
+	var vm *vmmconfig.Vm
+	if taskID := rctx.NutanixMachine.Annotations[VMCreationTaskIDAnnotation]; taskID != "" && rctx.NutanixMachine.Status.VmUUID == "" {
+		vm, err = r.pollPendingVMCreation(rctx, taskID)
+		if isVMCreationInProgress(err) {
+			log.Info(fmt.Sprintf("VM %s creation is still in progress; requeueing.", rctx.Machine.Name))
+			return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+		if isVMCreationTaskNotFound(err) {
+			vm = nil
+		} else if err != nil {
+			log.Error(err, fmt.Sprintf("Failed to create VM %s.", rctx.Machine.Name))
+			return reconcile.Result{}, err
+		}
+	}
+
 	// Get the PC version
 	pcVersion, err := rctx.ConvergedClient.DomainManager.GetPrismCentralVersion(rctx.Context)
 	if err != nil {
@@ -682,12 +727,12 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		log.V(1).Info(fmt.Sprintf("No project validation for VM %s (PC < 7.6)", rctx.Machine.Name))
 	}
 
-	// Resolve the project-scoped resource group (PC 7.6+ only). When non-nil,
-	// downstream helpers use it instead of cluster-wide APIs. Resource groups are a
-	// PC 7.6+ concept, so skip resolution entirely on older PC versions even when an
-	// explicit (v3-resolved) project is present.
+	// Resolve the project-scoped resource group (PC 7.6+ only) when a VM spec still has to
+	// be built. A VM already adopted from a succeeded create task skips this lookup.
+	// Resource groups are a PC 7.6+ concept, so skip resolution entirely on older PC
+	// versions even when an explicit (v3-resolved) project is present.
 	var resourceGroup *multidomainModels.ResourceGroup
-	if services.IsPCVersionHigherThan75(rctx.PCVersion) && effectiveProject != nil && effectiveProject.ExtID != nil {
+	if vm == nil && services.IsPCVersionHigherThan75(rctx.PCVersion) && effectiveProject != nil && effectiveProject.ExtID != nil {
 		resourceGroup, err = resolveResourceGroup(rctx, effectiveProject)
 		if err != nil {
 			errorMsg := fmt.Errorf("failed to resolve resource group for VM %s: %w", rctx.Machine.Name, err)
@@ -701,16 +746,20 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		}
 	}
 
-	// Create or get existing VM
-	vm, err := r.getOrCreateVM(rctx, effectiveProject, resourceGroup)
-	if err != nil {
-		// The VM creation task has been submitted to Prism Central but has not yet completed.
-		// This is not a failure: requeue and re-check the task on a later reconcile instead of
-		// blocking the worker. The create is idempotent (request-id), so re-issuing it returns
-		// the same task/VM. See createAndWaitForVM.
-		if isVMCreationInProgress(err) {
-			log.Info(fmt.Sprintf("VM %s creation is still in progress; requeueing.", rctx.Machine.Name))
-			return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+	// Create or get existing VM. Skipped when pollPendingVMCreation already adopted one.
+	if vm == nil {
+		vm, err = r.getOrCreateVM(rctx, effectiveProject, resourceGroup)
+		if err != nil {
+			// The VM creation task has been submitted to Prism Central but has not yet completed.
+			// This is not a failure: requeue and re-check the task on a later reconcile instead of
+			// blocking the worker. The task UUID is stored on the machine, so the next reconcile
+			// polls that task instead of rebuilding the spec. See createAndWaitForVM.
+			if isVMCreationInProgress(err) {
+				log.Info(fmt.Sprintf("VM %s creation is still in progress; requeueing.", rctx.Machine.Name))
+				return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+			}
+			log.Error(err, fmt.Sprintf("Failed to create VM %s.", rctx.Machine.Name))
+			return reconcile.Result{}, err
 		}
 		log.Error(err, fmt.Sprintf("Failed to create VM %s.", rctx.Machine.Name))
 		if requeueAfter, ok := requeueAfterFromError(err); ok {
@@ -719,7 +768,7 @@ func (r *NutanixMachineReconciler) reconcileNormal(rctx *nctx.MachineContext) (r
 		return reconcile.Result{}, err
 	}
 	if vm.ExtId == nil {
-		err := fmt.Errorf("VM %s returned from getOrCreateVM has a nil ExtId", rctx.Machine.Name)
+		err := fmt.Errorf("VM %s has a nil ExtId", rctx.Machine.Name)
 		log.Error(err, "unexpected nil VM UUID")
 		return reconcile.Result{}, err
 	}
@@ -2454,7 +2503,7 @@ func markVMProvisioned(rctx *nctx.MachineContext) {
 //   - task SUCCEEDED: resolves and returns the created VM.
 //   - task FAILED/CANCELED/CANCELING: returns a wrapped error (stamping failure when non-retryable).
 //   - task still QUEUED/RUNNING (or status not yet observable): returns errVMCreationInProgress so
-//     the caller requeues and re-checks on a later reconcile cycle.
+//     the caller requeues. The task UUID is stored on the machine for the next poll.
 func createAndWaitForVM(ctx context.Context, rctx *nctx.MachineContext, vm *vmmconfig.Vm, vmName string) (*vmmconfig.Vm, error) {
 	log := ctrl.LoggerFrom(ctx)
 	convergedClient := rctx.ConvergedClient
@@ -2464,13 +2513,16 @@ func createAndWaitForVM(ctx context.Context, rctx *nctx.MachineContext, vm *vmmc
 	}
 
 	taskUUID := createOp.UUID()
+	// Record the task before the status check. The deferred reconcile patch persists it when
+	// this returns in progress, so the next reconcile can poll the task without CreateAsync.
+	setVMCreationTaskID(rctx.NutanixMachine, taskUUID)
 
 	// Check the task status a single time instead of blocking in a wait loop. The Operation's
 	// own cached status is not advanced until Wait() runs, so query the task directly.
 	task, err := convergedClient.Tasks.Get(ctx, taskUUID)
 	if err != nil {
-		// Treat a transient failure to read the task as "still in progress"; the next reconcile
-		// re-issues the idempotent create and re-checks the same task.
+		// Treat a transient failure to read the task as "still in progress". The task UUID is
+		// already on the machine, so the next reconcile polls it instead of creating again.
 		log.V(1).Info(fmt.Sprintf("failed to get VM creation task %s for VM %s; will requeue: %v", taskUUID, vmName, err))
 		return nil, errVMCreationInProgress
 	}
@@ -2482,21 +2534,25 @@ func createAndWaitForVM(ctx context.Context, rctx *nctx.MachineContext, vm *vmmc
 	switch *task.Status {
 	case prismModels.TASKSTATUS_SUCCEEDED:
 		// Task already succeeded; op.Wait returns immediately after resolving the affected
-		// entities into VM objects.
+		// entities into VM objects. Drop the task annotation so a later reconcile does not
+		// poll a finished task.
 		createdVMs, err := waitForConvergedOperation(ctx, convergedClient, createOp)
 		if err != nil {
 			return nil, vmCreateFailure(rctx, vmName, err)
 		}
 		if len(createdVMs) != 1 || createdVMs[0] == nil {
+			clearVMCreationTaskID(rctx.NutanixMachine)
 			errorMsg := fmt.Errorf("failed to create VM %s: operation completed but expected exactly 1 VM, got %d", vmName, len(createdVMs))
 			rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
 			return nil, errorMsg
 		}
+		clearVMCreationTaskID(rctx.NutanixMachine)
 		return createdVMs[0], nil
 	case prismModels.TASKSTATUS_FAILED, prismModels.TASKSTATUS_CANCELED, prismModels.TASKSTATUS_CANCELING:
 		// A terminal task status is a definitive infrastructure failure, not a transient API
 		// error, so always stamp the failure status. Surface the actionable infrastructure
 		// reason from failed subtasks, mirroring the blocking wait's error enrichment.
+		clearVMCreationTaskID(rctx.NutanixMachine)
 		taskErr := enrichTaskErrorWithFailedSubtasks(ctx, convergedClient, taskUUID, fmt.Errorf("vm creation task %s ended with status %s", taskUUID, task.Status.GetName()))
 		errorMsg := fmt.Errorf("failed to create VM %s: %w", vmName, taskErr)
 		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
@@ -2505,6 +2561,121 @@ func createAndWaitForVM(ctx context.Context, rctx *nctx.MachineContext, vm *vmmc
 		log.Info(fmt.Sprintf("VM creation task %s for VM %s is %s; requeueing to re-check on a later reconcile", taskUUID, vmName, task.Status.GetName()))
 		return nil, errVMCreationInProgress
 	}
+}
+
+// pollPendingVMCreation checks a previously submitted VM create task once.
+//
+// Return contract:
+//   - task still QUEUED/RUNNING, or a transient Tasks.Get error: errVMCreationInProgress.
+//   - task not found: errVMCreationTaskNotFound, with the annotation cleared.
+//   - task FAILED/CANCELED/CANCELING: a wrapped error, failure status stamped, annotation cleared.
+//   - task SUCCEEDED: the created VM, with providerID and vmUUID set and the annotation cleared.
+func (r *NutanixMachineReconciler) pollPendingVMCreation(rctx *nctx.MachineContext, taskUUID string) (*vmmconfig.Vm, error) {
+	ctx := rctx.Context
+	log := ctrl.LoggerFrom(ctx)
+	vmName := ""
+	if rctx.Machine != nil {
+		vmName = rctx.Machine.Name
+	}
+
+	task, err := rctx.ConvergedClient.Tasks.Get(ctx, taskUUID)
+	if err != nil {
+		if converged.IsNotFound(err) {
+			log.Info(fmt.Sprintf("VM creation task %s for VM %s was not found; falling back to VM lookup and create", taskUUID, vmName))
+			clearVMCreationTaskID(rctx.NutanixMachine)
+			return nil, errVMCreationTaskNotFound
+		}
+		log.V(1).Info(fmt.Sprintf("failed to get VM creation task %s for VM %s; will requeue: %v", taskUUID, vmName, err))
+		return nil, errVMCreationInProgress
+	}
+	if task == nil || task.Status == nil {
+		log.V(1).Info(fmt.Sprintf("VM creation task %s for VM %s has no status yet; will requeue", taskUUID, vmName))
+		return nil, errVMCreationInProgress
+	}
+
+	switch *task.Status {
+	case prismModels.TASKSTATUS_SUCCEEDED:
+		vm, err := r.vmFromSucceededCreateTask(rctx, task, vmName)
+		if err != nil {
+			return nil, err
+		}
+		if err := r.adoptCreatedVM(rctx, vm); err != nil {
+			return nil, err
+		}
+		return vm, nil
+	case prismModels.TASKSTATUS_FAILED, prismModels.TASKSTATUS_CANCELED, prismModels.TASKSTATUS_CANCELING:
+		clearVMCreationTaskID(rctx.NutanixMachine)
+		taskErr := enrichTaskErrorWithFailedSubtasks(ctx, rctx.ConvergedClient, taskUUID, fmt.Errorf("vm creation task %s ended with status %s", taskUUID, task.Status.GetName()))
+		errorMsg := fmt.Errorf("failed to create VM %s: %w", vmName, taskErr)
+		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		return nil, errorMsg
+	default:
+		log.Info(fmt.Sprintf("VM creation task %s for VM %s is %s; requeueing to re-check on a later reconcile", taskUUID, vmName, task.Status.GetName()))
+		return nil, errVMCreationInProgress
+	}
+}
+
+// vmFromSucceededCreateTask loads the VM referenced by a succeeded create task.
+// Entity refs whose Rel is a non-VM type are ignored. An empty Rel is tried, and a
+// not-found Get is skipped, matching Operation.Wait's handling of extra task entities.
+func (r *NutanixMachineReconciler) vmFromSucceededCreateTask(rctx *nctx.MachineContext, task *prismModels.Task, vmName string) (*vmmconfig.Vm, error) {
+	ctx := rctx.Context
+	var found []*vmmconfig.Vm
+	for _, extID := range vmExtIDsFromTask(task) {
+		vm, err := rctx.ConvergedClient.VMs.Get(ctx, extID)
+		if err != nil {
+			if converged.IsNotFound(err) {
+				continue
+			}
+			return nil, fmt.Errorf("failed to get VM %s created by task %s: %w", vmName, ptr.Deref(task.ExtId, ""), err)
+		}
+		if vm != nil {
+			found = append(found, vm)
+		}
+	}
+	if len(found) != 1 || found[0] == nil {
+		clearVMCreationTaskID(rctx.NutanixMachine)
+		errorMsg := fmt.Errorf("failed to create VM %s: task %s completed but expected exactly 1 VM, got %d", vmName, ptr.Deref(task.ExtId, ""), len(found))
+		rctx.SetFailureStatus(createErrorFailureReason, errorMsg)
+		return nil, errorMsg
+	}
+	return found[0], nil
+}
+
+func vmExtIDsFromTask(task *prismModels.Task) []string {
+	if task == nil {
+		return nil
+	}
+	ids := make([]string, 0, len(task.EntitiesAffected))
+	for _, ref := range task.EntitiesAffected {
+		if ref.ExtId == nil || *ref.ExtId == "" {
+			continue
+		}
+		if ref.Rel != nil && *ref.Rel != "" && *ref.Rel != vmEntityRel {
+			continue
+		}
+		if slices.Contains(ids, *ref.ExtId) {
+			continue
+		}
+		ids = append(ids, *ref.ExtId)
+	}
+	return ids
+}
+
+// adoptCreatedVM records the created VM on the NutanixMachine and drops the create-task annotation.
+func (r *NutanixMachineReconciler) adoptCreatedVM(rctx *nctx.MachineContext, vm *vmmconfig.Vm) error {
+	if vm == nil || vm.ExtId == nil {
+		return fmt.Errorf("created VM has a nil VM or ExtId")
+	}
+	before := rctx.NutanixMachine.DeepCopy()
+	rctx.NutanixMachine.Spec.ProviderID = GenerateProviderID(*vm.ExtId)
+	rctx.NutanixMachine.Status.VmUUID = *vm.ExtId
+	if err := r.patchMachine(rctx, before); err != nil {
+		return err
+	}
+	markVMProvisioned(rctx)
+	clearVMCreationTaskID(rctx.NutanixMachine)
+	return nil
 }
 
 func vmCreateFailure(rctx *nctx.MachineContext, vmName string, err error) error {
