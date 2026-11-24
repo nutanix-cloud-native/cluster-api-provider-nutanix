@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -54,6 +55,7 @@ import (
 	capiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1" //nolint:staticcheck // suppress complaining on Deprecated package
 	capiv1beta2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions" //nolint:staticcheck // suppress complaining on Deprecated package
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -3208,6 +3210,502 @@ func TestNutanixMachineReconciler_getOrMintVMCreationRequestID(t *testing.T) {
 		persisted := &infrav1.NutanixMachine{}
 		require.NoError(t, fakeClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "test-machine"}, persisted))
 		assert.Equal(t, requestID, persisted.Annotations[VMCreationRequestIDAnnotation])
+	})
+}
+
+func TestNutanixMachineReconciler_persistFailedVMCreateBackoff(t *testing.T) {
+	t.Run("sets retry-after and clears request-id in one patch", func(t *testing.T) {
+		ctx := context.Background()
+		existingRequestID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+		stored := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+				Annotations: map[string]string{
+					VMCreationRequestIDAnnotation: existingRequestID,
+				},
+			},
+		}
+		scheme := runtime.NewScheme()
+		require.NoError(t, infrav1.AddToScheme(scheme))
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(stored).Build()
+
+		live := stored.DeepCopy()
+		reconciler := &NutanixMachineReconciler{Client: fakeClient}
+		rctx := &nctx.MachineContext{Context: ctx, NutanixMachine: live}
+		retryAt := time.Date(2026, 11, 19, 12, 30, 0, 0, time.UTC)
+
+		require.NoError(t, reconciler.persistFailedVMCreateBackoff(rctx, &retryAt, 1))
+		assert.Empty(t, live.Annotations[VMCreationRequestIDAnnotation])
+		assert.Equal(t, retryAt.Format(time.RFC3339), live.Annotations[VMCreateRetryAfterAnnotation])
+		assert.Equal(t, "1", live.Annotations[VMCreateFailureCountAnnotation])
+
+		persisted := &infrav1.NutanixMachine{}
+		require.NoError(t, fakeClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "test-machine"}, persisted))
+		assert.Empty(t, persisted.Annotations[VMCreationRequestIDAnnotation])
+		assert.Equal(t, retryAt.Format(time.RFC3339), persisted.Annotations[VMCreateRetryAfterAnnotation])
+		assert.Equal(t, "1", persisted.Annotations[VMCreateFailureCountAnnotation])
+	})
+
+	t.Run("exhausted retries clear retry-after and keep the count", func(t *testing.T) {
+		ctx := context.Background()
+		stored := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+				Annotations: map[string]string{
+					VMCreationRequestIDAnnotation:  "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+					VMCreateRetryAfterAnnotation:   time.Now().UTC().Add(time.Hour).Format(time.RFC3339),
+					VMCreateFailureCountAnnotation: "3",
+				},
+			},
+		}
+		scheme := runtime.NewScheme()
+		require.NoError(t, infrav1.AddToScheme(scheme))
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(stored).Build()
+
+		live := stored.DeepCopy()
+		reconciler := &NutanixMachineReconciler{Client: fakeClient}
+		rctx := &nctx.MachineContext{Context: ctx, NutanixMachine: live}
+
+		require.NoError(t, reconciler.persistFailedVMCreateBackoff(rctx, nil, maxFailedVMCreateAttempts))
+		assert.Empty(t, live.Annotations[VMCreationRequestIDAnnotation])
+		assert.Empty(t, live.Annotations[VMCreateRetryAfterAnnotation])
+		assert.Equal(t, "4", live.Annotations[VMCreateFailureCountAnnotation])
+	})
+}
+
+func TestNutanixMachineReconciler_clearVMCreateRetryAfter(t *testing.T) {
+	t.Run("removes retry-after annotation", func(t *testing.T) {
+		ctx := context.Background()
+		stored := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+				Annotations: map[string]string{
+					VMCreateRetryAfterAnnotation:   time.Now().UTC().Add(time.Hour).Format(time.RFC3339),
+					VMCreateFailureCountAnnotation: "2",
+				},
+			},
+		}
+		scheme := runtime.NewScheme()
+		require.NoError(t, infrav1.AddToScheme(scheme))
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(stored).Build()
+
+		live := stored.DeepCopy()
+		reconciler := &NutanixMachineReconciler{Client: fakeClient}
+		rctx := &nctx.MachineContext{Context: ctx, NutanixMachine: live}
+
+		require.NoError(t, reconciler.clearVMCreateRetryAfter(rctx))
+		assert.Empty(t, live.Annotations[VMCreateRetryAfterAnnotation])
+		assert.Equal(t, "2", live.Annotations[VMCreateFailureCountAnnotation])
+
+		persisted := &infrav1.NutanixMachine{}
+		require.NoError(t, fakeClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "test-machine"}, persisted))
+		assert.Empty(t, persisted.Annotations[VMCreateRetryAfterAnnotation])
+		assert.Equal(t, "2", persisted.Annotations[VMCreateFailureCountAnnotation])
+	})
+
+	t.Run("is a no-op when annotation absent", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		mockK8sClient := mockctlclient.NewMockClient(ctrl)
+		reconciler := &NutanixMachineReconciler{Client: mockK8sClient}
+		rctx := &nctx.MachineContext{
+			Context:        context.Background(),
+			NutanixMachine: &infrav1.NutanixMachine{ObjectMeta: metav1.ObjectMeta{Name: "m", Namespace: "default"}},
+		}
+		require.NoError(t, reconciler.clearVMCreateRetryAfter(rctx))
+	})
+}
+
+func TestNutanixMachineReconciler_clearVMCreateRecoveryAnnotations(t *testing.T) {
+	t.Run("removes retry-after and failure count", func(t *testing.T) {
+		ctx := context.Background()
+		stored := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+				Annotations: map[string]string{
+					VMCreateRetryAfterAnnotation:   time.Now().UTC().Add(time.Hour).Format(time.RFC3339),
+					VMCreateFailureCountAnnotation: "2",
+					VMCreationRequestIDAnnotation:  "c58c7742-7e3e-41d3-a333-d958095a799c",
+				},
+			},
+		}
+		scheme := runtime.NewScheme()
+		require.NoError(t, infrav1.AddToScheme(scheme))
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(stored).Build()
+
+		live := stored.DeepCopy()
+		reconciler := &NutanixMachineReconciler{Client: fakeClient}
+		rctx := &nctx.MachineContext{Context: ctx, NutanixMachine: live}
+
+		require.NoError(t, reconciler.clearVMCreateRecoveryAnnotations(rctx))
+		assert.Empty(t, live.Annotations[VMCreateRetryAfterAnnotation])
+		assert.Empty(t, live.Annotations[VMCreateFailureCountAnnotation])
+		assert.Equal(t, "c58c7742-7e3e-41d3-a333-d958095a799c", live.Annotations[VMCreationRequestIDAnnotation])
+
+		persisted := &infrav1.NutanixMachine{}
+		require.NoError(t, fakeClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "test-machine"}, persisted))
+		assert.Empty(t, persisted.Annotations[VMCreateFailureCountAnnotation])
+		assert.Equal(t, "c58c7742-7e3e-41d3-a333-d958095a799c", persisted.Annotations[VMCreationRequestIDAnnotation])
+	})
+}
+
+func Test_errIfVMCreateBackoffActive(t *testing.T) {
+	fixedNow := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+	oldNow := nowFunc
+	nowFunc = func() time.Time { return fixedNow }
+	t.Cleanup(func() { nowFunc = oldNow })
+
+	t.Run("returns delayed error while backoff active", func(t *testing.T) {
+		rctx := &nctx.MachineContext{
+			Context: context.Background(),
+			NutanixMachine: &infrav1.NutanixMachine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+				VMCreateRetryAfterAnnotation: fixedNow.Add(5 * time.Minute).Format(time.RFC3339),
+			}}},
+		}
+		err := errIfVMCreateBackoffActive(rctx)
+		require.Error(t, err)
+		after, ok := requeueAfterFromError(err)
+		require.True(t, ok)
+		assert.Equal(t, 5*time.Minute, after)
+	})
+
+	t.Run("nil when backoff expired", func(t *testing.T) {
+		rctx := &nctx.MachineContext{
+			Context: context.Background(),
+			NutanixMachine: &infrav1.NutanixMachine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+				VMCreateRetryAfterAnnotation: fixedNow.Add(-time.Minute).Format(time.RFC3339),
+			}}},
+		}
+		require.NoError(t, errIfVMCreateBackoffActive(rctx))
+	})
+
+	t.Run("nil when annotation absent", func(t *testing.T) {
+		rctx := &nctx.MachineContext{
+			Context:        context.Background(),
+			NutanixMachine: &infrav1.NutanixMachine{},
+		}
+		require.NoError(t, errIfVMCreateBackoffActive(rctx))
+	})
+}
+
+func TestNutanixMachineReconciler_recoverStickyFailedVMCreate(t *testing.T) {
+	fixedNow := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+	oldNow := nowFunc
+	nowFunc = func() time.Time { return fixedNow }
+	t.Cleanup(func() { nowFunc = oldNow })
+
+	t.Run("arms durable backoff, clears request id, sets condition, no failureReason", func(t *testing.T) {
+		ctx := context.Background()
+		existingRequestID := "c58c7742-7e3e-41d3-a333-d958095a799c"
+		stored := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+				Annotations: map[string]string{
+					VMCreationRequestIDAnnotation: existingRequestID,
+				},
+			},
+		}
+		scheme := runtime.NewScheme()
+		require.NoError(t, infrav1.AddToScheme(scheme))
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(stored).Build()
+
+		live := stored.DeepCopy()
+		reconciler := &NutanixMachineReconciler{Client: fakeClient}
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Machine:         &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: "test-machine"}},
+			NutanixMachine:  live,
+			ConvergedClient: nil,
+		}
+
+		createErr := fmt.Errorf("failed to create VM test-machine: task ZXJnb24=:d0b4dc17 failed: not enough cores")
+		err := reconciler.recoverStickyFailedVMCreate(rctx, createErr)
+		require.Error(t, err)
+
+		after, ok := requeueAfterFromError(err)
+		require.True(t, ok)
+		assert.Equal(t, failedVMCreateRetryAfter, after)
+		assert.Empty(t, live.Annotations[VMCreationRequestIDAnnotation])
+		assert.Equal(t, fixedNow.Add(failedVMCreateRetryAfter).UTC().Format(time.RFC3339), live.Annotations[VMCreateRetryAfterAnnotation])
+		assert.Equal(t, "1", live.Annotations[VMCreateFailureCountAnnotation])
+		assert.Nil(t, live.Status.FailureReason, "must not set failureReason or reconcile stops")
+		assert.Nil(t, live.Status.FailureMessage)
+
+		cond := v1beta1conditions.Get(live, infrav1.VMProvisionedCondition)
+		require.NotNil(t, cond)
+		assert.Equal(t, corev1.ConditionFalse, cond.Status)
+		assert.Equal(t, infrav1.VMProvisionedTaskFailed, cond.Reason)
+		assert.Equal(t, capiv1beta1.ConditionSeverityError, cond.Severity)
+		assert.Contains(t, cond.Message, "not enough cores")
+		assert.Contains(t, cond.Message, failedVMCreateRetryAfter.String())
+		assert.Contains(t, cond.Message, "attempt 1/4")
+
+		persisted := &infrav1.NutanixMachine{}
+		require.NoError(t, fakeClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "test-machine"}, persisted))
+		assert.Empty(t, persisted.Annotations[VMCreationRequestIDAnnotation])
+		assert.Equal(t, fixedNow.Add(failedVMCreateRetryAfter).UTC().Format(time.RFC3339), persisted.Annotations[VMCreateRetryAfterAnnotation])
+		assert.Equal(t, "1", persisted.Annotations[VMCreateFailureCountAnnotation])
+
+		// Immediate re-entry (watch on annotation/status patch) must not create again.
+		require.Error(t, errIfVMCreateBackoffActive(rctx))
+	})
+
+	t.Run("sets failureReason after the attempt budget is exhausted", func(t *testing.T) {
+		ctx := context.Background()
+		existingRequestID := "c58c7742-7e3e-41d3-a333-d958095a799c"
+		stored := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+				Annotations: map[string]string{
+					VMCreationRequestIDAnnotation:  existingRequestID,
+					VMCreateRetryAfterAnnotation:   fixedNow.Add(-time.Minute).Format(time.RFC3339),
+					VMCreateFailureCountAnnotation: strconv.Itoa(maxFailedVMCreateAttempts - 1),
+				},
+			},
+		}
+		scheme := runtime.NewScheme()
+		require.NoError(t, infrav1.AddToScheme(scheme))
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(stored).Build()
+
+		live := stored.DeepCopy()
+		reconciler := &NutanixMachineReconciler{Client: fakeClient}
+		rctx := &nctx.MachineContext{
+			Context:        ctx,
+			Machine:        &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: "test-machine"}},
+			NutanixMachine: live,
+		}
+
+		createErr := fmt.Errorf("failed to create VM test-machine: task ZXJnb24=:d0b4dc17 failed: not enough cores")
+		err := reconciler.recoverStickyFailedVMCreate(rctx, createErr)
+		require.Error(t, err)
+		_, ok := requeueAfterFromError(err)
+		assert.False(t, ok, "exhausted retries must not schedule another backoff")
+
+		assert.Empty(t, live.Annotations[VMCreationRequestIDAnnotation])
+		assert.Empty(t, live.Annotations[VMCreateRetryAfterAnnotation])
+		assert.Equal(t, strconv.Itoa(maxFailedVMCreateAttempts), live.Annotations[VMCreateFailureCountAnnotation])
+		require.NotNil(t, live.Status.FailureReason)
+		assert.Equal(t, createErrorFailureReason, *live.Status.FailureReason)
+		require.NotNil(t, live.Status.FailureMessage)
+		assert.Contains(t, *live.Status.FailureMessage, "not enough cores")
+		assert.Contains(t, *live.Status.FailureMessage, "not retrying")
+
+		cond := v1beta1conditions.Get(live, infrav1.VMProvisionedCondition)
+		require.NotNil(t, cond)
+		assert.Equal(t, infrav1.VMProvisionedTaskFailed, cond.Reason)
+		assert.Contains(t, cond.Message, "not retrying")
+
+		persisted := &infrav1.NutanixMachine{}
+		require.NoError(t, fakeClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "test-machine"}, persisted))
+		assert.Empty(t, persisted.Annotations[VMCreationRequestIDAnnotation])
+		assert.Empty(t, persisted.Annotations[VMCreateRetryAfterAnnotation])
+		assert.Equal(t, strconv.Itoa(maxFailedVMCreateAttempts), persisted.Annotations[VMCreateFailureCountAnnotation])
+	})
+
+	t.Run("does not arm backoff for non-task failures", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		existingRequestID := "c58c7742-7e3e-41d3-a333-d958095a799c"
+		ntnxMachine := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-machine",
+				Annotations: map[string]string{
+					VMCreationRequestIDAnnotation: existingRequestID,
+				},
+			},
+		}
+		mockK8sClient := mockctlclient.NewMockClient(ctrl)
+		reconciler := &NutanixMachineReconciler{Client: mockK8sClient}
+		rctx := &nctx.MachineContext{
+			Context:        context.Background(),
+			Machine:        &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: "test-machine"}},
+			NutanixMachine: ntnxMachine,
+		}
+
+		createErr := errors.New("timeout awaiting headers")
+		err := reconciler.recoverStickyFailedVMCreate(rctx, createErr)
+		require.ErrorIs(t, err, createErr)
+		assert.Equal(t, existingRequestID, ntnxMachine.Annotations[VMCreationRequestIDAnnotation])
+		assert.Empty(t, ntnxMachine.Annotations[VMCreateRetryAfterAnnotation])
+	})
+
+	t.Run("does not clear request id when VM UUID is already set", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		existingRequestID := "c58c7742-7e3e-41d3-a333-d958095a799c"
+		vmUUID := "47be4497-e218-4800-6efc-400ee64592c2"
+		ntnxMachine := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-machine",
+				Annotations: map[string]string{
+					VMCreationRequestIDAnnotation: existingRequestID,
+				},
+			},
+			Status: infrav1.NutanixMachineStatus{VmUUID: vmUUID},
+		}
+		mockK8sClient := mockctlclient.NewMockClient(ctrl)
+		reconciler := &NutanixMachineReconciler{Client: mockK8sClient}
+		rctx := &nctx.MachineContext{
+			Context:        context.Background(),
+			Machine:        &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: "test-machine"}},
+			NutanixMachine: ntnxMachine,
+		}
+
+		createErr := fmt.Errorf("task abc failed: not enough cores")
+		err := reconciler.recoverStickyFailedVMCreate(rctx, createErr)
+		require.Error(t, err)
+		_, ok := requeueAfterFromError(err)
+		assert.False(t, ok)
+		assert.Equal(t, existingRequestID, ntnxMachine.Annotations[VMCreationRequestIDAnnotation])
+		assert.Empty(t, ntnxMachine.Annotations[VMCreateRetryAfterAnnotation])
+	})
+}
+
+func TestNutanixMachineReconciler_adoptVMAfterFailedCreate(t *testing.T) {
+	vmName := "test-machine"
+	vmUUID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+	existingRequestID := "c58c7742-7e3e-41d3-a333-d958095a799c"
+	createErr := fmt.Errorf("failed to create VM %s: task abc failed: not enough cores", vmName)
+
+	newCtx := func(client *v4Converged.Client) *nctx.MachineContext {
+		return &nctx.MachineContext{
+			Context: context.Background(),
+			Machine: &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}},
+			NutanixMachine: &infrav1.NutanixMachine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      vmName,
+					Namespace: "default",
+					Annotations: map[string]string{
+						VMCreationRequestIDAnnotation: existingRequestID,
+					},
+				},
+			},
+			NutanixCluster:  &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "cluster"}},
+			ConvergedClient: client,
+			PCVersion:       "pc.7.5.0.5",
+		}
+	}
+
+	t.Run("adopts a VM the failed task left behind and keeps the request id", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		found := vmmModels.NewVm()
+		found.Name = ptr.To(vmName)
+		found.ExtId = ptr.To(vmUUID)
+		mockConvergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{*found}, nil)
+		mockConvergedClient.MockVMs.EXPECT().Get(gomock.Any(), vmUUID).Return(found, nil)
+
+		rctx := newCtx(mockConvergedClient.Client)
+		reconciler := &NutanixMachineReconciler{}
+		vm, err := reconciler.adoptVMAfterFailedCreate(rctx, createErr, nil)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, vmUUID, ptr.Deref(vm.ExtId, ""))
+		assert.Equal(t, existingRequestID, rctx.NutanixMachine.Annotations[VMCreationRequestIDAnnotation])
+		assert.Empty(t, rctx.NutanixMachine.Annotations[VMCreateRetryAfterAnnotation])
+
+		cond := v1beta1conditions.Get(rctx.NutanixMachine, infrav1.VMProvisionedCondition)
+		require.NotNil(t, cond)
+		assert.Equal(t, corev1.ConditionTrue, cond.Status)
+	})
+
+	t.Run("returns nil when the recheck finds no VM so recovery can clear the request id", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return([]vmmModels.Vm{}, nil)
+
+		rctx := newCtx(mockConvergedClient.Client)
+		reconciler := &NutanixMachineReconciler{}
+		vm, err := reconciler.adoptVMAfterFailedCreate(rctx, createErr, nil)
+		require.NoError(t, err)
+		assert.Nil(t, vm)
+		assert.Equal(t, existingRequestID, rctx.NutanixMachine.Annotations[VMCreationRequestIDAnnotation])
+	})
+
+	t.Run("keeps the request id when the recheck itself fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockVMs.EXPECT().List(gomock.Any(), gomock.Any()).Return(nil, errors.New("list timed out"))
+
+		rctx := newCtx(mockConvergedClient.Client)
+		reconciler := &NutanixMachineReconciler{}
+		vm, err := reconciler.adoptVMAfterFailedCreate(rctx, createErr, nil)
+		require.Error(t, err)
+		assert.Nil(t, vm)
+		assert.Equal(t, existingRequestID, rctx.NutanixMachine.Annotations[VMCreationRequestIDAnnotation])
+		assert.Empty(t, rctx.NutanixMachine.Annotations[VMCreateRetryAfterAnnotation])
+	})
+
+	t.Run("does not look up a VM for a non-task error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		rctx := newCtx(mockConvergedClient.Client)
+		reconciler := &NutanixMachineReconciler{}
+		vm, err := reconciler.adoptVMAfterFailedCreate(rctx, errors.New("timeout awaiting headers"), nil)
+		require.NoError(t, err)
+		assert.Nil(t, vm)
+		assert.Equal(t, existingRequestID, rctx.NutanixMachine.Annotations[VMCreationRequestIDAnnotation])
+	})
+}
+
+func TestNutanixMachineReconciler_getOrCreateVM_honorsCreateBackoff(t *testing.T) {
+	fixedNow := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+	oldNow := nowFunc
+	nowFunc = func() time.Time { return fixedNow }
+	t.Cleanup(func() { nowFunc = oldNow })
+
+	t.Run("skips Prism create while backoff annotation is active", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		vmName := "test-machine"
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		// FindVM by name returns empty list (no VM). CreateAsync must NOT be called.
+		mockConvergedClient.MockVMs.EXPECT().List(ctx, gomock.Any()).Return([]vmmModels.Vm{}, nil)
+
+		ntnxMachine := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      vmName,
+				Namespace: "default",
+				Annotations: map[string]string{
+					VMCreateRetryAfterAnnotation: fixedNow.Add(20 * time.Minute).Format(time.RFC3339),
+				},
+			},
+		}
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Machine:         &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}},
+			NutanixMachine:  ntnxMachine,
+			NutanixCluster:  &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "cluster"}},
+			ConvergedClient: mockConvergedClient.Client,
+			PCVersion:       "pc.7.5.0.5",
+		}
+
+		reconciler := &NutanixMachineReconciler{}
+		vm, err := reconciler.getOrCreateVM(rctx, nil, nil)
+		require.Error(t, err)
+		assert.Nil(t, vm)
+		after, ok := requeueAfterFromError(err)
+		require.True(t, ok)
+		assert.Equal(t, 20*time.Minute, after)
+		assert.Empty(t, ntnxMachine.Annotations[VMCreationRequestIDAnnotation], "must not mint a request-id during backoff")
 	})
 }
 
