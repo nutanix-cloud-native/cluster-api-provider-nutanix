@@ -1836,6 +1836,9 @@ func (r *NutanixMachineReconciler) assignAddressesToMachine(rctx *nctx.MachineCo
 	addresses = append(addresses, capiv1beta1.MachineAddress{
 		Type:    capiv1beta1.MachineHostName,
 		Address: *vm.Name,
+	}, capiv1beta1.MachineAddress{
+		Type:    capiv1beta1.MachineInternalDNS,
+		Address: *vm.Name,
 	})
 
 	rctx.IP = addresses[0].Address
