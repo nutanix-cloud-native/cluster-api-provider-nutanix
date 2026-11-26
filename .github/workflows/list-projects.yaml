@@ -1,0 +1,49 @@
+name: List Projects (v4)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  list-projects:
+    runs-on: self-hosted-nutanix-docker-medium
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix on self-hosted ARC runners
+        uses: DeterminateSystems/nix-installer-action@v20
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          logger: pretty
+          extra-conf: experimental-features = ca-derivations fetch-closure
+
+      - name: Install devbox
+        uses: jetify-com/devbox-install-action@v0.14.0
+        with:
+          enable-cache: "false"
+          skip-nix-installation: "true"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run GetProjectV4 for coke/pepsi as project-scoped user
+        run: devbox run -- go run -mod=mod ./hack/list-projects
+        env:
+          NUTANIX_ENDPOINT: ${{ secrets.NUTANIX_ENDPOINT }}
+          NUTANIX_PORT: "9440"
+          NUTANIX_INSECURE: "true"
+          NUTANIX_PROJECT_SCOPE_USER: ${{ secrets.NUTANIX_PROJECT_SCOPE_USER }}
+          NUTANIX_PROJECT_SCOPE_PASSWORD: ${{ secrets.NUTANIX_PROJECT_SCOPE_PASSWORD }}
+          # fallback if project-scoped vars not set
+          NUTANIX_USER: ${{ secrets.NUTANIX_USER }}
+          NUTANIX_PASSWORD: ${{ secrets.NUTANIX_PASSWORD }}
+          NUTANIX_API_KEY: ${{ secrets.NUTANIX_API_KEY }}
