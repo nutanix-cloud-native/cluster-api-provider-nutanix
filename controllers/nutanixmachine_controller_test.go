@@ -3724,6 +3724,22 @@ func TestAddGuestCustomizationNilBootstrapRef(t *testing.T) {
 	require.Error(t, err)
 }
 
+// newGetOrCreateVMFakeClient builds a fake controller-runtime client seeded with the given
+// NutanixMachine (status subresource enabled) so getOrCreateVM's patchMachine calls exercise the
+// real v1beta1patch.Helper diffing/patching logic instead of a hand-rolled mock.
+func newGetOrCreateVMFakeClient(t *testing.T, ntnxMachine *infrav1.NutanixMachine) client.Client {
+	t.Helper()
+	scheme := runtime.NewScheme()
+	require.NoError(t, infrav1.AddToScheme(scheme))
+	require.NoError(t, capiv1beta2.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+	return fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ntnxMachine).
+		WithStatusSubresource(ntnxMachine).
+		Build()
+}
+
 func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 	t.Run("should return existing VM when found by UUID", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -3782,8 +3798,8 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
-		// Create reconciler
-		reconciler := &NutanixMachineReconciler{}
+		// Create reconciler with a fake client so the adoption path can persist identity.
+		reconciler := &NutanixMachineReconciler{Client: newGetOrCreateVMFakeClient(t, ntnxMachine)}
 
 		// Test getOrCreateVM
 		vm, err := reconciler.getOrCreateVM(rctx, &nctx.ProjectInfo{ExtID: &testProjectExtID, Name: ptr.To("test-project")}, nil)
@@ -3793,6 +3809,8 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		assert.NotNil(t, vm)
 		assert.Equal(t, vmName, *vm.Name)
 		assert.Equal(t, vmUUID, *vm.ExtId)
+		assert.Equal(t, fmt.Sprintf("nutanix://%s", vmUUID), ntnxMachine.Spec.ProviderID)
+		assert.Equal(t, vmUUID, ntnxMachine.Status.VmUUID)
 	})
 
 	t.Run("should return existing VM when found by name", func(t *testing.T) {
@@ -3803,13 +3821,18 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		vmName := "test-vm"
 		vmUUID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
 
-		// Create NutanixMachine without VM UUID
+		// Create NutanixMachine whose ProviderID still holds the template placeholder
+		// (for example "nutanix://${CLUSTER_NAME}-m1") and has no VmUUID yet. No create-task
+		// annotation is set, so FindVM adoption is allowed and must overwrite the placeholder
+		// with the real VM UUID (for example after a missing-task fallback).
 		ntnxMachine := &infrav1.NutanixMachine{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-machine",
 				Namespace: "default",
 			},
-			Spec: infrav1.NutanixMachineSpec{},
+			Spec: infrav1.NutanixMachineSpec{
+				ProviderID: "nutanix://test-cluster-m1",
+			},
 		}
 
 		machine := &capiv1beta2.Machine{
@@ -3848,8 +3871,9 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
-		// Create reconciler
-		reconciler := &NutanixMachineReconciler{}
+		// Create reconciler with a fake client so the adoption path can persist identity.
+		fakeClient := newGetOrCreateVMFakeClient(t, ntnxMachine)
+		reconciler := &NutanixMachineReconciler{Client: fakeClient}
 
 		// Test getOrCreateVM
 		vm, err := reconciler.getOrCreateVM(rctx, &nctx.ProjectInfo{ExtID: &testProjectExtID, Name: ptr.To("test-project")}, nil)
@@ -3858,6 +3882,134 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, vm)
 		assert.Equal(t, vmName, *vm.Name)
+		// The placeholder ProviderID must be overwritten with the real VM UUID, and VmUUID set,
+		// both in memory and durably via patchMachineCopy. Without this the CAPI Machine's
+		// spec.providerID never matches a real node and the machine waits forever for a Node.
+		assert.Equal(t, fmt.Sprintf("nutanix://%s", vmUUID), ntnxMachine.Spec.ProviderID)
+		assert.Equal(t, vmUUID, ntnxMachine.Status.VmUUID)
+
+		persisted := &infrav1.NutanixMachine{}
+		require.NoError(t, fakeClient.Get(ctx, client.ObjectKeyFromObject(ntnxMachine), persisted))
+		assert.Equal(t, fmt.Sprintf("nutanix://%s", vmUUID), persisted.Spec.ProviderID)
+		assert.Equal(t, vmUUID, persisted.Status.VmUUID)
+	})
+
+	t.Run("should poll create task instead of adopting when VM is listed mid-create", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		vmName := "test-vm"
+		vmUUID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+		taskUUID := "create-task-uuid"
+		testProjectExtID := "test-project-ext-id"
+
+		ntnxMachine := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+				Annotations: map[string]string{
+					VMCreationTaskIDAnnotation: taskUUID,
+				},
+			},
+			Spec: infrav1.NutanixMachineSpec{
+				ProviderID: "nutanix://test-cluster-m1",
+			},
+		}
+
+		listedVM := vmmModels.NewVm()
+		listedVM.Name = ptr.To(vmName)
+		listedVM.ExtId = ptr.To(vmUUID)
+		listedVM.PowerState = vmmModels.POWERSTATE_ON.Ref()
+		listedVM.Project = vmmModels.NewProjectReference()
+		listedVM.Project.ExtId = &testProjectExtID
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockVMs.EXPECT().List(ctx, FilterMatcher{ContainsExtId: vmName}).Return([]vmmModels.Vm{*listedVM}, nil)
+		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(listedVM, nil)
+		mockConvergedClient.MockTasks.EXPECT().Get(ctx, taskUUID).Return(&prismModels.Task{
+			ExtId:  ptr.To(taskUUID),
+			Status: ptr.To(prismModels.TASKSTATUS_RUNNING),
+		}, nil)
+
+		rctx := &nctx.MachineContext{
+			Context: ctx,
+			Machine: &capiv1beta2.Machine{
+				ObjectMeta: metav1.ObjectMeta{Name: vmName},
+			},
+			NutanixMachine:  ntnxMachine,
+			NutanixCluster:  &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"}},
+			ConvergedClient: mockConvergedClient.Client,
+		}
+		reconciler := &NutanixMachineReconciler{Client: newGetOrCreateVMFakeClient(t, ntnxMachine)}
+
+		vm, err := reconciler.getOrCreateVM(rctx, &nctx.ProjectInfo{ExtID: &testProjectExtID, Name: ptr.To("test-project")}, nil)
+		require.Error(t, err)
+		assert.True(t, isVMCreationInProgress(err))
+		assert.Nil(t, vm)
+		assert.Equal(t, "nutanix://test-cluster-m1", ntnxMachine.Spec.ProviderID)
+		assert.Empty(t, ntnxMachine.Status.VmUUID)
+		assert.Equal(t, taskUUID, ntnxMachine.Annotations[VMCreationTaskIDAnnotation])
+		assert.Nil(t, ntnxMachine.Status.FailureReason)
+	})
+
+	t.Run("should adopt listed VM after create task failed", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx := context.Background()
+		vmName := "test-vm"
+		vmUUID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+		taskUUID := "create-task-uuid"
+		testProjectExtID := "test-project-ext-id"
+
+		ntnxMachine := &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-machine",
+				Namespace: "default",
+				Annotations: map[string]string{
+					VMCreationTaskIDAnnotation: taskUUID,
+				},
+			},
+			Spec: infrav1.NutanixMachineSpec{
+				ProviderID: "nutanix://test-cluster-m1",
+			},
+		}
+
+		listedVM := vmmModels.NewVm()
+		listedVM.Name = ptr.To(vmName)
+		listedVM.ExtId = ptr.To(vmUUID)
+		listedVM.PowerState = vmmModels.POWERSTATE_ON.Ref()
+		listedVM.Project = vmmModels.NewProjectReference()
+		listedVM.Project.ExtId = &testProjectExtID
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockVMs.EXPECT().List(ctx, FilterMatcher{ContainsExtId: vmName}).Return([]vmmModels.Vm{*listedVM}, nil)
+		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(listedVM, nil)
+		mockConvergedClient.MockTasks.EXPECT().Get(ctx, taskUUID).Return(&prismModels.Task{
+			ExtId:  ptr.To(taskUUID),
+			Status: ptr.To(prismModels.TASKSTATUS_FAILED),
+		}, nil)
+		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil)
+
+		rctx := &nctx.MachineContext{
+			Context: ctx,
+			Machine: &capiv1beta2.Machine{
+				ObjectMeta: metav1.ObjectMeta{Name: vmName},
+			},
+			NutanixMachine:  ntnxMachine,
+			NutanixCluster:  &infrav1.NutanixCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster", Namespace: "default"}},
+			ConvergedClient: mockConvergedClient.Client,
+		}
+		reconciler := &NutanixMachineReconciler{Client: newGetOrCreateVMFakeClient(t, ntnxMachine)}
+
+		vm, err := reconciler.getOrCreateVM(rctx, &nctx.ProjectInfo{ExtID: &testProjectExtID, Name: ptr.To("test-project")}, nil)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, fmt.Sprintf("nutanix://%s", vmUUID), ntnxMachine.Spec.ProviderID)
+		assert.Equal(t, vmUUID, ntnxMachine.Status.VmUUID)
+		assert.Empty(t, ntnxMachine.Annotations[VMCreationTaskIDAnnotation])
+		assert.Nil(t, ntnxMachine.Status.FailureReason)
 	})
 
 	t.Run("should return existing VM even when it is powered off", func(t *testing.T) {
@@ -3913,7 +4065,7 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
-		reconciler := &NutanixMachineReconciler{}
+		reconciler := &NutanixMachineReconciler{Client: newGetOrCreateVMFakeClient(t, ntnxMachine)}
 		vm, err := reconciler.getOrCreateVM(rctx, &nctx.ProjectInfo{ExtID: &testProjectExtID, Name: ptr.To("test-project")}, nil)
 
 		assert.NoError(t, err)
@@ -4119,8 +4271,14 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		// idempotency key. Assert the wrapped context is what reaches CreateAsync, so a change
 		// that passes the plain ctx (and silently drops the key) fails here.
 		mockCreateOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
+		mockCreateOp.EXPECT().UUID().Return("create-task-uuid").AnyTimes()
 		mockCreateOp.EXPECT().Wait(gomock.Any()).Return([]*vmmModels.Vm{createdVM}, nil)
 		mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctxWithRequestID(), gomock.Any()).Return(mockCreateOp, nil)
+		// createAndWaitForVM checks the create task status once before resolving the VM.
+		mockConvergedClient.MockTasks.EXPECT().Get(ctxWithRequestID(), "create-task-uuid").Return(&prismModels.Task{
+			ExtId:  ptr.To("create-task-uuid"),
+			Status: ptr.To(prismModels.TASKSTATUS_SUCCEEDED),
+		}, nil)
 
 		// Create machine context (PC 7.5 uses V3 project API, so ListAllProject mock is used)
 		rctx := &nctx.MachineContext{
@@ -4314,8 +4472,13 @@ func TestNutanixMachineReconciler_getOrCreateVM(t *testing.T) {
 		createdVM.Name = ptr.To(vmName)
 		createdVM.ExtId = nil
 		mockCreateOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
+		mockCreateOp.EXPECT().UUID().Return("create-task-uuid").AnyTimes()
 		mockCreateOp.EXPECT().Wait(gomock.Any()).Return([]*vmmModels.Vm{createdVM}, nil)
 		mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctxWithRequestID(), gomock.Any()).Return(mockCreateOp, nil)
+		mockConvergedClient.MockTasks.EXPECT().Get(ctxWithRequestID(), "create-task-uuid").Return(&prismModels.Task{
+			ExtId:  ptr.To("create-task-uuid"),
+			Status: ptr.To(prismModels.TASKSTATUS_SUCCEEDED),
+		}, nil)
 
 		rctx := &nctx.MachineContext{
 			Context:         ctx,
@@ -4613,35 +4776,93 @@ func Test_createAndWaitForVM(t *testing.T) {
 	createdVM.Name = ptr.To(vmName)
 	createdVM.ExtId = ptr.To("vm-uuid")
 
+	const taskUUID = "task-uuid"
+
 	tests := []struct {
-		name           string
-		waitResult     []*vmmModels.Vm
-		wantErrSubstr  string
-		wantFailure    bool
-		wantReturnedVM bool
+		name string
+		// taskStatus is the status returned by Tasks.Get for the create task.
+		taskStatus prismModels.TaskStatus
+		// taskGetErr, when set, makes Tasks.Get return an error (transient).
+		taskGetErr error
+		// nilTask, when true, makes Tasks.Get return a (nil, nil) response.
+		nilTask bool
+		// expectWait is true when the status check is expected to proceed to op.Wait.
+		expectWait bool
+		waitResult []*vmmModels.Vm
+
+		wantErrSubstr    string
+		wantInProgress   bool
+		wantFailure      bool
+		wantReturnedVM   bool
+		wantNoFailureSet bool
 	}{
 		{
-			name:           "returns the VM when wait yields exactly one",
+			name:           "returns the VM when task succeeded and wait yields exactly one",
+			taskStatus:     prismModels.TASKSTATUS_SUCCEEDED,
+			expectWait:     true,
 			waitResult:     []*vmmModels.Vm{createdVM},
 			wantReturnedVM: true,
 		},
 		{
-			name:          "fails when wait yields no VMs",
+			name:          "fails when task succeeded but wait yields no VMs",
+			taskStatus:    prismModels.TASKSTATUS_SUCCEEDED,
+			expectWait:    true,
 			waitResult:    []*vmmModels.Vm{},
 			wantErrSubstr: "expected exactly 1 VM, got 0",
 			wantFailure:   true,
 		},
 		{
-			name:          "fails when wait yields a nil VM",
+			name:          "fails when task succeeded but wait yields a nil VM",
+			taskStatus:    prismModels.TASKSTATUS_SUCCEEDED,
+			expectWait:    true,
 			waitResult:    []*vmmModels.Vm{nil},
 			wantErrSubstr: "expected exactly 1 VM, got 1",
 			wantFailure:   true,
 		},
 		{
-			name:          "fails when wait yields more than one VM",
+			name:          "fails when task succeeded but wait yields more than one VM",
+			taskStatus:    prismModels.TASKSTATUS_SUCCEEDED,
+			expectWait:    true,
 			waitResult:    []*vmmModels.Vm{createdVM, createdVM},
 			wantErrSubstr: "expected exactly 1 VM, got 2",
 			wantFailure:   true,
+		},
+		{
+			name:           "requeues (in progress) when task is still running",
+			taskStatus:     prismModels.TASKSTATUS_RUNNING,
+			wantInProgress: true,
+		},
+		{
+			name:           "requeues (in progress) when task is still queued",
+			taskStatus:     prismModels.TASKSTATUS_QUEUED,
+			wantInProgress: true,
+		},
+		{
+			name:           "requeues (in progress) when the task cannot be read yet",
+			taskGetErr:     fmt.Errorf("transient read error"),
+			wantInProgress: true,
+		},
+		{
+			name:           "requeues (in progress) when the task has no status yet",
+			nilTask:        true,
+			wantInProgress: true,
+		},
+		{
+			name:          "returns a prism task failure when the task failed, without failureReason",
+			taskStatus:    prismModels.TASKSTATUS_FAILED,
+			wantErrSubstr: "task task-uuid failed:",
+			wantFailure:   false,
+		},
+		{
+			name:          "returns a prism task failure when the task was canceled, without failureReason",
+			taskStatus:    prismModels.TASKSTATUS_CANCELED,
+			wantErrSubstr: "task task-uuid was canceled",
+			wantFailure:   false,
+		},
+		{
+			name:           "requeues (in progress) when the task is canceling",
+			taskStatus:     prismModels.TASKSTATUS_CANCELING,
+			wantInProgress: true,
 		},
 	}
 
@@ -4652,8 +4873,31 @@ func Test_createAndWaitForVM(t *testing.T) {
 
 			mockConvergedClient := NewMockConvergedClient(ctrl)
 			mockCreateOp := mockconverged.NewMockOperation[vmmModels.Vm](ctrl)
-			mockCreateOp.EXPECT().Wait(ctx).Return(tt.waitResult, nil)
+			mockCreateOp.EXPECT().UUID().Return(taskUUID).AnyTimes()
 			mockConvergedClient.MockVMs.EXPECT().CreateAsync(ctx, gomock.Any()).Return(mockCreateOp, nil)
+
+			switch {
+			case tt.taskGetErr != nil:
+				mockConvergedClient.MockTasks.EXPECT().Get(ctx, taskUUID).Return(nil, tt.taskGetErr)
+			case tt.nilTask:
+				mockConvergedClient.MockTasks.EXPECT().Get(ctx, taskUUID).Return(nil, nil)
+			default:
+				mockConvergedClient.MockTasks.EXPECT().Get(ctx, taskUUID).Return(&prismModels.Task{
+					ExtId:  ptr.To(taskUUID),
+					Status: ptr.To(tt.taskStatus),
+				}, nil)
+			}
+
+			if tt.expectWait {
+				mockCreateOp.EXPECT().Wait(ctx).Return(tt.waitResult, nil)
+			}
+			// Failed/canceled branches enrich the error by listing failed subtasks.
+			// CANCELING stays in progress and must not expect a subtask list.
+			if tt.taskStatus == prismModels.TASKSTATUS_FAILED ||
+				tt.taskStatus == prismModels.TASKSTATUS_CANCELED {
+				mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil).AnyTimes()
+				mockConvergedClient.MockTasks.EXPECT().Get(ctx, gomock.Any()).Return(nil, nil).AnyTimes()
+			}
 
 			ntnxMachine := &infrav1.NutanixMachine{}
 			rctx := &nctx.MachineContext{
@@ -4663,23 +4907,185 @@ func Test_createAndWaitForVM(t *testing.T) {
 			}
 
 			vm, err := createAndWaitForVM(ctx, rctx, vmmModels.NewVm(), vmName)
+
+			if tt.wantInProgress {
+				require.Error(t, err)
+				assert.True(t, isVMCreationInProgress(err), "expected errVMCreationInProgress, got %v", err)
+				assert.Nil(t, vm)
+				assert.Nil(t, ntnxMachine.Status.FailureReason)
+				assert.Equal(t, taskUUID, ntnxMachine.Annotations[VMCreationTaskIDAnnotation])
+				return
+			}
+
 			if tt.wantReturnedVM {
 				require.NoError(t, err)
 				require.NotNil(t, vm)
 				assert.Equal(t, createdVM, vm)
 				assert.Nil(t, ntnxMachine.Status.FailureReason)
+				assert.Empty(t, ntnxMachine.Annotations[VMCreationTaskIDAnnotation])
 				return
 			}
 
 			require.Error(t, err)
+			assert.False(t, isVMCreationInProgress(err))
 			assert.Nil(t, vm)
 			assert.ErrorContains(t, err, tt.wantErrSubstr)
+			assert.Empty(t, ntnxMachine.Annotations[VMCreationTaskIDAnnotation])
 			if tt.wantFailure {
 				require.NotNil(t, ntnxMachine.Status.FailureReason)
 				assert.Equal(t, createErrorFailureReason, *ntnxMachine.Status.FailureReason)
+			} else {
+				assert.Nil(t, ntnxMachine.Status.FailureReason)
+				assert.True(t, isPrismTaskFailed(err), "got %v", err)
 			}
 		})
 	}
+}
+
+func Test_pollPendingVMCreation(t *testing.T) {
+	ctx := context.Background()
+	const (
+		taskUUID = "task-uuid"
+		vmName   = "test-vm"
+		vmUUID   = "vm-uuid"
+	)
+	createdVM := vmmModels.NewVm()
+	createdVM.Name = ptr.To(vmName)
+	createdVM.ExtId = ptr.To(vmUUID)
+
+	newMachine := func() *infrav1.NutanixMachine {
+		return &infrav1.NutanixMachine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      vmName,
+				Namespace: "default",
+				Annotations: map[string]string{
+					VMCreationTaskIDAnnotation: taskUUID,
+				},
+			},
+		}
+	}
+
+	t.Run("running requeues without CreateAsync", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockTasks.EXPECT().Get(ctx, taskUUID).Return(&prismModels.Task{
+			ExtId:  ptr.To(taskUUID),
+			Status: ptr.To(prismModels.TASKSTATUS_RUNNING),
+		}, nil)
+
+		ntnxMachine := newMachine()
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Machine:         &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}},
+			NutanixMachine:  ntnxMachine,
+			ConvergedClient: mockConvergedClient.Client,
+		}
+		reconciler := &NutanixMachineReconciler{}
+
+		vm, err := reconciler.pollPendingVMCreation(rctx, taskUUID)
+		require.Error(t, err)
+		assert.True(t, isVMCreationInProgress(err))
+		assert.Nil(t, vm)
+		assert.Nil(t, ntnxMachine.Status.FailureReason)
+		assert.Equal(t, taskUUID, ntnxMachine.Annotations[VMCreationTaskIDAnnotation])
+	})
+
+	t.Run("succeeded resolves one VM and clears the annotation", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockTasks.EXPECT().Get(ctx, taskUUID).Return(&prismModels.Task{
+			ExtId:  ptr.To(taskUUID),
+			Status: ptr.To(prismModels.TASKSTATUS_SUCCEEDED),
+			EntitiesAffected: []prismModels.EntityReference{
+				{ExtId: ptr.To("missing-entity"), Rel: ptr.To("")},
+				{ExtId: ptr.To(vmUUID), Rel: ptr.To(vmEntityRel)},
+				{ExtId: ptr.To("disk-entity"), Rel: ptr.To("vmm:ahv:disk")},
+			},
+		}, nil)
+		mockConvergedClient.MockVMs.EXPECT().Get(ctx, "missing-entity").Return(nil, converged.ErrNotFound)
+		mockConvergedClient.MockVMs.EXPECT().Get(ctx, vmUUID).Return(createdVM, nil)
+
+		stored := newMachine()
+		scheme := runtime.NewScheme()
+		require.NoError(t, infrav1.AddToScheme(scheme))
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(stored).WithStatusSubresource(stored).Build()
+
+		ntnxMachine := stored.DeepCopy()
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Machine:         &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}},
+			NutanixMachine:  ntnxMachine,
+			ConvergedClient: mockConvergedClient.Client,
+		}
+		reconciler := &NutanixMachineReconciler{Client: fakeClient}
+
+		vm, err := reconciler.pollPendingVMCreation(rctx, taskUUID)
+		require.NoError(t, err)
+		require.NotNil(t, vm)
+		assert.Equal(t, vmUUID, ptr.Deref(vm.ExtId, ""))
+		assert.Equal(t, vmUUID, ntnxMachine.Status.VmUUID)
+		assert.Equal(t, GenerateProviderID(vmUUID), ntnxMachine.Spec.ProviderID)
+		assert.Empty(t, ntnxMachine.Annotations[VMCreationTaskIDAnnotation])
+		assert.Nil(t, ntnxMachine.Status.FailureReason)
+	})
+
+	t.Run("failed returns prism task failure without failureReason and clears the annotation", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockTasks.EXPECT().Get(ctx, taskUUID).Return(&prismModels.Task{
+			ExtId:  ptr.To(taskUUID),
+			Status: ptr.To(prismModels.TASKSTATUS_FAILED),
+		}, nil)
+		mockConvergedClient.MockTasks.EXPECT().List(ctx, gomock.Any()).Return([]prismModels.Task{}, nil)
+
+		ntnxMachine := newMachine()
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Machine:         &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}},
+			NutanixMachine:  ntnxMachine,
+			ConvergedClient: mockConvergedClient.Client,
+		}
+		reconciler := &NutanixMachineReconciler{}
+
+		vm, err := reconciler.pollPendingVMCreation(rctx, taskUUID)
+		require.Error(t, err)
+		assert.True(t, isPrismTaskFailed(err), "got %v", err)
+		assert.False(t, isVMCreationInProgress(err))
+		assert.False(t, isVMCreationTaskNotFound(err))
+		assert.Nil(t, vm)
+		assert.Empty(t, ntnxMachine.Annotations[VMCreationTaskIDAnnotation])
+		assert.Nil(t, ntnxMachine.Status.FailureReason)
+	})
+
+	t.Run("not found signals the full-create fallback", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockConvergedClient := NewMockConvergedClient(ctrl)
+		mockConvergedClient.MockTasks.EXPECT().Get(ctx, taskUUID).Return(nil, converged.ErrNotFound)
+
+		ntnxMachine := newMachine()
+		rctx := &nctx.MachineContext{
+			Context:         ctx,
+			Machine:         &capiv1beta2.Machine{ObjectMeta: metav1.ObjectMeta{Name: vmName}},
+			NutanixMachine:  ntnxMachine,
+			ConvergedClient: mockConvergedClient.Client,
+		}
+		reconciler := &NutanixMachineReconciler{}
+
+		vm, err := reconciler.pollPendingVMCreation(rctx, taskUUID)
+		require.Error(t, err)
+		assert.True(t, isVMCreationTaskNotFound(err))
+		assert.Nil(t, vm)
+		assert.Nil(t, ntnxMachine.Status.FailureReason)
+		assert.Empty(t, ntnxMachine.Annotations[VMCreationTaskIDAnnotation])
+	})
 }
 
 func TestNutanixMachineReconciler_addCustomAttributes(t *testing.T) {
@@ -5273,8 +5679,8 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
-		// Create reconciler
-		reconciler := &NutanixMachineReconciler{}
+		// Create reconciler with a fake client so the adoption path can persist identity.
+		reconciler := &NutanixMachineReconciler{Client: newGetOrCreateVMFakeClient(t, ntnxMachine)}
 
 		// Test getOrCreateVM - should use systemUUID, not VmUUID
 		vm, err := reconciler.getOrCreateVM(rctx, &nctx.ProjectInfo{ExtID: &testProjectExtID, Name: ptr.To("test-project")}, nil)
@@ -5345,8 +5751,8 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
-		// Create reconciler
-		reconciler := &NutanixMachineReconciler{}
+		// Create reconciler with a fake client so the adoption path can persist identity.
+		reconciler := &NutanixMachineReconciler{Client: newGetOrCreateVMFakeClient(t, ntnxMachine)}
 
 		// Test getOrCreateVM - should use VmUUID
 		vm, err := reconciler.getOrCreateVM(rctx, &nctx.ProjectInfo{ExtID: &testProjectExtID, Name: ptr.To("test-project")}, nil)
@@ -5419,8 +5825,8 @@ func TestNutanixMachineReconciler_VMUUIDPrioritization(t *testing.T) {
 			ConvergedClient: mockConvergedClient.Client,
 		}
 
-		// Create reconciler
-		reconciler := &NutanixMachineReconciler{}
+		// Create reconciler with a fake client so the adoption path can persist identity.
+		reconciler := &NutanixMachineReconciler{Client: newGetOrCreateVMFakeClient(t, ntnxMachine)}
 
 		// Test getOrCreateVM - should use VmUUID
 		vm, err := reconciler.getOrCreateVM(rctx, &nctx.ProjectInfo{ExtID: &testProjectExtID, Name: ptr.To("test-project")}, nil)

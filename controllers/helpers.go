@@ -98,6 +98,11 @@ const (
 	// that did not adopt a VM. It survives the retry-after window so a later failure
 	// can become terminal. Cleared once a VM is adopted or created.
 	VMCreateFailureCountAnnotation = "capx.nutanix.com/vm-create-failure-count"
+	// VMCreationTaskIDAnnotation holds the Prism task UUID returned by the VM Create call.
+	// While that task is still running, reconcile polls this task instead of rebuilding the
+	// VM spec and calling Create again. It lives in an annotation, not status, for the same
+	// clusterctl-move reason as VMCreationRequestIDAnnotation.
+	VMCreationTaskIDAnnotation = "capx.nutanix.com/vm-creation-task-id"
 
 	metroFailureDomainPrefix         = "NutanixMetro/"
 	metroSiteFailureDomainPrefix     = "NutanixMetroSite/"
